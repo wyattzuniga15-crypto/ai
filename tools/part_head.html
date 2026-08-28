@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Cube Roll — 3D Puzzle</title>
+<style>
+:root{--accent:#ffb347;--accent2:#ff7a3d;--bg1:#1b2140;--bg2:#070a16;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:#eef;background:radial-gradient(ellipse at 50% 30%,var(--bg1) 0%,var(--bg2) 75%);transition:background 1.2s;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:fixed;inset:0;touch-action:none}
+#hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;opacity:0;transition:opacity .3s}
+#hud.on{opacity:1}
+#top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;gap:10px}
+.card{background:rgba(10,14,30,.55);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 14px;pointer-events:auto;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+#lvl{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#9fb0ff;opacity:.9}
+#name{font-size:20px;font-weight:700;margin-top:2px}
+#stats{display:flex;gap:18px;margin-top:6px;font-size:13px;color:#cbd3ff;flex-wrap:wrap}
+#stats b{color:#fff;font-size:16px}
+#stars{letter-spacing:2px;color:var(--accent)}
+#btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:52vw}
+button{pointer-events:auto;cursor:pointer;font:inherit;border:1px solid rgba(255,255,255,.12);background:rgba(20,26,50,.7);color:#eef;border-radius:12px;padding:9px 14px;font-size:14px;backdrop-filter:blur(8px);transition:transform .08s,background .15s,border-color .15s}
+button:hover{background:rgba(60,70,120,.75);border-color:rgba(255,255,255,.25)}
+button:active{transform:scale(.96)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#1a1200;font-weight:700;border:none}
+button.primary:hover{filter:brightness(1.08)}
+button.ghost{background:rgba(255,255,255,.05)}
+kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.12);margin-left:6px;color:#cdd}
+#bottom{padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+#hint{max-width:420px;font-size:14px;color:#dfe5ff;line-height:1.4}
+#hint em{color:var(--accent);font-style:normal;font-weight:600}
+#msg{position:fixed;left:50%;top:18%;transform:translateX(-50%);font-size:26px;font-weight:800;letter-spacing:.04em;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.6);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;z-index:6}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,14,.72);backdrop-filter:blur(10px);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.panel{background:rgba(16,20,40,.92);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:26px 28px;max-width:min(94vw,860px);width:min(94vw,860px);max-height:92vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center}
+.panel.sm{width:min(94vw,560px)}
+.panel h1{font-size:clamp(30px,6vw,46px);letter-spacing:.06em;background:linear-gradient(135deg,#fff,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900}
+.panel h2{font-size:24px;margin-bottom:6px}
+.panel h3{font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:#8fa0e8;margin:18px 0 8px;text-align:left}
+.panel p{color:#c8d0f0;margin:10px 0 16px;line-height:1.5;font-size:15px}
+.sub{font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:#8fa0e8;margin-top:-2px}
+.tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:18px 0 4px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:12px}
+.tabs button{font-size:13px;padding:8px 14px;letter-spacing:.08em;text-transform:uppercase}
+.tabs button.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#1a1200;font-weight:700;border-color:transparent}
+.pane{display:none;text-align:left;padding-top:6px}
+.pane.on{display:block;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px;margin:10px 0 18px}
+.lv{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px 6px;background:rgba(255,255,255,.04);cursor:pointer;transition:.15s;pointer-events:auto;text-align:center}
+.lv:hover{background:rgba(255,255,255,.1);transform:translateY(-2px)}
+.lv.locked{opacity:.3;cursor:not-allowed}
+.lv.done{border-color:rgba(255,179,71,.35)}
+.lv .n{font-size:21px;font-weight:800}
+.lv .t{font-size:10.5px;color:#aab;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lv .s{font-size:12px;color:var(--accent);margin-top:4px;letter-spacing:1px;min-height:14px}
+.lv .g{font-size:10px;color:#8fe3c4;min-height:12px}
+.chapter{display:flex;align-items:center;gap:12px;margin:16px 0 2px}
+.chapter .cn{font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#cfd8ff}
+.chapter .cl{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.18),transparent)}
+.chapter .cp{font-size:12px;color:#8fa0e8}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 18px;text-align:left;font-size:14px;color:#d5dbf5;margin:10px 0 6px}
+.legend span{display:flex;align-items:center;gap:10px}
+.sw{width:18px;height:18px;border-radius:5px;display:inline-block;flex:none;box-shadow:inset 0 -3px 0 rgba(0,0,0,.3)}
+.bigstars{font-size:40px;letter-spacing:6px;color:var(--accent);margin:6px 0;text-shadow:0 0 30px rgba(255,180,71,.6)}
+.bigstars .off{color:rgba(255,255,255,.15);text-shadow:none}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(20,26,50,.92);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;z-index:11;max-width:80vw;text-align:center}
+#dpad{display:none;position:fixed;right:18px;bottom:18px;width:150px;height:150px;pointer-events:auto;z-index:4}
+#dpad button{position:absolute;width:48px;height:48px;border-radius:50%;font-size:20px;padding:0;display:flex;align-items:center;justify-content:center}
+/* menu extras */
+.hero{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:4px}
+.tally{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0 2px}
+.tally div{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px 14px;min-width:92px}
+.tally b{display:block;font-size:20px;color:#fff}
+.tally span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8fa0e8}
+.mission{display:flex;gap:12px;align-items:center;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035);border-radius:14px;padding:11px 14px;margin-bottom:8px}
+.mission.done{border-color:rgba(110,231,183,.4);background:rgba(16,185,129,.09)}
+.mission .mi{font-size:22px;width:34px;text-align:center;flex:none}
+.mission .mb{flex:1;min-width:0}
+.mission .mt{font-weight:700;font-size:15px}
+.mission .md{font-size:12.5px;color:#aab6e8;margin-top:1px}
+.bar{height:6px;border-radius:4px;background:rgba(255,255,255,.1);margin-top:7px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width .4s}
+.mission .mr{font-size:11px;color:#8fe3c4;text-align:right;flex:none;max-width:120px}
+.skins{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin:8px 0 14px}
+.skin{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px;background:rgba(255,255,255,.04);cursor:pointer;transition:.15s;text-align:center}
+.skin:hover{transform:translateY(-2px);background:rgba(255,255,255,.09)}
+.skin.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,0 6px 24px rgba(255,179,71,.18)}
+.skin.locked{opacity:.45;cursor:not-allowed}
+.chip{width:100%;height:46px;border-radius:10px;margin-bottom:7px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25)}
+.skin .sn{font-size:13px;font-weight:700}
+.skin .sd{font-size:10.5px;color:#8fa0e8;margin-top:2px;min-height:13px;line-height:1.25}
+.set{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 2px;border-bottom:1px solid rgba(255,255,255,.06);font-size:14.5px}
+.set small{display:block;color:#8fa0e8;font-size:12px;margin-top:2px}
+table.stat{width:100%;border-collapse:collapse;font-size:14px}
+table.stat td{padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);color:#c8d0f0}
+table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
+@media (pointer:coarse){#dpad{display:block}#bottom{padding-bottom:180px}#hint{max-width:calc(100vw - 200px)}}
+@media (max-width:640px){#name{font-size:16px}#stats{gap:10px;font-size:12px}button{padding:8px 10px;font-size:13px}kbd{display:none}.panel{padding:20px 16px}#btns{max-width:60vw}}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div id="top">
+    <div class="card">
+      <div id="lvl">Level 1 / 50</div>
+      <div id="name">First Steps</div>
+      <div id="stats"><span>Moves <b id="moves">0</b></span><span>Par <b id="par">0</b></span><span>Best <b id="best">—</b></span><span id="stars"></span></div>
+    </div>
+    <div id="btns">
+      <button id="bUndo" title="Undo (Z)">↶ Undo<kbd>Z</kbd></button>
+      <button id="bReset" title="Reset (R)">↻ Reset<kbd>R</kbd></button>
+      <button id="bHint" title="Hint (H)">💡 Hint<kbd>H</kbd></button>
+      <button id="bMenu" title="Menu (Esc)">☰ Menu<kbd>Esc</kbd></button>
+      <button id="bSound" title="Sound (M)">🔊</button>
+    </div>
+  </div>
+  <div id="bottom">
+    <div id="hint" class="card"></div>
+    <div class="card" style="font-size:12px;color:#aab6e8">Drag to orbit · Scroll to zoom · Arrows/WASD to roll</div>
+  </div>
+</div>
+<div id="dpad"><button data-d="up" style="left:51px;top:0">▲</button><button data-d="left" style="left:0;top:51px">◀</button><button data-d="right" style="left:102px;top:51px">▶</button><button data-d="down" style="left:51px;top:102px">▼</button></div>
+<div id="msg"></div>
+<div id="toast"></div>
+
+<div id="ovMenu" class="overlay show"><div class="panel">
+  <div class="hero">
+    <h1>CUBE ROLL</h1>
+    <div class="sub">50 floating islands</div>
+  </div>
+  <div class="tally" id="menuTally"></div>
+  <div class="tabs" id="menuTabs">
+    <button data-tab="play" class="on">Play</button>
+    <button data-tab="levels">Levels</button>
+    <button data-tab="missions">Missions</button>
+    <button data-tab="skins">Skins</button>
+    <button data-tab="stats">Stats</button>
+    <button data-tab="help">How to play</button>
+    <button data-tab="settings">Settings</button>
+  </div>
+
+  <div class="pane on" id="paneplay">
+    <p id="playBlurb" style="text-align:center"></p>
+    <div class="row">
+      <button class="primary" id="bContinue" style="font-size:17px;padding:13px 28px">Continue ▶</button>
+      <button id="bPlayLevels">Level select</button>
+      <button id="bPlayMissions">Missions</button>
+    </div>
+    <h3>Next up</h3>
+    <div id="nextCard"></div>
+    <h3>Featured mission</h3>
+    <div id="featMission"></div>
+  </div>
+
+  <div class="pane" id="panelevels">
+    <div id="lvGrid"></div>
+  </div>
+
+  <div class="pane" id="panemissions">
+    <p style="margin-top:4px">Side quests that run across the whole game. Finishing one unlocks a skin.</p>
+    <div id="missionList"></div>
+  </div>
+
+  <div class="pane" id="paneskins">
+    <p style="margin-top:4px">Earn stars and clear missions to unlock cubes, tile sets and skies. Tap one to equip it.</p>
+    <h3>Cube</h3><div class="skins" id="skinCube"></div>
+    <h3>Tiles</h3><div class="skins" id="skinTile"></div>
+    <h3>Sky</h3><div class="skins" id="skinSky"></div>
+  </div>
+
+  <div class="pane" id="panestats">
+    <table class="stat" id="statTable"></table>
+  </div>
+
+  <div class="pane" id="panehelp">
+    <p style="margin-top:4px">Roll the block across the floating islands and drop it <em style="color:var(--accent);font-style:normal">standing upright</em> into the goal. A block lying down covers two tiles — which two depends on how you got there.</p>
+    <h3>Tiles</h3>
+    <div class="legend">
+      <span><i class="sw" style="background:#5b6ea8"></i>Floor — safe in any position</span>
+      <span><i class="sw" style="background:#f08a3c"></i>Glass — shatters if you stand upright on it</span>
+      <span><i class="sw" style="background:#8b8272"></i>Crumble — one use only; gone once you roll off</span>
+      <span><i class="sw" style="background:#74d4ff"></i>Ice — you keep sliding until you leave it</span>
+      <span><i class="sw" style="background:#c084fc;border-radius:50%"></i>Pin — holds you upright, never lying down</span>
+      <span><i class="sw" style="background:#8b5cf6;border-radius:50%"></i>Portal — lands you on its twin when upright</span>
+      <span><i class="sw" style="background:#2dd4bf;border-radius:50%"></i>Round switch — any touch toggles a bridge</span>
+      <span><i class="sw" style="background:#f472b6"></i>Square switch — needs the block upright</span>
+      <span><i class="sw" style="background:#38bdf8"></i>Bridge — appears / disappears</span>
+      <span><i class="sw" style="background:#ffb347;transform:rotate(45deg)"></i>Star — optional, any contact</span>
+      <span><i class="sw" style="background:#ffd166"></i>Star pad — a star you must stand on to claim</span>
+      <span><i class="sw" style="background:#6b7280"></i>Sealed goal — opens once every star is claimed</span>
+    </div>
+    <h3>Controls</h3>
+    <div class="legend">
+      <span>Arrows / WASD — roll</span><span>Swipe — roll (touch)</span>
+      <span>Z — undo</span><span>R — restart level</span>
+      <span>H — hint</span><span>Esc — menu</span>
+      <span>M — mute</span><span>Drag / scroll — orbit &amp; zoom</span>
+    </div>
+    <h3>Ratings</h3>
+    <p>Finish on or under par for ★★★, within four moves of par for ★★, anything else for ★. Stars scattered on the island are counted separately — they are what buy your skins.</p>
+  </div>
+
+  <div class="pane" id="panesettings">
+    <div class="set"><div>Sound<small>Rolls, switches, fanfares</small></div><button id="setSound">On</button></div>
+    <div class="set"><div>Camera-relative controls<small>Off: arrows always match the world grid</small></div><button id="setCamRel">On</button></div>
+    <div class="set"><div>Screen shake<small>Impact feedback on falls and breaks</small></div><button id="setShake">On</button></div>
+    <div class="set"><div>Show hint button<small>Hide it for an honest run</small></div><button id="setHintBtn">On</button></div>
+    <div class="set"><div>Unlock every level<small>Skip ahead — ratings and stars still count</small></div><button id="setUnlockAll">Unlock</button></div>
+    <div class="set"><div>Erase progress<small>Levels, stars, missions and skins</small></div><button id="setWipe">Erase</button></div>
+    <p style="font-size:12px;opacity:.6;margin-top:16px">Progress is stored in this browser only.</p>
+  </div>
+</div></div>
+
+<div id="ovWin" class="overlay"><div class="panel sm">
+  <h2 id="winTitle">Level complete!</h2>
+  <div id="winStars" class="bigstars"></div>
+  <p id="winText"></p>
+  <div id="winUnlocks"></div>
+  <div class="row"><button id="bRetry">Retry</button><button id="bWinMenu">Menu</button><button class="primary" id="bNext">Next level ▶</button></div>
+</div></div>
+
+<div id="ovEnd" class="overlay"><div class="panel sm">
+  <h1>You did it!</h1>
+  <p id="endText"></p>
+  <div class="row"><button id="bEndMenu">Main menu</button><button class="primary" id="bEndReplay">Play again from 1</button></div>
+</div></div>
