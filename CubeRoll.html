@@ -55,6 +55,8 @@ kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px
 .lv .t{font-size:10.5px;color:#aab;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lv .s{font-size:12px;color:var(--accent);margin-top:4px;letter-spacing:1px;min-height:14px}
 .lv .g{font-size:10px;color:#8fe3c4;min-height:12px}
+.lv .mx{font-size:10px;line-height:1.3;min-height:13px;letter-spacing:1px;opacity:.85}
+.lv .mx i{font-style:normal}
 .chapter{display:flex;align-items:center;gap:12px;margin:16px 0 2px}
 .chapter .cn{font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#cfd8ff}
 .chapter .cl{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.18),transparent)}
@@ -104,7 +106,7 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
 <div id="hud">
   <div id="top">
     <div class="card">
-      <div id="lvl">Level 1 / 50</div>
+      <div id="lvl">Level 1 / 70</div>
       <div id="name">First Steps</div>
       <div id="stats"><span>Moves <b id="moves">0</b></span><span>Par <b id="par">0</b></span><span>Best <b id="best">—</b></span><span id="stars"></span></div>
     </div>
@@ -128,12 +130,13 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
 <div id="ovMenu" class="overlay show"><div class="panel">
   <div class="hero">
     <h1>CUBE ROLL</h1>
-    <div class="sub">50 floating islands</div>
+    <div class="sub">70 floating islands</div>
   </div>
   <div class="tally" id="menuTally"></div>
   <div class="tabs" id="menuTabs">
     <button data-tab="play" class="on">Play</button>
     <button data-tab="levels">Levels</button>
+    <button data-tab="challenge">Challenge</button>
     <button data-tab="missions">Missions</button>
     <button data-tab="skins">Skins</button>
     <button data-tab="stats">Stats</button>
@@ -146,6 +149,7 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <div class="row">
       <button class="primary" id="bContinue" style="font-size:17px;padding:13px 28px">Continue ▶</button>
       <button id="bPlayLevels">Level select</button>
+      <button id="bPlayChallenge">Daily &amp; Endless</button>
       <button id="bPlayMissions">Missions</button>
     </div>
     <h3>Next up</h3>
@@ -158,6 +162,16 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <div id="lvGrid"></div>
   </div>
 
+  <div class="pane" id="panechallenge">
+    <p style="margin-top:4px">Islands forged on the spot by the same rules engine the campaign uses — every one is proven solvable before you see it, and its par is the true optimum.</p>
+    <h3>Daily challenge</h3>
+    <div id="dailyCard"></div>
+    <div class="row" style="justify-content:flex-start"><button class="primary" id="bDaily">Play today's island ▶</button></div>
+    <h3>Endless</h3>
+    <div id="endlessCard"></div>
+    <div class="row" style="justify-content:flex-start"><button class="primary" id="bEndless">Start run ▶</button><button id="bEndlessReset" class="ghost">Abandon run</button></div>
+  </div>
+
   <div class="pane" id="panemissions">
     <p style="margin-top:4px">Side quests that run across the whole game. Finishing one unlocks a skin.</p>
     <div id="missionList"></div>
@@ -168,6 +182,7 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <h3>Cube</h3><div class="skins" id="skinCube"></div>
     <h3>Tiles</h3><div class="skins" id="skinTile"></div>
     <h3>Sky</h3><div class="skins" id="skinSky"></div>
+    <h3>Trail</h3><div class="skins" id="skinTrail"></div>
   </div>
 
   <div class="pane" id="panestats">
@@ -184,6 +199,9 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
       <span><i class="sw" style="background:#74d4ff"></i>Ice — you keep sliding until you leave it</span>
       <span><i class="sw" style="background:#c084fc;border-radius:50%"></i>Pin — holds you upright, never lying down</span>
       <span><i class="sw" style="background:#8b5cf6;border-radius:50%"></i>Portal — lands you on its twin when upright</span>
+      <span><i class="sw" style="background:#22c55e"></i>Spring — fires you three tiles on, over any gap</span>
+      <span><i class="sw" style="background:#22d3ee;border-radius:50%"></i>Key — mandatory; every one opens the gates</span>
+      <span><i class="sw" style="background:#ef4444"></i>Gate — thin air until you hold every key</span>
       <span><i class="sw" style="background:#2dd4bf;border-radius:50%"></i>Round switch — any touch toggles a bridge</span>
       <span><i class="sw" style="background:#f472b6"></i>Square switch — needs the block upright</span>
       <span><i class="sw" style="background:#38bdf8"></i>Bridge — appears / disappears</span>
@@ -199,18 +217,34 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
       <span>M — mute</span><span>Drag / scroll — orbit &amp; zoom</span>
     </div>
     <h3>Ratings</h3>
-    <p>Finish on or under par for ★★★, within four moves of par for ★★, anything else for ★. Stars scattered on the island are counted separately — they are what buy your skins.</p>
+    <p>Finish on or under par for ★★★, within four moves of par for ★★, anything else for ★. Par is the true optimum — every island in the game was solved by machine before you saw it. Stars scattered on the island are counted separately; they are what buy your skins.</p>
+    <h3>Daily and Endless</h3>
+    <p>The Challenge tab forges brand-new islands in your browser using the same rules engine, so they are proven solvable before they appear. The daily island is the same one for everybody; the endless run gets harder with every island you clear.</p>
   </div>
 
   <div class="pane" id="panesettings">
     <div class="set"><div>Sound<small>Rolls, switches, fanfares</small></div><button id="setSound">On</button></div>
+    <div class="set"><div>Ambient music<small>A slow pad under the puzzling. Off by default.</small></div><button id="setMusic">Off</button></div>
     <div class="set"><div>Camera-relative controls<small>Off: arrows always match the world grid</small></div><button id="setCamRel">On</button></div>
     <div class="set"><div>Screen shake<small>Impact feedback on falls and breaks</small></div><button id="setShake">On</button></div>
     <div class="set"><div>Show hint button<small>Hide it for an honest run</small></div><button id="setHintBtn">On</button></div>
+    <div class="set"><div>Tutorial cards<small>Explain each kind of ground the first time you meet it</small></div><button id="setTeach">On</button></div>
     <div class="set"><div>Unlock every level<small>Skip ahead — ratings and stars still count</small></div><button id="setUnlockAll">Unlock</button></div>
     <div class="set"><div>Erase progress<small>Levels, stars, missions and skins</small></div><button id="setWipe">Erase</button></div>
     <p style="font-size:12px;opacity:.6;margin-top:16px">Progress is stored in this browser only.</p>
   </div>
+</div></div>
+
+<div id="ovTeach" class="overlay"><div class="panel sm">
+  <div id="teachIcon" style="font-size:44px;margin-bottom:4px"></div>
+  <h2 id="teachTitle"></h2>
+  <p id="teachBody"></p>
+  <div class="row"><button class="primary" id="bTeachOk">Got it</button></div>
+</div></div>
+
+<div id="ovForge" class="overlay"><div class="panel sm">
+  <h2>Forging an island…</h2>
+  <p>Carving ground, placing tiles, and proving it can be solved.</p>
 </div></div>
 
 <div id="ovWin" class="overlay"><div class="panel sm">
@@ -365,6 +399,9 @@ return {Vector3,Quaternion,Euler,Matrix4,Color,BufferGeometry,BoxGeometry:functi
 //  ^  ice      (you keep sliding the same way until you leave the ice)
 //  P  pin      (a needle of rock: only holds the block standing upright)
 //  T  portal   (pairs in reading order 1<->2, 3<->4; fires when you land upright)
+//  J  launch pad(fires you three tiles further the way you were going, over any gap)
+//  K  key       (mandatory pickup, any contact)
+//  L  lock gate (solid only once every key on the level is held)
 //  *  star     (collectible, any contact)
 //  X  star pad (a star you must claim standing upright)
 //  1-4 soft switch (any contact)   5-8 hard switch (upright only)
@@ -376,7 +413,7 @@ const DIR_LIST = ['up','down','left','right'];
 
 function parseLevel(def){
   const rows = def.map; const h = rows.length; const w = Math.max(...rows.map(r=>r.length));
-  const tiles = []; let start=null, goal=null; const stars=[]; const groups={}; const switches={}; const crumbles=[]; const ports=[];
+  const tiles = []; let start=null, goal=null; const stars=[]; const groups={}; const switches={}; const crumbles=[]; const ports=[]; const keys=[];
   for(let y=0;y<h;y++){ tiles[y]=[]; for(let x=0;x<w;x++){
     const c = rows[y][x] || '.'; let t={type:'void'};
     if(c==='#') t={type:'floor'};
@@ -387,6 +424,9 @@ function parseLevel(def){
     else if(c==='^') t={type:'ice'};
     else if(c==='P') t={type:'pin'};
     else if(c==='T'){ t={type:'port', pi:ports.length}; ports.push({x,y}); }
+    else if(c==='J') t={type:'launch'};
+    else if(c==='K'){ t={type:'keytile', ki:keys.length}; keys.push({x,y}); }
+    else if(c==='L') t={type:'lock'};
     else if(c==='*'){ t={type:'floor', star:true}; stars.push({x,y,pad:false}); }
     else if(c==='X'){ t={type:'starpad'}; stars.push({x,y,pad:true}); }
     else if(c>='1'&&c<='8'){ t={type:'switch', hard:c>='5', id:c}; switches[c]=(def.links||{})[c]||''; }
@@ -395,14 +435,15 @@ function parseLevel(def){
   if(!start||!goal) throw new Error('level missing S or G: '+def.name);
   if(crumbles.length>28) throw new Error('too many crumble tiles: '+def.name);
   if(stars.length>8) throw new Error('too many stars: '+def.name);
+  if(keys.length>4) throw new Error('too many keys: '+def.name);
   const groupNames = Object.keys(groups).sort();
   let initMask=0; groupNames.forEach((g,i)=>{ if(groups[g][0].openInit) initMask|=(1<<i); });
   const lockGoal=!!def.lockGoal && stars.length>0;
-  return { name:def.name, hint:def.hint||'', w,h,tiles,start,goal,stars,groups,groupNames,switches,initMask,crumbles,ports,lockGoal };
+  return { name:def.name, hint:def.hint||'', w,h,tiles,start,goal,stars,groups,groupNames,switches,initMask,crumbles,ports,keys,allKeys:(1<<keys.length)-1,lockGoal };
 }
 
 // state: {x,y,o,mask,stars,crumb}  o: 0 upright, 1 lying along x (x,x+1), 2 lying along y (y,y+1)
-function initialState(L){ return {x:L.start.x,y:L.start.y,o:0,mask:L.initMask,stars:0,crumb:0}; }
+function initialState(L){ return {x:L.start.x,y:L.start.y,o:0,mask:L.initMask,stars:0,crumb:0,keys:0}; }
 function cellsOf(s){ if(s.o===0) return [[s.x,s.y]]; if(s.o===1) return [[s.x,s.y],[s.x+1,s.y]]; return [[s.x,s.y],[s.x,s.y+1]]; }
 function roll(s,dir){
   const {x,y,o}=s;
@@ -417,13 +458,14 @@ function isSolid(L,t,s){
   if(t.type==='void') return false;
   if(t.type==='bridge'){ const i=L.groupNames.indexOf(t.group); return !!(s.mask&(1<<i)); }
   if(t.type==='crumble') return !(s.crumb&(1<<t.ci));
+  if(t.type==='lock') return s.keys===L.allKeys;
   return true;
 }
 // returns {state, result:'ok'|'fall'|'break'|'win', events:[]}
 function step(L,s,dir){
   const ev=[]; let cur=s; let guard=0;
   for(;;){
-    const n=roll(cur,dir); n.mask=cur.mask; n.stars=cur.stars; n.crumb=cur.crumb;
+    const n=roll(cur,dir); n.mask=cur.mask; n.stars=cur.stars; n.crumb=cur.crumb; n.keys=cur.keys;
     // tiles we just rolled off: crumble tiles collapse behind us
     for(const [cx,cy] of cellsOf(cur)){ const t=tileAt(L,cx,cy); if(t.type==='crumble' && !(n.crumb&(1<<t.ci))){ n.crumb|=(1<<t.ci); ev.push({type:'crumble',x:cx,y:cy}); } }
     const cells=cellsOf(n);
@@ -431,14 +473,20 @@ function step(L,s,dir){
     if(n.o===0 && tileAt(L,n.x,n.y).type==='fragile') return {state:n,result:'break',events:ev};
     if(n.o!==0){ for(const [cx,cy] of cells){ if(tileAt(L,cx,cy).type==='pin') return {state:n,result:'fall',events:ev}; } }
     ev.push({type:'roll',to:{x:n.x,y:n.y,o:n.o}});
-    // stars
-    for(const [cx,cy] of cells){ const si=L.stars.findIndex(p=>p.x===cx&&p.y===cy&&(!p.pad||n.o===0)); if(si>=0 && !(n.stars&(1<<si))){ n.stars|=(1<<si); ev.push({type:'star',i:si}); } }
-    // switches
-    let toggle=0;
-    for(const [cx,cy] of cells){ const t=tileAt(L,cx,cy); if(t.type==='switch' && (!t.hard || n.o===0)){ ev.push({type:'switch',id:t.id,x:cx,y:cy}); for(const g of (L.switches[t.id]||'')){ const i=L.groupNames.indexOf(g.toLowerCase()); if(i>=0) toggle|=(1<<i); } } }
-    if(toggle){ n.mask^=toggle; ev.push({type:'toggle',bits:toggle,mask:n.mask}); }
-    // portals fire only under a standing block
-    if(n.o===0){ const t=tileAt(L,n.x,n.y); if(t.type==='port'){ const dest=L.ports[t.pi^1]; if(dest){ ev.push({type:'port',fx:n.x,fy:n.y,tx:dest.x,ty:dest.y}); n.x=dest.x; n.y=dest.y; } } }
+    pickUp(L,n,cellsOf(n),ev);
+    // portals and launch pads both move a standing block; either can chain into the other
+    let hops=0, usedPort=false;
+    while(n.o===0 && hops++<8){
+      const t=tileAt(L,n.x,n.y);
+      if(t.type==='port'){ const dest=L.ports[t.pi^1]; if(!dest||usedPort) break; usedPort=true;
+        ev.push({type:'port',fx:n.x,fy:n.y,tx:dest.x,ty:dest.y}); n.x=dest.x; n.y=dest.y; }
+      else if(t.type==='launch'){ const [dx,dy]=DIRS[dir]; const tx=n.x+dx*3, ty=n.y+dy*3;
+        ev.push({type:'launch',fx:n.x,fy:n.y,tx,ty}); n.x=tx; n.y=ty;
+        if(!isSolid(L,tileAt(L,n.x,n.y),n)) return {state:n,result:'fall',events:ev};
+        if(tileAt(L,n.x,n.y).type==='fragile') return {state:n,result:'break',events:ev}; }
+      else break;
+      pickUp(L,n,cellsOf(n),ev);
+    }
     // goal
     if(n.o===0 && n.x===L.goal.x && n.y===L.goal.y){
       if(!L.lockGoal || n.stars===(1<<L.stars.length)-1) return {state:n,result:'win',events:ev};
@@ -450,12 +498,24 @@ function step(L,s,dir){
     return {state:n,result:'ok',events:ev};
   }
 }
-function key(s){ return s.x+','+s.y+','+s.o+','+s.mask+','+s.crumb; }
+// stars, keys and switches all fire off whatever the block is standing on right now
+function pickUp(L,n,cells,ev){
+  for(const [cx,cy] of cells){
+    const si=L.stars.findIndex(p=>p.x===cx&&p.y===cy&&(!p.pad||n.o===0));
+    if(si>=0 && !(n.stars&(1<<si))){ n.stars|=(1<<si); ev.push({type:'star',i:si}); }
+    const t=tileAt(L,cx,cy);
+    if(t.type==='keytile' && !(n.keys&(1<<t.ki))){ n.keys|=(1<<t.ki); ev.push({type:'key',i:t.ki,x:cx,y:cy}); if(n.keys===L.allKeys) ev.push({type:'unlock'}); }
+  }
+  let toggle=0;
+  for(const [cx,cy] of cells){ const t=tileAt(L,cx,cy); if(t.type==='switch' && (!t.hard || n.o===0)){ ev.push({type:'switch',id:t.id,x:cx,y:cy}); for(const g of (L.switches[t.id]||'')){ const i=L.groupNames.indexOf(g.toLowerCase()); if(i>=0) toggle|=(1<<i); } } }
+  if(toggle){ n.mask^=toggle; ev.push({type:'toggle',bits:toggle,mask:n.mask}); }
+}
+function key(s){ return s.x+','+s.y+','+s.o+','+s.mask+','+s.crumb+','+s.keys; }
 function keyS(s){ return key(s)+','+s.stars; }
 // BFS: shortest solution. Star state is tracked only when the level needs it.
 function solve(L, from){
   const kf = L.lockGoal ? keyS : key;
-  const s0 = from ? {x:from.x,y:from.y,o:from.o,mask:from.mask,stars:from.stars||0,crumb:from.crumb||0} : initialState(L);
+  const s0 = from ? {x:from.x,y:from.y,o:from.o,mask:from.mask,stars:from.stars||0,crumb:from.crumb||0,keys:from.keys||0} : initialState(L);
   const prev=new Map(); prev.set(kf(s0),null); const q=[s0]; let qi=0;
   while(qi<q.length){ const s=q[qi++];
     for(const d of DIR_LIST){ const r=step(L,s,d); if(r.result==='fall'||r.result==='break') continue; const k=kf(r.state);
@@ -464,10 +524,24 @@ function solve(L, from){
       q.push(r.state); } }
   return null;
 }
+// Cheap "is this still winnable" probe for the stuck warning. Gives up after
+// `cap` states and answers true, because a maybe is not worth a frame hitch.
+function canFinish(L,from,cap){
+  cap=cap||40000;
+  const kf = L.lockGoal ? keyS : key;
+  const s0 = from ? {x:from.x,y:from.y,o:from.o,mask:from.mask,stars:from.stars||0,crumb:from.crumb||0,keys:from.keys||0} : initialState(L);
+  const seen=new Set([kf(s0)]); const q=[s0]; let qi=0, n=0;
+  while(qi<q.length){ const s=q[qi++];
+    if(++n>cap) return true;
+    for(const d of DIR_LIST){ const r=step(L,s,d); if(r.result==='fall'||r.result==='break') continue;
+      if(r.result==='win') return true;
+      const k=kf(r.state); if(seen.has(k)) continue; seen.add(k); q.push(r.state); } }
+  return false;
+}
 // BFS collecting every star and then the goal. Returns path or null.
 function solveAllStars(L, from){
   if(!L.stars.length) return solve(L, from);
-  const s0 = from ? {x:from.x,y:from.y,o:from.o,mask:from.mask,stars:from.stars||0,crumb:from.crumb||0} : initialState(L);
+  const s0 = from ? {x:from.x,y:from.y,o:from.o,mask:from.mask,stars:from.stars||0,crumb:from.crumb||0,keys:from.keys||0} : initialState(L);
   const all=(1<<L.stars.length)-1;
   const prev=new Map(); prev.set(keyS(s0),null); const q=[s0]; let qi=0;
   while(qi<q.length){ const s=q[qi++];
@@ -480,13 +554,137 @@ function solveAllStars(L, from){
 
 </script>
 <script>
+// ===== Forge — builds fresh islands in the browser for Daily and Endless =====
+// Same rules module the campaign uses, so anything it hands back is provably
+// solvable and its par is the true optimum.
+const Forge=(function(){
+function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const ADJ=['Amber','Broken','Cold','Drifting','Empty','Fallow','Grey','Hollow','Iron','Jagged','Kindled','Long','Middle','Narrow','Old','Pale','Quiet','Rusted','Sunken','Thin','Upper','Vacant','Wandering','Yellow'];
+const NOUN=['Spire','Landing','Terrace','Causeway','Shelf','Quarry','Gallery','Ridge','Vault','Bridgehead','Basin','Steps','Reach','Yard','Crossing','Perch','Hollow','Bastion','Anvil','Furrow'];
+function nameFor(rng){ return ADJ[Math.floor(rng()*ADJ.length)]+' '+NOUN[Math.floor(rng()*NOUN.length)]; }
+
+function pathCells(L,path){
+  let s=initialState(L); const set=new Set(); for(const [x,y] of cellsOf(s)) set.add(x+','+y);
+  for(const d of path){ const r=step(L,s,d);
+    for(const ev of r.events) if(ev.type==='roll') for(const [x,y] of cellsOf(ev.to)) set.add(x+','+y);
+    s=r.state; for(const [x,y] of cellsOf(s)) set.add(x+','+y); }
+  return set;
+}
+function carve(rng,w,h,steps){
+  const cells=new Map(), uprights=[];
+  let s={x:2+Math.floor(rng()*Math.max(1,w-4)),y:2+Math.floor(rng()*Math.max(1,h-4)),o:0};
+  const mark=st=>{ for(const [x,y] of cellsOf(st)) cells.set(x+','+y,1); };
+  mark(s); const start={x:s.x,y:s.y}; uprights.push({x:s.x,y:s.y,i:0});
+  for(let i=0;i<steps;i++){
+    let ok=false;
+    for(let t=0;t<12;t++){
+      const d=DIR_LIST[Math.floor(rng()*4)], n=roll(s,d), cs=cellsOf(n);
+      let inb=true; for(const [x,y] of cs) if(x<0||y<0||x>=w||y>=h) inb=false;
+      if(!inb) continue;
+      let fresh=0; for(const [x,y] of cs) if(!cells.has(x+','+y)) fresh++;
+      if(!fresh && rng()>0.35) continue;
+      s=n; mark(s); ok=true; break;
+    }
+    if(!ok) break;
+    if(s.o===0) uprights.push({x:s.x,y:s.y,i:i+1});
+  }
+  return {cells,start,uprights};
+}
+function trim(rows){
+  let a=1e9,b=-1,c=1e9,d=-1;
+  for(let y=0;y<rows.length;y++)for(let x=0;x<rows[y].length;x++) if(rows[y][x]!=='.'){ if(x<a)a=x; if(x>b)b=x; if(y<c)c=y; if(y>d)d=y; }
+  if(b<0) return null;
+  const out=[]; for(let y=c;y<=d;y++) out.push(rows[y].slice(a,b+1).join(''));
+  return out;
+}
+function tierPlan(tier){
+  const t=Math.min(tier,14);
+  return {
+    w:8+Math.round(t*0.48), h:7+Math.round(t*0.30), steps:34+t*4,
+    feats:1+Math.round(t*0.55),
+    kinds: t<2?['F','O'] : t<5?['F','O','^'] : t<8?['F','O','^','P'] : t<11?['F','O','^','P','J']:['F','O','^','P','J','T'],
+    stars: t<3?1:t<8?2:3,
+    minPar:6+Math.round(t*1.1), maxPar:20+t*3.2
+  };
+}
+// One island. Returns {name,hint,par,map} or null if this seed did not work out.
+function make(seed,tier){
+  const plan=tierPlan(tier);
+  for(let attempt=0;attempt<44;attempt++){
+    const rng=mulberry(seed*7919+attempt*131+tier*17);
+    const {cells,start,uprights}=carve(rng,plan.w,plan.h,plan.steps);
+    if(uprights.length<5) continue;
+    const rows=[]; for(let y=0;y<plan.h;y++){ rows[y]=[]; for(let x=0;x<plan.w;x++) rows[y][x]=cells.has(x+','+y)?'#':'.'; }
+    for(let i=0;i<Math.round(plan.w*plan.h*0.05);i++){
+      const x=Math.floor(rng()*plan.w), y=Math.floor(rng()*plan.h);
+      if(rows[y][x]!=='.') continue;
+      let n=0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const a=x+dx,b=y+dy; if(a>=0&&b>=0&&a<plan.w&&b<plan.h&&rows[b][a]==='#') n++; }
+      if(n) rows[y][x]='#';
+    }
+    const far=uprights.filter(u=>Math.abs(u.x-start.x)+Math.abs(u.y-start.y)>=Math.max(4,Math.round(plan.w*0.4))).sort((a,b)=>b.i-a.i);
+    if(!far.length) continue;
+    const goal=far[Math.floor(rng()*Math.min(4,far.length))];
+    if(goal.x===start.x&&goal.y===start.y) continue;
+    rows[start.y][start.x]='S'; rows[goal.y][goal.x]='G';
+    let map=trim(rows); if(!map) continue;
+
+    let L,p;
+    try{ L=parseLevel({name:'f',map}); p=solve(L); }catch(e){ continue; }
+    if(!p||p.length<Math.max(5,plan.minPar-8)) continue;
+
+    // features, one at a time, each kept only if the island survives it
+    const H=map.length, W=map[0].length;
+    let floor=[]; for(let y=0;y<H;y++)for(let x=0;x<W;x++) if(map[y][x]==='#') floor.push({x,y});
+    floor.sort(()=>rng()-0.5);
+    let placed=0, fi=0;
+    for(let k=0;k<plan.feats*4 && placed<plan.feats && fi<floor.length;k++){
+      const kind=plan.kinds[Math.floor(rng()*plan.kinds.length)];
+      const need=kind==='T'?2:1;
+      const spots=floor.slice(fi,fi+need); fi+=need;
+      if(spots.length<need) break;
+      const g=map.map(r=>r.split('')); spots.forEach(c=>g[c.y][c.x]=kind);
+      const cand=g.map(r=>r.join(''));
+      let CL,cp; try{ CL=parseLevel({name:'f',map:cand}); cp=solve(CL); }catch(e){ continue; }
+      if(!cp||cp.length>plan.maxPar) continue;
+      if(kind==='^'||kind==='J'){ const pc=pathCells(CL,cp); if(!spots.every(c=>pc.has(c.x+','+c.y))) continue; }
+      map=cand; placed++;
+    }
+    try{ L=parseLevel({name:'f',map}); p=solve(L); }catch(e){ continue; }
+    if(!p||p.length<plan.minPar||p.length>plan.maxPar) continue;
+
+    // stars, off the fastest line where possible
+    const onPath=pathCells(L,p);
+    let cand=[]; for(let y=0;y<map.length;y++)for(let x=0;x<map[y].length;x++) if(map[y][x]==='#') cand.push({x,y,off:onPath.has(x+','+y)?0:1});
+    cand.sort((a,b)=>(b.off-a.off)||(rng()-0.5));
+    const picks=[];
+    for(const c of cand){ if(picks.length>=plan.stars) break; if(picks.some(o=>Math.abs(o.x-c.x)+Math.abs(o.y-c.y)<3)) continue; picks.push(c); }
+    for(let take=picks.length;take>=1;take--){
+      const g=map.map(r=>r.split('')); picks.slice(0,take).forEach(c=>g[c.y][c.x]='*');
+      const cm=g.map(r=>r.join(''));
+      try{ const CL=parseLevel({name:'f',map:cm}); if(solve(CL)&&solveAllStars(CL)){ map=cm; break; } }catch(e){}
+    }
+    try{ L=parseLevel({name:'f',map}); p=solve(L); }catch(e){ continue; }
+    if(!p) continue;
+    return {name:nameFor(rng), hint:'A freshly forged island — nobody has a best score here but you.', par:p.length+Math.floor(p.length/10), map, forged:true};
+  }
+  return null;
+}
+// Never hand the caller nothing: step the difficulty down until an island lands.
+function forge(seed,tier){ for(let t=tier;t>=0;t--){ const d=make(seed+t*101,t); if(d) return {def:d,tier:t}; } return {def:make(seed,0)||make(seed+1,0),tier:0}; }
+return {make,forge,mulberry,tierPlan};
+})();
+
+</script>
+<script>
 // ===== chapters, skins and missions =====
 const CHAPTERS=[
   {name:'The Shallows', from:0,  to:9,  blurb:'Learn to roll.'},
   {name:'Cracked Sky',  from:10, to:19, blurb:'Switches, glass and long routes.'},
   {name:'Ashfall',      from:20, to:29, blurb:'Ground that only holds you once.'},
   {name:'Frostline',    from:30, to:39, blurb:'Ice, pins and portals.'},
-  {name:'Deep Void',    from:40, to:49, blurb:'Everything at once.'},
+  {name:'Deep Void',    from:40, to:49, blurb:'Ice, pins and portals together.'},
+  {name:'Springworks',  from:50, to:59, blurb:'Springs, gates and keys.'},
+  {name:'The Last Vault',from:60,to:69, blurb:'Everything the islands taught you.'},
 ];
 
 // unlock: {stars:n} total stars collected | {clear:n} levels cleared | {perfect:n} 3-star ratings | {mission:id}
@@ -500,6 +698,7 @@ const SKINS={
     {id:'gold',    name:'Bullion',  css:'linear-gradient(135deg,#fff3b0,#c9971a)', color:0xf5c33b, edge:0xfff8dc, emissive:0x4a3200, metal:.9,  rough:.15, unlock:{mission:'perfectionist'}},
     {id:'obsidian',name:'Obsidian', css:'linear-gradient(135deg,#3b4252,#0b0d14)', color:0x14161f, edge:0x74e0ff, emissive:0x06212b, metal:.75, rough:.12, unlock:{mission:'untouchable'}},
     {id:'quartz',  name:'Quartz',   css:'linear-gradient(135deg,#e0f2fe,#7dd3fc)', color:0xbfe8ff, edge:0xffffff, emissive:0x123a55, metal:.6,  rough:.18, unlock:{mission:'speedrun'}},
+    {id:'kite',    name:'Kite',     css:'linear-gradient(135deg,#bbf7d0,#0ea5e9)', color:0x7fe3c8, edge:0xeafff6, emissive:0x0b4a5a, metal:.4,  rough:.28, unlock:{mission:'airborne'}},
     {id:'prism',   name:'Prism',    css:'linear-gradient(135deg,#a5f3fc,#f0abfc,#fde68a)', color:0xdff3ff, edge:0xffffff, emissive:0x2a3a55, metal:.85, rough:.08, unlock:{stars:40}},
   ],
   tile:[
@@ -509,6 +708,7 @@ const SKINS={
     {id:'carbon',  name:'Carbon',    css:'linear-gradient(135deg,#5a6270,#171a21)', top:0x394150, side:0x1b1f28, goal:0x0f1218, ring:0x7dd3fc, unlock:{mission:'noregrets'}},
     {id:'coral',   name:'Coral',     css:'linear-gradient(135deg,#ffb3a7,#a13d5c)', top:0xd97b7b, side:0x6d2f42, goal:0x3a1826, ring:0xffd6a5, unlock:{mission:'glasswork'}},
     {id:'magma',   name:'Magma',     css:'linear-gradient(135deg,#ff9a3d,#4a1004)', top:0xb1481f, side:0x4a1a0c, goal:0x2a0d06, ring:0xffd08a, unlock:{mission:'demolition'}},
+    {id:'basalt',  name:'Basalt',    css:'linear-gradient(135deg,#6b7280,#0f172a)', top:0x2f3646, side:0x151a24, goal:0x0b0e14, ring:0xf59e0b, unlock:{mission:'locksmith'}},
     {id:'neon',    name:'Neon',      css:'linear-gradient(135deg,#f0abfc,#3b0764)', top:0x8b3fd6, side:0x3a1264, goal:0x1d0836, ring:0x67e8f9, unlock:{mission:'flawless'}},
   ],
   sky:[
@@ -517,7 +717,17 @@ const SKINS={
     {id:'aurora',  name:'Aurora',    css:'radial-gradient(circle at 50% 35%,#0f4d52,#04121a)', bg1:'#0e3d46', bg2:'#04101a', fog:0x05161c, hemiSky:0xa7f3d0, hemiGnd:0x06283a, sun:0xd8fff0, fill:0x34d399, unlock:{mission:'star3'}},
     {id:'sunset',  name:'Long Sunset',css:'radial-gradient(circle at 50% 35%,#7a3b12,#1a0a06)', bg1:'#63300f', bg2:'#160805', fog:0x1c0c06, hemiSky:0xffd7a8, hemiGnd:0x3a1408, sun:0xffb37a, fill:0xff9142, unlock:{mission:'pathfinder'}},
     {id:'abyss',   name:'Abyss',     css:'radial-gradient(circle at 50% 35%,#101a34,#01030a)', bg1:'#0b1430', bg2:'#01030a', fog:0x02050f, hemiSky:0x8fb4ff, hemiGnd:0x050a1a, sun:0xcfe3ff, fill:0x3b82f6, unlock:{stars:36}},
+    {id:'furnace', name:'Furnace',   css:'radial-gradient(circle at 50% 35%,#7c2d12,#180603)', bg1:'#5c2410', bg2:'#170603', fog:0x1d0904, hemiSky:0xffc9a0, hemiGnd:0x3a1206, sun:0xffcf9a, fill:0xf97316, unlock:{mission:'endless1'}},
+    {id:'daybreak',name:'Daybreak',  css:'radial-gradient(circle at 50% 35%,#3b5a8a,#0b1220)', bg1:'#2f4f7a', bg2:'#0a111e', fog:0x0d1626, hemiSky:0xffe8c8, hemiGnd:0x14243c, sun:0xfff0d0, fill:0x60a5fa, unlock:{mission:'daily5'}},
     {id:'starfield',name:'Starfield',css:'radial-gradient(circle at 50% 35%,#3b2f6b,#08050f)', bg1:'#2c2358', bg2:'#08050f', fog:0x0b0718, hemiSky:0xe9d5ff, hemiGnd:0x1a0f30, sun:0xfff6ff, fill:0xa78bfa, unlock:{mission:'completionist'}},
+  ],
+  trail:[
+    {id:'none',    name:'No trail',  css:'linear-gradient(135deg,#2a3050,#151a2c)', color:null},
+    {id:'sparks',  name:'Sparks',    css:'linear-gradient(135deg,#ffd08a,#ff8c2a)', color:0xffb347, unlock:{clear:6}},
+    {id:'frost',   name:'Frost',     css:'linear-gradient(135deg,#dff6ff,#38bdf8)', color:0x9be8ff, unlock:{stars:30}},
+    {id:'ember',   name:'Ember',     css:'linear-gradient(135deg,#ffb199,#dc2626)', color:0xff5a2a, unlock:{mission:'demolition'}},
+    {id:'ink',     name:'Ink',       css:'linear-gradient(135deg,#c4b5fd,#4c1d95)', color:0x9d7bff, unlock:{mission:'forged'}},
+    {id:'stardust',name:'Stardust',  css:'linear-gradient(135deg,#fef3c7,#f59e0b)', color:0xffe9a8, unlock:{mission:'endless2'}},
   ]
 };
 
@@ -528,7 +738,7 @@ const MISSIONS=[
   {id:'star3',  icon:'✨', name:'Stargazer III', desc:'Collect 45 stars.',                            goal:45, val:s=>s.starTotal,   reward:'Aurora sky'},
   {id:'explorer',     icon:'🧭', name:'Explorer',      desc:'Clear 15 levels.',                       goal:15, val:s=>s.cleared,     reward:'Dusk sky'},
   {id:'pathfinder',   icon:'🗺️', name:'Pathfinder',    desc:'Clear 35 levels.',                       goal:35, val:s=>s.cleared,     reward:'Long Sunset sky'},
-  {id:'completionist',icon:'🏝️', name:'Completionist', desc:'Clear all 50 levels.',                   goal:50, val:s=>s.cleared,     reward:'Starfield sky'},
+  {id:'completionist',icon:'🏝️', name:'Completionist', desc:'Clear all 70 islands.',                  goal:70, val:s=>s.cleared,     reward:'Starfield sky'},
   {id:'perfectionist',icon:'★',  name:'Perfectionist', desc:'Earn a 3-star rating on 5 levels.',      goal:5,  val:s=>s.perfect,     reward:'Bullion cube'},
   {id:'flawless',     icon:'👑', name:'Flawless',      desc:'Earn a 3-star rating on 15 levels.',     goal:15, val:s=>s.perfect,     reward:'Neon tiles'},
   {id:'hunter',       icon:'💎', name:'Treasure Hunter',desc:'Take every star in 8 different levels.',goal:8,  val:s=>s.allStars,    reward:'Plasma cube'},
@@ -538,10 +748,16 @@ const MISSIONS=[
   {id:'glasswork',    icon:'🪟', name:'Glasswork',     desc:'Clear 6 glass levels without shattering a pane.', goal:6, val:s=>s.noBreak, reward:'Coral tiles'},
   {id:'demolition',   icon:'💥', name:'Demolition',    desc:'Collapse 40 crumble tiles.',             goal:40, val:s=>s.crumbled,   reward:'Magma tiles'},
   {id:'speedrun',     icon:'⚡', name:'Under Par',      desc:'Finish 20 levels on or under par.',      goal:20, val:s=>s.underPar,   reward:'Quartz cube'},
-  {id:'wanderer',     icon:'👣', name:'Wanderer',      desc:'Roll 1,200 moves in total.',             goal:1200,val:s=>s.totalMoves,reward:'Sandstone tiles'},
+  {id:'wanderer',     icon:'👣', name:'Wanderer',      desc:'Roll 1,600 moves in total.',             goal:1600,val:s=>s.totalMoves,reward:'Sandstone tiles'},
+  {id:'locksmith',    icon:'🔑', name:'Locksmith',     desc:'Collect 25 keys.',                       goal:25, val:s=>s.keysTaken,   reward:'Basalt tiles'},
+  {id:'airborne',     icon:'🪂', name:'Airborne',      desc:'Ride 30 springs.',                       goal:30, val:s=>s.launches,    reward:'Kite cube'},
+  {id:'daily5',       icon:'📅', name:'Regular',       desc:'Clear 5 daily challenges.',              goal:5,  val:s=>s.dailyCleared, reward:'Daybreak sky'},
+  {id:'endless1',     icon:'♾️', name:'Endless I',     desc:'Reach a streak of 8 in Endless.',        goal:8,  val:s=>s.endlessBest, reward:'Furnace sky'},
+  {id:'endless2',     icon:'🌌', name:'Endless II',    desc:'Reach a streak of 20 in Endless.',       goal:20, val:s=>s.endlessBest, reward:'Stardust trail'},
+  {id:'forged',       icon:'⚒️', name:'Prospector',    desc:'Clear 25 forged islands.',               goal:25, val:s=>s.forged,     reward:'Ink trail'},
 ];
 
-const LEVELS = [{"name":"First Steps","hint":"Arrow keys or WASD roll the block. Stand upright on the goal to finish.","par":6,"map":[".G.",".##","##S","###"]},{"name":"The Bend","hint":"A lying block covers two tiles. Think about which orientation you arrive in.","par":10,"map":["##....","#####.","#.S###","#.##..","G....."]},{"name":"Thin Ice","hint":"Orange tiles crack if you stand on them. Roll across lying down.","par":11,"map":["#F###",".F#G#","#F###","FF#.#","#.##S","#.#.#"]},{"name":"Drawbridge","hint":"Touch the round switch (any contact) to raise the bridge.","par":14,"links":{"1":"a"},"map":["#.##1S..####","######..###.","###.##..#...",".#...#..G...",".#...#aa###."]},{"name":"Heavy Duty","hint":"Square switches need your full weight — stand upright on them.","par":15,"links":{"5":"a"},"map":["S##5#aa#####","#.###..####.","#.......###.",".......###..","........##G#"]},{"name":"Zigzag","hint":"Count your rolls. Every tip changes which tiles you cover.","par":18,"map":[".....#####",".#...##..#",".#...##..#","###..#...S","G#####....","##..##....",".####....."]},{"name":"Crossroads","hint":"Fragile tiles can be safe stepping stones — if you never stand on them.","par":16,"map":["..###F.","#FG#...",".F##...","###....","###....","##.###S","#FF###."]},{"name":"Lockstep","hint":"Touch the switch twice and the bridge closes again.","par":17,"links":{"1":"a"},"map":["...........###","S#####....####","....##...##..#","....1#...##..G","....##aaa#...#","....##........"]},{"name":"Two Keys","hint":"Two switches, two bridges. Find the order that works.","par":22,"links":{"1":"a","2":"b"},"map":["....#.....2###...##G","..#.1....#####..####",".#S###aa###..#bb####","####.....##..#.....#","######....#..#......"]},{"name":"Star Route","hint":"Stars are optional — collect all three for a perfect run.","par":19,"map":["####**",".###..",".*S###","..#.##",".#####","..##..",".G####"]},{"name":"Pillars","hint":"Narrow corridors force you upright. Wide ones let you lie down.","par":22,"map":["..#.####FF","..#####F..","..##F.##..","####...#..",".##.......","S##.......","##F.......","G........."]},{"name":"Toggle Trap","hint":"The round switch flips BOTH bridges — one opens as the other closes.","par":23,"links":{"1":"ab","2":"b"},"map":[".#S#...##.......",".#1#...##.......","..###aa##.##2...","#####..######BBG","........#.##...."]},{"name":"Island Hop","hint":"Sparse and mean. Plan the whole route before the first roll.","par":28,"map":["......##..",".....###..",".....###F.","S##..##...",".#F#####..",".......###",".......##G",".......###"]},{"name":"Gatekeeper","hint":"The heavy switch controls the far bridge. You'll need to come back.","par":30,"links":{"1":"a","5":"b"},"map":["#........#...##....###","#....S...###.##...####","######...######...####","##.###...#..###bbb#..#","##.#5#1aa#........G...",".....#...#........#..."]},{"name":"Long Way","hint":"The shortest path is not always the safest.","par":28,"map":["...###......","...###......","#SF#.###....",".##...###.F.",".###....##F.","*###F...#F#F","..##...G###*",".........#.."]},{"name":"Switchboard","hint":"Three switches, three bridges. Every mistake costs a trip back.","par":36,"links":{"1":"a","2":"c","5":"b"},"map":["#S##....5####.....#.......","#1.##...#.###..#####......","##.##...#.###bb#####cc####",".#..##aa#......##.#...####","....##..#.........2.....##","....##..#...............G."]},{"name":"Glass Bridge","hint":"Almost everything is glass. Keep your weight spread.","par":28,"map":["...#GF.FF..","..##F..SF..","..###F##...","....##FF##.","..F##.#F#..","*#.FF.#.F##","FF...######","#*FF###F###"]},{"name":"Double Lock","hint":"Soft and heavy switches share one bridge. Parity is everything.","par":32,"links":{"1":"a","5":"a"},"map":["..####F.......","#1##.##.....F#",".######....##F","..5##.#aaaG#F#",".##.S.#...####","###........#.."]},{"name":"Labyrinth","hint":"Big, sparse and unforgiving. Use the hint button if you must.","par":39,"map":["...#G####...*","...F###.#...#","..###.#.###*#","..##..#F###..","..##*..#F##..","...#...#..F..","#..#.........","F..#.........","S###........."]},{"name":"The Gauntlet","hint":"Everything you've learned, all at once. Good luck.","par":48,"links":{"1":"a","2":"b","5":"ab"},"map":["...##....#F##.#...##..#","###1#....##F..#..F##..G",".#####...####.F..*##.##",".#.##......2##*...#####","...##S....#.F#....#.###","...##.....5###....F...#","...####aa####F#BB##...F"]},{"name":"Crumbling Path","hint":"Pale cracked tiles hold you once. Step off and they are gone forever.","par":11,"map":["##*#O#*.","#######.",".##OSOO.",".###.###",".#....#.",".#######",".....#O#",".....G##"]},{"name":"Claim It","hint":"A star pad only pays out when the block is standing upright on it.","par":14,"map":["###...","X###..","#..#..","#..#..","#X##.S","##.###","G#*###"]},{"name":"Slipstream","hint":"Ice will not let you stop. You keep rolling the same way until you leave it.","par":15,"map":["..G^##.##.","..*#######",".....####*",".....^####","..#..#####","##S.##....",".#####....",".###^#...."]},{"name":"Needlepoint","hint":"A pin is a spire of rock — it holds you standing, never lying down.","par":15,"map":["...P#*###",".#####P##",".##S..###",".#....###","#.....P##","###.##P##","#######..","##*G###.."]},{"name":"Wormhole","hint":"Land upright on a portal and it throws you to its twin.","par":16,"map":["..*#...##.",".####T####","####.*###T","####..##S#","#####.....","#####.....","#G###.....","###......."]},{"name":"One Way Down","hint":"Every crumble tile is a door that locks behind you. Order matters.","par":17,"map":[".##O...*##",".###...S##","###....#*#","##.....###","###..##O##","#OO.######","#####..###","GO#OO..###"]},{"name":"Frostbite","hint":"Glass under ice. You will not get the chance to stop and think.","par":18,"map":["*####^##...","###F#######","#G^###..###","^####*..*##","##F......#F","###....#S##","###........"]},{"name":"Pinwheel","hint":"Pins force you upright; glass forbids it. Read the ground before you roll.","par":19,"map":["F#G#....#..","#####..##P.","##P######F.",".#...#####.","##...S..###","#####P####.","....#####*.","##..######.","*####*##..."]},{"name":"Gate and Gone","hint":"The bridge is one trip only if you burn the crumble tiles getting there.","par":19,"map":["###G###....","#OO####..*#","a#O.#...S##","..#.....#..","..aO#...#..","..###a##1..","...*#####..",".....###O.."],"links":{"1":"a"}},{"name":"Constellation","hint":"The goal is sealed. Claim every star on the island before it opens.","par":21,"map":["....######","....#F##*#",".....#####",".....SFF..",".####..#..","#####..#..","##G#####..",".#########","###.#..X##"],"lockGoal":true},{"name":"Thin Air","hint":"Glass and crumble share one rule: never linger.","par":21,"map":["FO....###..","O#....###..","######F#OF*","#...##F#*.#","#.S.#####.#","##O*..#G###","##O#..##..#","####..##..#",".###..#...."]},{"name":"Cold Snap","hint":"A slide across ice can burn a crumble tile you were saving.","par":20,"map":["###G.......","*##O.......","###O....*##","#^###O#####","##^#O.....#","###^#.S#..#","......###O#","......####*",".......####"]},{"name":"Skywire","hint":"Pins hold a standing block. Portals move one. Chain them.","par":22,"map":[".......###G",".......####",".......####","P#.T..##P..","##*#..##...","##P#.###...","*#P##S.....",".T####.....",".*###......"]},{"name":"Twin Gates","hint":"Two switches, two bridges, and only one order that gets you home.","par":21,"map":["#*###.......","###a#.......","G##*#....S2#","####.....#..","#ab###...#..","######...###","#*##......1#","...##b.###b#","....##a##..."],"links":{"1":"a","2":"b"}},{"name":"Collector","hint":"Star pads demand your full weight, and the goal will not open without them.","par":23,"map":[".........##","#####....##","###########","##X##S##X##","####^#.....","...#####^#.",".##.....##.",".##.....##.",".G#####^#.."],"lockGoal":true},{"name":"Glacier","hint":"A wide sheet of ice. Find the one lane that does not run out.","par":26,"map":["...#^###...","...#####...","...#..*#...","...#...#S#.","...^...^##.","..#^...###.","..##...###*","###^*..####","######....#","##G##.....#"]},{"name":"Ashfall","hint":"Half the island is one-use. There is no walking it back.","par":20,"map":["G########O#.","OO###*##.###","###..#######",".##..#...###","........S.##","........O#*O","........#..#","......#*OO#O","......###*##",".........###"]},{"name":"Pincushion","hint":"Stand on pins, lie across glass. Get it backwards and you are gone.","par":29,"map":["F##F#####..","#FP...##P#*","P*#....##..","G####..##..","*F##P..####","#####.....#","#####.....#","###*#...S.#","#####...###",".#P#....###"]},{"name":"Relay","hint":"A portal is a shortcut and a trap — it only fires when you land upright.","par":29,"map":["...a##T*##.","...####..#.","...S###..#.","*##.##*..#.","###......##","#####....##","######..#T#","*T#..5aT##.","#a#..###...","#G##.###..."],"links":{"5":"a"}},{"name":"The Vault","hint":"Stars first, bridge second, goal last. No shortcuts.","par":37,"map":["...###X#####.","####...#.###.","####..####...","#.....####...","#.....####a##","#....#.#..##.","#..#####.S###","#######a...*#","G####a#....##","######....1##"],"links":{"1":"a"},"lockGoal":true},{"name":"Shatterline","hint":"Glass over crumble over void. Nothing here forgives a second visit.","par":28,"map":["#*O.........","##F........G","F#*........#","###..S.....O","..###*...#O#","..O#F##*#O#."]},{"name":"Black Ice","hint":"You cannot stop on ice and you cannot lie down on a pin.","par":29,"map":[".#*P^.......",".#####......","#####^......","##G##*...###","##.......###","P#.......S.P","###*#^.....#","#######.###^","P##.*#######",".##...###..."]},{"name":"Waypoint","hint":"Portals rearrange the island. Crumble tiles make sure you only get one look.","par":24,"map":["..#*.........",".T##S........","*##..........",".##..........","###..........","#T...........","###O#####*###","..###*O###OO#","..#.....O#G#O"]},{"name":"Lattice","hint":"Two bridges, a heavy switch and a floor made of glass.","par":31,"map":["########....G.","#####.##...##.","####FS#*...##.","#####......###","####6......#..","#F#........a..","#bb#.....####.","#*a###...F##..","...1*#...###b#","...#####a###*#"],"links":{"1":"a","6":"b"}},{"name":"Stardust","hint":"Two kinds of star, one sealed door. Take every one.","par":37,"map":[".######......","#G#X###...###","#####....###T","#####.....###","X###...ST###.","###.......##.","###.#.....*#.","#########..#.","...######.##.","...#########."],"lockGoal":true},{"name":"Freefall","hint":"The island eats itself behind you. Commit to a route.","par":22,"map":["#...#*.......","#...###O.....","GO##O#OO.....","#####O##O#...","#######.#####","*#O####...###","#######.S.O..","###....####*#","###.....#####","........####*"]},{"name":"Mirror Halls","hint":"Four portals and a gate. Map the pairs before you move.","par":33,"map":["........#T#.","...###..####","...###..##T#","...#.####a##","...#.#*###1#",".S.T...a#*G#","####T#.####.","*#####.*###.","...#a#.#####"],"links":{"1":"a"}},{"name":"Deep Freeze","hint":"Ice, glass and crumble in the same breath. Slow down — you cannot.","par":26,"map":[".........####.","..#.....#O###.","..##....######","..*##...F#O.##","*#G##.....#SF#","O####.....#...","##F#####*.#...","####^^.##.##..","##.#O#####F###","...*##O####^#^"]},{"name":"The Machine","hint":"Three gates, a pin field and a star you will have to earn twice over.","par":36,"map":["######*####P*##","P##############","#######....##*.","####.#.....###.","####....S....b.","##b#....#....a.","####a#..6..##P.","G#####..#####..","#####.#######..","#b##a.#*P1###.."],"links":{"1":"a","6":"b"}},{"name":"Endgame","hint":"Everything the islands taught you, in one long breath. Good luck.","par":43,"map":["######.........","#####*.........","####G##..###...","####a##..###...","^######..#.##F.","#O###Oa^O#..###","X#######F#....#","#####T##T.a#S.#","..##O#....^####","..#*#.....##1F.","..#O..........."],"links":{"1":"a"},"lockGoal":true}];
+const LEVELS = [{"name":"First Steps","hint":"Arrow keys or WASD roll the block. Stand upright on the goal to finish.","par":6,"map":[".G.",".##","##S","###"]},{"name":"The Bend","hint":"A lying block covers two tiles. Think about which orientation you arrive in.","par":10,"map":["##....","#####.","#.S###","#.##..","G....."]},{"name":"Thin Ice","hint":"Orange tiles crack if you stand on them. Roll across lying down.","par":11,"map":["#F###",".F#G#","#F###","FF#.#","#.##S","#.#.#"]},{"name":"Drawbridge","hint":"Touch the round switch (any contact) to raise the bridge.","par":14,"links":{"1":"a"},"map":["#.##1S..####","######..###.","###.##..#...",".#...#..G...",".#...#aa###."]},{"name":"Heavy Duty","hint":"Square switches need your full weight — stand upright on them.","par":15,"links":{"5":"a"},"map":["S##5#aa#####","#.###..####.","#.......###.",".......###..","........##G#"]},{"name":"Zigzag","hint":"Count your rolls. Every tip changes which tiles you cover.","par":18,"map":[".....#####",".#...##..#",".#...##..#","###..#...S","G#####....","##..##....",".####....."]},{"name":"Crossroads","hint":"Fragile tiles can be safe stepping stones — if you never stand on them.","par":16,"map":["..###F.","#FG#...",".F##...","###....","###....","##.###S","#FF###."]},{"name":"Lockstep","hint":"Touch the switch twice and the bridge closes again.","par":17,"links":{"1":"a"},"map":["...........###","S#####....####","....##...##..#","....1#...##..G","....##aaa#...#","....##........"]},{"name":"Two Keys","hint":"Two switches, two bridges. Find the order that works.","par":22,"links":{"1":"a","2":"b"},"map":["....#.....2###...##G","..#.1....#####..####",".#S###aa###..#bb####","####.....##..#.....#","######....#..#......"]},{"name":"Star Route","hint":"Stars are optional — collect all three for a perfect run.","par":19,"map":["####**",".###..",".*S###","..#.##",".#####","..##..",".G####"]},{"name":"Pillars","hint":"Narrow corridors force you upright. Wide ones let you lie down.","par":22,"map":["..#.####FF","..#####F..","..##F.##..","####...#..",".##.......","S##.......","##F.......","G........."]},{"name":"Toggle Trap","hint":"The round switch flips BOTH bridges — one opens as the other closes.","par":23,"links":{"1":"ab","2":"b"},"map":[".#S#...##.......",".#1#...##.......","..###aa##.##2...","#####..######BBG","........#.##...."]},{"name":"Island Hop","hint":"Sparse and mean. Plan the whole route before the first roll.","par":28,"map":["......##..",".....###..",".....###F.","S##..##...",".#F#####..",".......###",".......##G",".......###"]},{"name":"Gatekeeper","hint":"The heavy switch controls the far bridge. You'll need to come back.","par":30,"links":{"1":"a","5":"b"},"map":["#........#...##....###","#....S...###.##...####","######...######...####","##.###...#..###bbb#..#","##.#5#1aa#........G...",".....#...#........#..."]},{"name":"Long Way","hint":"The shortest path is not always the safest.","par":28,"map":["...###......","...###......","#SF#.###....",".##...###.F.",".###....##F.","*###F...#F#F","..##...G###*",".........#.."]},{"name":"Switchboard","hint":"Three switches, three bridges. Every mistake costs a trip back.","par":36,"links":{"1":"a","2":"c","5":"b"},"map":["#S##....5####.....#.......","#1.##...#.###..#####......","##.##...#.###bb#####cc####",".#..##aa#......##.#...####","....##..#.........2.....##","....##..#...............G."]},{"name":"Glass Bridge","hint":"Almost everything is glass. Keep your weight spread.","par":28,"map":["...#GF.FF..","..##F..SF..","..###F##...","....##FF##.","..F##.#F#..","*#.FF.#.F##","FF...######","#*FF###F###"]},{"name":"Double Lock","hint":"Soft and heavy switches share one bridge. Parity is everything.","par":32,"links":{"1":"a","5":"a"},"map":["..####F.......","#1##.##.....F#",".######....##F","..5##.#aaaG#F#",".##.S.#...####","###........#.."]},{"name":"Labyrinth","hint":"Big, sparse and unforgiving. Use the hint button if you must.","par":39,"map":["...#G####...*","...F###.#...#","..###.#.###*#","..##..#F###..","..##*..#F##..","...#...#..F..","#..#.........","F..#.........","S###........."]},{"name":"The Gauntlet","hint":"Everything you've learned, all at once. Good luck.","par":48,"links":{"1":"a","2":"b","5":"ab"},"map":["...##....#F##.#...##..#","###1#....##F..#..F##..G",".#####...####.F..*##.##",".#.##......2##*...#####","...##S....#.F#....#.###","...##.....5###....F...#","...####aa####F#BB##...F"]},{"name":"Crumbling Path","hint":"Pale cracked tiles hold you once. Step off and they are gone forever.","par":11,"map":["##*#O#*.","#######.",".##OSOO.",".###.###",".#....#.",".#######",".....#O#",".....G##"]},{"name":"Claim It","hint":"A star pad only pays out when the block is standing upright on it.","par":14,"map":["###...","X###..","#..#..","#..#..","#X##.S","##.###","G#*###"]},{"name":"Slipstream","hint":"Ice will not let you stop. You keep rolling the same way until you leave it.","par":15,"map":["..G^##.##.","..*#######",".....####*",".....^####","..#..#####","##S.##....",".#####....",".###^#...."]},{"name":"Needlepoint","hint":"A pin is a spire of rock — it holds you standing, never lying down.","par":15,"map":["...P#*###",".#####P##",".##S..###",".#....###","#.....P##","###.##P##","#######..","##*G###.."]},{"name":"Wormhole","hint":"Land upright on a portal and it throws you to its twin.","par":16,"map":["..*#...##.",".####T####","####.*###T","####..##S#","#####.....","#####.....","#G###.....","###......."]},{"name":"One Way Down","hint":"Every crumble tile is a door that locks behind you. Order matters.","par":17,"map":[".##O...*##",".###...S##","###....#*#","##.....###","###..##O##","#OO.######","#####..###","GO#OO..###"]},{"name":"Frostbite","hint":"Glass under ice. You will not get the chance to stop and think.","par":18,"map":["*####^##...","###F#######","#G^###..###","^####*..*##","##F......#F","###....#S##","###........"]},{"name":"Pinwheel","hint":"Pins force you upright; glass forbids it. Read the ground before you roll.","par":19,"map":["F#G#....#..","#####..##P.","##P######F.",".#...#####.","##...S..###","#####P####.","....#####*.","##..######.","*####*##..."]},{"name":"Gate and Gone","hint":"The bridge is one trip only if you burn the crumble tiles getting there.","par":19,"map":["###G###....","#OO####..*#","a#O.#...S##","..#.....#..","..aO#...#..","..###a##1..","...*#####..",".....###O.."],"links":{"1":"a"}},{"name":"Constellation","hint":"The goal is sealed. Claim every star on the island before it opens.","par":21,"map":["....######","....#F##*#",".....#####",".....SFF..",".####..#..","#####..#..","##G#####..",".#########","###.#..X##"],"lockGoal":true},{"name":"Thin Air","hint":"Glass and crumble share one rule: never linger.","par":21,"map":["FO....###..","O#....###..","######F#OF*","#...##F#*.#","#.S.#####.#","##O*..#G###","##O#..##..#","####..##..#",".###..#...."]},{"name":"Cold Snap","hint":"A slide across ice can burn a crumble tile you were saving.","par":20,"map":["###G.......","*##O.......","###O....*##","#^###O#####","##^#O.....#","###^#.S#..#","......###O#","......####*",".......####"]},{"name":"Skywire","hint":"Pins hold a standing block. Portals move one. Chain them.","par":22,"map":[".......###G",".......####",".......####","P#.T..##P..","##*#..##...","##P#.###...","*#P##S.....",".T####.....",".*###......"]},{"name":"Twin Gates","hint":"Two switches, two bridges, and only one order that gets you home.","par":21,"map":["#*###.......","###a#.......","G##*#....S2#","####.....#..","#ab###...#..","######...###","#*##......1#","...##b.###b#","....##a##..."],"links":{"1":"a","2":"b"}},{"name":"Collector","hint":"Star pads demand your full weight, and the goal will not open without them.","par":23,"map":[".........##","#####....##","###########","##X##S##X##","####^#.....","...#####^#.",".##.....##.",".##.....##.",".G#####^#.."],"lockGoal":true},{"name":"Glacier","hint":"A wide sheet of ice. Find the one lane that does not run out.","par":26,"map":["...#^###...","...#####...","...#..*#...","...#...#S#.","...^...^##.","..#^...###.","..##...###*","###^*..####","######....#","##G##.....#"]},{"name":"Ashfall","hint":"Half the island is one-use. There is no walking it back.","par":20,"map":["G########O#.","OO###*##.###","###..#######",".##..#...###","........S.##","........O#*O","........#..#","......#*OO#O","......###*##",".........###"]},{"name":"Pincushion","hint":"Stand on pins, lie across glass. Get it backwards and you are gone.","par":29,"map":["F##F#####..","#FP...##P#*","P*#....##..","G####..##..","*F##P..####","#####.....#","#####.....#","###*#...S.#","#####...###",".#P#....###"]},{"name":"Relay","hint":"A portal is a shortcut and a trap — it only fires when you land upright.","par":29,"map":["...a##T*##.","...####..#.","...S###..#.","*##.##*..#.","###......##","#####....##","######..#T#","*T#..5aT##.","#a#..###...","#G##.###..."],"links":{"5":"a"}},{"name":"The Vault","hint":"Stars first, bridge second, goal last. No shortcuts.","par":37,"map":["...###X#####.","####...#.###.","####..####...","#.....####...","#.....####a##","#....#.#..##.","#..#####.S###","#######a...*#","G####a#....##","######....1##"],"links":{"1":"a"},"lockGoal":true},{"name":"Shatterline","hint":"Glass over crumble over void. Nothing here forgives a second visit.","par":28,"map":["#*O.........","##F........G","F#*........#","###..S.....O","..###*...#O#","..O#F##*#O#."]},{"name":"Black Ice","hint":"You cannot stop on ice and you cannot lie down on a pin.","par":29,"map":[".#*P^.......",".#####......","#####^......","##G##*...###","##.......###","P#.......S.P","###*#^.....#","#######.###^","P##.*#######",".##...###..."]},{"name":"Waypoint","hint":"Portals rearrange the island. Crumble tiles make sure you only get one look.","par":24,"map":["..#*.........",".T##S........","*##..........",".##..........","###..........","#T...........","###O#####*###","..###*O###OO#","..#.....O#G#O"]},{"name":"Lattice","hint":"Two bridges, a heavy switch and a floor made of glass.","par":31,"map":["########....G.","#####.##...##.","####FS#*...##.","#####......###","####6......#..","#F#........a..","#bb#.....####.","#*a###...F##..","...1*#...###b#","...#####a###*#"],"links":{"1":"a","6":"b"}},{"name":"Stardust","hint":"Two kinds of star, one sealed door. Take every one.","par":37,"map":[".######......","#G#X###...###","#####....###T","#####.....###","X###...ST###.","###.......##.","###.#.....*#.","#########..#.","...######.##.","...#########."],"lockGoal":true},{"name":"Freefall","hint":"The island eats itself behind you. Commit to a route.","par":22,"map":["#...#*.......","#...###O.....","GO##O#OO.....","#####O##O#...","#######.#####","*#O####...###","#######.S.O..","###....####*#","###.....#####","........####*"]},{"name":"Mirror Halls","hint":"Four portals and a gate. Map the pairs before you move.","par":33,"map":["........#T#.","...###..####","...###..##T#","...#.####a##","...#.#*###1#",".S.T...a#*G#","####T#.####.","*#####.*###.","...#a#.#####"],"links":{"1":"a"}},{"name":"Deep Freeze","hint":"Ice, glass and crumble in the same breath. Slow down — you cannot.","par":26,"map":[".........####.","..#.....#O###.","..##....######","..*##...F#O.##","*#G##.....#SF#","O####.....#...","##F#####*.#...","####^^.##.##..","##.#O#####F###","...*##O####^#^"]},{"name":"The Machine","hint":"Three gates, a pin field and a star you will have to earn twice over.","par":36,"map":["######*####P*##","P##############","#######....##*.","####.#.....###.","####....S....b.","##b#....#....a.","####a#..6..##P.","G#####..#####..","#####.#######..","#b##a.#*P1###.."],"links":{"1":"a","6":"b"}},{"name":"Endgame","hint":"Everything the islands taught you, in one long breath. Good luck.","par":43,"map":["######.........","#####*.........","####G##..###...","####a##..###...","^######..#.##F.","#O###Oa^O#..###","X#######F#....#","#####T##T.a#S.#","..##O#....^####","..#*#.....##1F.","..#O..........."],"links":{"1":"a"},"lockGoal":true},{"name":"Launch Pad","hint":"A spring throws you three tiles on, straight over the gap.","par":13,"map":[".....##G#","..#######","....#####","....*J###","...###...","#S#..##..","##J..##..","####*##.."]},{"name":"Lock and Key","hint":"The red gate is solid air until you are holding every key.","par":17,"map":[".K####...",".####*...",".####S...",".####....",".#####...","####.###G","#####L##.","*####...."]},{"name":"Long Jump","hint":"Two springs in a row cover nine tiles in two moves.","par":15,"map":["##G######..","##.###..#.*","##.###..#.#","##J#...S###","####......#","####J##J###","...########","....*######"]},{"name":"Keyring","hint":"Two keys, one gate. Neither key is on the way to the other.","par":20,"map":["#*##.#L","#..*.##","#..##S#","KK####.","...#...","...#...","...###.","...G##."]},{"name":"Spring Loaded","hint":"Springs fire you over ground that would have crumbled anyway.","par":22,"map":["....#.####O","..##*.#.##O","..###.#.##.","###J#OO.#..","###.....J##","###.....###","*#S......##","###O#.#####","##*#..##G##"]},{"name":"Cold Storage","hint":"Ice carries you; the gate decides where you are allowed to stop.","par":21,"map":["....###K...",".#..#*##...","##*S##^*...","##.#####...","###L^^##..G",".##^####.##","...#....###","...#^###^##","...###....."]},{"name":"Catapult","hint":"A spring can fire you straight into a portal. Chain them.","par":23,"map":["####........","#G##.T......","*###.##*.ST.","####J###.##.",".##*...#.##.",".......#..#.","....###J..##","....########",".....###.###"]},{"name":"Deadbolt","hint":"A bridge to reach the key, a key to open the gate.","par":23,"map":["#.La##.....","###..#*#...","*##..######","a#a..######","###..##S#.#","##G...#####","......#*#1K"],"links":{"1":"a"}},{"name":"Overshoot","hint":"Springs do not care what they land you on. Glass included.","par":28,"map":["FF#.....###.","#F#.....####","G####...##.#","..#......S.#","..#..J##...#","*F#.####J###","#######*####","....########","........##*."]},{"name":"Strongroom","hint":"Every key, then every star, then the door.","par":30,"map":[".#L########.","###....###K#","####....#X##","X#...#######","###..#####*#","####.K###S..","####........","###G........",".###........"],"lockGoal":true},{"name":"Clockwork","hint":"Springs and switches: the bridge has to be up before you fire.","par":28,"map":["..........###","..........###","####....##aa#","###..###aS.*#","####J##..1.#J","#*###....#..#","####G..###..#","*###...######","#####...#...."],"links":{"1":"a"}},{"name":"Keystone","hint":"Pins hold you standing. The gate will not.","par":30,"map":[".##P###P#####","###.PK#L####*","#...*###L#P#.","#........#*#.","#........###.","#..#######...","#....#####...","###S.#####...",".##....##G###",".K#.#####...."]},{"name":"Vaulting","hint":"Ice into a spring. You will not get to choose when it fires.","par":35,"map":[".########....","####.##.#####","###*.##.#####",".#.......#^*J","*^..........#","##........##*","##........###","###S.##.###^#",".....########",".....###J##G#"]},{"name":"Tumblers","hint":"Glass, crumble and a locked gate. Take the key on the first pass.","par":31,"map":[".......###...",".......K##...","..#.....##.#.","###.....O#F##","O##.....S.K#O","####.......O#","#*####...##L*","#####*....##.","*######...##.","###GFO##F##.."]},{"name":"Escapement","hint":"Portals, springs and ground that will not survive a second visit.","par":28,"map":["..#T#...OO##","*####*..##.O","#G########.#","#O######.S##","##T#####.###","####.###...J","#..#.......J","#..*####O#.#","*#####...###",".........###"]},{"name":"The Warden","hint":"Two bridges guard the key. The key guards the way home.","par":37,"map":["Gb##.....##K#a","#L......###a#.","#b##...#####..",".L###.##S#*#..",".####.#.......",".##1..#..#a##.","...b..##6##*#.",".###.########.",".#####..#####.",".#####..*##*#."],"links":{"1":"a","6":"b"}},{"name":"Trebuchet","hint":"Springs over a pin field, with ice to set up the shot.","par":34,"map":["##........##G.","##*#......##P.","#J##........##","*##*#.......##",".##^#^J##..##P",".##....##S.##.","..###.....###.","..###*....##P.","....###...#...",".....##P^##..."]},{"name":"Lockdown","hint":"Keys behind glass, gates behind portals.","par":40,"map":["...#.#####F##.","..#F####.##.##",".###T*##.##.#F","..######..T..#","...#...###...K","#*##...##SK..#","###F.....##..#","##G#......####","#*##.......L#L","###*.......###"]},{"name":"The Works","hint":"Springs, gates, switches and one very long way round.","par":37,"map":[".######........","O#.#1O#........","##K###OS.......","#..............","###............","##L.........#..","..J*a.......#*#","...##.......###","...###..###O##a","..######OG#Ja##"],"links":{"1":"a"}},{"name":"Terminus","hint":"The last island. It has kept every trick for you.","par":55,"map":["###.....*###a#.","###....###1.###","J#K.###########","O^...##Xa#^####","O#.####..####..","L#LJT.#..#..###",".#....#..#...OT",".K..S.####...##",".####.####..###","..^O#.###.##Ga#","..###.#*O.###.."],"lockGoal":true,"links":{"1":"a"}}];
 </script>
 <script>
 (function(){
@@ -561,6 +777,8 @@ const Snd={ctx:null,on:true,
   crack(){ this.noise(.25,.35); this.tone(1200,.15,'square',.06,300); },
   crumble(){ this.noise(.3,.22,500); this.tone(180,.3,'triangle',.07,70); },
   port(){ [520,780,1040].forEach((f,i)=>setTimeout(()=>this.tone(f,.18,'sine',.09,f*1.6),i*45)); },
+  launch(){ this.tone(220,.35,'triangle',.16,900); this.noise(.1,.06,2200); },
+  keyGet(){ [1046,1318,1568].forEach((f,i)=>setTimeout(()=>this.tone(f,.22,'triangle',.11),i*70)); },
   sw(){ this.tone(660,.12,'square',.08); setTimeout(()=>this.tone(880,.15,'square',.08),70); },
   star(){ [880,1100,1320,1760].forEach((f,i)=>setTimeout(()=>this.tone(f,.25,'sine',.12),i*60)); },
   win(){ [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>this.tone(f,.5,'triangle',.14),i*90)); },
@@ -569,13 +787,37 @@ const Snd={ctx:null,on:true,
   click(){ this.tone(900,.05,'square',.05); }
 };
 
+// A slow three-voice pad. Deliberately quiet and off by default.
+const Music={nodes:null,timer:null,
+  wanted(){ return save.music===true && save.sound!==false; },
+  sync(){ if(this.wanted()) this.start(); else this.stop(); },
+  start(){ Snd.init(); const c=Snd.ctx; if(!c||this.nodes) return;
+    const g=c.createGain(); g.gain.value=0; g.connect(c.destination);
+    const f=c.createBiquadFilter(); f.type='lowpass'; f.frequency.value=620; f.Q.value=.7; f.connect(g);
+    const oscs=[]; for(let i=0;i<3;i++){ const o=c.createOscillator(); o.type=i===2?'triangle':'sine'; o.frequency.value=110; o.connect(f); o.start(); oscs.push(o); }
+    this.nodes={g,f,oscs}; g.gain.linearRampToValueAtTime(.045,c.currentTime+4);
+    this.step(); this.timer=setInterval(()=>this.step(),11000); },
+  step(){ if(!this.nodes||!Snd.ctx) return; const c=Snd.ctx;
+    const CH=[[110,164.81,110],[98,146.83,98],[123.47,185,123.47],[87.31,130.81,87.31],[130.81,196,130.81]];
+    const ch=CH[Math.floor(Math.random()*CH.length)];
+    this.nodes.oscs.forEach((o,i)=>o.frequency.linearRampToValueAtTime(ch[i]*(i===2?2.005:1),c.currentTime+5));
+    this.nodes.f.frequency.linearRampToValueAtTime(420+Math.random()*520,c.currentTime+7); },
+  stop(){ if(!this.nodes) return; const c=Snd.ctx, n=this.nodes; this.nodes=null; clearInterval(this.timer);
+    try{ n.g.gain.linearRampToValueAtTime(0,c.currentTime+1.5); }catch(e){}
+    setTimeout(()=>{ try{ n.oscs.forEach(o=>o.stop()); }catch(e){} },1900); }
+};
+
 // ---------- save ----------
-const SAVE_KEY='cuberoll.v2';
-const DEF_SAVE={best:{},flags:{},unlocked:1,sound:true,camRel:true,shake:true,hintBtn:true,totalMoves:0,crumbled:0,skin:{cube:'amber',tile:'azure',sky:'nebula'},seen:[]};
+const SAVE_KEY='cuberoll.v3';
+const DEF_SAVE={best:{},flags:{},unlocked:1,sound:true,camRel:true,shake:true,hintBtn:true,teach:true,music:false,totalMoves:0,crumbled:0,keysTaken:0,launches:0,
+  skin:{cube:'amber',tile:'azure',sky:'nebula',trail:'none'},seen:[],
+  daily:{date:'',done:false,moves:0,cleared:0,streak:0,last:''},
+  endless:{run:0,best:0,cleared:0,seed:0}};
 let save=JSON.parse(JSON.stringify(DEF_SAVE));
 try{
-  const s=JSON.parse(localStorage.getItem(SAVE_KEY));
-  if(s&&s.best) save=Object.assign(save,s,{skin:Object.assign({},DEF_SAVE.skin,s.skin||{})});
+  const s=JSON.parse(localStorage.getItem(SAVE_KEY))||JSON.parse(localStorage.getItem('cuberoll.v2'));
+  if(s&&s.best) save=Object.assign(save,s,{skin:Object.assign({},DEF_SAVE.skin,s.skin||{}),
+    daily:Object.assign({},DEF_SAVE.daily,s.daily||{}), endless:Object.assign({},DEF_SAVE.endless,s.endless||{})});
   else { const old=JSON.parse(localStorage.getItem('cuberoll.v1')); if(old&&old.best){ save.best=old.best; save.unlocked=old.unlocked||1; save.sound=old.sound!==false; } }
 }catch(e){}
 if(!save.flags) save.flags={}; if(!Array.isArray(save.seen)) save.seen=[];
@@ -592,7 +834,9 @@ function stats(){
     starTotal:b.reduce((a,x)=>a+(x.stars||0),0),
     totalStars:LEVELS.reduce((a,l)=>a+(l.map.join('').match(/[*X]/g)||[]).length,0),
     allStars:cnt('allstars'), noHint:cnt('nohint'), noUndo:cnt('noundo'), noFall:cnt('nofall'), noBreak:cnt('nobreak'), underPar:cnt('par'),
-    crumbled:save.crumbled||0, totalMoves:save.totalMoves||0,
+    crumbled:save.crumbled||0, totalMoves:save.totalMoves||0, keysTaken:save.keysTaken||0, launches:save.launches||0,
+    dailyCleared:save.daily.cleared||0, dailyStreak:save.daily.streak||0, endlessBest:save.endless.best||0,
+    endlessCleared:save.endless.cleared||0, forged:(save.daily.cleared||0)+(save.endless.cleared||0),
     bestMoves:b.reduce((a,x)=>a+(x.moves||0),0)
   };
 }
@@ -614,7 +858,7 @@ function unlockText(sk){
   if(u.mission!==undefined){ const m=MISSIONS.find(x=>x.id===u.mission); return 'Mission: '+(m?m.name:u.mission); }
   return '';
 }
-function unlockedSet(){ const st=stats(); const s=new Set(); ['cube','tile','sky'].forEach(k=>SKINS[k].forEach(sk=>{ if(skinUnlocked(sk,st)) s.add(k+':'+sk.id); })); MISSIONS.forEach(m=>{ if(missionDone(m,st)) s.add('mission:'+m.id); }); return s; }
+function unlockedSet(){ const st=stats(); const s=new Set(); ['cube','tile','sky','trail'].forEach(k=>SKINS[k].forEach(sk=>{ if(skinUnlocked(sk,st)) s.add(k+':'+sk.id); })); MISSIONS.forEach(m=>{ if(missionDone(m,st)) s.add('mission:'+m.id); }); return s; }
 
 // ---------- three setup ----------
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
@@ -642,6 +886,11 @@ const M={
   port:new THREE.MeshStandardMaterial({color:0x1b1233,sideColor:0x2a1b52,roughness:.35,metalness:.4,emissive:0x2a1060,emissiveIntensity:.7}),
   portRing:new THREE.MeshStandardMaterial({color:0xa78bfa,emissive:0x7c3aed,emissiveIntensity:1.5,roughness:.25}),
   starpad:new THREE.MeshStandardMaterial({color:0x6a5a34,sideColor:0x3a3018,roughness:.5,metalness:.2,emissive:0x4a3a00,emissiveIntensity:.5}),
+  launch:new THREE.MeshStandardMaterial({color:0x22c55e,sideColor:0x14532d,roughness:.35,metalness:.3,emissive:0x0d5a2a,emissiveIntensity:.8}),
+  launchCoil:new THREE.MeshStandardMaterial({color:0xbbf7d0,emissive:0x22c55e,emissiveIntensity:1.2,roughness:.25}),
+  keyTile:new THREE.MeshStandardMaterial({color:0x155e6b,sideColor:0x0b3038,roughness:.4,metalness:.3,emissive:0x0a4652,emissiveIntensity:.6}),
+  keyMark:new THREE.MeshStandardMaterial({color:0x22d3ee,emissive:0x06b6d4,emissiveIntensity:1.4,roughness:.2,metalness:.5}),
+  lock:new THREE.MeshStandardMaterial({color:0xef4444,roughness:.4,metalness:.25,emissive:0x7f1d1d,emissiveIntensity:.7,transparent:true}),
   bridge:new THREE.MeshStandardMaterial({color:0x38bdf8,roughness:.3,metalness:.4,emissive:0x0e5a80,emissiveIntensity:.6,transparent:true}),
   swSoft:new THREE.MeshStandardMaterial({color:0x2dd4bf,emissive:0x0f766e,emissiveIntensity:.8,roughness:.3}),
   swHard:new THREE.MeshStandardMaterial({color:0xf472b6,emissive:0x9d174d,emissiveIntensity:.7,roughness:.3}),
@@ -657,6 +906,9 @@ const iceGeo=new THREE.BoxGeometry(.94,.22,.94);
 const pinBaseGeo=new THREE.CylinderGeometry(.3,.42,.3,6);
 const pinTipGeo=new THREE.CylinderGeometry(.15,.24,.2,6);
 const portRingGeo=new THREE.TorusGeometry(.3,.045,8,28);
+const coilGeo=new THREE.CylinderGeometry(.22,.3,.1,14);
+const keyGeo=new THREE.TorusGeometry(.16,.05,8,18);
+const keyStemGeo=new THREE.BoxGeometry(.07,.28,.07);
 const blockGeo=new THREE.BoxGeometry(.98,1.98,.98);
 const blockEdges=new THREE.EdgesGeometry(blockGeo);
 const starGeo=new THREE.OctahedronGeometry(.3,0);
@@ -670,6 +922,7 @@ function hexToHsl(hex){ const r=((hex>>16)&255)/255,g=((hex>>8)&255)/255,b=(hex&
 function skinOf(kind,id){ return SKINS[kind].find(s=>s.id===id)||SKINS[kind][0]; }
 function applySkins(){
   const c=skinOf('cube',save.skin.cube), t=skinOf('tile',save.skin.tile), k=skinOf('sky',save.skin.sky);
+  trailColor=skinOf('trail',save.skin.trail||'none').color;
   M.block.color.set(c.color); M.block.emissive.set(c.emissive); M.block.metalness=c.metal; M.block.roughness=c.rough; M.blockEdge.color.set(c.edge);
   M.floor.color.set(t.top); M.floor.sideColor.set(t.side); M.goal.color.set(t.goal); M.goal.sideColor.set(t.side); M.goalRing.color.set(t.ring); M.goalRing.emissive.set(t.ring);
   scene.fog.color.set(k.fog); hemi.color.set(k.hemiSky); hemi.groundColor.set(k.hemiGnd); sun.color.set(k.sun); fill.color.set(k.fill);
@@ -686,7 +939,8 @@ function applyLevelTint(){
 }
 
 // ---------- game state ----------
-let L=null, lvlIndex=0, state=null, history=[], moves=0, busy=false, won=false, tiles=[], bridgeMeshes={}, starMeshes=[], switchMeshes=[], portMeshes=[], center=new THREE.Vector3(), block=null, blockEdgeLines=null, hintMeshes=[], particles=[], hintUsed=false, undoUsed=false, fellCount=0, glassBroken=0, started=false;
+let trailColor=null, mode='campaign', curDef=null;
+let L=null, lvlIndex=0, state=null, history=[], moves=0, busy=false, won=false, tiles=[], bridgeMeshes={}, starMeshes=[], switchMeshes=[], portMeshes=[], keyMeshes=[], lockMeshes=[], center=new THREE.Vector3(), block=null, blockEdgeLines=null, hintMeshes=[], particles=[], hintUsed=false, undoUsed=false, fellCount=0, glassBroken=0, started=false;
 const cam={theta:-0.6,phi:0.95,dist:14,target:new THREE.Vector3(),tTheta:-0.6,tPhi:0.95,tDist:14,shake:0};
 
 function tilePos(x,y){ return new THREE.Vector3(x-center.x+.5,0,y-center.z+.5); }
@@ -696,10 +950,27 @@ function blockTransform(s){
   if(s.o===1){ q.setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2); return {pos:tilePos(s.x,s.y).add(new THREE.Vector3(.5,0,0)).setY(.5),quat:q}; }
   q.setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2); return {pos:tilePos(s.x,s.y).add(new THREE.Vector3(0,0,.5)).setY(.5),quat:q};
 }
-function clearWorld(){ while(world.children.length) world.remove(world.children[0]); tiles=[]; bridgeMeshes={}; starMeshes=[]; switchMeshes=[]; portMeshes=[]; hintMeshes=[]; particles=[]; }
+function clearWorld(){ while(world.children.length) world.remove(world.children[0]); tiles=[]; bridgeMeshes={}; starMeshes=[]; switchMeshes=[]; portMeshes=[]; keyMeshes=[]; lockMeshes=[]; hintMeshes=[]; particles=[]; }
 
-function loadLevel(i,opts){
-  opts=opts||{}; queued=[]; lvlIndex=clamp(i,0,LEVELS.length-1); L=parseLevel(LEVELS[lvlIndex]); state=initialState(L);
+function dayKey(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function daySeed(k){ let h=2166136261; for(let i=0;i<k.length;i++){ h^=k.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0)%100000000; }
+let dailyDef=null, dailyKey='';
+function getDaily(){ const k=dayKey(); if(dailyDef&&dailyKey===k) return dailyDef; const r=Forge.forge(daySeed(k),8); dailyKey=k; dailyDef=r.def; if(dailyDef) dailyDef.name='Daily — '+dailyDef.name; return dailyDef; }
+function loadLevel(i,opts){ mode='campaign'; lvlIndex=clamp(i,0,LEVELS.length-1); loadDef(LEVELS[lvlIndex],opts); }
+function loadDaily(){ const d=getDaily(); if(!d){ toast('Could not forge today\'s island — try again.'); return; } mode='daily'; closeOverlays(); loadDef(d,{}); }
+function loadEndless(){
+  if(!save.endless.seed){ save.endless.seed=Math.floor(Math.random()*1e8); save.endless.run=0; persist(); }
+  $('ovForge').classList.add('show');
+  setTimeout(()=>{
+    const r=Forge.forge(save.endless.seed+save.endless.run*7717, save.endless.run);
+    closeOverlays();
+    if(!r.def){ toast('Could not forge an island — try again.'); return; }
+    r.def.name='Island '+(save.endless.run+1)+' — '+r.def.name;
+    mode='endless'; loadDef(r.def,{});
+  },40);
+}
+function loadDef(def,opts){
+  opts=opts||{}; queued=[]; curDef=def; L=parseLevel(def); state=initialState(L);
   history=[]; moves=0; won=false; busy=false; hintUsed=false; undoUsed=false; fellCount=0; glassBroken=0; started=true;
   clearWorld();
   center.set(L.w/2,0,L.h/2);
@@ -713,6 +984,9 @@ function loadLevel(i,opts){
     else if(t.type==='ice'){ m=new THREE.Mesh(iceGeo,M.ice); m.position.y=-.11; const cr=new THREE.LineSegments(new THREE.EdgesGeometry(iceGeo),new THREE.LineBasicMaterial({color:0xeafaff,transparent:true,opacity:.9})); cr.position.y=-.11; g.add(cr); }
     else if(t.type==='pin'){ m=new THREE.Mesh(pinBaseGeo,M.pin); m.position.y=-.15; const tip=new THREE.Mesh(pinTipGeo,M.pin); tip.position.y=.1; tip.castShadow=true; g.add(tip); }
     else if(t.type==='port'){ m=new THREE.Mesh(tileGeo,M.port); m.position.y=-.16; const r=new THREE.Mesh(portRingGeo,M.portRing); r.rotation.x=Math.PI/2; r.position.y=.03; g.add(r); g.userData.pring=r; portMeshes.push({g,x,y,ring:r,pi:t.pi}); const pl=new THREE.PointLight(0x8b5cf6,.9,3.5); pl.position.y=.5; g.add(pl); }
+    else if(t.type==='launch'){ m=new THREE.Mesh(tileGeo,M.launch); m.position.y=-.16; const c1=new THREE.Mesh(coilGeo,M.launchCoil); c1.position.y=.04; const c2=new THREE.Mesh(coilGeo,M.launchCoil); c2.position.y=.15; c2.scale.setScalar(.8); g.add(c1); g.add(c2); g.userData.coil=[c1,c2]; }
+    else if(t.type==='keytile'){ m=new THREE.Mesh(tileGeo,M.keyTile); m.position.y=-.16; }
+    else if(t.type==='lock'){ m=new THREE.Mesh(bridgeGeo,M.lock.clone()); m.position.y=-.1; const gh=new THREE.LineSegments(new THREE.EdgesGeometry(bridgeGeo),new THREE.LineBasicMaterial({color:0xfca5a5,transparent:true,opacity:.5})); gh.position.y=-.1; g.add(gh); lockMeshes.push({mesh:m,ghost:gh,group:g,x,y,anim:0}); }
     else if(t.type==='bridge'){ m=new THREE.Mesh(bridgeGeo,M.bridge.clone()); m.position.y=-.1; const gh=new THREE.LineSegments(new THREE.EdgesGeometry(bridgeGeo),new THREE.LineBasicMaterial({color:0x7dd3fc,transparent:true,opacity:.4})); gh.position.y=-.1; g.add(gh); (bridgeMeshes[t.group]=bridgeMeshes[t.group]||[]).push({mesh:m,group:g,x,y,ghost:gh}); }
     else if(t.type==='starpad'){ m=new THREE.Mesh(tileGeo,M.starpad); m.position.y=-.16; const r=new THREE.Mesh(ringGeo,M.goalRing); r.rotation.x=Math.PI/2; r.position.y=.02; r.scale.setScalar(.8); g.add(r); g.userData.pad=r; }
     else { m=new THREE.Mesh(tileGeo,t.type==='goal'?M.goal:M.floor); m.position.y=-.16; }
@@ -722,26 +996,36 @@ function loadLevel(i,opts){
     g.userData.spawn={t0:delayBase+(Math.hypot(x-L.start.x,y-L.start.y))*55, dur:420}; g.position.y=-3; g.scale.setScalar(.01);
     tiles.push({g,x,y,type:t.type,ci});
   }
+  L.keys.forEach((p,i)=>{
+    const grp=new THREE.Group(); grp.position.copy(tilePos(p.x,p.y)).setY(.55);
+    const ring=new THREE.Mesh(keyGeo,M.keyMark); const stem=new THREE.Mesh(keyStemGeo,M.keyMark); stem.position.y=-.22;
+    grp.add(ring); grp.add(stem); grp.rotation.x=Math.PI/2; world.add(grp); keyMeshes.push({mesh:grp,i,got:false});
+  });
   L.stars.forEach((p,i)=>{
     if(p.pad){ const s=new THREE.Mesh(padStarGeo,M.star); s.position.copy(tilePos(p.x,p.y)).setY(.42); s.castShadow=true; s.scale.set(.9,1.3,.9); world.add(s); starMeshes.push({mesh:s,i,got:false,pad:true,px:p.x,py:p.y}); }
     else { const s=new THREE.Mesh(starGeo,M.star); s.position.copy(tilePos(p.x,p.y)).setY(.7); s.castShadow=true; s.scale.set(.7,1.25,.7); world.add(s); starMeshes.push({mesh:s,i,got:false,pad:false}); }
   });
   Object.keys(bridgeMeshes).forEach(g=>{ const open=isSolid(L,{type:'bridge',group:g},state); bridgeMeshes[g].forEach(b=>{ b.open=open; b.anim=open?1:0; }); });
+  lockMeshes.forEach(m=>{ m.open=(state.keys===L.allKeys); m.anim=m.open?1:0; });
   block=new THREE.Mesh(blockGeo,M.block); block.castShadow=true; block.receiveShadow=true; blockEdgeLines=new THREE.LineSegments(blockEdges,M.blockEdge); block.add(blockEdgeLines); world.add(block);
   const bt=blockTransform(state); block.position.copy(bt.pos).setY(bt.pos.y+6); block.quaternion.copy(bt.quat); block.userData.drop={t0:delayBase+400,dur:600,from:bt.pos.y+6,to:bt.pos.y};
   const asp=Math.max(.6,Math.min(2.2,innerWidth/innerHeight)); const span=Math.max(L.w*1.55/asp,L.h*1.25); cam.tDist=clamp(span*0.95+5,9,44); if(!opts.keepCam){ cam.tTheta=-0.55; cam.tPhi=0.95; }
   cam.target.set(0,0,0);
   sun.target.position.set(0,0,0); const sc=sun.shadow.camera; const ext=Math.max(L.w,L.h)*0.75+2; sc.left=-ext; sc.right=ext; sc.top=ext; sc.bottom=-ext; sc.updateProjectionMatrix();
   $('hud').classList.add('on');
-  updateHUD(); $('hint').innerHTML='<em>'+LEVELS[lvlIndex].name+'</em> — '+L.hint;
+  updateHUD(); $('hint').innerHTML='<em>'+def.name+'</em> — '+L.hint;
   showMsg('');
+  setTimeout(maybeTeach,700);
 }
 
 function updateHUD(){
-  $('lvl').textContent='Level '+(lvlIndex+1)+' / '+LEVELS.length; $('name').textContent=LEVELS[lvlIndex].name; $('moves').textContent=moves; $('par').textContent=LEVELS[lvlIndex].par;
-  const b=save.best[lvlIndex]; $('best').textContent=b?b.moves:'—';
+  $('lvl').textContent = mode==='campaign' ? ('Level '+(lvlIndex+1)+' / '+LEVELS.length)
+    : mode==='daily' ? ('Daily challenge · '+dayKey()) : ('Endless · island '+((save.endless.run||0)+1));
+  $('name').textContent=curDef.name; $('moves').textContent=moves; $('par').textContent=curDef.par;
+  const b=mode==='campaign'?save.best[lvlIndex]:null; $('best').textContent=b?b.moves:'—';
   let s=''; L.stars.forEach((_,i)=>{ s+=(state.stars&(1<<i))?'★':'☆'; });
   if(L.lockGoal&&L.stars.length&&state.stars!==(1<<L.stars.length)-1) s+=' 🔒';
+  if(L.keys.length){ let k=''; L.keys.forEach((_,i)=>{ k+=(state.keys&(1<<i))?'🔑':'🗝'; }); s+=(s?'  ':'')+k; }
   $('stars').textContent=s;
 }
 let msgT=null; function showMsg(t,ms){ const m=$('msg'); m.textContent=t; m.style.opacity=t?1:0; clearTimeout(msgT); if(t&&ms) msgT=setTimeout(()=>m.style.opacity=0,ms); }
@@ -776,7 +1060,7 @@ function playMove(s0,dir,r){
     if(r.result==='win'){ queued=[]; winLevel(); return; }
     busy=false; persistSoon();
     if(queued.length) tryMove(queued.shift());
-    else setTimeout(checkStuck,0);
+    else stuckSoon();
   });
 }
 function runActions(list,i,cur,dir,finish){
@@ -785,7 +1069,10 @@ function runActions(list,i,cur,dir,finish){
   switch(ev.type){
     case 'roll': animateRoll(cur,dir,ev.to,()=>runActions(list,i+1,ev.to,dir,finish)); return;
     case 'port': animatePort(cur,ev,()=>runActions(list,i+1,{x:ev.tx,y:ev.ty,o:0},dir,finish)); return;
+    case 'launch': animateLaunch(cur,ev,()=>runActions(list,i+1,{x:ev.tx,y:ev.ty,o:0},dir,finish)); return;
     case 'crumble': crumbleTile(ev.x,ev.y); break;
+    case 'key': takeKey(ev.i,ev.x,ev.y); break;
+    case 'unlock': syncLocks(L.allKeys,true); toast('🔑 Every key taken — the gates are solid'); break;
     case 'star': collectStar(ev.i); break;
     case 'switch': Snd.sw(); pressSwitch(ev.x,ev.y); break;
     case 'toggle': syncBridges(ev.mask,true); break;
@@ -794,8 +1081,11 @@ function runActions(list,i,cur,dir,finish){
   }
   runActions(list,i+1,cur,dir,finish);
 }
+function spawnTrail(pos){ if(trailColor==null) return; const geo=new THREE.BoxGeometry(.09,.09,.09);
+  for(let i=0;i<3;i++){ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:trailColor})); m.position.copy(pos); m.position.y+=.2+Math.random()*.6;
+    m.userData.v=new THREE.Vector3((Math.random()-.5)*.8,Math.random()*1.2+.2,(Math.random()-.5)*.8); m.userData.life=.8; world.add(m); particles.push(m); } }
 function animateRoll(s0,dir,s1,done){
-  Snd.roll();
+  Snd.roll(); spawnTrail(blockTransform(s0).pos);
   const t0=blockTransform(s0), t1=blockTransform(s1);
   const [dx,dz]=DIRS[dir]; const half=(s0.o===0)?.5:((dir==='left'||dir==='right')?(s0.o===1?1:.5):(s0.o===2?1:.5));
   const pivot=t0.pos.clone().add(new THREE.Vector3(dx*half,-t0.pos.y,dz*half));
@@ -808,6 +1098,17 @@ function animateRoll(s0,dir,s1,done){
     const off=t0.pos.clone().sub(pivot).applyQuaternion(qa);
     block.position.copy(pivot).add(off); block.quaternion.copy(qa).multiply(t0.quat);
     if(k>=1){ block.userData.anim=null; block.position.copy(t1.pos); block.quaternion.copy(t1.quat); block.position.y+=-.06; block.userData.squash={t0:now,st:s1}; done(); }
+  };
+}
+function animateLaunch(cur,ev,done){
+  Snd.launch(); save.launches=(save.launches||0)+1;
+  spawnBurst(tilePos(ev.fx,ev.fy).setY(.35),0x22c55e,16);
+  const start=performance.now(), dur=330; const p0=blockTransform({x:ev.fx,y:ev.fy,o:0}).pos, t1=blockTransform({x:ev.tx,y:ev.ty,o:0});
+  block.userData.anim=(now)=>{
+    const k=clamp((now-start)/dur,0,1);
+    block.position.set(p0.x+(t1.pos.x-p0.x)*k, p0.y+(t1.pos.y-p0.y)*k+Math.sin(k*Math.PI)*2.4, p0.z+(t1.pos.z-p0.z)*k);
+    block.rotation.y=k*Math.PI*2;
+    if(k>=1){ block.userData.anim=null; block.rotation.set(0,0,0); block.position.copy(t1.pos); block.quaternion.copy(t1.quat); block.userData.squash={t0:now,st:{x:ev.tx,y:ev.ty,o:0}}; done(); }
   };
 }
 function animatePort(cur,ev,done){
@@ -836,11 +1137,12 @@ function animateFall(dir,kind){
 function rewind(){
   const last=history.pop(); if(last){ state=last.state; moves=last.moves; }
   applyStateInstant(); const bt=blockTransform(state); block.position.y=bt.pos.y+4; block.userData.drop={t0:performance.now(),dur:450,from:bt.pos.y+4,to:bt.pos.y}; busy=false; queued=[];
-  setTimeout(checkStuck,500);
+  stuckSoon();
 }
 function applyStateInstant(){
   const bt=blockTransform(state); block.position.copy(bt.pos); block.quaternion.copy(bt.quat); block.scale.setScalar(1); block.rotation.set(0,0,0); block.userData.drop=null; block.userData.anim=null; block.userData.squash=null;
-  syncBridges(state.mask,false);
+  syncBridges(state.mask,false); syncLocks(state.keys,false);
+  keyMeshes.forEach(k=>{ k.got=!!(state.keys&(1<<k.i)); k.mesh.visible=!k.got; });
   starMeshes.forEach(s=>{ s.got=!!(state.stars&(1<<s.i)); s.mesh.visible=!s.got; });
   if(L.lockGoal) updateGoalLockSilent();
   tiles.forEach(t=>{
@@ -851,7 +1153,7 @@ function applyStateInstant(){
 }
 function undo(){ queued=[]; if(busy||won||!history.length) return; Snd.click(); undoUsed=true; const h=history.pop(); state=h.state; moves=h.moves; clearHints(); applyStateInstant(); }
 function syncBridges(mask,animated){
-  Object.keys(bridgeMeshes).forEach(g=>{ const open=isSolid(L,{type:'bridge',group:g},{mask,crumb:0}); bridgeMeshes[g].forEach(b=>{ if(b.open!==open){ b.open=open; if(animated) Snd.bridge(open); } if(!animated) b.anim=open?1:0; }); });
+  Object.keys(bridgeMeshes).forEach(g=>{ const open=isSolid(L,{type:'bridge',group:g},{mask,crumb:0,keys:0}); bridgeMeshes[g].forEach(b=>{ if(b.open!==open){ b.open=open; if(animated) Snd.bridge(open); } if(!animated) b.anim=open?1:0; }); });
 }
 function pressSwitch(x,y){ const s=switchMeshes.find(m=>m.x===x&&m.y===y); if(s) s.press=performance.now(); spawnBurst(tilePos(x,y).setY(.2),0x7ff7e0,10); }
 function collectStar(i){ const s=starMeshes[i]; if(!s||s.got) return; s.got=true; s.mesh.visible=false; Snd.star(); spawnBurst(s.mesh.position.clone(),0xffd166,26); toast('★ Star collected'); if(L.lockGoal) updateGoalLock(); }
@@ -861,49 +1163,101 @@ function updateGoalLockSilent(){
   return open;
 }
 function updateGoalLock(){ if(updateGoalLockSilent()&&L.lockGoal) toast('The goal is open'); }
+function takeKey(i,x,y){ const k=keyMeshes[i]; if(!k||k.got) return; k.got=true; k.mesh.visible=false; Snd.keyGet(); save.keysTaken=(save.keysTaken||0)+1; spawnBurst(tilePos(x,y).setY(.5),0x22d3ee,20); toast('🔑 Key '+(i+1)+' of '+L.keys.length); }
+function syncLocks(keys,animated){ const open=keys===L.allKeys; lockMeshes.forEach(m=>{ if(m.open!==open){ m.open=open; if(animated) Snd.bridge(open); } if(!animated) m.anim=open?1:0; }); }
 function breakTile(x,y){ const t=tiles.find(t=>t.x===x&&t.y===y); if(!t) return; t.g.userData.shatter=performance.now(); spawnBurst(tilePos(x,y),0xf08a3c,22); }
 function crumbleTile(x,y){ const t=tiles.find(t=>t.x===x&&t.y===y); if(!t||t.g.userData.shatter) return; t.g.userData.shatter=performance.now(); Snd.crumble(); spawnBurst(tilePos(x,y),0xc9b394,16); save.crumbled=(save.crumbled||0)+1; }
 function spawnBurst(pos,color,n){ const geo=new THREE.BoxGeometry(.12,.12,.12); for(let i=0;i<n;i++){ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color})); m.position.copy(pos); m.userData.v=new THREE.Vector3((Math.random()-.5)*5,Math.random()*5+1,(Math.random()-.5)*5); m.userData.life=1; world.add(m); particles.push(m); } }
 
 let persistT=null; function persistSoon(){ clearTimeout(persistT); persistT=setTimeout(persist,400); }
-let stuckWarned=false;
+let stuckWarned=false, stuckT=null;
+function stuckSoon(){ clearTimeout(stuckT); stuckT=setTimeout(checkStuck,500); }
 function checkStuck(){
-  if(won||busy||!L) return;
-  try{ if(!solve(L,state)){ if(!stuckWarned){ stuckWarned=true; toast('No route left from here — undo (Z) or restart (R)'); } } else stuckWarned=false; }catch(e){}
+  // crumble tiles are the only thing that can strand you for good; everything
+  // else is reversible, so there is nothing to warn about.
+  if(won||busy||!L||!L.crumbles.length) return;
+  try{ if(!canFinish(L,state,9000)){ if(!stuckWarned){ stuckWarned=true; toast('No route left from here — undo (Z) or restart (R)'); } } else stuckWarned=false; }catch(e){}
 }
 
 // ---------- win ----------
 function winLevel(){
   won=true; Snd.win();
-  const lv=LEVELS[lvlIndex]; const par=lv.par; const nStars=L.stars.length; const gotStars=L.stars.filter((_,i)=>state.stars&(1<<i)).length;
+  const par=curDef.par; const nStars=L.stars.length; const gotStars=L.stars.filter((_,i)=>state.stars&(1<<i)).length;
   let rating=1; if(moves<=par) rating=3; else if(moves<=par+4) rating=2;
   const before=unlockedSet();
-  const prev=save.best[lvlIndex];
-  save.best[lvlIndex]={moves:Math.min(moves,prev?prev.moves:1e9),stars:Math.max(gotStars,prev?prev.stars||0:0),rating:Math.max(rating,prev?prev.rating||0:0)};
-  const hasGlass=L.tiles.some(r=>r.some(t=>t.type==='fragile'));
-  const f=save.flags[lvlIndex]||{};
-  if(!hintUsed) f.nohint=1; if(!undoUsed) f.noundo=1; if(fellCount===0) f.nofall=1;
-  if(nStars&&gotStars===nStars) f.allstars=1; if(hasGlass&&glassBroken===0) f.nobreak=1; if(moves<=par) f.par=1;
-  save.flags[lvlIndex]=f;
-  save.unlocked=Math.max(save.unlocked,lvlIndex+2); persist();
+  if(mode==='campaign'){
+    const prev=save.best[lvlIndex];
+    save.best[lvlIndex]={moves:Math.min(moves,prev?prev.moves:1e9),stars:Math.max(gotStars,prev?prev.stars||0:0),rating:Math.max(rating,prev?prev.rating||0:0)};
+    const hasGlass=L.tiles.some(r=>r.some(t=>t.type==='fragile'));
+    const f=save.flags[lvlIndex]||{};
+    if(!hintUsed) f.nohint=1; if(!undoUsed) f.noundo=1; if(fellCount===0) f.nofall=1;
+    if(nStars&&gotStars===nStars) f.allstars=1; if(hasGlass&&glassBroken===0) f.nobreak=1; if(moves<=par) f.par=1;
+    save.flags[lvlIndex]=f;
+    save.unlocked=Math.max(save.unlocked,lvlIndex+2);
+  } else if(mode==='daily'){
+    const k=dayKey();
+    if(save.daily.date!==k||!save.daily.done){
+      const yest=new Date(Date.now()-86400000);
+      save.daily.streak=(save.daily.last===dayKey(yest))?(save.daily.streak||0)+1:1;
+      save.daily.cleared=(save.daily.cleared||0)+1; save.daily.last=k;
+    }
+    save.daily.date=k; save.daily.done=true; save.daily.moves=Math.min(save.daily.moves||1e9,moves); save.daily.rating=Math.max(save.daily.rating||0,rating);
+  } else {
+    save.endless.run=(save.endless.run||0)+1;
+    save.endless.cleared=(save.endless.cleared||0)+1;
+    save.endless.best=Math.max(save.endless.best||0,save.endless.run);
+  }
+  persist();
   const after=unlockedSet(); const gained=[...after].filter(x=>!before.has(x));
 
   const start=performance.now(); const p0=block.position.clone();
   block.userData.anim=(now)=>{ const k=clamp((now-start)/700,0,1); block.position.y=p0.y-easeInOut(k)*2.2; block.rotation.y=k*Math.PI*.5; if(k>=1) block.userData.anim=null; };
   spawnBurst(tilePos(L.goal.x,L.goal.y).setY(.3),0xffb347,40);
   setTimeout(()=>{
-    $('winTitle').textContent=rating===3?'Perfect!':(rating===2?'Nice!':'Level complete');
+    $('winTitle').textContent = mode==='endless' ? ('Streak '+save.endless.run+'!') : (rating===3?'Perfect!':(rating===2?'Nice!':'Level complete'));
     $('winStars').innerHTML=[1,2,3].map(i=>`<span class="${i<=rating?'':'off'}">★</span>`).join('');
-    $('winText').innerHTML=`${moves} moves &middot; par ${par}`+(nStars?` &middot; ${gotStars}/${nStars} stars`:'')+(moves>par?`<br><small style="opacity:.75">Beat par for a perfect run.</small>`:'');
+    $('winText').innerHTML=`${moves} moves &middot; par ${par}`+(nStars?` &middot; ${gotStars}/${nStars} stars`:'')
+      +(mode==='daily'?`<br><small style="opacity:.8">Daily streak: ${save.daily.streak} day${save.daily.streak===1?'':'s'}</small>`:'')
+      +(mode==='endless'?`<br><small style="opacity:.8">Best streak: ${save.endless.best}</small>`:'')
+      +(moves>par&&mode!=='endless'?`<br><small style="opacity:.75">Beat par for a perfect run.</small>`:'');
     $('winUnlocks').innerHTML=gained.length?gained.map(g=>{
       if(g.startsWith('mission:')){ const m=MISSIONS.find(x=>x.id===g.slice(8)); return `<div class="mission done"><div class="mi">${m.icon}</div><div class="mb"><div class="mt">Mission complete — ${m.name}</div><div class="md">${m.reward} unlocked</div></div></div>`; }
-      const [kind,id]=g.split(':'); const sk=skinOf(kind,id); return `<div class="mission done"><div class="mi">🎁</div><div class="mb"><div class="mt">New skin — ${sk.name}</div><div class="md">${kind==='cube'?'Cube':kind==='tile'?'Tile set':'Sky'} unlocked. Equip it in the menu.</div></div></div>`;
+      const [kind,id]=g.split(':'); const sk=skinOf(kind,id); const label={cube:'Cube',tile:'Tile set',sky:'Sky',trail:'Trail'}[kind];
+      return `<div class="mission done"><div class="mi">🎁</div><div class="mb"><div class="mt">New skin — ${sk.name}</div><div class="md">${label} unlocked. Equip it in the menu.</div></div></div>`;
     }).join(''):'';
     if(gained.length) Snd.unlock();
-    if(lvlIndex>=LEVELS.length-1){ const st=stats(); $('endText').innerHTML=`All ${LEVELS.length} islands cleared — <b>${st.perfect}</b> perfect, <b>${st.starTotal}/${st.totalStars}</b> stars, <b>${MISSIONS.filter(m=>missionDone(m,st)).length}/${MISSIONS.length}</b> missions.`; $('ovEnd').classList.add('show'); }
+    $('bNext').textContent = mode==='endless' ? 'Next island ▶' : mode==='daily' ? 'Back to menu' : 'Next level ▶';
+    if(mode==='campaign'&&lvlIndex>=LEVELS.length-1){ const st=stats(); $('endText').innerHTML=`All ${LEVELS.length} islands cleared — <b>${st.perfect}</b> perfect, <b>${st.starTotal}/${st.totalStars}</b> stars, <b>${MISSIONS.filter(m=>missionDone(m,st)).length}/${MISSIONS.length}</b> missions.<br><small style="opacity:.8">Endless and the daily challenge are still forging new islands.</small>`; $('ovEnd').classList.add('show'); }
     else $('ovWin').classList.add('show');
   },900);
 }
+
+// ---------- first-encounter coaching ----------
+const TEACH={
+  fragile:{icon:'🪟',title:'Glass',body:'Glass holds a block lying flat across it, and shatters the moment you stand upright on one.'},
+  switch:{icon:'🎛️',title:'Switches and bridges',body:'A round switch flips its bridge on any contact. A square one needs your full weight — the block has to be standing upright on it.'},
+  crumble:{icon:'🪨',title:'Crumble',body:'Crumble tiles hold you exactly once. The moment you roll off, they fall away. Plan a route that never needs to come back.'},
+  starpad:{icon:'✦',title:'Star pads',body:'A star pad only pays out when the block is standing upright on it. Rolling across does nothing.'},
+  ice:{icon:'❄️',title:'Ice',body:'You cannot stop on ice. Roll onto it and you keep going the same way until you leave it — or run out of island.'},
+  pin:{icon:'📍',title:'Pins',body:'A pin is a spire of rock. It holds the block standing upright, and drops it the moment it lies down across one.'},
+  port:{icon:'🌀',title:'Portals',body:'Land upright on a portal and it throws you to its twin. Lying across one does nothing at all.'},
+  launch:{icon:'🪂',title:'Springs',body:'Land upright on a spring and it fires you three tiles further the way you were going — straight over whatever gap is in between.'},
+  keytile:{icon:'🔑',title:'Keys and gates',body:'Red gates are thin air until you are holding every key on the island. Keys are never optional — the route runs through them.'},
+};
+function maybeTeach(){
+  if(save.teach===false||!L||won) return;
+  const present=new Set(); L.tiles.forEach(r=>r.forEach(t=>present.add(t.type)));
+  if(L.lockGoal) present.add('sealed');
+  let pick=null;
+  for(const k of Object.keys(TEACH)) if(present.has(k)&&save.seen.indexOf(k)<0){ pick=k; break; }
+  if(!pick&&L.lockGoal&&save.seen.indexOf('sealed')<0){ pick='sealed'; }
+  if(!pick) return;
+  const t = pick==='sealed' ? {icon:'🔒',title:'Sealed goal',body:'This goal stays shut until every star on the island is claimed. Here the stars are not optional — they are the level.'} : TEACH[pick];
+  save.seen.push(pick); persist();
+  $('teachIcon').textContent=t.icon; $('teachTitle').textContent=t.title; $('teachBody').textContent=t.body;
+  closeOverlays(); $('ovTeach').classList.add('show');
+}
+$('bTeachOk').onclick=()=>{ Snd.click(); closeOverlays(); };
 
 // ---------- hints ----------
 function clearHints(){ hintMeshes.forEach(m=>world.remove(m)); hintMeshes=[]; }
@@ -915,11 +1269,19 @@ function showHint(){ if(busy||won||!L) return; Snd.click(); clearHints(); const 
 
 // ---------- menu ----------
 function starsOf(lv){ return (lv.map.join('').match(/[*X]/g)||[]).length; }
+const MECH=[['F','🪟','Glass'],['O','🪨','Crumble'],['^','❄️','Ice'],['P','📍','Pins'],['T','🌀','Portals'],['J','🪂','Springs'],['K','🔑','Keys'],['X','✦','Star pads']];
+function mechOf(lv){
+  const flat=lv.map.join(''); const out=[];
+  for(const [ch,icon,name] of MECH) if(flat.indexOf(ch)>=0) out.push([icon,name]);
+  if(/[1-8]/.test(flat)) out.push(['🎛️','Switches']);
+  if(lv.lockGoal) out.push(['🔒','Sealed goal']);
+  return out;
+}
 function openMenu(tab){ buildMenu(); if(tab) selectTab(tab); closeOverlays(); $('ovMenu').classList.add('show'); }
 function selectTab(t){ document.querySelectorAll('#menuTabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t)); document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane'+t)); $('ovMenu').querySelector('.panel').scrollTop=0; }
 document.querySelectorAll('#menuTabs button').forEach(b=>b.onclick=()=>{ Snd.click(); selectTab(b.dataset.tab); });
 
-function buildMenu(){ const st=stats(); buildTally(st); buildPlay(st); buildLevelGrid(); buildMissions(st); buildSkins(st); buildStats(st); buildSettings(); }
+function buildMenu(){ const st=stats(); buildTally(st); buildPlay(st); buildLevelGrid(); buildChallenge(st); buildMissions(st); buildSkins(st); buildStats(st); buildSettings(); }
 function buildTally(st){
   $('menuTally').innerHTML=`
     <div><b>${st.cleared}/${LEVELS.length}</b><span>Cleared</span></div>
@@ -930,7 +1292,7 @@ function buildTally(st){
 function buildPlay(st){
   const next=clamp(save.unlocked-1,0,LEVELS.length-1);
   const ch=CHAPTERS.find(c=>next>=c.from&&next<=c.to)||CHAPTERS[0];
-  $('playBlurb').innerHTML= st.cleared? `You have cleared <b>${st.cleared}</b> of ${LEVELS.length} islands. Next stop: <b>${ch.name}</b>.` : `Roll the block across the floating islands and land it upright in the goal. Fifty islands, eight kinds of ground, sixteen side quests.`;
+  $('playBlurb').innerHTML= st.cleared? `You have cleared <b>${st.cleared}</b> of ${LEVELS.length} islands. Next stop: <b>${ch.name}</b>.${st.endlessBest?` Best endless streak: <b>${st.endlessBest}</b>.`:''}` : `Roll the block across the floating islands and land it upright in the goal. ${LEVELS.length} hand-checked islands, eleven kinds of ground, ${MISSIONS.length} side quests — and a fresh island forged every day.`;
   $('bContinue').textContent = st.cleared? `Continue — Level ${next+1} ▶` : 'Start ▶';
   const lv=LEVELS[next], b=save.best[next];
   $('nextCard').innerHTML=`<div class="mission"><div class="mi">${next+1}</div><div class="mb"><div class="mt">${lv.name}</div><div class="md">${lv.hint}</div></div><div class="mr">par ${lv.par}${starsOf(lv)?'<br>'+starsOf(lv)+'★ here':''}${b?'<br>best '+b.moves:''}</div></div>`;
@@ -951,12 +1313,30 @@ function buildLevelGrid(){
       const ns=starsOf(lv);
       d.innerHTML=`<div class="n">${locked?'🔒':i+1}</div><div class="t">${locked?'Locked':lv.name}</div>`+
         `<div class="s">${b?'★'.repeat(b.rating||1)+'<span style="color:rgba(255,255,255,.15)">'+'★'.repeat(3-(b.rating||1))+'</span> '+b.moves:''}</div>`+
-        `<div class="g">${ns?((b?b.stars||0:0)+'/'+ns+' ✦'):''}</div>`;
+        `<div class="g">${ns?((b?b.stars||0:0)+'/'+ns+' ✦'):''}</div>`+
+        `<div class="mx">${locked?'':mechOf(lv).map(m=>`<i title="${m[1]}">${m[0]}</i>`).join('')}</div>`;
       if(!locked) d.onclick=()=>{ Snd.click(); closeOverlays(); loadLevel(i); };
       g.appendChild(d);
     }
     host.appendChild(g);
   });
+}
+function buildChallenge(st){
+  const k=dayKey(); const doneToday=save.daily.date===k&&save.daily.done;
+  const d=getDaily();
+  $('dailyCard').innerHTML=`<div class="mission${doneToday?' done':''}"><div class="mi">${doneToday?'✔':'📅'}</div><div class="mb">`+
+    `<div class="mt">${d?d.name.replace(/^Daily — /,''):'Unavailable'}</div>`+
+    `<div class="md">${doneToday?('Cleared in '+save.daily.moves+' moves.'):'One island a day, the same one for everybody. Par '+(d?d.par:'?')+'.'}</div>`+
+    `</div><div class="mr">streak ${save.daily.streak||0}<br>${save.daily.cleared||0} cleared</div></div>`;
+  $('bDaily').textContent=doneToday?"Replay today's island ▶":"Play today's island ▶";
+  const run=save.endless.run||0;
+  $('endlessCard').innerHTML=`<div class="mission"><div class="mi">♾️</div><div class="mb">`+
+    `<div class="mt">${run?('Run in progress — island '+(run+1)+' next'):'No run in progress'}</div>`+
+    `<div class="md">Each island is harder than the last. There is no way to lose it — only to stop.</div>`+
+    `<div class="bar"><i style="width:${Math.min(100,run/25*100)}%"></i></div>`+
+    `</div><div class="mr">best ${save.endless.best||0}<br>${save.endless.cleared||0} cleared</div></div>`;
+  $('bEndless').textContent=run?('Continue — island '+(run+1)+' ▶'):'Start run ▶';
+  $('bEndlessReset').style.display=run?'':'none';
 }
 function missionHTML(m,st){
   const v=Math.min(m.val(st),m.goal), done=v>=m.goal, pct=Math.round(v/m.goal*100);
@@ -964,7 +1344,7 @@ function missionHTML(m,st){
 }
 function buildMissions(st){ $('missionList').innerHTML=MISSIONS.map(m=>missionHTML(m,st)).join(''); }
 function buildSkins(st){
-  [['cube','skinCube'],['tile','skinTile'],['sky','skinSky']].forEach(([kind,host])=>{
+  [['cube','skinCube'],['tile','skinTile'],['sky','skinSky'],['trail','skinTrail']].forEach(([kind,host])=>{
     $(host).innerHTML=SKINS[kind].map(sk=>{
       const ok=skinUnlocked(sk,st), on=save.skin[kind]===sk.id;
       return `<div class="skin${on?' on':''}${ok?'':' locked'}" data-kind="${kind}" data-id="${sk.id}" data-ok="${ok?1:0}"><div class="chip" style="background:${sk.css}"></div><div class="sn">${ok?sk.name:'🔒 '+sk.name}</div><div class="sd">${on?'Equipped':(ok?'Tap to equip':unlockText(sk))}</div></div>`;
@@ -980,7 +1360,7 @@ function buildStats(st){
     ['Levels fully starred',st.allStars],['Levels beaten on or under par',st.underPar],['Hint-free clears',st.noHint],['Undo-free clears',st.noUndo],
     ['Clears without falling',st.noFall],['Glass levels with no breakage',st.noBreak],['Crumble tiles collapsed',st.crumbled],['Total moves rolled',st.totalMoves],
     ['Sum of best runs',st.bestMoves],['Missions complete',`${MISSIONS.filter(m=>missionDone(m,st)).length} / ${MISSIONS.length}`],
-    ['Skins unlocked',`${['cube','tile','sky'].reduce((a,k)=>a+SKINS[k].filter(s=>skinUnlocked(s,st)).length,0)} / ${['cube','tile','sky'].reduce((a,k)=>a+SKINS[k].length,0)}`]];
+    ['Skins unlocked',`${['cube','tile','sky','trail'].reduce((a,k)=>a+SKINS[k].filter(s=>skinUnlocked(s,st)).length,0)} / ${['cube','tile','sky','trail'].reduce((a,k)=>a+SKINS[k].length,0)}`]];
   $('statTable').innerHTML=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
 }
 function setToggle(id,key,onLabel,offLabel,after){
@@ -988,28 +1368,37 @@ function setToggle(id,key,onLabel,offLabel,after){
   b.onclick=()=>{ save[key]=!save[key]; persist(); paint(); Snd.click(); if(after) after(); }; paint();
 }
 function buildSettings(){
-  setToggle('setSound','sound','On','Off',()=>{ Snd.on=save.sound; $('bSound').textContent=Snd.on?'🔊':'🔇'; });
+  setToggle('setSound','sound','On','Off',()=>{ Snd.on=save.sound; $('bSound').textContent=Snd.on?'🔊':'🔇'; Music.sync(); });
   setToggle('setCamRel','camRel','On','Off');
   setToggle('setShake','shake','On','Off');
   setToggle('setHintBtn','hintBtn','On','Off',()=>{ $('bHint').style.display=save.hintBtn?'':'none'; });
+  setToggle('setTeach','teach','On','Off');
+  setToggle('setMusic','music','On','Off',()=>Music.sync());
   $('setUnlockAll').onclick=()=>{ save.unlocked=LEVELS.length; persist(); buildMenu(); toast('Every level unlocked'); };
   $('setWipe').onclick=()=>{ if(!confirm('Erase all progress, stars, missions and skins?')) return; const snd=save.sound; save=JSON.parse(JSON.stringify(DEF_SAVE)); save.sound=snd; persist(); applySkins(); buildMenu(); toast('Progress erased'); };
 }
 function closeOverlays(){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show')); }
 
-$('bContinue').onclick=()=>{ Snd.init(); Snd.click(); closeOverlays(); loadLevel(clamp(save.unlocked-1,0,LEVELS.length-1)); };
+$('bContinue').onclick=()=>{ Snd.init(); Music.sync(); Snd.click(); closeOverlays(); loadLevel(clamp(save.unlocked-1,0,LEVELS.length-1)); };
 $('bPlayLevels').onclick=()=>{ Snd.init(); Snd.click(); selectTab('levels'); };
 $('bPlayMissions').onclick=()=>{ Snd.init(); Snd.click(); selectTab('missions'); };
+$('bPlayChallenge').onclick=()=>{ Snd.init(); Snd.click(); selectTab('challenge'); };
+$('bDaily').onclick=()=>{ Snd.init(); Snd.click(); loadDaily(); };
+$('bEndless').onclick=()=>{ Snd.init(); Snd.click(); loadEndless(); };
+$('bEndlessReset').onclick=()=>{ if(!confirm('Abandon this endless run? Your best streak is kept.')) return; save.endless.run=0; save.endless.seed=0; persist(); buildMenu(); toast('Run abandoned'); };
 $('bMenu').onclick=()=>{ Snd.click(); openMenu(); };
 $('bWinMenu').onclick=()=>openMenu();
 $('bEndMenu').onclick=()=>openMenu();
 $('bUndo').onclick=undo;
-$('bReset').onclick=()=>{ if(busy&&!won) return; Snd.click(); loadLevel(lvlIndex,{keepCam:true}); };
+$('bReset').onclick=()=>{ if(busy&&!won) return; Snd.click(); if(mode==='campaign') loadLevel(lvlIndex,{keepCam:true}); else loadDef(curDef,{keepCam:true}); };
 $('bHint').onclick=showHint;
-$('bNext').onclick=()=>{ closeOverlays(); loadLevel(lvlIndex+1); };
-$('bRetry').onclick=()=>{ closeOverlays(); loadLevel(lvlIndex,{keepCam:true}); };
+$('bNext').onclick=()=>{ closeOverlays();
+  if(mode==='endless') loadEndless();
+  else if(mode==='daily') openMenu('challenge');
+  else loadLevel(lvlIndex+1); };
+$('bRetry').onclick=()=>{ closeOverlays(); if(mode==='campaign') loadLevel(lvlIndex,{keepCam:true}); else loadDef(curDef,{keepCam:true}); };
 $('bEndReplay').onclick=()=>{ closeOverlays(); loadLevel(0); };
-$('bSound').onclick=()=>{ save.sound=!save.sound; Snd.on=save.sound; persist(); $('bSound').textContent=Snd.on?'🔊':'🔇'; buildSettings(); };
+$('bSound').onclick=()=>{ save.sound=!save.sound; Snd.on=save.sound; persist(); $('bSound').textContent=Snd.on?'🔊':'🔇'; buildSettings(); Music.sync(); };
 $('bSound').textContent=Snd.on?'🔊':'🔇';
 $('bHint').style.display=save.hintBtn===false?'none':'';
 document.querySelectorAll('#dpad button').forEach(b=>b.addEventListener('pointerdown',e=>{ e.preventDefault(); tryMove(b.dataset.d); }));
@@ -1054,8 +1443,14 @@ function frame(now){
     const shv=t.g.userData.shatter; if(shv){ const k=(now-shv)/1000; t.g.position.y=-k*k*12; t.g.rotation.x=k*3; t.g.rotation.z=k*2; if(k>1.4) t.g.visible=false; }
     if(t.g.userData.ring){ t.g.userData.ring.rotation.z+=dt*1.2; t.g.userData.ring.scale.setScalar(1+Math.sin(now*0.004)*.06); }
     if(t.g.userData.pad){ t.g.userData.pad.rotation.z-=dt*1.6; }
+    if(t.g.userData.coil){ const b=Math.sin(now*.005+t.x*.7)*.05; t.g.userData.coil[0].position.y=.04+b; t.g.userData.coil[1].position.y=.15+b*1.8; }
     if(t.g.userData.pring){ t.g.userData.pring.rotation.z+=dt*2.4; t.g.userData.pring.scale.setScalar(1+Math.sin(now*0.005+t.x)*.12); } }
   Object.values(bridgeMeshes).forEach(arr=>arr.forEach(b=>{ const target=b.open?1:0; b.anim+=(target-b.anim)*Math.min(1,dt*7); const a=b.anim; b.mesh.position.y=-.1-(1-a)*0.9; b.mesh.material.opacity=0.12+0.88*a; b.mesh.material.emissiveIntensity=0.15+0.6*a; if(b.ghost){ b.ghost.material.opacity=0.35*(1-a)+0.15; b.ghost.position.y=b.mesh.position.y; } }));
+  lockMeshes.forEach(m=>{ const target=m.open?1:0; m.anim+=(target-m.anim)*Math.min(1,dt*7); const a=m.anim;
+    // a closed gate has to read as an obstacle, not as absence, so it stays visible
+    m.mesh.position.y=-.1-(1-a)*0.34; m.mesh.material.opacity=0.30+0.70*a; m.mesh.material.emissiveIntensity=0.35+0.5*a;
+    if(m.ghost){ m.ghost.material.opacity=0.85-0.35*a; m.ghost.position.y=m.mesh.position.y; } });
+  keyMeshes.forEach(k=>{ if(k.got) return; k.mesh.rotation.z+=dt*2.2; k.mesh.position.y=.55+Math.sin(now*.003+k.i)*.09; });
   switchMeshes.forEach(s=>{ const p=s.press?clamp((now-s.press)/250,0,1):1; s.mesh.position.y=.07-.05*Math.sin(p*Math.PI); });
   starMeshes.forEach(s=>{ if(s.got) return; s.mesh.rotation.y+=dt*2; s.mesh.rotation.x=Math.sin(now*.002)*.3; s.mesh.position.y=(s.pad?.4:.6)+Math.sin(now*.003+s.i)*(s.pad?.05:.1); });
   hintMeshes.forEach(m=>{ m.material.opacity=(m.userData.hint===0?.5:.22)+Math.sin(now*.008)*.15; });
@@ -1070,7 +1465,7 @@ applySkins();
 buildMenu();
 requestAnimationFrame(frame);
 window.LEVELS=LEVELS;
-window.__game={get L(){return L}, get state(){return state}, tryMove, loadLevel, solve:()=>solve(L,state), get busy(){return busy}, get won(){return won}, get moves(){return moves}, save:()=>save, stats, camDir, openMenu};
+window.__game={get L(){return L}, curDef:()=>curDef, loadDaily, loadEndless, get state(){return state}, tryMove, loadLevel, solve:()=>solve(L,state), get busy(){return busy}, get won(){return won}, get moves(){return moves}, save:()=>save, stats, camDir, openMenu};
 })();
 
 </script>

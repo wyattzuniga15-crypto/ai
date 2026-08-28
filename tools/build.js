@@ -2,10 +2,12 @@ const fs=require('fs'),p=__dirname;
 const R=s=>fs.readFileSync(p+'/'+s,'utf8');
 const orig=JSON.parse(R('origlevels.json'));
 const nw=JSON.parse(R('newlevels.json'));
-const LEVELS=orig.concat(nw);
+const nw2=JSON.parse(R('newlevels2.json'));
+const LEVELS=orig.concat(nw,nw2);
 const html=R('part_head.html')
   +'\n<script>\n'+R('mini3d.js')+'\n</script>\n'
   +'<script>\n'+R('rules.js')+'\n</script>\n'
+  +'<script>\n'+R('part_forge.js')+'\n</script>\n'
   +'<script>\n'+R('part_content.js')
   +'\nconst LEVELS = '+JSON.stringify(LEVELS)+';\n</script>\n'
   +'<script>\n'+R('part_game.js')+'\n</script>\n</body>\n</html>\n';

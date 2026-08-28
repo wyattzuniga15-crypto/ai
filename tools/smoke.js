@@ -26,20 +26,19 @@ const {chromium}=require(require('child_process').execSync('npm root -g').toStri
     const g=window.__game; const out=[];
     const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     document.getElementById('setUnlockAll').click();
+    g.save().camRel=false;   // screen dirs == world dirs, so the solver's path maps 1:1
     const N=window.LEVELS?window.LEVELS.length:50;
     for(let i=0;i<N;i++){
       document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show'));
       g.loadLevel(i); await sleep(60);
       let guard=0;
-      while(!g.won && guard++<400){
+      while(!g.won && guard<400){
         if(g.busy){ await sleep(12); continue; }
+        guard++;
         const p=g.solve(); if(!p||!p.length) break;
-        // solver returns world dirs; undo camera mapping by testing all 4 screen dirs
-        let sd=null; for(const d of ['up','down','left','right']) if(g.camDir(d)===p[0]) sd=d;
-        g.tryMove(sd||p[0]); await sleep(14);
+        g.tryMove(p[0]); await sleep(14);
       }
       out.push({i,won:g.won,moves:g.moves});
-      if(!g.won) break;
       await sleep(60);
     }
     return out;
@@ -47,6 +46,32 @@ const {chromium}=require(require('child_process').execSync('npm root -g').toStri
   const failed=report.filter(r=>!r.won);
   console.log('levels played:',report.length,'failed:',failed.length, failed.slice(0,5));
   await page.waitForTimeout(600);
+  // Daily challenge and three endless islands, forged and solved in the page
+  const extra=await page.evaluate(async()=>{
+    const g=window.__game, sleep=ms=>new Promise(r=>setTimeout(r,ms));
+    g.save().camRel=false;
+    const play=async()=>{ let guard=0;
+      while(!g.won && guard++<600){ if(g.busy){ await sleep(10); continue; }
+        const p=g.solve(); if(!p||!p.length) break;
+        let sd=null; for(const d of ['up','down','left','right']) if(g.camDir(d)===p[0]) sd=d;
+        g.tryMove(sd||p[0]); await sleep(12); }
+      return g.won; };
+    const out={};
+    document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show'));
+    const t0=Date.now(); g.loadDaily(); out.dailyForgeMs=Date.now()-t0;
+    await sleep(120); out.dailyName=g.L?window.__game.curDef().name:null; out.daily=await play();
+    await sleep(1100);
+    const runs=[];
+    for(let i=0;i<3;i++){
+      document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show'));
+      const s0=Date.now(); g.loadEndless(); await sleep(260);
+      runs.push({ms:Date.now()-s0,won:await play()});
+      await sleep(1100);
+    }
+    out.endless=runs; out.streak=g.save().endless.run; out.teachSeen=g.save().seen.length;
+    return out;
+  });
+  console.log('extra:',JSON.stringify(extra));
   const st=await page.evaluate(()=>window.__game.stats());
   console.log('stats after autoplay:',JSON.stringify(st));
   await page.screenshot({path:process.argv[3]||'/tmp/shot.png'});

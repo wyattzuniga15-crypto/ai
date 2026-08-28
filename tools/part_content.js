@@ -4,7 +4,9 @@ const CHAPTERS=[
   {name:'Cracked Sky',  from:10, to:19, blurb:'Switches, glass and long routes.'},
   {name:'Ashfall',      from:20, to:29, blurb:'Ground that only holds you once.'},
   {name:'Frostline',    from:30, to:39, blurb:'Ice, pins and portals.'},
-  {name:'Deep Void',    from:40, to:49, blurb:'Everything at once.'},
+  {name:'Deep Void',    from:40, to:49, blurb:'Ice, pins and portals together.'},
+  {name:'Springworks',  from:50, to:59, blurb:'Springs, gates and keys.'},
+  {name:'The Last Vault',from:60,to:69, blurb:'Everything the islands taught you.'},
 ];
 
 // unlock: {stars:n} total stars collected | {clear:n} levels cleared | {perfect:n} 3-star ratings | {mission:id}
@@ -18,6 +20,7 @@ const SKINS={
     {id:'gold',    name:'Bullion',  css:'linear-gradient(135deg,#fff3b0,#c9971a)', color:0xf5c33b, edge:0xfff8dc, emissive:0x4a3200, metal:.9,  rough:.15, unlock:{mission:'perfectionist'}},
     {id:'obsidian',name:'Obsidian', css:'linear-gradient(135deg,#3b4252,#0b0d14)', color:0x14161f, edge:0x74e0ff, emissive:0x06212b, metal:.75, rough:.12, unlock:{mission:'untouchable'}},
     {id:'quartz',  name:'Quartz',   css:'linear-gradient(135deg,#e0f2fe,#7dd3fc)', color:0xbfe8ff, edge:0xffffff, emissive:0x123a55, metal:.6,  rough:.18, unlock:{mission:'speedrun'}},
+    {id:'kite',    name:'Kite',     css:'linear-gradient(135deg,#bbf7d0,#0ea5e9)', color:0x7fe3c8, edge:0xeafff6, emissive:0x0b4a5a, metal:.4,  rough:.28, unlock:{mission:'airborne'}},
     {id:'prism',   name:'Prism',    css:'linear-gradient(135deg,#a5f3fc,#f0abfc,#fde68a)', color:0xdff3ff, edge:0xffffff, emissive:0x2a3a55, metal:.85, rough:.08, unlock:{stars:40}},
   ],
   tile:[
@@ -27,6 +30,7 @@ const SKINS={
     {id:'carbon',  name:'Carbon',    css:'linear-gradient(135deg,#5a6270,#171a21)', top:0x394150, side:0x1b1f28, goal:0x0f1218, ring:0x7dd3fc, unlock:{mission:'noregrets'}},
     {id:'coral',   name:'Coral',     css:'linear-gradient(135deg,#ffb3a7,#a13d5c)', top:0xd97b7b, side:0x6d2f42, goal:0x3a1826, ring:0xffd6a5, unlock:{mission:'glasswork'}},
     {id:'magma',   name:'Magma',     css:'linear-gradient(135deg,#ff9a3d,#4a1004)', top:0xb1481f, side:0x4a1a0c, goal:0x2a0d06, ring:0xffd08a, unlock:{mission:'demolition'}},
+    {id:'basalt',  name:'Basalt',    css:'linear-gradient(135deg,#6b7280,#0f172a)', top:0x2f3646, side:0x151a24, goal:0x0b0e14, ring:0xf59e0b, unlock:{mission:'locksmith'}},
     {id:'neon',    name:'Neon',      css:'linear-gradient(135deg,#f0abfc,#3b0764)', top:0x8b3fd6, side:0x3a1264, goal:0x1d0836, ring:0x67e8f9, unlock:{mission:'flawless'}},
   ],
   sky:[
@@ -35,7 +39,17 @@ const SKINS={
     {id:'aurora',  name:'Aurora',    css:'radial-gradient(circle at 50% 35%,#0f4d52,#04121a)', bg1:'#0e3d46', bg2:'#04101a', fog:0x05161c, hemiSky:0xa7f3d0, hemiGnd:0x06283a, sun:0xd8fff0, fill:0x34d399, unlock:{mission:'star3'}},
     {id:'sunset',  name:'Long Sunset',css:'radial-gradient(circle at 50% 35%,#7a3b12,#1a0a06)', bg1:'#63300f', bg2:'#160805', fog:0x1c0c06, hemiSky:0xffd7a8, hemiGnd:0x3a1408, sun:0xffb37a, fill:0xff9142, unlock:{mission:'pathfinder'}},
     {id:'abyss',   name:'Abyss',     css:'radial-gradient(circle at 50% 35%,#101a34,#01030a)', bg1:'#0b1430', bg2:'#01030a', fog:0x02050f, hemiSky:0x8fb4ff, hemiGnd:0x050a1a, sun:0xcfe3ff, fill:0x3b82f6, unlock:{stars:36}},
+    {id:'furnace', name:'Furnace',   css:'radial-gradient(circle at 50% 35%,#7c2d12,#180603)', bg1:'#5c2410', bg2:'#170603', fog:0x1d0904, hemiSky:0xffc9a0, hemiGnd:0x3a1206, sun:0xffcf9a, fill:0xf97316, unlock:{mission:'endless1'}},
+    {id:'daybreak',name:'Daybreak',  css:'radial-gradient(circle at 50% 35%,#3b5a8a,#0b1220)', bg1:'#2f4f7a', bg2:'#0a111e', fog:0x0d1626, hemiSky:0xffe8c8, hemiGnd:0x14243c, sun:0xfff0d0, fill:0x60a5fa, unlock:{mission:'daily5'}},
     {id:'starfield',name:'Starfield',css:'radial-gradient(circle at 50% 35%,#3b2f6b,#08050f)', bg1:'#2c2358', bg2:'#08050f', fog:0x0b0718, hemiSky:0xe9d5ff, hemiGnd:0x1a0f30, sun:0xfff6ff, fill:0xa78bfa, unlock:{mission:'completionist'}},
+  ],
+  trail:[
+    {id:'none',    name:'No trail',  css:'linear-gradient(135deg,#2a3050,#151a2c)', color:null},
+    {id:'sparks',  name:'Sparks',    css:'linear-gradient(135deg,#ffd08a,#ff8c2a)', color:0xffb347, unlock:{clear:6}},
+    {id:'frost',   name:'Frost',     css:'linear-gradient(135deg,#dff6ff,#38bdf8)', color:0x9be8ff, unlock:{stars:30}},
+    {id:'ember',   name:'Ember',     css:'linear-gradient(135deg,#ffb199,#dc2626)', color:0xff5a2a, unlock:{mission:'demolition'}},
+    {id:'ink',     name:'Ink',       css:'linear-gradient(135deg,#c4b5fd,#4c1d95)', color:0x9d7bff, unlock:{mission:'forged'}},
+    {id:'stardust',name:'Stardust',  css:'linear-gradient(135deg,#fef3c7,#f59e0b)', color:0xffe9a8, unlock:{mission:'endless2'}},
   ]
 };
 
@@ -46,7 +60,7 @@ const MISSIONS=[
   {id:'star3',  icon:'✨', name:'Stargazer III', desc:'Collect 45 stars.',                            goal:45, val:s=>s.starTotal,   reward:'Aurora sky'},
   {id:'explorer',     icon:'🧭', name:'Explorer',      desc:'Clear 15 levels.',                       goal:15, val:s=>s.cleared,     reward:'Dusk sky'},
   {id:'pathfinder',   icon:'🗺️', name:'Pathfinder',    desc:'Clear 35 levels.',                       goal:35, val:s=>s.cleared,     reward:'Long Sunset sky'},
-  {id:'completionist',icon:'🏝️', name:'Completionist', desc:'Clear all 50 levels.',                   goal:50, val:s=>s.cleared,     reward:'Starfield sky'},
+  {id:'completionist',icon:'🏝️', name:'Completionist', desc:'Clear all 70 islands.',                  goal:70, val:s=>s.cleared,     reward:'Starfield sky'},
   {id:'perfectionist',icon:'★',  name:'Perfectionist', desc:'Earn a 3-star rating on 5 levels.',      goal:5,  val:s=>s.perfect,     reward:'Bullion cube'},
   {id:'flawless',     icon:'👑', name:'Flawless',      desc:'Earn a 3-star rating on 15 levels.',     goal:15, val:s=>s.perfect,     reward:'Neon tiles'},
   {id:'hunter',       icon:'💎', name:'Treasure Hunter',desc:'Take every star in 8 different levels.',goal:8,  val:s=>s.allStars,    reward:'Plasma cube'},
@@ -56,5 +70,11 @@ const MISSIONS=[
   {id:'glasswork',    icon:'🪟', name:'Glasswork',     desc:'Clear 6 glass levels without shattering a pane.', goal:6, val:s=>s.noBreak, reward:'Coral tiles'},
   {id:'demolition',   icon:'💥', name:'Demolition',    desc:'Collapse 40 crumble tiles.',             goal:40, val:s=>s.crumbled,   reward:'Magma tiles'},
   {id:'speedrun',     icon:'⚡', name:'Under Par',      desc:'Finish 20 levels on or under par.',      goal:20, val:s=>s.underPar,   reward:'Quartz cube'},
-  {id:'wanderer',     icon:'👣', name:'Wanderer',      desc:'Roll 1,200 moves in total.',             goal:1200,val:s=>s.totalMoves,reward:'Sandstone tiles'},
+  {id:'wanderer',     icon:'👣', name:'Wanderer',      desc:'Roll 1,600 moves in total.',             goal:1600,val:s=>s.totalMoves,reward:'Sandstone tiles'},
+  {id:'locksmith',    icon:'🔑', name:'Locksmith',     desc:'Collect 25 keys.',                       goal:25, val:s=>s.keysTaken,   reward:'Basalt tiles'},
+  {id:'airborne',     icon:'🪂', name:'Airborne',      desc:'Ride 30 springs.',                       goal:30, val:s=>s.launches,    reward:'Kite cube'},
+  {id:'daily5',       icon:'📅', name:'Regular',       desc:'Clear 5 daily challenges.',              goal:5,  val:s=>s.dailyCleared, reward:'Daybreak sky'},
+  {id:'endless1',     icon:'♾️', name:'Endless I',     desc:'Reach a streak of 8 in Endless.',        goal:8,  val:s=>s.endlessBest, reward:'Furnace sky'},
+  {id:'endless2',     icon:'🌌', name:'Endless II',    desc:'Reach a streak of 20 in Endless.',       goal:20, val:s=>s.endlessBest, reward:'Stardust trail'},
+  {id:'forged',       icon:'⚒️', name:'Prospector',    desc:'Clear 25 forged islands.',               goal:25, val:s=>s.forged,     reward:'Ink trail'},
 ];

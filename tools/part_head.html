@@ -55,6 +55,8 @@ kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px
 .lv .t{font-size:10.5px;color:#aab;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lv .s{font-size:12px;color:var(--accent);margin-top:4px;letter-spacing:1px;min-height:14px}
 .lv .g{font-size:10px;color:#8fe3c4;min-height:12px}
+.lv .mx{font-size:10px;line-height:1.3;min-height:13px;letter-spacing:1px;opacity:.85}
+.lv .mx i{font-style:normal}
 .chapter{display:flex;align-items:center;gap:12px;margin:16px 0 2px}
 .chapter .cn{font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#cfd8ff}
 .chapter .cl{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.18),transparent)}
@@ -104,7 +106,7 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
 <div id="hud">
   <div id="top">
     <div class="card">
-      <div id="lvl">Level 1 / 50</div>
+      <div id="lvl">Level 1 / 70</div>
       <div id="name">First Steps</div>
       <div id="stats"><span>Moves <b id="moves">0</b></span><span>Par <b id="par">0</b></span><span>Best <b id="best">—</b></span><span id="stars"></span></div>
     </div>
@@ -128,12 +130,13 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
 <div id="ovMenu" class="overlay show"><div class="panel">
   <div class="hero">
     <h1>CUBE ROLL</h1>
-    <div class="sub">50 floating islands</div>
+    <div class="sub">70 floating islands</div>
   </div>
   <div class="tally" id="menuTally"></div>
   <div class="tabs" id="menuTabs">
     <button data-tab="play" class="on">Play</button>
     <button data-tab="levels">Levels</button>
+    <button data-tab="challenge">Challenge</button>
     <button data-tab="missions">Missions</button>
     <button data-tab="skins">Skins</button>
     <button data-tab="stats">Stats</button>
@@ -146,6 +149,7 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <div class="row">
       <button class="primary" id="bContinue" style="font-size:17px;padding:13px 28px">Continue ▶</button>
       <button id="bPlayLevels">Level select</button>
+      <button id="bPlayChallenge">Daily &amp; Endless</button>
       <button id="bPlayMissions">Missions</button>
     </div>
     <h3>Next up</h3>
@@ -158,6 +162,16 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <div id="lvGrid"></div>
   </div>
 
+  <div class="pane" id="panechallenge">
+    <p style="margin-top:4px">Islands forged on the spot by the same rules engine the campaign uses — every one is proven solvable before you see it, and its par is the true optimum.</p>
+    <h3>Daily challenge</h3>
+    <div id="dailyCard"></div>
+    <div class="row" style="justify-content:flex-start"><button class="primary" id="bDaily">Play today's island ▶</button></div>
+    <h3>Endless</h3>
+    <div id="endlessCard"></div>
+    <div class="row" style="justify-content:flex-start"><button class="primary" id="bEndless">Start run ▶</button><button id="bEndlessReset" class="ghost">Abandon run</button></div>
+  </div>
+
   <div class="pane" id="panemissions">
     <p style="margin-top:4px">Side quests that run across the whole game. Finishing one unlocks a skin.</p>
     <div id="missionList"></div>
@@ -168,6 +182,7 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <h3>Cube</h3><div class="skins" id="skinCube"></div>
     <h3>Tiles</h3><div class="skins" id="skinTile"></div>
     <h3>Sky</h3><div class="skins" id="skinSky"></div>
+    <h3>Trail</h3><div class="skins" id="skinTrail"></div>
   </div>
 
   <div class="pane" id="panestats">
@@ -184,6 +199,9 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
       <span><i class="sw" style="background:#74d4ff"></i>Ice — you keep sliding until you leave it</span>
       <span><i class="sw" style="background:#c084fc;border-radius:50%"></i>Pin — holds you upright, never lying down</span>
       <span><i class="sw" style="background:#8b5cf6;border-radius:50%"></i>Portal — lands you on its twin when upright</span>
+      <span><i class="sw" style="background:#22c55e"></i>Spring — fires you three tiles on, over any gap</span>
+      <span><i class="sw" style="background:#22d3ee;border-radius:50%"></i>Key — mandatory; every one opens the gates</span>
+      <span><i class="sw" style="background:#ef4444"></i>Gate — thin air until you hold every key</span>
       <span><i class="sw" style="background:#2dd4bf;border-radius:50%"></i>Round switch — any touch toggles a bridge</span>
       <span><i class="sw" style="background:#f472b6"></i>Square switch — needs the block upright</span>
       <span><i class="sw" style="background:#38bdf8"></i>Bridge — appears / disappears</span>
@@ -199,18 +217,34 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
       <span>M — mute</span><span>Drag / scroll — orbit &amp; zoom</span>
     </div>
     <h3>Ratings</h3>
-    <p>Finish on or under par for ★★★, within four moves of par for ★★, anything else for ★. Stars scattered on the island are counted separately — they are what buy your skins.</p>
+    <p>Finish on or under par for ★★★, within four moves of par for ★★, anything else for ★. Par is the true optimum — every island in the game was solved by machine before you saw it. Stars scattered on the island are counted separately; they are what buy your skins.</p>
+    <h3>Daily and Endless</h3>
+    <p>The Challenge tab forges brand-new islands in your browser using the same rules engine, so they are proven solvable before they appear. The daily island is the same one for everybody; the endless run gets harder with every island you clear.</p>
   </div>
 
   <div class="pane" id="panesettings">
     <div class="set"><div>Sound<small>Rolls, switches, fanfares</small></div><button id="setSound">On</button></div>
+    <div class="set"><div>Ambient music<small>A slow pad under the puzzling. Off by default.</small></div><button id="setMusic">Off</button></div>
     <div class="set"><div>Camera-relative controls<small>Off: arrows always match the world grid</small></div><button id="setCamRel">On</button></div>
     <div class="set"><div>Screen shake<small>Impact feedback on falls and breaks</small></div><button id="setShake">On</button></div>
     <div class="set"><div>Show hint button<small>Hide it for an honest run</small></div><button id="setHintBtn">On</button></div>
+    <div class="set"><div>Tutorial cards<small>Explain each kind of ground the first time you meet it</small></div><button id="setTeach">On</button></div>
     <div class="set"><div>Unlock every level<small>Skip ahead — ratings and stars still count</small></div><button id="setUnlockAll">Unlock</button></div>
     <div class="set"><div>Erase progress<small>Levels, stars, missions and skins</small></div><button id="setWipe">Erase</button></div>
     <p style="font-size:12px;opacity:.6;margin-top:16px">Progress is stored in this browser only.</p>
   </div>
+</div></div>
+
+<div id="ovTeach" class="overlay"><div class="panel sm">
+  <div id="teachIcon" style="font-size:44px;margin-bottom:4px"></div>
+  <h2 id="teachTitle"></h2>
+  <p id="teachBody"></p>
+  <div class="row"><button class="primary" id="bTeachOk">Got it</button></div>
+</div></div>
+
+<div id="ovForge" class="overlay"><div class="panel sm">
+  <h2>Forging an island…</h2>
+  <p>Carving ground, placing tiles, and proving it can be solved.</p>
 </div></div>
 
 <div id="ovWin" class="overlay"><div class="panel sm">

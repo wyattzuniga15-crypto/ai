@@ -3,7 +3,7 @@ Object.assign(global, eval(fs.readFileSync(__dirname+'/rules.js','utf8')+";({par
 
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 
-const CH={floor:'#',fragile:'F',crumble:'O',ice:'^',pin:'P',port:'T',star:'*',starpad:'X'};
+const CH={floor:'#',fragile:'F',crumble:'O',ice:'^',pin:'P',port:'T',star:'*',starpad:'X',launch:'J',lock:'L',keytile:'K'};
 
 function carve(rng,w,h,steps){
   const cells=new Map(); // "x,y" -> true
@@ -217,6 +217,18 @@ function uprightReachable(L){
 // Some tiles (ice above all) are fatal wherever they are not deliberate: a random
 // slide walks you off the island. Grow them one at a time instead, keeping only
 // placements that leave the level solvable AND land on the optimal route.
+// Which tiles actually FIRE along a solution - a launch pad the block merely
+// rolls across lying down is decoration, not a mechanic.
+function firedAt(L,path,type){
+  let s=initialState(L); const set=new Set();
+  for(const d of path){ const r=step(L,s,d); for(const ev of r.events){ if(ev.type===type&&ev.fx!==undefined) set.add(ev.fx+','+ev.fy); } s=r.state; }
+  return set;
+}
+function countEvents(L,path,type){
+  let s=initialState(L), n=0;
+  for(const d of path){ const r=step(L,s,d); for(const ev of r.events) if(ev.type===type) n++; s=r.state; }
+  return n;
+}
 function growTiles(def,ch,n,rng,opt){
   opt=opt||{};
   let cur=def, placed=0;
@@ -237,7 +249,7 @@ function growTiles(def,ch,n,rng,opt){
       let L; try{ L=parseLevel(trial); }catch(e){ continue; }
       const p=solve(L); if(!p) continue;
       if(opt.maxPar&&p.length>opt.maxPar) continue;
-      const pc=pathCells(L,p);
+      const pc=opt.mustFire?firedAt(L,p,opt.mustFire):pathCells(L,p);
       let allUsed=true;
       for(let y=0;y<L.h&&allUsed;y++)for(let x=0;x<L.w;x++){ if(trial.map[y][x]===ch&&!pc.has(x+','+y)){ allUsed=false; break; } }
       if(!allUsed) continue;
@@ -247,7 +259,33 @@ function growTiles(def,ch,n,rng,opt){
   }
   return {def:cur,placed};
 }
-module.exports={genLevel,evaluate,toMap,mulberry,prune,sprinkleStars,growTiles};
+
+// Keys are mandatory, so BFS proves the placement: a key behind its own lock
+// simply makes the level unsolvable and gets rejected.
+function placeKeys(def,n,rng,opt){
+  opt=opt||{};
+  let cur=def, placed=0;
+  for(let k=0;k<n;k++){
+    const g=cur.map.map(r=>r.split(''));
+    const cells=[];
+    for(let y=0;y<g.length;y++)for(let x=0;x<g[y].length;x++) if(g[y][x]==='#') cells.push({x,y});
+    cells.sort(()=>rng()-0.5);
+    let took=false, bestTrial=null, bestPar=-1;
+    for(const c of cells){
+      const gg=cur.map.map(r=>r.split('')); gg[c.y][c.x]='K';
+      const trial=Object.assign({},cur,{map:toMap(gg)});
+      let L,p; try{ L=parseLevel(trial); p=solve(L); }catch(e){ continue; }
+      if(!p) continue;
+      if(opt.maxPar&&p.length>opt.maxPar) continue;
+      if(p.length>bestPar){ bestPar=p.length; bestTrial=trial; }
+      if(p.length>=(opt.wantPar||0)){ bestTrial=trial; break; }
+    }
+    if(bestTrial){ cur=bestTrial; placed++; took=true; }
+    if(!took) break;
+  }
+  return {def:cur,placed};
+}
+module.exports={genLevel,evaluate,toMap,mulberry,prune,sprinkleStars,growTiles,placeKeys,firedAt,countEvents};
 if(require.main===module){
   const cfg={w:11,h:9,steps:60,minSpan:6,minPar:14,maxPar:30,attempts:60,noise:.05,feat:[{t:'crumble',n:6},{t:'star',n:2}]};
   for(let s=1;s<40;s++){ const r=genLevel(s,cfg); if(r){ console.log(s,r.ev.par,r.score); console.log(r.def.map.join('\n')); break; } }
