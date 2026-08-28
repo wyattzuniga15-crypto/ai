@@ -38,6 +38,12 @@ validated against the same code the browser runs.
 - `smoke.js` — headless Chromium: builds the menu, opens every tab, auto-solves
   all 70 campaign islands, then plays the daily challenge and three endless
   islands. Exits non-zero on any console error or unsolved island.
+- `reach.js` — checks that no control is off the side of the screen at 320, 360,
+  412, 900 and 1440 wide. Vertical overflow is fine because panels scroll;
+  horizontal overflow is not, because nothing tells a player it is there.
+- `buttons.js` — presses every button, tab, level card, skin tile and settings
+  toggle (tapping on touch contexts, clicking on desktop) and asserts each one
+  changed something. A control that is reachable but inert is still broken.
 - `device.js` — the same three builds under emulated devices (Pixel 7, a 360x640
   phone, and a 1440x900 desktop). Checks that each build picks the right layout
   and render budget, that no menu tab overflows its panel, and that the input

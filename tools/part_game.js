@@ -624,7 +624,9 @@ function buildLevelGrid(){
         `<div class="s">${b?'★'.repeat(b.rating||1)+'<span style="color:rgba(255,255,255,.15)">'+'★'.repeat(3-(b.rating||1))+'</span> '+b.moves:''}</div>`+
         `<div class="g">${ns?((b?b.stars||0:0)+'/'+ns+' ✦'):''}</div>`+
         `<div class="mx">${locked?'':mechOf(lv).map(m=>`<i title="${m[1]}">${m[0]}</i>`).join('')}</div>`;
-      if(!locked) d.onclick=()=>{ Snd.click(); closeOverlays(); loadLevel(i); };
+      d.onclick = locked
+        ? (()=>{ Snd.click(); toast('Locked — clear island '+save.unlocked+' first, or unlock everything in Settings'); })
+        : (()=>{ Snd.click(); closeOverlays(); loadLevel(i); });
       g.appendChild(d);
     }
     host.appendChild(g);
