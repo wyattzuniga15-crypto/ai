@@ -44,6 +44,13 @@ validated against the same code the browser runs.
 - `buttons.js` — presses every button, tab, level card, skin tile and settings
   toggle (tapping on touch contexts, clicking on desktop) and asserts each one
   changed something. A control that is reachable but inert is still broken.
+- `hostile.js` — boots the page under the conditions a downloaded file actually
+  meets: localStorage throwing on read, on write, or on access; no AudioContext;
+  no matchMedia; a corrupt save; a save from the previous version.
+- `failmode.js` — the inverse: breaks the page on purpose (no WebGL2, a throwing
+  getContext, a failing menu section) and asserts it either still runs or shows
+  a readable message. A page that only highlights its buttons is a silent
+  failure, and this is what stops one shipping.
 - `device.js` — the same three builds under emulated devices (Pixel 7, a 360x640
   phone, and a 1440x900 desktop). Checks that each build picks the right layout
   and render budget, that no menu tab overflows its panel, and that the input

@@ -172,6 +172,12 @@ html[data-platform="desktop"] #hint{max-width:560px}
 </style>
 </head>
 <body>
+<noscript><div style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:22px;background:#070a16;color:#eef;font:15px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:520px;background:rgba(16,20,40,.97);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:24px 22px">
+    <h2 style="margin:0 0 8px;font-size:21px;color:#ffb347">JavaScript is switched off</h2>
+    <p style="margin:0;color:#c8d0f0">Cube Roll is a game, so it needs JavaScript to run. The menu below will draw and its buttons will highlight when you tap them, but nothing will happen. Open this file in Safari or Chrome directly — file previews inside chat apps, mail clients and file managers often block scripts.</p>
+  </div></div></noscript>
+
 <div id="hud">
   <div id="top">
     <div class="card">
@@ -855,8 +861,44 @@ const MISSIONS=[
 const LEVELS = [{"name":"First Steps","hint":"Arrow keys or WASD roll the block. Stand upright on the goal to finish.","par":6,"map":[".G.",".##","##S","###"]},{"name":"The Bend","hint":"A lying block covers two tiles. Think about which orientation you arrive in.","par":10,"map":["##....","#####.","#.S###","#.##..","G....."]},{"name":"Thin Ice","hint":"Orange tiles crack if you stand on them. Roll across lying down.","par":11,"map":["#F###",".F#G#","#F###","FF#.#","#.##S","#.#.#"]},{"name":"Drawbridge","hint":"Touch the round switch (any contact) to raise the bridge.","par":14,"links":{"1":"a"},"map":["#.##1S..####","######..###.","###.##..#...",".#...#..G...",".#...#aa###."]},{"name":"Heavy Duty","hint":"Square switches need your full weight — stand upright on them.","par":15,"links":{"5":"a"},"map":["S##5#aa#####","#.###..####.","#.......###.",".......###..","........##G#"]},{"name":"Zigzag","hint":"Count your rolls. Every tip changes which tiles you cover.","par":18,"map":[".....#####",".#...##..#",".#...##..#","###..#...S","G#####....","##..##....",".####....."]},{"name":"Crossroads","hint":"Fragile tiles can be safe stepping stones — if you never stand on them.","par":16,"map":["..###F.","#FG#...",".F##...","###....","###....","##.###S","#FF###."]},{"name":"Lockstep","hint":"Touch the switch twice and the bridge closes again.","par":17,"links":{"1":"a"},"map":["...........###","S#####....####","....##...##..#","....1#...##..G","....##aaa#...#","....##........"]},{"name":"Two Keys","hint":"Two switches, two bridges. Find the order that works.","par":22,"links":{"1":"a","2":"b"},"map":["....#.....2###...##G","..#.1....#####..####",".#S###aa###..#bb####","####.....##..#.....#","######....#..#......"]},{"name":"Star Route","hint":"Stars are optional — collect all three for a perfect run.","par":19,"map":["####**",".###..",".*S###","..#.##",".#####","..##..",".G####"]},{"name":"Pillars","hint":"Narrow corridors force you upright. Wide ones let you lie down.","par":22,"map":["..#.####FF","..#####F..","..##F.##..","####...#..",".##.......","S##.......","##F.......","G........."]},{"name":"Toggle Trap","hint":"The round switch flips BOTH bridges — one opens as the other closes.","par":23,"links":{"1":"ab","2":"b"},"map":[".#S#...##.......",".#1#...##.......","..###aa##.##2...","#####..######BBG","........#.##...."]},{"name":"Island Hop","hint":"Sparse and mean. Plan the whole route before the first roll.","par":28,"map":["......##..",".....###..",".....###F.","S##..##...",".#F#####..",".......###",".......##G",".......###"]},{"name":"Gatekeeper","hint":"The heavy switch controls the far bridge. You'll need to come back.","par":30,"links":{"1":"a","5":"b"},"map":["#........#...##....###","#....S...###.##...####","######...######...####","##.###...#..###bbb#..#","##.#5#1aa#........G...",".....#...#........#..."]},{"name":"Long Way","hint":"The shortest path is not always the safest.","par":28,"map":["...###......","...###......","#SF#.###....",".##...###.F.",".###....##F.","*###F...#F#F","..##...G###*",".........#.."]},{"name":"Switchboard","hint":"Three switches, three bridges. Every mistake costs a trip back.","par":36,"links":{"1":"a","2":"c","5":"b"},"map":["#S##....5####.....#.......","#1.##...#.###..#####......","##.##...#.###bb#####cc####",".#..##aa#......##.#...####","....##..#.........2.....##","....##..#...............G."]},{"name":"Glass Bridge","hint":"Almost everything is glass. Keep your weight spread.","par":28,"map":["...#GF.FF..","..##F..SF..","..###F##...","....##FF##.","..F##.#F#..","*#.FF.#.F##","FF...######","#*FF###F###"]},{"name":"Double Lock","hint":"Soft and heavy switches share one bridge. Parity is everything.","par":32,"links":{"1":"a","5":"a"},"map":["..####F.......","#1##.##.....F#",".######....##F","..5##.#aaaG#F#",".##.S.#...####","###........#.."]},{"name":"Labyrinth","hint":"Big, sparse and unforgiving. Use the hint button if you must.","par":39,"map":["...#G####...*","...F###.#...#","..###.#.###*#","..##..#F###..","..##*..#F##..","...#...#..F..","#..#.........","F..#.........","S###........."]},{"name":"The Gauntlet","hint":"Everything you've learned, all at once. Good luck.","par":48,"links":{"1":"a","2":"b","5":"ab"},"map":["...##....#F##.#...##..#","###1#....##F..#..F##..G",".#####...####.F..*##.##",".#.##......2##*...#####","...##S....#.F#....#.###","...##.....5###....F...#","...####aa####F#BB##...F"]},{"name":"Crumbling Path","hint":"Pale cracked tiles hold you once. Step off and they are gone forever.","par":11,"map":["##*#O#*.","#######.",".##OSOO.",".###.###",".#....#.",".#######",".....#O#",".....G##"]},{"name":"Claim It","hint":"A star pad only pays out when the block is standing upright on it.","par":14,"map":["###...","X###..","#..#..","#..#..","#X##.S","##.###","G#*###"]},{"name":"Slipstream","hint":"Ice will not let you stop. You keep rolling the same way until you leave it.","par":15,"map":["..G^##.##.","..*#######",".....####*",".....^####","..#..#####","##S.##....",".#####....",".###^#...."]},{"name":"Needlepoint","hint":"A pin is a spire of rock — it holds you standing, never lying down.","par":15,"map":["...P#*###",".#####P##",".##S..###",".#....###","#.....P##","###.##P##","#######..","##*G###.."]},{"name":"Wormhole","hint":"Land upright on a portal and it throws you to its twin.","par":16,"map":["..*#...##.",".####T####","####.*###T","####..##S#","#####.....","#####.....","#G###.....","###......."]},{"name":"One Way Down","hint":"Every crumble tile is a door that locks behind you. Order matters.","par":17,"map":[".##O...*##",".###...S##","###....#*#","##.....###","###..##O##","#OO.######","#####..###","GO#OO..###"]},{"name":"Frostbite","hint":"Glass under ice. You will not get the chance to stop and think.","par":18,"map":["*####^##...","###F#######","#G^###..###","^####*..*##","##F......#F","###....#S##","###........"]},{"name":"Pinwheel","hint":"Pins force you upright; glass forbids it. Read the ground before you roll.","par":19,"map":["F#G#....#..","#####..##P.","##P######F.",".#...#####.","##...S..###","#####P####.","....#####*.","##..######.","*####*##..."]},{"name":"Gate and Gone","hint":"The bridge is one trip only if you burn the crumble tiles getting there.","par":19,"map":["###G###....","#OO####..*#","a#O.#...S##","..#.....#..","..aO#...#..","..###a##1..","...*#####..",".....###O.."],"links":{"1":"a"}},{"name":"Constellation","hint":"The goal is sealed. Claim every star on the island before it opens.","par":21,"map":["....######","....#F##*#",".....#####",".....SFF..",".####..#..","#####..#..","##G#####..",".#########","###.#..X##"],"lockGoal":true},{"name":"Thin Air","hint":"Glass and crumble share one rule: never linger.","par":21,"map":["FO....###..","O#....###..","######F#OF*","#...##F#*.#","#.S.#####.#","##O*..#G###","##O#..##..#","####..##..#",".###..#...."]},{"name":"Cold Snap","hint":"A slide across ice can burn a crumble tile you were saving.","par":20,"map":["###G.......","*##O.......","###O....*##","#^###O#####","##^#O.....#","###^#.S#..#","......###O#","......####*",".......####"]},{"name":"Skywire","hint":"Pins hold a standing block. Portals move one. Chain them.","par":22,"map":[".......###G",".......####",".......####","P#.T..##P..","##*#..##...","##P#.###...","*#P##S.....",".T####.....",".*###......"]},{"name":"Twin Gates","hint":"Two switches, two bridges, and only one order that gets you home.","par":21,"map":["#*###.......","###a#.......","G##*#....S2#","####.....#..","#ab###...#..","######...###","#*##......1#","...##b.###b#","....##a##..."],"links":{"1":"a","2":"b"}},{"name":"Collector","hint":"Star pads demand your full weight, and the goal will not open without them.","par":23,"map":[".........##","#####....##","###########","##X##S##X##","####^#.....","...#####^#.",".##.....##.",".##.....##.",".G#####^#.."],"lockGoal":true},{"name":"Glacier","hint":"A wide sheet of ice. Find the one lane that does not run out.","par":26,"map":["...#^###...","...#####...","...#..*#...","...#...#S#.","...^...^##.","..#^...###.","..##...###*","###^*..####","######....#","##G##.....#"]},{"name":"Ashfall","hint":"Half the island is one-use. There is no walking it back.","par":20,"map":["G########O#.","OO###*##.###","###..#######",".##..#...###","........S.##","........O#*O","........#..#","......#*OO#O","......###*##",".........###"]},{"name":"Pincushion","hint":"Stand on pins, lie across glass. Get it backwards and you are gone.","par":29,"map":["F##F#####..","#FP...##P#*","P*#....##..","G####..##..","*F##P..####","#####.....#","#####.....#","###*#...S.#","#####...###",".#P#....###"]},{"name":"Relay","hint":"A portal is a shortcut and a trap — it only fires when you land upright.","par":29,"map":["...a##T*##.","...####..#.","...S###..#.","*##.##*..#.","###......##","#####....##","######..#T#","*T#..5aT##.","#a#..###...","#G##.###..."],"links":{"5":"a"}},{"name":"The Vault","hint":"Stars first, bridge second, goal last. No shortcuts.","par":37,"map":["...###X#####.","####...#.###.","####..####...","#.....####...","#.....####a##","#....#.#..##.","#..#####.S###","#######a...*#","G####a#....##","######....1##"],"links":{"1":"a"},"lockGoal":true},{"name":"Shatterline","hint":"Glass over crumble over void. Nothing here forgives a second visit.","par":28,"map":["#*O.........","##F........G","F#*........#","###..S.....O","..###*...#O#","..O#F##*#O#."]},{"name":"Black Ice","hint":"You cannot stop on ice and you cannot lie down on a pin.","par":29,"map":[".#*P^.......",".#####......","#####^......","##G##*...###","##.......###","P#.......S.P","###*#^.....#","#######.###^","P##.*#######",".##...###..."]},{"name":"Waypoint","hint":"Portals rearrange the island. Crumble tiles make sure you only get one look.","par":24,"map":["..#*.........",".T##S........","*##..........",".##..........","###..........","#T...........","###O#####*###","..###*O###OO#","..#.....O#G#O"]},{"name":"Lattice","hint":"Two bridges, a heavy switch and a floor made of glass.","par":31,"map":["########....G.","#####.##...##.","####FS#*...##.","#####......###","####6......#..","#F#........a..","#bb#.....####.","#*a###...F##..","...1*#...###b#","...#####a###*#"],"links":{"1":"a","6":"b"}},{"name":"Stardust","hint":"Two kinds of star, one sealed door. Take every one.","par":37,"map":[".######......","#G#X###...###","#####....###T","#####.....###","X###...ST###.","###.......##.","###.#.....*#.","#########..#.","...######.##.","...#########."],"lockGoal":true},{"name":"Freefall","hint":"The island eats itself behind you. Commit to a route.","par":22,"map":["#...#*.......","#...###O.....","GO##O#OO.....","#####O##O#...","#######.#####","*#O####...###","#######.S.O..","###....####*#","###.....#####","........####*"]},{"name":"Mirror Halls","hint":"Four portals and a gate. Map the pairs before you move.","par":33,"map":["........#T#.","...###..####","...###..##T#","...#.####a##","...#.#*###1#",".S.T...a#*G#","####T#.####.","*#####.*###.","...#a#.#####"],"links":{"1":"a"}},{"name":"Deep Freeze","hint":"Ice, glass and crumble in the same breath. Slow down — you cannot.","par":26,"map":[".........####.","..#.....#O###.","..##....######","..*##...F#O.##","*#G##.....#SF#","O####.....#...","##F#####*.#...","####^^.##.##..","##.#O#####F###","...*##O####^#^"]},{"name":"The Machine","hint":"Three gates, a pin field and a star you will have to earn twice over.","par":36,"map":["######*####P*##","P##############","#######....##*.","####.#.....###.","####....S....b.","##b#....#....a.","####a#..6..##P.","G#####..#####..","#####.#######..","#b##a.#*P1###.."],"links":{"1":"a","6":"b"}},{"name":"Endgame","hint":"Everything the islands taught you, in one long breath. Good luck.","par":43,"map":["######.........","#####*.........","####G##..###...","####a##..###...","^######..#.##F.","#O###Oa^O#..###","X#######F#....#","#####T##T.a#S.#","..##O#....^####","..#*#.....##1F.","..#O..........."],"links":{"1":"a"},"lockGoal":true},{"name":"Launch Pad","hint":"A spring throws you three tiles on, straight over the gap.","par":13,"map":[".....##G#","..#######","....#####","....*J###","...###...","#S#..##..","##J..##..","####*##.."]},{"name":"Lock and Key","hint":"The red gate is solid air until you are holding every key.","par":17,"map":[".K####...",".####*...",".####S...",".####....",".#####...","####.###G","#####L##.","*####...."]},{"name":"Long Jump","hint":"Two springs in a row cover nine tiles in two moves.","par":15,"map":["##G######..","##.###..#.*","##.###..#.#","##J#...S###","####......#","####J##J###","...########","....*######"]},{"name":"Keyring","hint":"Two keys, one gate. Neither key is on the way to the other.","par":20,"map":["#*##.#L","#..*.##","#..##S#","KK####.","...#...","...#...","...###.","...G##."]},{"name":"Spring Loaded","hint":"Springs fire you over ground that would have crumbled anyway.","par":22,"map":["....#.####O","..##*.#.##O","..###.#.##.","###J#OO.#..","###.....J##","###.....###","*#S......##","###O#.#####","##*#..##G##"]},{"name":"Cold Storage","hint":"Ice carries you; the gate decides where you are allowed to stop.","par":21,"map":["....###K...",".#..#*##...","##*S##^*...","##.#####...","###L^^##..G",".##^####.##","...#....###","...#^###^##","...###....."]},{"name":"Catapult","hint":"A spring can fire you straight into a portal. Chain them.","par":23,"map":["####........","#G##.T......","*###.##*.ST.","####J###.##.",".##*...#.##.",".......#..#.","....###J..##","....########",".....###.###"]},{"name":"Deadbolt","hint":"A bridge to reach the key, a key to open the gate.","par":23,"map":["#.La##.....","###..#*#...","*##..######","a#a..######","###..##S#.#","##G...#####","......#*#1K"],"links":{"1":"a"}},{"name":"Overshoot","hint":"Springs do not care what they land you on. Glass included.","par":28,"map":["FF#.....###.","#F#.....####","G####...##.#","..#......S.#","..#..J##...#","*F#.####J###","#######*####","....########","........##*."]},{"name":"Strongroom","hint":"Every key, then every star, then the door.","par":30,"map":[".#L########.","###....###K#","####....#X##","X#...#######","###..#####*#","####.K###S..","####........","###G........",".###........"],"lockGoal":true},{"name":"Clockwork","hint":"Springs and switches: the bridge has to be up before you fire.","par":28,"map":["..........###","..........###","####....##aa#","###..###aS.*#","####J##..1.#J","#*###....#..#","####G..###..#","*###...######","#####...#...."],"links":{"1":"a"}},{"name":"Keystone","hint":"Pins hold you standing. The gate will not.","par":30,"map":[".##P###P#####","###.PK#L####*","#...*###L#P#.","#........#*#.","#........###.","#..#######...","#....#####...","###S.#####...",".##....##G###",".K#.#####...."]},{"name":"Vaulting","hint":"Ice into a spring. You will not get to choose when it fires.","par":35,"map":[".########....","####.##.#####","###*.##.#####",".#.......#^*J","*^..........#","##........##*","##........###","###S.##.###^#",".....########",".....###J##G#"]},{"name":"Tumblers","hint":"Glass, crumble and a locked gate. Take the key on the first pass.","par":31,"map":[".......###...",".......K##...","..#.....##.#.","###.....O#F##","O##.....S.K#O","####.......O#","#*####...##L*","#####*....##.","*######...##.","###GFO##F##.."]},{"name":"Escapement","hint":"Portals, springs and ground that will not survive a second visit.","par":28,"map":["..#T#...OO##","*####*..##.O","#G########.#","#O######.S##","##T#####.###","####.###...J","#..#.......J","#..*####O#.#","*#####...###",".........###"]},{"name":"The Warden","hint":"Two bridges guard the key. The key guards the way home.","par":37,"map":["Gb##.....##K#a","#L......###a#.","#b##...#####..",".L###.##S#*#..",".####.#.......",".##1..#..#a##.","...b..##6##*#.",".###.########.",".#####..#####.",".#####..*##*#."],"links":{"1":"a","6":"b"}},{"name":"Trebuchet","hint":"Springs over a pin field, with ice to set up the shot.","par":34,"map":["##........##G.","##*#......##P.","#J##........##","*##*#.......##",".##^#^J##..##P",".##....##S.##.","..###.....###.","..###*....##P.","....###...#...",".....##P^##..."]},{"name":"Lockdown","hint":"Keys behind glass, gates behind portals.","par":40,"map":["...#.#####F##.","..#F####.##.##",".###T*##.##.#F","..######..T..#","...#...###...K","#*##...##SK..#","###F.....##..#","##G#......####","#*##.......L#L","###*.......###"]},{"name":"The Works","hint":"Springs, gates, switches and one very long way round.","par":37,"map":[".######........","O#.#1O#........","##K###OS.......","#..............","###............","##L.........#..","..J*a.......#*#","...##.......###","...###..###O##a","..######OG#Ja##"],"links":{"1":"a"}},{"name":"Terminus","hint":"The last island. It has kept every trick for you.","par":55,"map":["###.....*###a#.","###....###1.###","J#K.###########","O^...##Xa#^####","O#.####..####..","L#LJT.#..#..###",".#....#..#...OT",".K..S.####...##",".####.####..###","..^O#.###.##Ga#","..###.#*O.###.."],"lockGoal":true,"links":{"1":"a"}}];
 </script>
 <script>
+// ===== boot guard =====
+// A dead page that still highlights its buttons is the worst failure there is:
+// the menu is static HTML, so it draws and lights up on tap whether or not the
+// game behind it ever started. If anything stops it starting, say so on screen.
+(function(){
+  var shown=false;
+  window.__bootFail=function(err,hint){
+    if(shown) return; shown=true;
+    try{ console.error(err); }catch(e){}
+    var msg=''; try{ msg=(err&&(err.stack||err.message))||String(err); }catch(e){ msg='unknown error'; }
+    var box=document.createElement('div');
+    box.setAttribute('style','position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(4,6,14,.95);color:#eef;font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif');
+    var card=document.createElement('div');
+    card.setAttribute('style','max-width:540px;width:100%;background:rgba(16,20,40,.97);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:24px 22px;box-shadow:0 30px 80px rgba(0,0,0,.6)');
+    var h=document.createElement('h2'); h.textContent='Cube Roll could not start';
+    h.setAttribute('style','margin:0 0 8px;font-size:21px;color:#ffb347');
+    var p=document.createElement('p'); p.setAttribute('style','margin:0 0 14px;color:#c8d0f0');
+    p.textContent=hint||'Something stopped the page before the game was ready, which is why the buttons light up but do nothing.';
+    var pre=document.createElement('pre');
+    pre.setAttribute('style','white-space:pre-wrap;word-break:break-word;margin:0;padding:10px 12px;background:rgba(0,0,0,.4);border-radius:10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#ffd8b0;max-height:40vh;overflow:auto');
+    pre.textContent=msg;
+    card.appendChild(h); card.appendChild(p); card.appendChild(pre); box.appendChild(card);
+    var put=function(){ (document.body||document.documentElement).appendChild(box); };
+    if(document.body) put(); else addEventListener('DOMContentLoaded',put);
+  };
+  addEventListener('error',function(e){ if(!window.__game) window.__bootFail(e.error||new Error(e.message||'Script error')); });
+  addEventListener('DOMContentLoaded',function(){
+    setTimeout(function(){
+      if(window.__game) return;
+      window.__bootFail(new Error('The game script never finished.'),
+        'The page loaded but the game never started. If you opened this file inside another app (a chat, a mail client, a file manager), try opening it in Safari or Chrome directly.');
+    },6000);
+  });
+})();
+
 (function(){
 'use strict';
+try{
 const $=id=>document.getElementById(id);
 // 'phone' | 'desktop' | 'auto' — build.js stamps this per target build.
 const PLATFORM="phone";
@@ -965,6 +1007,11 @@ function unlockText(sk){
 function unlockedSet(){ const st=stats(); const s=new Set(); ['cube','tile','sky','trail'].forEach(k=>SKINS[k].forEach(sk=>{ if(skinUnlocked(sk,st)) s.add(k+':'+sk.id); })); MISSIONS.forEach(m=>{ if(missionDone(m,st)) s.add('mission:'+m.id); }); return s; }
 
 // ---------- three setup ----------
+(function(){   // check before building anything, so the message is about the cause
+  var probe=document.createElement('canvas'), ok=false;
+  try{ ok=!!(probe.getContext&&probe.getContext('webgl2')); }catch(e){}
+  if(!ok) throw new Error('WebGL2 is not available in this browser.');
+})();
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,PHONE?1.75:2)); renderer.setSize(innerWidth,innerHeight);
 document.body.prepend(renderer.domElement);
@@ -1447,7 +1494,13 @@ function openMenu(tab){ buildMenu(); if(tab) selectTab(tab); closeOverlays(); $(
 function selectTab(t){ document.querySelectorAll('#menuTabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t)); document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane'+t)); $('ovMenu').querySelector('.panel').scrollTop=0; }
 document.querySelectorAll('#menuTabs button').forEach(b=>b.onclick=()=>{ Snd.click(); selectTab(b.dataset.tab); });
 
-function buildMenu(){ const st=stats(); buildTally(st); buildPlay(st); buildLevelGrid(); buildChallenge(st); buildMissions(st); buildSkins(st); buildStats(st); buildSettings(); }
+function buildMenu(){
+  const st=stats();
+  const part=(name,fn)=>{ try{ fn(); }catch(e){ console.error('menu section failed: '+name,e); } };
+  part('tally',()=>buildTally(st)); part('play',()=>buildPlay(st)); part('levels',buildLevelGrid);
+  part('challenge',()=>buildChallenge(st)); part('missions',()=>buildMissions(st)); part('skins',()=>buildSkins(st));
+  part('stats',()=>buildStats(st)); part('settings',buildSettings);
+}
 function buildTally(st){
   $('menuTally').innerHTML=`
     <div><b>${st.cleared}/${LEVELS.length}</b><span>Cleared</span></div>
@@ -1489,14 +1542,25 @@ function buildLevelGrid(){
     host.appendChild(g);
   });
 }
+let dailyForging=false;
 function buildChallenge(st){
   const k=dayKey(); const doneToday=save.daily.date===k&&save.daily.done;
-  const d=getDaily();
+  // Forging an island runs the solver, so it never happens on the boot path:
+  // show the card immediately and fill it in once the island exists.
+  const d=(dailyDef&&dailyKey===k)?dailyDef:null;
   $('dailyCard').innerHTML=`<div class="mission${doneToday?' done':''}"><div class="mi">${doneToday?'✔':'📅'}</div><div class="mb">`+
-    `<div class="mt">${d?d.name.replace(/^Daily — /,''):'Unavailable'}</div>`+
-    `<div class="md">${doneToday?('Cleared in '+save.daily.moves+' moves.'):'One island a day, the same one for everybody. Par '+(d?d.par:'?')+'.'}</div>`+
+    `<div class="mt">${d?d.name.replace(/^Daily — /,''):(dailyForging?'Forging today\'s island…':'Today\'s island')}</div>`+
+    `<div class="md">${doneToday?('Cleared in '+save.daily.moves+' moves.'):'One island a day, the same one for everybody.'+(d?' Par '+d.par+'.':'')}</div>`+
     `</div><div class="mr">streak ${save.daily.streak||0}<br>${save.daily.cleared||0} cleared</div></div>`;
   $('bDaily').textContent=doneToday?"Replay today's island ▶":"Play today's island ▶";
+  if(!d&&!dailyForging){
+    dailyForging=true;
+    setTimeout(()=>{
+      try{ getDaily(); }catch(e){ console.error('daily forge failed',e); }
+      dailyForging=false;
+      if($('ovMenu').classList.contains('show')){ try{ buildChallenge(stats()); }catch(e){} }
+    },30);
+  }
   const run=save.endless.run||0;
   $('endlessCard').innerHTML=`<div class="mission"><div class="mi">♾️</div><div class="mb">`+
     `<div class="mt">${run?('Run in progress — island '+(run+1)+' next'):'No run in progress'}</div>`+
@@ -1724,7 +1788,6 @@ function frame(now){
 }
 applySkins();
 applyHand();
-buildMenu();
 requestAnimationFrame(frame);
 window.LEVELS=LEVELS;
 window.__game={liveExtent:()=>{
@@ -1734,6 +1797,13 @@ window.__game={liveExtent:()=>{
     mx=Math.max(mx,Math.abs(p.x)); my=Math.max(my,Math.abs(p.y)); }
   return {mx:+mx.toFixed(3),my:+my.toFixed(3),aspect:+camera.aspect.toFixed(3),dist:+cam.dist.toFixed(1)};
 }, fitDebug:()=>({band:viewBand(),at:[cam.tDist,cam.tDist*0.5,cam.tDist*0.25].map(d=>{const e=projectedExtent(d,cam.tTheta,cam.tPhi);return {d:+d.toFixed(1),mx:+e.mx.toFixed(3),my:+e.my.toFixed(3)};})}), get L(){return L}, cam:()=>cam, renderInfo:()=>({pixelRatio:renderer.pr,shadow:sun.shadow.mapSize.w}), PHONE, PLATFORM, curDef:()=>curDef, loadDaily, loadEndless, get state(){return state}, tryMove, loadLevel, solve:()=>solve(L,state), get busy(){return busy}, get won(){return won}, get moves(){return moves}, save:()=>save, stats, camDir, openMenu};
+buildMenu();
+}catch(err){
+  var m=''; try{ m=String((err&&err.message)||err); }catch(e){}
+  window.__bootFail(err, /webgl/i.test(m)
+    ? 'This browser cannot open a WebGL2 canvas, which the 3D board needs. Try opening the file in Safari or Chrome directly rather than inside another app, turn off Low Power Mode, or use a newer device.'
+    : undefined);
+}
 })();
 
 </script>

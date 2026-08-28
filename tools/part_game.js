@@ -1,5 +1,41 @@
+// ===== boot guard =====
+// A dead page that still highlights its buttons is the worst failure there is:
+// the menu is static HTML, so it draws and lights up on tap whether or not the
+// game behind it ever started. If anything stops it starting, say so on screen.
+(function(){
+  var shown=false;
+  window.__bootFail=function(err,hint){
+    if(shown) return; shown=true;
+    try{ console.error(err); }catch(e){}
+    var msg=''; try{ msg=(err&&(err.stack||err.message))||String(err); }catch(e){ msg='unknown error'; }
+    var box=document.createElement('div');
+    box.setAttribute('style','position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(4,6,14,.95);color:#eef;font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif');
+    var card=document.createElement('div');
+    card.setAttribute('style','max-width:540px;width:100%;background:rgba(16,20,40,.97);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:24px 22px;box-shadow:0 30px 80px rgba(0,0,0,.6)');
+    var h=document.createElement('h2'); h.textContent='Cube Roll could not start';
+    h.setAttribute('style','margin:0 0 8px;font-size:21px;color:#ffb347');
+    var p=document.createElement('p'); p.setAttribute('style','margin:0 0 14px;color:#c8d0f0');
+    p.textContent=hint||'Something stopped the page before the game was ready, which is why the buttons light up but do nothing.';
+    var pre=document.createElement('pre');
+    pre.setAttribute('style','white-space:pre-wrap;word-break:break-word;margin:0;padding:10px 12px;background:rgba(0,0,0,.4);border-radius:10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#ffd8b0;max-height:40vh;overflow:auto');
+    pre.textContent=msg;
+    card.appendChild(h); card.appendChild(p); card.appendChild(pre); box.appendChild(card);
+    var put=function(){ (document.body||document.documentElement).appendChild(box); };
+    if(document.body) put(); else addEventListener('DOMContentLoaded',put);
+  };
+  addEventListener('error',function(e){ if(!window.__game) window.__bootFail(e.error||new Error(e.message||'Script error')); });
+  addEventListener('DOMContentLoaded',function(){
+    setTimeout(function(){
+      if(window.__game) return;
+      window.__bootFail(new Error('The game script never finished.'),
+        'The page loaded but the game never started. If you opened this file inside another app (a chat, a mail client, a file manager), try opening it in Safari or Chrome directly.');
+    },6000);
+  });
+})();
+
 (function(){
 'use strict';
+try{
 const $=id=>document.getElementById(id);
 // 'phone' | 'desktop' | 'auto' — build.js stamps this per target build.
 const PLATFORM=/*__PLATFORM__*/'auto';
@@ -108,6 +144,11 @@ function unlockText(sk){
 function unlockedSet(){ const st=stats(); const s=new Set(); ['cube','tile','sky','trail'].forEach(k=>SKINS[k].forEach(sk=>{ if(skinUnlocked(sk,st)) s.add(k+':'+sk.id); })); MISSIONS.forEach(m=>{ if(missionDone(m,st)) s.add('mission:'+m.id); }); return s; }
 
 // ---------- three setup ----------
+(function(){   // check before building anything, so the message is about the cause
+  var probe=document.createElement('canvas'), ok=false;
+  try{ ok=!!(probe.getContext&&probe.getContext('webgl2')); }catch(e){}
+  if(!ok) throw new Error('WebGL2 is not available in this browser.');
+})();
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,PHONE?1.75:2)); renderer.setSize(innerWidth,innerHeight);
 document.body.prepend(renderer.domElement);
@@ -590,7 +631,13 @@ function openMenu(tab){ buildMenu(); if(tab) selectTab(tab); closeOverlays(); $(
 function selectTab(t){ document.querySelectorAll('#menuTabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t)); document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane'+t)); $('ovMenu').querySelector('.panel').scrollTop=0; }
 document.querySelectorAll('#menuTabs button').forEach(b=>b.onclick=()=>{ Snd.click(); selectTab(b.dataset.tab); });
 
-function buildMenu(){ const st=stats(); buildTally(st); buildPlay(st); buildLevelGrid(); buildChallenge(st); buildMissions(st); buildSkins(st); buildStats(st); buildSettings(); }
+function buildMenu(){
+  const st=stats();
+  const part=(name,fn)=>{ try{ fn(); }catch(e){ console.error('menu section failed: '+name,e); } };
+  part('tally',()=>buildTally(st)); part('play',()=>buildPlay(st)); part('levels',buildLevelGrid);
+  part('challenge',()=>buildChallenge(st)); part('missions',()=>buildMissions(st)); part('skins',()=>buildSkins(st));
+  part('stats',()=>buildStats(st)); part('settings',buildSettings);
+}
 function buildTally(st){
   $('menuTally').innerHTML=`
     <div><b>${st.cleared}/${LEVELS.length}</b><span>Cleared</span></div>
@@ -632,14 +679,25 @@ function buildLevelGrid(){
     host.appendChild(g);
   });
 }
+let dailyForging=false;
 function buildChallenge(st){
   const k=dayKey(); const doneToday=save.daily.date===k&&save.daily.done;
-  const d=getDaily();
+  // Forging an island runs the solver, so it never happens on the boot path:
+  // show the card immediately and fill it in once the island exists.
+  const d=(dailyDef&&dailyKey===k)?dailyDef:null;
   $('dailyCard').innerHTML=`<div class="mission${doneToday?' done':''}"><div class="mi">${doneToday?'✔':'📅'}</div><div class="mb">`+
-    `<div class="mt">${d?d.name.replace(/^Daily — /,''):'Unavailable'}</div>`+
-    `<div class="md">${doneToday?('Cleared in '+save.daily.moves+' moves.'):'One island a day, the same one for everybody. Par '+(d?d.par:'?')+'.'}</div>`+
+    `<div class="mt">${d?d.name.replace(/^Daily — /,''):(dailyForging?'Forging today\'s island…':'Today\'s island')}</div>`+
+    `<div class="md">${doneToday?('Cleared in '+save.daily.moves+' moves.'):'One island a day, the same one for everybody.'+(d?' Par '+d.par+'.':'')}</div>`+
     `</div><div class="mr">streak ${save.daily.streak||0}<br>${save.daily.cleared||0} cleared</div></div>`;
   $('bDaily').textContent=doneToday?"Replay today's island ▶":"Play today's island ▶";
+  if(!d&&!dailyForging){
+    dailyForging=true;
+    setTimeout(()=>{
+      try{ getDaily(); }catch(e){ console.error('daily forge failed',e); }
+      dailyForging=false;
+      if($('ovMenu').classList.contains('show')){ try{ buildChallenge(stats()); }catch(e){} }
+    },30);
+  }
   const run=save.endless.run||0;
   $('endlessCard').innerHTML=`<div class="mission"><div class="mi">♾️</div><div class="mb">`+
     `<div class="mt">${run?('Run in progress — island '+(run+1)+' next'):'No run in progress'}</div>`+
@@ -867,7 +925,6 @@ function frame(now){
 }
 applySkins();
 applyHand();
-buildMenu();
 requestAnimationFrame(frame);
 window.LEVELS=LEVELS;
 window.__game={liveExtent:()=>{
@@ -877,4 +934,11 @@ window.__game={liveExtent:()=>{
     mx=Math.max(mx,Math.abs(p.x)); my=Math.max(my,Math.abs(p.y)); }
   return {mx:+mx.toFixed(3),my:+my.toFixed(3),aspect:+camera.aspect.toFixed(3),dist:+cam.dist.toFixed(1)};
 }, fitDebug:()=>({band:viewBand(),at:[cam.tDist,cam.tDist*0.5,cam.tDist*0.25].map(d=>{const e=projectedExtent(d,cam.tTheta,cam.tPhi);return {d:+d.toFixed(1),mx:+e.mx.toFixed(3),my:+e.my.toFixed(3)};})}), get L(){return L}, cam:()=>cam, renderInfo:()=>({pixelRatio:renderer.pr,shadow:sun.shadow.mapSize.w}), PHONE, PLATFORM, curDef:()=>curDef, loadDaily, loadEndless, get state(){return state}, tryMove, loadLevel, solve:()=>solve(L,state), get busy(){return busy}, get won(){return won}, get moves(){return moves}, save:()=>save, stats, camDir, openMenu};
+buildMenu();
+}catch(err){
+  var m=''; try{ m=String((err&&err.message)||err); }catch(e){}
+  window.__bootFail(err, /webgl/i.test(m)
+    ? 'This browser cannot open a WebGL2 canvas, which the 3D board needs. Try opening the file in Safari or Chrome directly rather than inside another app, turn off Low Power Mode, or use a newer device.'
+    : undefined);
+}
 })();
