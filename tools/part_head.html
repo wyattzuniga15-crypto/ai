@@ -2,12 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070a16">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cube Roll">
+<meta name="format-detection" content="telephone=no">
 <title>Cube Roll — 3D Puzzle</title>
 <style>
 :root{--accent:#ffb347;--accent2:#ff7a3d;--bg1:#1b2140;--bg2:#070a16;}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:#eef;background:radial-gradient(ellipse at 50% 30%,var(--bg1) 0%,var(--bg2) 75%);transition:background 1.2s;user-select:none;-webkit-user-select:none}
+:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px)}
+button{touch-action:manipulation}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:#eef;background:radial-gradient(ellipse at 50% 30%,var(--bg1) 0%,var(--bg2) 75%);transition:background 1.2s;user-select:none;-webkit-user-select:none}
 canvas{display:block;position:fixed;inset:0;touch-action:none}
 #hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;opacity:0;transition:opacity .3s}
 #hud.on{opacity:1}
@@ -31,8 +39,8 @@ kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px
 #hint{max-width:420px;font-size:14px;color:#dfe5ff;line-height:1.4}
 #hint em{color:var(--accent);font-style:normal;font-weight:600}
 #msg{position:fixed;left:50%;top:18%;transform:translateX(-50%);font-size:26px;font-weight:800;letter-spacing:.04em;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.6);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;z-index:6}
-.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,14,.72);backdrop-filter:blur(10px);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
-.overlay.show{opacity:1;pointer-events:auto}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,14,.72);backdrop-filter:blur(10px);z-index:10;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .3s,visibility 0s linear .3s}
+.overlay.show{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .3s,visibility 0s}
 .panel{background:rgba(16,20,40,.92);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:26px 28px;max-width:min(94vw,860px);width:min(94vw,860px);max-height:92vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center}
 .panel.sm{width:min(94vw,560px)}
 .panel h1{font-size:clamp(30px,6vw,46px);letter-spacing:.06em;background:linear-gradient(135deg,#fff,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900}
@@ -68,8 +76,6 @@ kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px
 .bigstars{font-size:40px;letter-spacing:6px;color:var(--accent);margin:6px 0;text-shadow:0 0 30px rgba(255,180,71,.6)}
 .bigstars .off{color:rgba(255,255,255,.15);text-shadow:none}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(20,26,50,.92);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;z-index:11;max-width:80vw;text-align:center}
-#dpad{display:none;position:fixed;right:18px;bottom:18px;width:150px;height:150px;pointer-events:auto;z-index:4}
-#dpad button{position:absolute;width:48px;height:48px;border-radius:50%;font-size:20px;padding:0;display:flex;align-items:center;justify-content:center}
 /* menu extras */
 .hero{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:4px}
 .tally{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0 2px}
@@ -95,11 +101,72 @@ kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px
 .skin .sd{font-size:10.5px;color:#8fa0e8;margin-top:2px;min-height:13px;line-height:1.25}
 .set{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 2px;border-bottom:1px solid rgba(255,255,255,.06);font-size:14.5px}
 .set small{display:block;color:#8fa0e8;font-size:12px;margin-top:2px}
+.phoneOnly{display:none}
+html[data-platform="phone"] .phoneOnly{display:flex}
+.phoneOnly{display:none}
+html[data-platform="phone"] .phoneOnly{display:flex}
 table.stat{width:100%;border-collapse:collapse;font-size:14px}
 table.stat td{padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);color:#c8d0f0}
 table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
-@media (pointer:coarse){#dpad{display:block}#bottom{padding-bottom:180px}#hint{max-width:calc(100vw - 200px)}}
-@media (max-width:640px){#name{font-size:16px}#stats{gap:10px;font-size:12px}button{padding:8px 10px;font-size:13px}kbd{display:none}.panel{padding:20px 16px}#btns{max-width:60vw}}
+
+/* ---------- phone layout ---------- */
+html[data-platform="phone"] #top{padding:calc(8px + var(--sat)) calc(10px + var(--sar)) 0 calc(10px + var(--sal));align-items:flex-start}
+html[data-platform="phone"] .card{padding:8px 11px;border-radius:12px}
+html[data-platform="phone"] #lvl{font-size:10px;letter-spacing:.14em}
+html[data-platform="phone"] #name{font-size:15px;margin-top:1px;max-width:50vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-platform="phone"] #stats{gap:12px;font-size:11px;margin-top:4px}
+html[data-platform="phone"] #stats b{font-size:14px}
+html[data-platform="phone"] #btns{gap:6px;max-width:44vw;flex-wrap:nowrap}
+html[data-platform="phone"] #bUndo,html[data-platform="phone"] #bReset,html[data-platform="phone"] #bHint{display:none}
+html[data-platform="phone"] #btns button{padding:9px 11px;font-size:15px;line-height:1}
+html[data-platform="phone"] #btns .lbl{display:none}
+html[data-platform="phone"] kbd{display:none}
+html[data-platform="phone"] #bottom{padding:0 calc(10px + var(--sar)) calc(74px + var(--sab)) calc(10px + var(--sal));flex-direction:column;align-items:stretch;gap:8px}
+html[data-platform="phone"] #hint{max-width:none;font-size:12.5px;line-height:1.35;max-height:2.9em;overflow:hidden;transition:max-height .25s;cursor:pointer;margin-right:186px}
+html[data-platform="phone"] #hint.open{max-height:40vh;overflow:auto}
+html[data-platform="phone"] #deskHelp{display:none}
+html[data-platform="phone"] #touchbar{display:flex}
+html[data-platform="phone"] #dpad{display:block}
+html[data-platform="phone"] .panel{width:100vw;max-width:100vw;min-height:100dvh;max-height:100dvh;border-radius:0;padding:calc(16px + var(--sat)) 14px calc(20px + var(--sab))}
+html[data-platform="phone"] .panel.sm{width:calc(100vw - 16px);max-width:calc(100vw - 16px);min-height:0;max-height:92dvh;border-radius:20px;padding:22px 16px}
+html[data-platform="phone"] .panel h1{font-size:34px}
+html[data-platform="phone"] .tabs{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:14px -14px 4px;padding:0 14px 12px}
+html[data-platform="phone"] .tabs::-webkit-scrollbar{display:none}
+html[data-platform="phone"] .tabs button{flex:none;font-size:12px;padding:9px 13px}
+html[data-platform="phone"] .grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:7px}
+html[data-platform="phone"] .lv .t{font-size:9.5px}
+html[data-platform="phone"] .skins{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
+html[data-platform="phone"] .tally div{min-width:74px;padding:7px 10px}
+html[data-platform="phone"] .tally b{font-size:17px}
+html[data-platform="phone"] .mission .mr{max-width:86px;font-size:10px}
+html[data-platform="phone"] .legend{grid-template-columns:1fr}
+html[data-platform="phone"] #toast{bottom:calc(250px + var(--sab))}
+html[data-platform="phone"] #msg{font-size:21px;top:13%}
+html[data-platform="phone"] .row button{flex:1 1 auto;min-height:46px}
+html[data-platform="phone"] .set{padding:13px 2px}
+html[data-platform="phone"] button{font-size:14px}
+
+/* thumb row: the actions you reach for mid-puzzle, beside the d-pad */
+#touchbar{display:none;position:fixed;left:calc(10px + var(--sal));bottom:calc(12px + var(--sab));gap:8px;z-index:4;pointer-events:auto}
+#touchbar button{width:52px;height:52px;padding:0;border-radius:16px;font-size:19px;display:flex;align-items:center;justify-content:center}
+html[data-hand="left"] #touchbar{left:auto;right:calc(10px + var(--sar))}
+html[data-hand="left"] #dpad{right:auto;left:calc(14px + var(--sal))}
+html[data-platform="phone"][data-hand="left"] #hint{margin-right:0;margin-left:186px}
+
+#dpad{display:none;position:fixed;right:calc(14px + var(--sar));bottom:calc(78px + var(--sab));width:172px;height:172px;pointer-events:auto;z-index:4}
+#dpad button{position:absolute;width:58px;height:58px;border-radius:50%;font-size:22px;padding:0;display:flex;align-items:center;justify-content:center;background:rgba(20,26,50,.82)}
+#dpad button[data-d="up"]{left:57px;top:0}
+#dpad button[data-d="left"]{left:0;top:57px}
+#dpad button[data-d="right"]{left:114px;top:57px}
+#dpad button[data-d="down"]{left:57px;top:114px}
+
+/* ---------- desktop layout ---------- */
+html[data-platform="desktop"] #dpad,html[data-platform="desktop"] #touchbar{display:none!important}
+html[data-platform="desktop"] .panel{max-width:min(94vw,960px);width:min(94vw,960px)}
+html[data-platform="desktop"] .grid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+html[data-platform="desktop"] #hint{max-width:560px}
+
+@media (max-width:640px){#name{font-size:16px}#stats{gap:10px;font-size:12px}kbd{display:none}.panel{padding:20px 16px}}
 </style>
 </head>
 <body>
@@ -111,19 +178,25 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
       <div id="stats"><span>Moves <b id="moves">0</b></span><span>Par <b id="par">0</b></span><span>Best <b id="best">—</b></span><span id="stars"></span></div>
     </div>
     <div id="btns">
-      <button id="bUndo" title="Undo (Z)">↶ Undo<kbd>Z</kbd></button>
-      <button id="bReset" title="Reset (R)">↻ Reset<kbd>R</kbd></button>
-      <button id="bHint" title="Hint (H)">💡 Hint<kbd>H</kbd></button>
-      <button id="bMenu" title="Menu (Esc)">☰ Menu<kbd>Esc</kbd></button>
+      <button id="bUndo" title="Undo (Z)">↶<span class="lbl"> Undo</span><kbd>Z</kbd></button>
+      <button id="bReset" title="Reset (R)">↻<span class="lbl"> Reset</span><kbd>R</kbd></button>
+      <button id="bHint" title="Hint (H)">💡<span class="lbl"> Hint</span><kbd>H</kbd></button>
+      <button id="bFull" title="Fullscreen (F)">⛶<span class="lbl"> Fullscreen</span><kbd>F</kbd></button>
+      <button id="bMenu" title="Menu (Esc)">☰<span class="lbl"> Menu</span><kbd>Esc</kbd></button>
       <button id="bSound" title="Sound (M)">🔊</button>
     </div>
   </div>
   <div id="bottom">
     <div id="hint" class="card"></div>
-    <div class="card" style="font-size:12px;color:#aab6e8">Drag to orbit · Scroll to zoom · Arrows/WASD to roll</div>
+    <div class="card" id="deskHelp" style="font-size:12px;color:#aab6e8">Drag to orbit · Shift-drag to pan · Scroll to zoom · Arrows/WASD to roll · <b>?</b> for shortcuts</div>
   </div>
 </div>
-<div id="dpad"><button data-d="up" style="left:51px;top:0">▲</button><button data-d="left" style="left:0;top:51px">◀</button><button data-d="right" style="left:102px;top:51px">▶</button><button data-d="down" style="left:51px;top:102px">▼</button></div>
+<div id="dpad"><button data-d="up">▲</button><button data-d="left">◀</button><button data-d="right">▶</button><button data-d="down">▼</button></div>
+<div id="touchbar">
+  <button id="tUndo" title="Undo">↶</button>
+  <button id="tReset" title="Restart">↻</button>
+  <button id="tHint" title="Hint">💡</button>
+</div>
 <div id="msg"></div>
 <div id="toast"></div>
 
@@ -224,6 +297,8 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
 
   <div class="pane" id="panesettings">
     <div class="set"><div>Sound<small>Rolls, switches, fanfares</small></div><button id="setSound">On</button></div>
+    <div class="set phoneOnly"><div>Haptics<small>A short tap on rolls, falls and finds</small></div><button id="setHaptics">On</button></div>
+    <div class="set phoneOnly"><div>Controls side<small>Which thumb gets the d-pad</small></div><button id="setHand">Right</button></div>
     <div class="set"><div>Ambient music<small>A slow pad under the puzzling. Off by default.</small></div><button id="setMusic">Off</button></div>
     <div class="set"><div>Camera-relative controls<small>Off: arrows always match the world grid</small></div><button id="setCamRel">On</button></div>
     <div class="set"><div>Screen shake<small>Impact feedback on falls and breaks</small></div><button id="setShake">On</button></div>
@@ -233,6 +308,24 @@ table.stat td:last-child{text-align:right;color:#fff;font-weight:700}
     <div class="set"><div>Erase progress<small>Levels, stars, missions and skins</small></div><button id="setWipe">Erase</button></div>
     <p style="font-size:12px;opacity:.6;margin-top:16px">Progress is stored in this browser only.</p>
   </div>
+</div></div>
+
+<div id="ovKeys" class="overlay"><div class="panel sm">
+  <h2>Keyboard</h2>
+  <div class="legend" style="grid-template-columns:1fr 1fr">
+    <span><kbd style="margin:0">↑↓←→</kbd> / <kbd style="margin:0">WASD</kbd> Roll</span><span><kbd style="margin:0">Z</kbd> Undo</span>
+    <span><kbd style="margin:0">R</kbd> Restart island</span><span><kbd style="margin:0">H</kbd> Hint</span>
+    <span><kbd style="margin:0">Esc</kbd> Menu</span><span><kbd style="margin:0">L</kbd> Level select</span>
+    <span><kbd style="margin:0">C</kbd> Daily &amp; Endless</span><span><kbd style="margin:0">M</kbd> Mute</span>
+    <span><kbd style="margin:0">F</kbd> Fullscreen</span><span><kbd style="margin:0">N</kbd> Next island (after a win)</span>
+    <span><kbd style="margin:0">?</kbd> This list</span><span><kbd style="margin:0">Space</kbd> Confirm in menus</span>
+  </div>
+  <h3>Mouse</h3>
+  <div class="legend" style="grid-template-columns:1fr 1fr">
+    <span>Drag — orbit the island</span><span>Shift-drag — pan</span>
+    <span>Scroll — zoom</span><span>Double-click — recentre</span>
+  </div>
+  <div class="row"><button class="primary" id="bKeysOk">Close</button></div>
 </div></div>
 
 <div id="ovTeach" class="overlay"><div class="panel sm">

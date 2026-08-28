@@ -1,6 +1,12 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
+// 'phone' | 'desktop' | 'auto' — build.js stamps this per target build.
+const PLATFORM=/*__PLATFORM__*/'auto';
+const COARSE=(()=>{ try{ return matchMedia('(pointer:coarse)').matches; }catch(e){ return 'ontouchstart' in window; } })();
+const PHONE = PLATFORM==='phone' || (PLATFORM==='auto' && COARSE);
+document.documentElement.dataset.platform = PHONE?'phone':'desktop';
+document.documentElement.dataset.build = PLATFORM;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const easeOut=t=>1-Math.pow(1-t,3), easeInOut=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
 
@@ -45,9 +51,12 @@ const Music={nodes:null,timer:null,
     setTimeout(()=>{ try{ n.oscs.forEach(o=>o.stop()); }catch(e){} },1900); }
 };
 
+// Short taps only — long buzzes on every roll get old fast.
+function buzz(ms){ if(!PHONE||save.haptics===false) return; try{ navigator.vibrate&&navigator.vibrate(ms); }catch(e){} }
+
 // ---------- save ----------
 const SAVE_KEY='cuberoll.v3';
-const DEF_SAVE={best:{},flags:{},unlocked:1,sound:true,camRel:true,shake:true,hintBtn:true,teach:true,music:false,totalMoves:0,crumbled:0,keysTaken:0,launches:0,
+const DEF_SAVE={best:{},flags:{},unlocked:1,sound:true,camRel:true,shake:true,hintBtn:true,teach:true,music:false,haptics:true,hand:'right',totalMoves:0,crumbled:0,keysTaken:0,launches:0,
   skin:{cube:'amber',tile:'azure',sky:'nebula',trail:'none'},seen:[],
   daily:{date:'',done:false,moves:0,cleared:0,streak:0,last:''},
   endless:{run:0,best:0,cleared:0,seed:0}};
@@ -100,14 +109,14 @@ function unlockedSet(){ const st=stats(); const s=new Set(); ['cube','tile','sky
 
 // ---------- three setup ----------
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,PHONE?1.75:2)); renderer.setSize(innerWidth,innerHeight);
 document.body.prepend(renderer.domElement);
 const scene=new THREE.Scene();
 scene.fog=new THREE.FogExp2(0x0a0d1c,0.028);
 const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,200);
 const hemi=new THREE.HemisphereLight(0xbfd4ff,0x1a1030,0.55); scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xfff1dc,0.95); sun.position.set(6,14,5); sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.near=1; sun.shadow.camera.far=60; sun.shadow.bias=-0.0008; sun.shadow.normalBias=0.02;
+sun.shadow.mapSize.set(PHONE?1024:2048,PHONE?1024:2048); sun.shadow.camera.near=1; sun.shadow.camera.far=60; sun.shadow.bias=-0.0008; sun.shadow.normalBias=0.02;
 scene.add(sun); scene.add(sun.target);
 const fill=new THREE.PointLight(0x7aa2ff,0.6,40); fill.position.set(-8,6,-6); scene.add(fill);
 const world=new THREE.Group(); scene.add(world);
@@ -177,9 +186,9 @@ function applyLevelTint(){
 }
 
 // ---------- game state ----------
-let trailColor=null, mode='campaign', curDef=null;
+let trailColor=null, mode='campaign', curDef=null, bounds=null, fitPts=null;
 let L=null, lvlIndex=0, state=null, history=[], moves=0, busy=false, won=false, tiles=[], bridgeMeshes={}, starMeshes=[], switchMeshes=[], portMeshes=[], keyMeshes=[], lockMeshes=[], center=new THREE.Vector3(), block=null, blockEdgeLines=null, hintMeshes=[], particles=[], hintUsed=false, undoUsed=false, fellCount=0, glassBroken=0, started=false;
-const cam={theta:-0.6,phi:0.95,dist:14,target:new THREE.Vector3(),tTheta:-0.6,tPhi:0.95,tDist:14,shake:0};
+const cam={theta:-0.6,phi:0.95,dist:14,target:new THREE.Vector3(),tTheta:-0.6,tPhi:0.95,tDist:14,shake:0,liftN:0};
 
 function tilePos(x,y){ return new THREE.Vector3(x-center.x+.5,0,y-center.z+.5); }
 function blockTransform(s){
@@ -247,8 +256,19 @@ function loadDef(def,opts){
   lockMeshes.forEach(m=>{ m.open=(state.keys===L.allKeys); m.anim=m.open?1:0; });
   block=new THREE.Mesh(blockGeo,M.block); block.castShadow=true; block.receiveShadow=true; blockEdgeLines=new THREE.LineSegments(blockEdges,M.blockEdge); block.add(blockEdgeLines); world.add(block);
   const bt=blockTransform(state); block.position.copy(bt.pos).setY(bt.pos.y+6); block.quaternion.copy(bt.quat); block.userData.drop={t0:delayBase+400,dur:600,from:bt.pos.y+6,to:bt.pos.y};
-  const asp=Math.max(.6,Math.min(2.2,innerWidth/innerHeight)); const span=Math.max(L.w*1.55/asp,L.h*1.25); cam.tDist=clamp(span*0.95+5,9,44); if(!opts.keepCam){ cam.tTheta=-0.55; cam.tPhi=0.95; }
-  cam.target.set(0,0,0);
+  // Framing samples the tiles that exist, corner by corner. An island's bounding
+  // box has empty corners, and fitting to those wastes a third of the screen.
+  {
+    let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; const pts=[];
+    for(const t of tiles){ const p=tilePos(t.x,t.y);
+      x0=Math.min(x0,p.x-.5); x1=Math.max(x1,p.x+.5); z0=Math.min(z0,p.z-.5); z1=Math.max(z1,p.z+.5);
+      for(const sx of [-.5,.5]) for(const sz of [-.5,.5]) for(const y of [-.2,2.2]) pts.push(p.x+sx,y,p.z+sz);
+    }
+    bounds = x1<x0 ? {x0:-L.w/2,x1:L.w/2,z0:-L.h/2,z1:L.h/2} : {x0,x1,z0,z1};
+    fitPts = pts.length?new Float32Array(pts):null;
+  }
+  if(!opts.keepCam) cam.target.set((bounds.x0+bounds.x1)/2,0,(bounds.z0+bounds.z1)/2);
+  fitCamera(opts.keepCam);   // fit around the island's centre, not a panned target
   sun.target.position.set(0,0,0); const sc=sun.shadow.camera; const ext=Math.max(L.w,L.h)*0.75+2; sc.left=-ext; sc.right=ext; sc.top=ext; sc.bottom=-ext; sc.updateProjectionMatrix();
   $('hud').classList.add('on');
   updateHUD(); $('hint').innerHTML='<em>'+def.name+'</em> — '+L.hint;
@@ -256,6 +276,56 @@ function loadDef(def,opts){
   setTimeout(maybeTeach,700);
 }
 
+// Framing is solved, not guessed: project the island's bounding box at a trial
+// distance and iterate until it fits the usable slice of screen. A phone in
+// portrait also turns the view a quarter turn, so a wide island runs down the
+// tall axis instead of straight off both edges, and lifts the board clear of
+// the thumb controls.
+function viewBand(){
+  const asp=innerWidth/Math.max(1,innerHeight);
+  if(!PHONE) return {hx:.92,hy:.84,lift:0};
+  return asp<0.95 ? {hx:.96,hy:.58,lift:.20} : {hx:.80,hy:.74,lift:.10};   // landscape: clear the hint bar and the d-pad
+}
+function projectedExtent(dist,theta,phi){
+  const t=cam.target;
+  const eye=new THREE.Vector3(t.x+dist*Math.sin(phi)*Math.sin(theta), t.y+dist*Math.cos(phi), t.z+dist*Math.sin(phi)*Math.cos(theta));
+  const view=new THREE.Matrix4().lookAt(eye,t,new THREE.Vector3(0,1,0));
+  const m=new THREE.Matrix4().multiplyMatrices(camera.proj,view).e;
+  let mx=0,my=0;
+  const push=(x,y,z)=>{
+    const w=(m[3]*x+m[7]*y+m[11]*z+m[15])||1;
+    const px=(m[0]*x+m[4]*y+m[8]*z+m[12])/w, py=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;
+    if(Math.abs(px)>mx) mx=Math.abs(px);
+    if(Math.abs(py)>my) my=Math.abs(py);
+  };
+  if(fitPts){ for(let i=0;i<fitPts.length;i+=3) push(fitPts[i],fitPts[i+1],fitPts[i+2]); }
+  else { const b=bounds||{x0:-L.w/2,x1:L.w/2,z0:-L.h/2,z1:L.h/2};
+    for(const x of [b.x0,b.x1]) for(const z of [b.z0,b.z1]) for(const y of [0,2.1]) push(x,y,z); }
+  return {mx,my};
+}
+function fitCamera(keep){
+  if(!L) return;
+  const asp=innerWidth/Math.max(1,innerHeight);
+  camera.aspect=asp; camera.updateProjectionMatrix();
+  const band=viewBand();
+  if(!keep){
+    // portrait: lay the island's long axis down the screen
+    const bw=bounds?bounds.x1-bounds.x0:L.w, bh=bounds?bounds.z1-bounds.z0:L.h;
+    const quarter = PHONE && asp<0.95 && bw>bh*1.15;
+    cam.tTheta=-0.55+(quarter?Math.PI/2:0);
+    cam.tPhi = PHONE ? (asp<0.95?1.06:0.98) : 0.95;
+  }
+  let d=(bounds?Math.max(bounds.x1-bounds.x0,bounds.z1-bounds.z0):Math.max(L.w,L.h))*1.2+6;
+  for(let i=0;i<14;i++){
+    const e=projectedExtent(d,cam.tTheta,cam.tPhi);
+    const k=Math.max(e.mx/band.hx, e.my/band.hy);
+    if(!isFinite(k)||k<=0) break;
+    d*=k;
+    if(Math.abs(k-1)<0.005) break;
+  }
+  cam.tDist=clamp(d,7,PHONE?70:60);
+  cam.liftN=band.lift;
+}
 function updateHUD(){
   $('lvl').textContent = mode==='campaign' ? ('Level '+(lvlIndex+1)+' / '+LEVELS.length)
     : mode==='daily' ? ('Daily challenge · '+dayKey()) : ('Endless · island '+((save.endless.run||0)+1));
@@ -320,10 +390,10 @@ function runActions(list,i,cur,dir,finish){
   runActions(list,i+1,cur,dir,finish);
 }
 function spawnTrail(pos){ if(trailColor==null) return; const geo=new THREE.BoxGeometry(.09,.09,.09);
-  for(let i=0;i<3;i++){ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:trailColor})); m.position.copy(pos); m.position.y+=.2+Math.random()*.6;
+  for(let i=0;i<(PHONE?2:3);i++){ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:trailColor})); m.position.copy(pos); m.position.y+=.2+Math.random()*.6;
     m.userData.v=new THREE.Vector3((Math.random()-.5)*.8,Math.random()*1.2+.2,(Math.random()-.5)*.8); m.userData.life=.8; world.add(m); particles.push(m); } }
 function animateRoll(s0,dir,s1,done){
-  Snd.roll(); spawnTrail(blockTransform(s0).pos);
+  Snd.roll(); buzz(7); spawnTrail(blockTransform(s0).pos);
   const t0=blockTransform(s0), t1=blockTransform(s1);
   const [dx,dz]=DIRS[dir]; const half=(s0.o===0)?.5:((dir==='left'||dir==='right')?(s0.o===1?1:.5):(s0.o===2?1:.5));
   const pivot=t0.pos.clone().add(new THREE.Vector3(dx*half,-t0.pos.y,dz*half));
@@ -362,6 +432,7 @@ function animatePort(cur,ev,done){
 }
 function animateFall(dir,kind){
   if(kind==='fall') Snd.fall(); else Snd.crack();
+  buzz(kind==='fall'?[18,40,18]:[26,30,26]);
   if(save.shake) cam.shake=kind==='fall'?.35:.5;
   const [dx,dz]=DIRS[dir]; const start=performance.now(); const p0=block.position.clone(); const q0=block.quaternion.clone();
   const axis=new THREE.Vector3(dz,0,-dx); const spin=new THREE.Quaternion();
@@ -394,7 +465,7 @@ function syncBridges(mask,animated){
   Object.keys(bridgeMeshes).forEach(g=>{ const open=isSolid(L,{type:'bridge',group:g},{mask,crumb:0,keys:0}); bridgeMeshes[g].forEach(b=>{ if(b.open!==open){ b.open=open; if(animated) Snd.bridge(open); } if(!animated) b.anim=open?1:0; }); });
 }
 function pressSwitch(x,y){ const s=switchMeshes.find(m=>m.x===x&&m.y===y); if(s) s.press=performance.now(); spawnBurst(tilePos(x,y).setY(.2),0x7ff7e0,10); }
-function collectStar(i){ const s=starMeshes[i]; if(!s||s.got) return; s.got=true; s.mesh.visible=false; Snd.star(); spawnBurst(s.mesh.position.clone(),0xffd166,26); toast('★ Star collected'); if(L.lockGoal) updateGoalLock(); }
+function collectStar(i){ const s=starMeshes[i]; if(!s||s.got) return; s.got=true; s.mesh.visible=false; Snd.star(); buzz([10,30,10]); spawnBurst(s.mesh.position.clone(),0xffd166,26); toast('★ Star collected'); if(L.lockGoal) updateGoalLock(); }
 function updateGoalLockSilent(){
   const open=!L.lockGoal||state.stars===(1<<L.stars.length)-1;
   const gt=tiles.find(t=>t.type==='goal'); if(gt&&gt.g.userData.ring) gt.g.userData.ring.material=open?M.goalRing:M.goalRingLocked;
@@ -405,7 +476,7 @@ function takeKey(i,x,y){ const k=keyMeshes[i]; if(!k||k.got) return; k.got=true;
 function syncLocks(keys,animated){ const open=keys===L.allKeys; lockMeshes.forEach(m=>{ if(m.open!==open){ m.open=open; if(animated) Snd.bridge(open); } if(!animated) m.anim=open?1:0; }); }
 function breakTile(x,y){ const t=tiles.find(t=>t.x===x&&t.y===y); if(!t) return; t.g.userData.shatter=performance.now(); spawnBurst(tilePos(x,y),0xf08a3c,22); }
 function crumbleTile(x,y){ const t=tiles.find(t=>t.x===x&&t.y===y); if(!t||t.g.userData.shatter) return; t.g.userData.shatter=performance.now(); Snd.crumble(); spawnBurst(tilePos(x,y),0xc9b394,16); save.crumbled=(save.crumbled||0)+1; }
-function spawnBurst(pos,color,n){ const geo=new THREE.BoxGeometry(.12,.12,.12); for(let i=0;i<n;i++){ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color})); m.position.copy(pos); m.userData.v=new THREE.Vector3((Math.random()-.5)*5,Math.random()*5+1,(Math.random()-.5)*5); m.userData.life=1; world.add(m); particles.push(m); } }
+function spawnBurst(pos,color,n){ n=PHONE?Math.max(4,Math.round(n*0.6)):n; const geo=new THREE.BoxGeometry(.12,.12,.12); for(let i=0;i<n;i++){ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color})); m.position.copy(pos); m.userData.v=new THREE.Vector3((Math.random()-.5)*5,Math.random()*5+1,(Math.random()-.5)*5); m.userData.life=1; world.add(m); particles.push(m); } }
 
 let persistT=null; function persistSoon(){ clearTimeout(persistT); persistT=setTimeout(persist,400); }
 let stuckWarned=false, stuckT=null;
@@ -419,7 +490,7 @@ function checkStuck(){
 
 // ---------- win ----------
 function winLevel(){
-  won=true; Snd.win();
+  won=true; Snd.win(); buzz([14,50,14,50,26]);
   const par=curDef.par; const nStars=L.stars.length; const gotStars=L.stars.filter((_,i)=>state.stars&(1<<i)).length;
   let rating=1; if(moves<=par) rating=3; else if(moves<=par+4) rating=2;
   const before=unlockedSet();
@@ -609,12 +680,16 @@ function buildSettings(){
   setToggle('setSound','sound','On','Off',()=>{ Snd.on=save.sound; $('bSound').textContent=Snd.on?'🔊':'🔇'; Music.sync(); });
   setToggle('setCamRel','camRel','On','Off');
   setToggle('setShake','shake','On','Off');
-  setToggle('setHintBtn','hintBtn','On','Off',()=>{ $('bHint').style.display=save.hintBtn?'':'none'; });
+  setToggle('setHintBtn','hintBtn','On','Off',applyHintBtn);
   setToggle('setTeach','teach','On','Off');
+  setToggle('setHaptics','haptics','On','Off');
+  const hb=$('setHand'); const paintHand=()=>hb.textContent=save.hand==='left'?'Left':'Right';
+  hb.onclick=()=>{ save.hand=save.hand==='left'?'right':'left'; persist(); applyHand(); paintHand(); Snd.click(); }; paintHand();
   setToggle('setMusic','music','On','Off',()=>Music.sync());
   $('setUnlockAll').onclick=()=>{ save.unlocked=LEVELS.length; persist(); buildMenu(); toast('Every level unlocked'); };
   $('setWipe').onclick=()=>{ if(!confirm('Erase all progress, stars, missions and skins?')) return; const snd=save.sound; save=JSON.parse(JSON.stringify(DEF_SAVE)); save.sound=snd; persist(); applySkins(); buildMenu(); toast('Progress erased'); };
 }
+function applyHand(){ document.documentElement.dataset.hand=save.hand==='left'?'left':'right'; }
 function closeOverlays(){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show')); }
 
 $('bContinue').onclick=()=>{ Snd.init(); Music.sync(); Snd.click(); closeOverlays(); loadLevel(clamp(save.unlocked-1,0,LEVELS.length-1)); };
@@ -638,8 +713,21 @@ $('bRetry').onclick=()=>{ closeOverlays(); if(mode==='campaign') loadLevel(lvlIn
 $('bEndReplay').onclick=()=>{ closeOverlays(); loadLevel(0); };
 $('bSound').onclick=()=>{ save.sound=!save.sound; Snd.on=save.sound; persist(); $('bSound').textContent=Snd.on?'🔊':'🔇'; buildSettings(); Music.sync(); };
 $('bSound').textContent=Snd.on?'🔊':'🔇';
-$('bHint').style.display=save.hintBtn===false?'none':'';
-document.querySelectorAll('#dpad button').forEach(b=>b.addEventListener('pointerdown',e=>{ e.preventDefault(); tryMove(b.dataset.d); }));
+function applyHintBtn(){ const on=save.hintBtn!==false; $('bHint').style.display=on?'':'none'; $('tHint').style.display=on?'':'none'; }
+applyHintBtn();
+document.querySelectorAll('#dpad button').forEach(b=>b.addEventListener('pointerdown',e=>{ e.preventDefault(); buzz(8); tryMove(b.dataset.d); }));
+$('tUndo').onclick=undo; $('tReset').onclick=()=>$('bReset').click(); $('tHint').onclick=showHint;
+$('hint').onclick=()=>{ if(PHONE) $('hint').classList.toggle('open'); };
+function fullscreenOn(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+function toggleFullscreen(){
+  try{
+    if(fullscreenOn()){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    else { const el=document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen).call(el); }
+  }catch(e){ toast('Fullscreen is not available here'); }
+}
+$('bFull').onclick=()=>{ Snd.click(); toggleFullscreen(); };
+$('bKeysOk').onclick=()=>{ Snd.click(); closeOverlays(); };
+function showKeys(){ if(PHONE){ openMenu('help'); return; } closeOverlays(); $('ovKeys').classList.add('show'); }
 
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase(); const anyOverlay=document.querySelector('.overlay.show');
@@ -651,20 +739,87 @@ addEventListener('keydown',e=>{
   const map={arrowup:'up',w:'up',arrowdown:'down',s:'down',arrowleft:'left',a:'left',arrowright:'right',d:'right'};
   if(map[k]){ e.preventDefault(); tryMove(map[k]); }
   else if(k==='z'||k==='u') undo(); else if(k==='r') $('bReset').click(); else if(k==='h') showHint();
-  else if(k==='escape') openMenu(); else if(k==='l') openMenu('levels'); else if(k==='m') $('bSound').click();
+  else if(k==='escape') openMenu(); else if(k==='l') openMenu('levels'); else if(k==='c') openMenu('challenge');
+  else if(k==='m') $('bSound').click(); else if(k==='f') toggleFullscreen(); else if(k==='?'||(k==='/'&&e.shiftKey)) showKeys();
   else if(k==='n'&&won) $('bNext').click();
 });
 
-let drag=null; const cv=renderer.domElement;
-cv.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now(),moved:0}; cv.setPointerCapture(e.pointerId); });
-cv.addEventListener('pointermove',e=>{ if(!drag) return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY; drag.moved+=Math.abs(dx)+Math.abs(dy);
-  if(e.pointerType==='touch') return;
-  cam.tTheta-=dx*0.006; cam.tPhi=clamp(cam.tPhi-dy*0.005,0.35,1.35); });
-cv.addEventListener('pointerup',e=>{ if(!drag) return; const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy; const dist=Math.hypot(dx,dy);
-  if(e.pointerType==='touch'){ if(dist>28&&performance.now()-drag.t<600){ if(Math.abs(dx)>Math.abs(dy)) tryMove(dx>0?'right':'left'); else tryMove(dy>0?'down':'up'); } else if(dist>28){ cam.tTheta-=dx*0.006; cam.tPhi=clamp(cam.tPhi-dy*0.005,0.35,1.35); } }
-  drag=null; });
-cv.addEventListener('wheel',e=>{ cam.tDist=clamp(cam.tDist*(1+Math.sign(e.deltaY)*0.08),6,50); },{passive:true});
-addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
+const cv=renderer.domElement;
+// One pointer map drives everything: a quick flick rolls the block, a slow drag
+// orbits, two fingers orbit and pinch, and shift-drag pans on desktop.
+const pts=new Map();
+let gest=null;   // {kind:'undecided'|'swipe'|'orbit'|'pan', ...}
+let pinch=null;  // {dist, mx, my}
+const SWIPE_PX=26, SWIPE_MS=420, CLASSIFY_PX=14;
+
+function mid(){ let x=0,y=0,n=0; for(const p of pts.values()){ x+=p.x; y+=p.y; n++; } return {x:x/n,y:y/n,n}; }
+function spread(){ const a=[...pts.values()]; return a.length<2?0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); }
+function orbitBy(dx,dy){ cam.tTheta-=dx*0.006; cam.tPhi=clamp(cam.tPhi-dy*0.005,0.35,1.35); }
+function panBy(dx,dy){
+  const f=new THREE.Vector3(); camera.getWorldDirection(f); f.y=0; f.normalize();
+  const r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0)).normalize();
+  const k=cam.dist*0.0016;
+  cam.target.addScaledVector(r,-dx*k); cam.target.addScaledVector(f,dy*k);
+  if(bounds){ const pad=3;
+    cam.target.x=clamp(cam.target.x,bounds.x0-pad,bounds.x1+pad);
+    cam.target.z=clamp(cam.target.z,bounds.z0-pad,bounds.z1+pad); }
+}
+function zoomTo(d){ cam.tDist=clamp(d,6,PHONE?64:50); }
+
+cv.addEventListener('pointerdown',e=>{
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){}   // never let capture failure kill the gesture
+  if(pts.size===1){
+    gest={kind:'undecided',sx:e.clientX,sy:e.clientY,x:e.clientX,y:e.clientY,t:performance.now(),touch:e.pointerType==='touch',shift:e.shiftKey};
+    if(!gest.touch) gest.kind=e.shiftKey?'pan':'orbit';   // a mouse never means "swipe"
+  } else if(pts.size===2){
+    gest={kind:'twofinger'}; pinch={dist:spread(),...mid()};
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  const p=pts.get(e.pointerId); if(!p) return;
+  const dx=e.clientX-p.x, dy=e.clientY-p.y;
+  p.x=e.clientX; p.y=e.clientY;
+  if(pts.size>=2){
+    if(!pinch) pinch={dist:spread(),...mid()};
+    const d=spread(), m=mid();
+    if(pinch.dist>0&&d>0) zoomTo(cam.tDist*(pinch.dist/d));
+    orbitBy((m.x-pinch.mx)*0.7,(m.y-pinch.my)*0.7);
+    pinch={dist:d,mx:m.x,my:m.y};
+    return;
+  }
+  if(!gest) return;
+  gest.x=e.clientX; gest.y=e.clientY;
+  if(gest.kind==='undecided'){
+    const md=Math.hypot(e.clientX-gest.sx,e.clientY-gest.sy);
+    if(md>CLASSIFY_PX) gest.kind=(performance.now()-gest.t<260)?'swipe':'orbit';
+  }
+  if(gest.kind==='orbit') orbitBy(dx,dy);
+  else if(gest.kind==='pan') panBy(dx,dy);
+});
+function endPointer(e){
+  const had=pts.size;
+  pts.delete(e.pointerId);
+  if(pts.size<2) pinch=null;
+  if(had>=2){ gest=pts.size?{kind:'orbit',x:0,y:0}:null; return; }
+  if(gest&&gest.touch){
+    const dx=gest.x-gest.sx, dy=gest.y-gest.sy, dist=Math.hypot(dx,dy), ms=performance.now()-gest.t;
+    if(gest.kind==='swipe'||(gest.kind==='undecided'&&dist>SWIPE_PX&&ms<SWIPE_MS)){
+      if(dist>SWIPE_PX) { if(Math.abs(dx)>Math.abs(dy)) tryMove(dx>0?'right':'left'); else tryMove(dy>0?'down':'up'); }
+    }
+  }
+  gest=null;
+}
+cv.addEventListener('pointerup',endPointer);
+cv.addEventListener('pointercancel',endPointer);
+cv.addEventListener('dblclick',()=>{ if(bounds) cam.target.set((bounds.x0+bounds.x1)/2,0,(bounds.z0+bounds.z1)/2); fitCamera(false); });
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{ zoomTo(cam.tDist*(1+Math.sign(e.deltaY)*0.08)); },{passive:true});
+addEventListener('resize',()=>{
+  renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  clearTimeout(resizeT); resizeT=setTimeout(()=>fitCamera(false),160);   // rotating the phone reframes the island
+});
+addEventListener('orientationchange',()=>setTimeout(()=>fitCamera(false),350));
 addEventListener('beforeunload',persist);
 
 // ---------- render loop ----------
@@ -674,8 +829,17 @@ function frame(now){
   cam.theta+=(cam.tTheta-cam.theta)*Math.min(1,dt*8); cam.phi+=(cam.tPhi-cam.phi)*Math.min(1,dt*8); cam.dist+=(cam.tDist-cam.dist)*Math.min(1,dt*5);
   if(cam.shake>0) cam.shake=Math.max(0,cam.shake-dt*1.6);
   const sh=cam.shake*cam.shake;
-  camera.position.set(cam.target.x+cam.dist*Math.sin(cam.phi)*Math.sin(cam.theta)+(Math.random()-.5)*sh, cam.target.y+cam.dist*Math.cos(cam.phi)+(Math.random()-.5)*sh, cam.target.z+cam.dist*Math.sin(cam.phi)*Math.cos(cam.theta)+(Math.random()-.5)*sh);
-  camera.lookAt(cam.target);
+  const eye=new THREE.Vector3(cam.target.x+cam.dist*Math.sin(cam.phi)*Math.sin(cam.theta), cam.target.y+cam.dist*Math.cos(cam.phi), cam.target.z+cam.dist*Math.sin(cam.phi)*Math.cos(cam.theta));
+  const look=cam.target.clone();
+  if(cam.liftN){   // slide the whole view up the screen, clear of the thumb controls
+    const fwd=look.clone().sub(eye).normalize();
+    const right=new THREE.Vector3().crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
+    const up=new THREE.Vector3().crossVectors(right,fwd).normalize();
+    const off=-cam.liftN*cam.dist*Math.tan(camera.fov*Math.PI/360);
+    eye.addScaledVector(up,off); look.addScaledVector(up,off);
+  }
+  camera.position.set(eye.x+(Math.random()-.5)*sh, eye.y+(Math.random()-.5)*sh, eye.z+(Math.random()-.5)*sh);
+  camera.lookAt(look);
   if(!L){ renderer.render(scene,camera); return; }
   for(const t of tiles){ const sp=t.g.userData.spawn; if(sp){ const k=clamp((now-sp.t0)/sp.dur,0,1); const e=easeOut(k); t.g.position.y=-3*(1-e); t.g.scale.setScalar(.01+.99*e); if(k>=1){ t.g.userData.spawn=null; t.g.position.y=0; t.g.scale.setScalar(1);} }
     const shv=t.g.userData.shatter; if(shv){ const k=(now-shv)/1000; t.g.position.y=-k*k*12; t.g.rotation.x=k*3; t.g.rotation.z=k*2; if(k>1.4) t.g.visible=false; }
@@ -700,8 +864,15 @@ function frame(now){
   renderer.render(scene,camera);
 }
 applySkins();
+applyHand();
 buildMenu();
 requestAnimationFrame(frame);
 window.LEVELS=LEVELS;
-window.__game={get L(){return L}, curDef:()=>curDef, loadDaily, loadEndless, get state(){return state}, tryMove, loadLevel, solve:()=>solve(L,state), get busy(){return busy}, get won(){return won}, get moves(){return moves}, save:()=>save, stats, camDir, openMenu};
+window.__game={liveExtent:()=>{
+  const m=new THREE.Matrix4().multiplyMatrices(camera.proj,camera.view);
+  let mx=0,my=0;
+  for(let i=0;i<fitPts.length;i+=3){ const p=new THREE.Vector3(fitPts[i],fitPts[i+1],fitPts[i+2]).applyMatrix4(m);
+    mx=Math.max(mx,Math.abs(p.x)); my=Math.max(my,Math.abs(p.y)); }
+  return {mx:+mx.toFixed(3),my:+my.toFixed(3),aspect:+camera.aspect.toFixed(3),dist:+cam.dist.toFixed(1)};
+}, fitDebug:()=>({band:viewBand(),at:[cam.tDist,cam.tDist*0.5,cam.tDist*0.25].map(d=>{const e=projectedExtent(d,cam.tTheta,cam.tPhi);return {d:+d.toFixed(1),mx:+e.mx.toFixed(3),my:+e.my.toFixed(3)};})}), get L(){return L}, cam:()=>cam, renderInfo:()=>({pixelRatio:renderer.pr,shadow:sun.shadow.mapSize.w}), PHONE, PLATFORM, curDef:()=>curDef, loadDaily, loadEndless, get state(){return state}, tryMove, loadLevel, solve:()=>solve(L,state), get busy(){return busy}, get won(){return won}, get moves(){return moves}, save:()=>save, stats, camDir, openMenu};
 })();

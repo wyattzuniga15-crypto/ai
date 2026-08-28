@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cube Roll">
 <meta name="format-detection" content="telephone=no">
-<title>Cube Roll — 3D Puzzle</title>
+<title>Cube Roll — 3D Puzzle (desktop)</title>
 <style>
 :root{--accent:#ffb347;--accent2:#ff7a3d;--bg1:#1b2140;--bg2:#070a16;}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -857,7 +857,7 @@ const LEVELS = [{"name":"First Steps","hint":"Arrow keys or WASD roll the block.
 'use strict';
 const $=id=>document.getElementById(id);
 // 'phone' | 'desktop' | 'auto' — build.js stamps this per target build.
-const PLATFORM="auto";
+const PLATFORM="desktop";
 const COARSE=(()=>{ try{ return matchMedia('(pointer:coarse)').matches; }catch(e){ return 'ontouchstart' in window; } })();
 const PHONE = PLATFORM==='phone' || (PLATFORM==='auto' && COARSE);
 document.documentElement.dataset.platform = PHONE?'phone':'desktop';

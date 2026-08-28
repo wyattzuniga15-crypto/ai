@@ -1,7 +1,16 @@
 # Cube Roll
 
 A single-file 3D block-rolling puzzle game. No build step, no dependencies, no
-network calls — open `CubeRoll.html` in any browser with WebGL2 and play.
+network calls — open one of the HTML files in any browser with WebGL2 and play.
+
+| File | For |
+| --- | --- |
+| `CubeRoll.html` | Auto-detects: phone layout on a touch device, desktop layout otherwise |
+| `CubeRoll.phone.html` | Always the phone layout |
+| `CubeRoll.desktop.html` | Always the desktop layout |
+
+All three are built from the same source and play identically — only the
+interface differs, so a save made in one carries over to the others.
 
 Roll the block across floating islands and drop it **standing upright** into the
 goal. A block lying down covers two tiles, and which two depends on how you got
@@ -41,16 +50,35 @@ there.
   play and Settings tabs, plus tutorial cards that explain each kind of ground
   the first time you meet it. Progress lives in `localStorage`.
 
+## Phone
+
+- A d-pad and a thumb row (undo, restart, hint) sit within reach of one hand,
+  and swap sides for left-handed play.
+- Flick anywhere on the board to roll; drag slowly to orbit; two fingers orbit
+  and pinch to zoom.
+- In portrait the island turns a quarter turn so its long axis runs down the
+  tall screen, and the view lifts clear of the controls.
+- Haptics on rolls, falls and finds; safe-area insets for notches and home
+  indicators; a lighter render budget (1024px shadows, capped pixel ratio).
+- Add it to your home screen and it opens fullscreen with no browser chrome.
+
+## Desktop
+
+- Full keyboard control with a shortcut sheet on `?`.
+- Drag to orbit, shift-drag to pan, scroll to zoom, double-click to recentre.
+- A wider menu and a denser level grid; 2048px shadows and full pixel ratio.
+
 ## Controls
 
 Arrows / WASD roll · swipe on touch · `Z` undo · `R` restart · `H` hint ·
-`Esc` menu · `L` level select · `M` mute · drag to orbit, scroll to zoom.
+`Esc` menu · `L` level select · `C` daily &amp; endless · `M` mute · `F` fullscreen ·
+`?` shortcuts.
 
 ## Repository layout
 
 - `CubeRoll.html` — the game. This is the only file you need to play.
-- `tools/` — the level pipeline. `rules.js` is the game core, byte-for-byte the
-  same code the page runs; `gen.js` and `build_levels*.js` generate and validate
+- `tools/` — the level pipeline and the page builder. `rules.js` is the game
+  core, byte-for-byte the same code the page runs; `gen.js` and `build_levels*.js` generate and validate
   levels against it; `part_forge.js` is the in-browser generator behind Daily and
   Endless; `build.js` assembles the page; `smoke.js` drives a headless browser
   that auto-solves all 70 levels plus a daily and three endless islands, and
@@ -61,6 +89,11 @@ Arrows / WASD roll · swipe on touch · `Z` undo · `R` restart · `H` hint ·
 ```sh
 node tools/build_levels.js      # regenerate tools/newlevels.json  (slow)
 node tools/build_levels2.js     # regenerate tools/newlevels2.json (slow)
-node tools/build.js CubeRoll.html
-node tools/smoke.js CubeRoll.html
+
+node tools/build.js CubeRoll.html                    # auto-detecting
+node tools/build.js CubeRoll.phone.html   phone
+node tools/build.js CubeRoll.desktop.html desktop
+
+node tools/smoke.js  CubeRoll.html                   # 70 islands + daily + endless
+node tools/device.js CubeRoll.phone.html CubeRoll.desktop.html CubeRoll.html /tmp
 ```

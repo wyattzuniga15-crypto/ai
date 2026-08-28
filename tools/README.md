@@ -32,7 +32,16 @@ validated against the same code the browser runs.
   before the player ever sees it. Roughly 50 ms per island, 300 ms worst case.
 - `build.js` — assembles `part_head.html` + `mini3d.js` + `rules.js` +
   `part_forge.js` + `part_content.js` + levels + `part_game.js` into the
-  single-file game.
+  single-file game. A second argument picks the target — `auto` (default),
+  `phone` or `desktop` — which is stamped into `part_game.js`'s `PLATFORM`
+  token. One source, three builds, so the layouts cannot drift apart.
 - `smoke.js` — headless Chromium: builds the menu, opens every tab, auto-solves
   all 70 campaign islands, then plays the daily challenge and three endless
   islands. Exits non-zero on any console error or unsolved island.
+- `device.js` — the same three builds under emulated devices (Pixel 7, a 360x640
+  phone, and a 1440x900 desktop). Checks that each build picks the right layout
+  and render budget, that no menu tab overflows its panel, and that the input
+  each platform depends on actually reaches the game: pinch-zoom, swipe-to-roll
+  and the d-pad on touch; drag-orbit, wheel-zoom, keys and the shortcut sheet on
+  desktop. Synthetic input arrives asynchronously, so every assertion polls for
+  the effect rather than waiting a fixed time.

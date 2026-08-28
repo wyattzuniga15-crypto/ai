@@ -1,15 +1,24 @@
+// Assembles CubeRoll from tools/part_*.  One source, three targets:
+//   node build.js out.html            -> auto-detecting build
+//   node build.js out.html phone      -> locked to the phone layout
+//   node build.js out.html desktop    -> locked to the desktop layout
 const fs=require('fs'),p=__dirname;
 const R=s=>fs.readFileSync(p+'/'+s,'utf8');
-const orig=JSON.parse(R('origlevels.json'));
-const nw=JSON.parse(R('newlevels.json'));
-const nw2=JSON.parse(R('newlevels2.json'));
-const LEVELS=orig.concat(nw,nw2);
-const html=R('part_head.html')
+const out=process.argv[2]||(p+'/CubeRoll.html');
+const target=process.argv[3]||'auto';
+if(!['auto','phone','desktop'].includes(target)) throw new Error('target must be auto | phone | desktop');
+
+const LEVELS=JSON.parse(R('origlevels.json')).concat(JSON.parse(R('newlevels.json')),JSON.parse(R('newlevels2.json')));
+const game=R('part_game.js').replace("/*__PLATFORM__*/'auto'", JSON.stringify(target));
+if(target!=='auto' && game.indexOf(JSON.stringify(target))<0) throw new Error('platform token not substituted');
+
+const titles={auto:'Cube Roll — 3D Puzzle',phone:'Cube Roll — 3D Puzzle (phone)',desktop:'Cube Roll — 3D Puzzle (desktop)'};
+const html=R('part_head.html').replace('<title>Cube Roll — 3D Puzzle</title>','<title>'+titles[target]+'</title>')
   +'\n<script>\n'+R('mini3d.js')+'\n</script>\n'
   +'<script>\n'+R('rules.js')+'\n</script>\n'
   +'<script>\n'+R('part_forge.js')+'\n</script>\n'
   +'<script>\n'+R('part_content.js')
   +'\nconst LEVELS = '+JSON.stringify(LEVELS)+';\n</script>\n'
-  +'<script>\n'+R('part_game.js')+'\n</script>\n</body>\n</html>\n';
-fs.writeFileSync(process.argv[2]||(p+'/CubeRoll.html'),html);
-console.log('levels:',LEVELS.length,'bytes:',html.length);
+  +'<script>\n'+game+'\n</script>\n</body>\n</html>\n';
+fs.writeFileSync(out,html);
+console.log(target.padEnd(7),'->',out,'| levels:',LEVELS.length,'| bytes:',html.length);
