@@ -894,6 +894,12 @@ cv.addEventListener('pointerup',endPointer);
 cv.addEventListener('pointercancel',endPointer);
 cv.addEventListener('dblclick',()=>{ if(bounds) cam.target.set((bounds.x0+bounds.x1)/2,0,(bounds.z0+bounds.z1)/2); fitCamera(false); });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
+// A host showing this page in a phone app can act on a swipe before the game
+// sees it — a sheet dismissed by swiping down, a browser pulling to refresh.
+// Claim every touch that lands on the board outright. The menu is a different
+// element, so it still scrolls normally.
+cv.addEventListener('touchstart',e=>{ if(e.cancelable) e.preventDefault(); },{passive:false});
+cv.addEventListener('touchmove',e=>{ if(e.cancelable) e.preventDefault(); },{passive:false});
 cv.addEventListener('wheel',e=>{ zoomTo(cam.tDist*(1+Math.sign(e.deltaY)*0.08)); },{passive:true});
 addEventListener('resize',()=>{
   renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();

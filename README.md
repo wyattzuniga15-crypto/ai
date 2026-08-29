@@ -63,6 +63,10 @@ there.
   fired the moment the direction is clear. There is no timing test, so a slow
   deliberate drag works exactly like a quick flick. Two fingers turn the view
   and pinch to zoom.
+- Touches on the board are consumed by the game, so an app showing the page in
+  a sheet cannot dismiss it on a downward swipe and a browser cannot pull to
+  refresh. Fullscreen (the ⛶ button) puts it beyond the host's gestures
+  entirely.
 - Nothing sits on the board but a small thumb row (undo, restart, hint), which
   swaps sides for left-handed play. An on-screen d-pad is available in Settings
   for anyone who prefers one; it is off by default.

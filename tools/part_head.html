@@ -15,7 +15,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px)}
 button{touch-action:manipulation}
-html,body{height:100%;overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:#eef;background:radial-gradient(ellipse at 50% 30%,var(--bg1) 0%,var(--bg2) 75%);background-color:var(--bg2);transition:background 1.2s;user-select:none;-webkit-user-select:none}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:#eef;background:radial-gradient(ellipse at 50% 30%,var(--bg1) 0%,var(--bg2) 75%);background-color:var(--bg2);transition:background 1.2s;user-select:none;-webkit-user-select:none}
 canvas{display:block;position:fixed;inset:0;touch-action:none}
 #hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;opacity:0;transition:opacity .3s}
 #hud.on{opacity:1}
@@ -41,7 +41,7 @@ kbd{display:inline-block;font:11px/1 monospace;padding:2px 5px;border-radius:5px
 #msg{position:fixed;left:50%;top:18%;transform:translateX(-50%);font-size:26px;font-weight:800;letter-spacing:.04em;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.6);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;z-index:6}
 .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,14,.72);backdrop-filter:blur(10px);z-index:10;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .3s,visibility 0s linear .3s}
 .overlay.show{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .3s,visibility 0s}
-.panel{background:rgba(16,20,40,.92);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:26px 28px;max-width:min(94vw,860px);width:min(94vw,860px);max-height:92vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center}
+.panel{touch-action:pan-y;-webkit-overflow-scrolling:touch;background:rgba(16,20,40,.92);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:26px 28px;max-width:min(94vw,860px);width:min(94vw,860px);max-height:92vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center}
 .panel.sm{width:min(94vw,560px)}
 .panel h1{font-size:clamp(30px,6vw,46px);letter-spacing:.06em;background:linear-gradient(135deg,#fff,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900}
 .panel h2{font-size:24px;margin-bottom:6px}

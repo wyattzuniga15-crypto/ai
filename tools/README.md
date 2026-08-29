@@ -59,6 +59,10 @@ validated against the same code the browser runs.
   tap, and a two-finger turn. Asserts each costs exactly the moves it should,
   that lifting off a pinch never rolls the block, and that no gesture leaves a
   non-finite number in the camera.
+- `claim.js` — asserts a touch on the board is consumed by the game rather than
+  left for the host to act on (a phone app dismissing a sheet on a downward
+  swipe, a browser pulling to refresh), that the menu panel still scrolls, and
+  that all four swipe directions still cost exactly one move.
 - `device.js` — the same three builds under emulated devices (Pixel 7, a 360x640
   phone, and a 1440x900 desktop). Checks that each build picks the right layout
   and render budget, that no menu tab overflows its panel, and that the input
