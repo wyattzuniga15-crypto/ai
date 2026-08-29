@@ -125,11 +125,13 @@ html[data-platform="phone"] #btns button{padding:9px 11px;font-size:15px;line-he
 html[data-platform="phone"] #btns .lbl{display:none}
 html[data-platform="phone"] kbd{display:none}
 html[data-platform="phone"] #bottom{padding:0 calc(10px + var(--sar)) calc(74px + var(--sab)) calc(10px + var(--sal));flex-direction:column;align-items:stretch;gap:8px}
-html[data-platform="phone"] #hint{max-width:none;font-size:12.5px;line-height:1.35;max-height:2.9em;overflow:hidden;transition:max-height .25s;cursor:pointer;margin-right:186px}
+html[data-platform="phone"][data-dpad="off"] #toast{bottom:calc(96px + var(--sab))}
+html[data-platform="phone"] #hint{max-width:none;font-size:12.5px;line-height:1.35;max-height:2.9em;overflow:hidden;transition:max-height .25s;cursor:pointer}
+html[data-platform="phone"][data-dpad="on"] #hint{margin-right:186px}
 html[data-platform="phone"] #hint.open{max-height:40vh;overflow:auto}
 html[data-platform="phone"] #deskHelp{display:none}
 html[data-platform="phone"] #touchbar{display:flex}
-html[data-platform="phone"] #dpad{display:block}
+html[data-platform="phone"][data-dpad="on"] #dpad{display:block}
 html[data-platform="phone"] .panel{width:100vw;max-width:100vw;min-height:100dvh;max-height:100dvh;border-radius:0;padding:calc(16px + var(--sat)) 14px calc(20px + var(--sab))}
 html[data-platform="phone"] .panel.sm{width:calc(100vw - 16px);max-width:calc(100vw - 16px);min-height:0;max-height:92dvh;border-radius:20px;padding:22px 16px}
 html[data-platform="phone"] .panel h1{font-size:34px}
@@ -153,7 +155,7 @@ html[data-platform="phone"] button{font-size:14px}
 #touchbar button{width:52px;height:52px;padding:0;border-radius:16px;font-size:19px;display:flex;align-items:center;justify-content:center}
 html[data-hand="left"] #touchbar{left:auto;right:calc(10px + var(--sar))}
 html[data-hand="left"] #dpad{right:auto;left:calc(14px + var(--sal))}
-html[data-platform="phone"][data-hand="left"] #hint{margin-right:0;margin-left:186px}
+html[data-platform="phone"][data-dpad="on"][data-hand="left"] #hint{margin-right:0;margin-left:186px}
 
 #dpad{display:none;position:fixed;right:calc(14px + var(--sar));bottom:calc(78px + var(--sab));width:172px;height:172px;pointer-events:auto;z-index:4}
 #dpad button{position:absolute;width:58px;height:58px;border-radius:50%;font-size:22px;padding:0;display:flex;align-items:center;justify-content:center;background:rgba(20,26,50,.82)}
@@ -292,10 +294,10 @@ html[data-platform="desktop"] #hint{max-width:560px}
     </div>
     <h3>Controls</h3>
     <div class="legend">
-      <span>Arrows / WASD — roll</span><span>Swipe — roll (touch)</span>
+      <span>Arrows / WASD — roll</span><span>Swipe the island — roll (touch)</span>
       <span>Z — undo</span><span>R — restart level</span>
       <span>H — hint</span><span>Esc — menu</span>
-      <span>M — mute</span><span>Drag / scroll — orbit &amp; zoom</span>
+      <span>M — mute</span><span>Two fingers — turn and zoom (touch)</span>
     </div>
     <h3>Ratings</h3>
     <p>Finish on or under par for ★★★, within four moves of par for ★★, anything else for ★. Par is the true optimum — every island in the game was solved by machine before you saw it. Stars scattered on the island are counted separately; they are what buy your skins.</p>
@@ -306,6 +308,7 @@ html[data-platform="desktop"] #hint{max-width:560px}
   <div class="pane" id="panesettings">
     <div class="set"><div>Sound<small>Rolls, switches, fanfares</small></div><button id="setSound">On</button></div>
     <div class="set phoneOnly"><div>Haptics<small>A short tap on rolls, falls and finds</small></div><button id="setHaptics">On</button></div>
+    <div class="set phoneOnly"><div>On-screen d-pad<small>Off: swipe the island to roll, two fingers to look</small></div><button id="setDpad">Off</button></div>
     <div class="set phoneOnly"><div>Controls side<small>Which thumb gets the d-pad</small></div><button id="setHand">Right</button></div>
     <div class="set"><div>Ambient music<small>A slow pad under the puzzling. Off by default.</small></div><button id="setMusic">Off</button></div>
     <div class="set"><div>Camera-relative controls<small>Off: arrows always match the world grid</small></div><button id="setCamRel">On</button></div>

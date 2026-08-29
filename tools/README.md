@@ -53,6 +53,12 @@ validated against the same code the browser runs.
   getContext, a failing menu section) and asserts it either still runs or shows
   a readable message. A page that only highlights its buttons is a silent
   failure, and this is what stops one shipping.
+- `swipe.js` — the phone control surface, exercised the way a thumb behaves: a
+  quick flick, the same distance dragged slowly over a second and a half, a
+  gentle nudge that never reaches the threshold, a long generous drag, a plain
+  tap, and a two-finger turn. Asserts each costs exactly the moves it should,
+  that lifting off a pinch never rolls the block, and that no gesture leaves a
+  non-finite number in the camera.
 - `device.js` — the same three builds under emulated devices (Pixel 7, a 360x640
   phone, and a 1440x900 desktop). Checks that each build picks the right layout
   and render budget, that no menu tab overflows its panel, and that the input

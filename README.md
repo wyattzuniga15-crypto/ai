@@ -59,10 +59,13 @@ there.
 
 ## Phone
 
-- A d-pad and a thumb row (undo, restart, hint) sit within reach of one hand,
-  and swap sides for left-handed play.
-- Flick anywhere on the board to roll; drag slowly to orbit; two fingers orbit
+- **Swipe the island to roll.** One finger is the control: one swipe, one roll,
+  fired the moment the direction is clear. There is no timing test, so a slow
+  deliberate drag works exactly like a quick flick. Two fingers turn the view
   and pinch to zoom.
+- Nothing sits on the board but a small thumb row (undo, restart, hint), which
+  swaps sides for left-handed play. An on-screen d-pad is available in Settings
+  for anyone who prefers one; it is off by default.
 - In portrait the island turns a quarter turn so its long axis runs down the
   tall screen, and the view lifts clear of the controls.
 - Haptics on rolls, falls and finds; safe-area insets for notches and home

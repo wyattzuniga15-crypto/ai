@@ -92,7 +92,7 @@ function buzz(ms){ if(!PHONE||save.haptics===false) return; try{ navigator.vibra
 
 // ---------- save ----------
 const SAVE_KEY='cuberoll.v3';
-const DEF_SAVE={best:{},flags:{},unlocked:1,sound:true,camRel:true,shake:true,hintBtn:true,teach:true,music:false,haptics:true,hand:'right',totalMoves:0,crumbled:0,keysTaken:0,launches:0,
+const DEF_SAVE={best:{},flags:{},unlocked:1,sound:true,camRel:true,shake:true,hintBtn:true,teach:true,music:false,haptics:true,hand:'right',dpad:false,totalMoves:0,crumbled:0,keysTaken:0,launches:0,
   skin:{cube:'amber',tile:'azure',sky:'nebula',trail:'none'},seen:[],
   daily:{date:'',done:false,moves:0,cleared:0,streak:0,last:''},
   endless:{run:0,best:0,cleared:0,seed:0}};
@@ -325,7 +325,9 @@ function loadDef(def,opts){
 function viewBand(){
   const asp=innerWidth/Math.max(1,innerHeight);
   if(!PHONE) return {hx:.92,hy:.84,lift:0};
-  return asp<0.95 ? {hx:.96,hy:.58,lift:.20} : {hx:.80,hy:.74,lift:.10};   // landscape: clear the hint bar and the d-pad
+  const pad=save.dpad;   // the optional d-pad is the only thing that eats the bottom corner
+  return asp<0.95 ? (pad?{hx:.96,hy:.58,lift:.20}:{hx:.96,hy:.68,lift:.11})
+                  : (pad?{hx:.80,hy:.74,lift:.10}:{hx:.88,hy:.80,lift:.05});
 }
 function projectedExtent(dist,theta,phi){
   const t=cam.target;
@@ -596,6 +598,13 @@ const TEACH={
 };
 function maybeTeach(){
   if(save.teach===false||!L||won) return;
+  if(PHONE&&save.seen.indexOf('touch')<0){
+    save.seen.push('touch'); persist();
+    $('teachIcon').textContent='👆'; $('teachTitle').textContent='Swipe to roll';
+    $('teachBody').textContent='Swipe anywhere on the island to roll the block — one swipe, one roll. A slow drag works just as well as a quick flick. Two fingers turn the view and pinch to zoom.';
+    closeOverlays(); $('ovTeach').classList.add('show');
+    return;
+  }
   const present=new Set(); L.tiles.forEach(r=>r.forEach(t=>present.add(t.type)));
   if(L.lockGoal) present.add('sealed');
   let pick=null;
@@ -743,6 +752,7 @@ function buildSettings(){
   setToggle('setHintBtn','hintBtn','On','Off',applyHintBtn);
   setToggle('setTeach','teach','On','Off');
   setToggle('setHaptics','haptics','On','Off');
+  setToggle('setDpad','dpad','On','Off',()=>{ applyDpad(); fitCamera(true); });
   const hb=$('setHand'); const paintHand=()=>hb.textContent=save.hand==='left'?'Left':'Right';
   hb.onclick=()=>{ save.hand=save.hand==='left'?'right':'left'; persist(); applyHand(); paintHand(); Snd.click(); }; paintHand();
   setToggle('setMusic','music','On','Off',()=>Music.sync());
@@ -750,6 +760,7 @@ function buildSettings(){
   $('setWipe').onclick=()=>{ if(!confirm('Erase all progress, stars, missions and skins?')) return; const snd=save.sound; save=JSON.parse(JSON.stringify(DEF_SAVE)); save.sound=snd; persist(); applySkins(); buildMenu(); toast('Progress erased'); };
 }
 function applyHand(){ document.documentElement.dataset.hand=save.hand==='left'?'left':'right'; }
+function applyDpad(){ document.documentElement.dataset.dpad=save.dpad?'on':'off'; }
 function closeOverlays(){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show')); }
 
 $('bContinue').onclick=()=>{ Snd.init(); Music.sync(); Snd.click(); closeOverlays(); loadLevel(clamp(save.unlocked-1,0,LEVELS.length-1)); };
@@ -805,16 +816,22 @@ addEventListener('keydown',e=>{
 });
 
 const cv=renderer.domElement;
-// One pointer map drives everything: a quick flick rolls the block, a slow drag
-// orbits, two fingers orbit and pinch, and shift-drag pans on desktop.
+// One finger rolls the block, two fingers move the camera. There is no timing
+// test anywhere, so a slow deliberate drag rolls exactly like a quick flick.
+// One touch is one roll: in a puzzle where every move is counted, a generous
+// swipe must never cost two.
 const pts=new Map();
-let gest=null;   // {kind:'undecided'|'swipe'|'orbit'|'pan', ...}
+let gest=null;   // {kind:'roll'|'orbit'|'pan'|'twofinger'|'spent', ...}
 let pinch=null;  // {dist, mx, my}
-const SWIPE_PX=26, SWIPE_MS=420, CLASSIFY_PX=14;
+const SWIPE_PX=30, TAIL_PX=16;
 
 function mid(){ let x=0,y=0,n=0; for(const p of pts.values()){ x+=p.x; y+=p.y; n++; } return {x:x/n,y:y/n,n}; }
 function spread(){ const a=[...pts.values()]; return a.length<2?0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); }
-function orbitBy(dx,dy){ cam.tTheta-=dx*0.006; cam.tPhi=clamp(cam.tPhi-dy*0.005,0.35,1.35); }
+function pinchState(){ const m=mid(); return {dist:spread(),mx:m.x,my:m.y}; }
+function orbitBy(dx,dy){
+  if(!isFinite(dx)||!isFinite(dy)) return;   // one NaN here freezes the whole view
+  cam.tTheta-=dx*0.006; cam.tPhi=clamp(cam.tPhi-dy*0.005,0.35,1.35);
+}
 function panBy(dx,dy){
   const f=new THREE.Vector3(); camera.getWorldDirection(f); f.y=0; f.normalize();
   const r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0)).normalize();
@@ -824,16 +841,18 @@ function panBy(dx,dy){
     cam.target.x=clamp(cam.target.x,bounds.x0-pad,bounds.x1+pad);
     cam.target.z=clamp(cam.target.z,bounds.z0-pad,bounds.z1+pad); }
 }
-function zoomTo(d){ cam.tDist=clamp(d,6,PHONE?64:50); }
+function zoomTo(d){ if(!isFinite(d)) return; cam.tDist=clamp(d,6,PHONE?64:50); }
+function swipeDir(dx,dy){ return Math.abs(dx)>Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'); }
 
 cv.addEventListener('pointerdown',e=>{
   pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   try{ cv.setPointerCapture(e.pointerId); }catch(err){}   // never let capture failure kill the gesture
   if(pts.size===1){
-    gest={kind:'undecided',sx:e.clientX,sy:e.clientY,x:e.clientX,y:e.clientY,t:performance.now(),touch:e.pointerType==='touch',shift:e.shiftKey};
-    if(!gest.touch) gest.kind=e.shiftKey?'pan':'orbit';   // a mouse never means "swipe"
+    gest={sx:e.clientX,sy:e.clientY,x:e.clientX,y:e.clientY,
+          touch:e.pointerType==='touch',
+          kind:e.pointerType==='touch' ? 'roll' : (e.shiftKey?'pan':'orbit')};
   } else if(pts.size===2){
-    gest={kind:'twofinger'}; pinch={dist:spread(),...mid()};
+    gest={kind:'twofinger'}; pinch=pinchState();
   }
 });
 cv.addEventListener('pointermove',e=>{
@@ -841,7 +860,7 @@ cv.addEventListener('pointermove',e=>{
   const dx=e.clientX-p.x, dy=e.clientY-p.y;
   p.x=e.clientX; p.y=e.clientY;
   if(pts.size>=2){
-    if(!pinch) pinch={dist:spread(),...mid()};
+    if(!pinch){ pinch=pinchState(); return; }
     const d=spread(), m=mid();
     if(pinch.dist>0&&d>0) zoomTo(cam.tDist*(pinch.dist/d));
     orbitBy((m.x-pinch.mx)*0.7,(m.y-pinch.my)*0.7);
@@ -850,23 +869,24 @@ cv.addEventListener('pointermove',e=>{
   }
   if(!gest) return;
   gest.x=e.clientX; gest.y=e.clientY;
-  if(gest.kind==='undecided'){
-    const md=Math.hypot(e.clientX-gest.sx,e.clientY-gest.sy);
-    if(md>CLASSIFY_PX) gest.kind=(performance.now()-gest.t<260)?'swipe':'orbit';
+  if(gest.kind==='roll'){
+    // fire as soon as the direction is unambiguous rather than on release, then
+    // stop listening until the finger lifts
+    const ax=e.clientX-gest.sx, ay=e.clientY-gest.sy;
+    if(Math.max(Math.abs(ax),Math.abs(ay))>=SWIPE_PX){ tryMove(swipeDir(ax,ay)); gest.kind='spent'; }
   }
-  if(gest.kind==='orbit') orbitBy(dx,dy);
+  else if(gest.kind==='orbit') orbitBy(dx,dy);
   else if(gest.kind==='pan') panBy(dx,dy);
 });
 function endPointer(e){
   const had=pts.size;
   pts.delete(e.pointerId);
   if(pts.size<2) pinch=null;
-  if(had>=2){ gest=pts.size?{kind:'orbit',x:0,y:0}:null; return; }
-  if(gest&&gest.touch){
-    const dx=gest.x-gest.sx, dy=gest.y-gest.sy, dist=Math.hypot(dx,dy), ms=performance.now()-gest.t;
-    if(gest.kind==='swipe'||(gest.kind==='undecided'&&dist>SWIPE_PX&&ms<SWIPE_MS)){
-      if(dist>SWIPE_PX) { if(Math.abs(dx)>Math.abs(dy)) tryMove(dx>0?'right':'left'); else tryMove(dy>0?'down':'up'); }
-    }
+  // the finger left over from a pinch must not roll the block on its way up
+  if(had>=2){ gest=pts.size?{kind:'spent'}:null; return; }
+  if(gest&&gest.kind==='roll'){
+    const dx=gest.x-gest.sx, dy=gest.y-gest.sy;
+    if(Math.max(Math.abs(dx),Math.abs(dy))>=TAIL_PX) tryMove(swipeDir(dx,dy));  // a short, gentle swipe still counts
   }
   gest=null;
 }
@@ -925,6 +945,7 @@ function frame(now){
 }
 applySkins();
 applyHand();
+applyDpad();
 requestAnimationFrame(frame);
 window.LEVELS=LEVELS;
 window.__game={liveExtent:()=>{

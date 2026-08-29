@@ -79,13 +79,8 @@ async function run(browser,ctxOpts,url,label,expectPlatform,shots){
     await until(page,`window.__game.save().totalMoves > ${'${m0}'}`.replace('${m0}',m0)); await settle(page);
     const m0b=await page.evaluate(()=>window.__game.save().totalMoves);
     gestures.swipeMoved = m0b > m0; gestures._swipe=m0+'->'+m0b;
-    // d-pad tap
-    await settle(page);
-    const m1=await page.evaluate(()=>window.__game.save().totalMoves);
-    await page.tap('#dpad button[data-d="down"]').catch(e=>gestures._tapErr=e.message);
-    await until(page,`window.__game.save().totalMoves > ${'${m1}'}`.replace('${m1}',m1)); await settle(page);
-    const m1b=await page.evaluate(()=>window.__game.save().totalMoves);
-    gestures.dpadMoved = m1b > m1; gestures._dpad=m1+'->'+m1b;
+    // the d-pad is opt-in now; swiping the island is the control
+    gestures.dpadOffByDefault = await page.evaluate(()=>document.getElementById('dpad').getBoundingClientRect().width===0);
   } else {
     const th0=await page.evaluate(()=>window.__game.cam().tTheta);
     await page.mouse.move(cx,cy); await page.mouse.down(); await page.mouse.move(cx+120,cy,{steps:6}); await page.mouse.up();
