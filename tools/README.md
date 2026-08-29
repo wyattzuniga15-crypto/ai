@@ -34,7 +34,9 @@ validated against the same code the browser runs.
   `part_forge.js` + `part_content.js` + levels + `part_game.js` into the
   single-file game. A second argument picks the target — `auto` (default),
   `phone` or `desktop` — which is stamped into `part_game.js`'s `PLATFORM`
-  token. One source, three builds, so the layouts cannot drift apart.
+  token. One source, three builds, so the layouts cannot drift apart. A fourth
+  target, `artifact`, emits the auto-detecting build as page content only, with
+  no doctype/html/head/body wrapper, for hosts that supply their own skeleton.
 - `smoke.js` — headless Chromium: builds the menu, opens every tab, auto-solves
   all 70 campaign islands, then plays the daily challenge and three endless
   islands. Exits non-zero on any console error or unsolved island.

@@ -9,6 +9,13 @@ network calls — open one of the HTML files in any browser with WebGL2 and play
 | `CubeRoll.phone.html` | Always the phone layout |
 | `CubeRoll.desktop.html` | Always the desktop layout |
 
+**Open it in a real browser.** File previews inside chat apps, mail clients and
+file managers usually render the HTML but block scripts, which leaves the menu
+drawn and its buttons highlighting under a tap while nothing happens. The page
+now says so rather than looking broken, but the cure is to open the file in
+Safari or Chrome directly. `node tools/build.js out.html artifact` produces the
+same game in Artifact page shape for hosting instead.
+
 All three are built from the same source and play identically — only the
 interface differs, so a save made in one carries over to the others.
 
