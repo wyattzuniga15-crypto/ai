@@ -48,8 +48,25 @@ jobs:
         with:
           gradle-version: '8.14'
 
+      # No --stacktrace: it buries javac's actual errors under 200 lines of Gradle internals,
+      # and the log tail is the only part that gets read.
       - name: Build
-        run: gradle build --stacktrace --no-daemon
+        run: |
+          set -o pipefail
+          gradle build --no-daemon --console=plain 2>&1 | tee /tmp/build.log
+
+      # Runs last on failure so the errors are the final thing in the log, not the first.
+      - name: Compile errors
+        if: failure()
+        run: |
+          echo "=============== NeoForge version used ==============="
+          grep '^neo_version=' gradle.properties || true
+          echo "=============== javac errors ==============="
+          grep -nE '\.java:[0-9]+: (error|warning):' /tmp/build.log | head -60 || echo "(no javac errors — failure was elsewhere)"
+          echo "=============== what went wrong ==============="
+          sed -n '/What went wrong/,/^\* Try:/p' /tmp/build.log | head -40 || true
+          echo "=============== last 40 non-Gradle lines ==============="
+          grep -v '^\s*at org.gradle' /tmp/build.log | tail -40 || true
 
       - name: Show what was produced
         if: always()
@@ -62,7 +79,3 @@ jobs:
           path: demigod/build/libs/*.jar
           if-no-files-found: error
 
-      - name: Compiler output on failure
-        if: failure()
-        run: |
-          find . -name '*.log' -newermt '-30 minutes' -print -exec tail -100 {} \; || true
