@@ -1,0 +1,74 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.78'
+}
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_id }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        // Pinned once a 1.21.11 mapping exists; until then the build runs on official names.
+    }
+
+    runs {
+        client { client() }
+        server { server(); programArgument '--nogui' }
+        data { clientData() }
+        // Every ability, the damage matrix, and each dimension transition is covered here.
+        gameTestServer { type = 'gameTestServer' }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    mavenCentral()
+    maven { name = 'GeckoLib'; url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
+}
+
+dependencies {
+    // D-03: hard dependency. Animation is reached only through entity/render/anim/, so an API
+    // break in the alpha line is a bounded port rather than a rewrite.
+    implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The core/ domain model imports no Minecraft types (ARCHITECTURE §2), so it is tested at
+// unit-test speed rather than through a game server. This is the majority of the mod's decision
+// logic: the Mist matrix, favour, energy, judgment, scent, prophecy, and the Labyrinth graph.
+test {
+    useJUnitPlatform()
+    testLogging { events 'passed', 'failed', 'skipped' }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def expand = [
+            minecraft_version   : minecraft_version,
+            neo_version_range   : neo_version_range,
+            loader_version_range: loader_version_range,
+            mod_id              : mod_id,
+            mod_name            : mod_name,
+            mod_license         : mod_license,
+            mod_version         : mod_version,
+            mod_authors         : mod_authors,
+            mod_description     : mod_description,
+    ]
+    inputs.properties(expand)
+    filesMatching(['META-INF/neoforge.mods.toml']) { expand it, expand }
+}

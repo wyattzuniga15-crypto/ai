@@ -26,6 +26,13 @@ Three rules govern this roadmap:
 
 ## Phase 1 — Skeleton
 
+> **Partially delivered.** The Minecraft-free `core/` domain model is built and passing (51 tests,
+> `tools/verify-core.sh`), and the Gradle/`mods.toml` scaffolding is written. The rest of Phase 1
+> is blocked in the development environment: `maven.neoforged.net`, `libraries.minecraft.net` and
+> `piston-meta.mojang.com` are denied by egress policy, so ModDevGradle cannot resolve Minecraft
+> and `gradlew build` has never been run. See `README.md`.
+
+
 | Item | Detail |
 |---|---|
 | Gradle | ModDevGradle on **Minecraft 1.21.11 / NeoForge 21.11** (D-02), `runClient` / `runServer` / `runData` / `runGameTestServer` |
@@ -305,9 +312,10 @@ Each is a self-contained release. Order is a suggestion; they are independent ex
 | `ARCHITECTURE.md` | ✅ done |
 | `ROADMAP.md` | ✅ done |
 | `DECISIONS.md` | ✅ done (not in the brief; added because 21 open decisions needed a home) |
-| `LORE_REFERENCE.md` | created Phase 1, appended every phase |
-| `BALANCE.md` | created Phase 1, filled Phases 3–6, final pass Phase 13 |
-| Gradle project building clean with datagen | Phase 1 |
+| `LORE_REFERENCE.md` | ✅ seeded, with confidence notes; appended every phase |
+| `BALANCE.md` | ✅ every number currently in code; filled further in Phases 3–6, final pass Phase 13 |
+| `README.md` | ✅ status and honest limits now; compatibility matrix at Phase 13 |
+| Core domain model + unit suite | ✅ 51 tests passing |
+| Gradle project building clean with datagen | Phase 1 — **blocked on toolchain reachability** |
 | Full GameTest suite | grows every phase; complete Phase 13 |
-| Patchouli guidebook | Phase 13 |
-| `README.md` and compatibility matrix | Phase 13 |
+| Patchouli guidebook | Phase 13 (fallback per D-02 if no 1.21.11 build) |

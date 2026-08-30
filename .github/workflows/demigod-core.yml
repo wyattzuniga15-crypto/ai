@@ -1,0 +1,22 @@
+name: demigod core
+
+# The Minecraft-free domain model — the Mist damage matrix, favour, divine energy, judgment,
+# scent, the prophecy generator, and the Labyrinth graph. Needs only a JDK and Maven Central,
+# so it runs on every push rather than only where the NeoForge toolchain is reachable.
+on:
+  push:
+    paths: ['demigod/**', '.github/workflows/demigod-core.yml']
+  pull_request:
+    paths: ['demigod/**', '.github/workflows/demigod-core.yml']
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify the core domain model
+        run: ./demigod/tools/verify-core.sh

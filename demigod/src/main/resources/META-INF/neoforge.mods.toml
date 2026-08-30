@@ -1,0 +1,33 @@
+modLoader = "javafml"
+loaderVersion = "${loader_version_range}"
+license = "${mod_license}"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+description = '''${mod_description}'''
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neo_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "[${minecraft_version}]"
+ordering = "NONE"
+side = "BOTH"
+
+# DECISIONS.md D-03 — hard dependency. Without it there is no animation, and a monster with no
+# animation is not a monster, it is a hitbox.
+[[dependencies.${mod_id}]]
+modId = "geckolib"
+type = "required"
+versionRange = "[5.4,)"
+ordering = "AFTER"
+side = "BOTH"
