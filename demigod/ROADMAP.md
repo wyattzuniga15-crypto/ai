@@ -28,7 +28,7 @@ Three rules govern this roadmap:
 
 | Item | Detail |
 |---|---|
-| Gradle | ModDevGradle, pinned NeoForge + MC version (**waits on D-02**), `runClient` / `runServer` / `runData` / `runGameTestServer` |
+| Gradle | ModDevGradle on **Minecraft 1.21.11 / NeoForge 21.11** (D-02), `runClient` / `runServer` / `runData` / `runGameTestServer` |
 | Registries | Every `DeferredRegister` holder from ARCHITECTURE §3, empty but wired |
 | Custom registries | `chronoly:ability`, `:fatal_flaw`, `:god`, `:energy_profile`, `:mist_substitution`, `:monster_table`, `:prophecy_fragment` created and loading |
 | Config | All three `ModConfigSpec`s with the `ChBalance` cached view |
@@ -36,10 +36,20 @@ Three rules govern this roadmap:
 | CI | `gradlew build` + `runData` + `git diff --exit-code src/generated` |
 | Docs | `LORE_REFERENCE.md` and `BALANCE.md` created with their table headers and citation format |
 | Art pipeline | `art/requests/` created with the template D-04 specifies: silhouette intent, required animation names, bone names, scale, source passage |
+| Render funnel | `client/render/pipeline/` created — the single place custom `RenderSetup`s are built, per ARCHITECTURE §17.2 |
+| Platform spikes | The six things the 1.21.11 primer is silent on (ARCHITECTURE §17.6), each stood up for real |
 
 **Done when:** `gradlew build` is clean from a fresh clone with no manual steps; the mod loads on
 client and dedicated server; `/chronoly` reports the mod version; CI is green **and** demonstrably
 fails on a deliberately stale datagen commit.
+
+**And — the 1.21.11 spikes pass.** The migration primer says nothing about six APIs this
+architecture leans on, so Phase 1 proves each one on the real version before any content sits on
+top of it: an empty `DeferredRegister` loading, a `CustomPacketPayload` round-tripping, an
+attachment persisting across a restart, a trivial custom `ChunkGenerator` generating, a datapack
+damage type applying, and a GameTest passing. Plus one **GeckoLib-animated test entity** playing a
+looping and a triggered animation and surviving a relog — the 1.21.11 GeckoLib build is an alpha
+(D-03) and that bet gets tested in Phase 1, not in Phase 7 with sixteen monsters riding on it.
 
 ## Phase 2 — Ability framework
 
@@ -239,6 +249,10 @@ read of a random 20 for voice.
 
 ## Phase 13 — Polish and ship
 
+**Re-check the compat matrix first** — Patchouli, Jade and EMI had no 1.21.11 builds when D-02 was
+taken, and if Patchouli still doesn't, the guidebook ships as a mod-native book with the same
+authored content (the writing is the deliverable; the renderer is not).
+
 Particle systems audited against the 400-per-instance budget; the full original sound set with
 subtitles, attenuation, reverb tags, distance-delayed thunder, and per-god leitmotifs; camera work;
 HUD layout and repositioning; the Patchouli guidebook in the books' voice; JEI/EMI, Curios, and
@@ -273,6 +287,9 @@ Each is a self-contained release. Order is a suggestion; they are independent ex
 | Risk | Phase | Mitigation |
 |---|---|---|
 | Art throughput becomes the critical path | 7 onward | D-04 decouples it: art briefs fix animation and bone names up front, so a model swap is a file replacement, never a code change |
+| GeckoLib's only 1.21.11 build is an alpha | 1, 7 | Proven or disproven by a Phase 1 spike; animation reached only through `entity/render/anim/`, so an API break is a bounded port |
+| Patchouli has no 1.21.11 build | 13 | Re-checked at Phase 13; fallback is a mod-native book carrying the same authored content |
+| The 1.21.11 rendering stack moves again | 13 onward | Every custom render path funnelled through `client/render/pipeline/` — one port, not sixty call sites |
 | Mist render substitution proves fragile | 4 | Prototyped in Phase 4, three phases before Hecate depends on it — deliberately early so failure is cheap |
 | Labyrinth generator performance | 10 | Graph-first design keeps chunk work local; profiled from the first commit, not at the end |
 | Save-format churn breaking worlds | 2 onward | `schemaVersion` and the upgrade chain exist from the first commit; round-trip GameTest every phase |

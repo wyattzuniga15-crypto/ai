@@ -51,12 +51,72 @@ forever to defend against something that isn't an attack.
 Mortal *mobs* get the same resolution through an AI targeting filter, so they genuinely never
 react to monsters — that path is server-side and cannot be seen through.
 
-## D-02 — Exact 1.21.x target · **PENDING**
+## D-02 — Exact 1.21.x target · **DECIDED: 1.21.11, NeoForge 21.11**
 
-Your answer read `1.21.11`, which sits between the two options — I'd rather ask once than pin the
-build to a guess. Asked separately.
+The newest. I checked what that actually costs rather than assuming, and it is not free.
 
-Everything in Phase 1 that isn't the Gradle version pin proceeds regardless; the pin itself waits.
+### What 1.21.11 changes in the code
+
+Verified against the NeoForged 1.21.10 → 1.21.11 migration primer and written up in
+`ARCHITECTURE.md` §17. The four that change design rather than syntax:
+
+- **`ResourceLocation` is now `Identifier`** — global rename, mechanical but total. The
+  architecture has been updated throughout.
+- **The rendering stack moved.** `RenderType` statics are on `RenderTypes`; custom types need
+  `RenderSetup#builder` with an explicit `RenderPipeline`; texture binding takes a `GpuSampler`;
+  items have their own atlas. Every custom render path in the mod is now funnelled through one
+  package so the next move costs one port, not sixty.
+- **`DimensionSpecialEffects` is gone**, replaced by registry-backed environment attributes with
+  timelines. This one is a *win*: the Underworld's grey light and Olympus' gold become
+  datapack-authored and tunable without a recompile.
+- **New vanilla weapon data components** — `DAMAGE_TYPE`, `ATTACK_RANGE` and friends. Also a win:
+  a celestial bronze sword declares its damage type as a vanilla component, so the Mist combat
+  rule reads vanilla data instead of a bespoke lookup, and Ares' `+reach` uses `ATTACK_RANGE`
+  rather than a custom attribute.
+
+### What 1.21.11 costs in compatibility
+
+Checked as of this writing; all of it moves, so Phase 13 re-checks before the compat matrix ships.
+
+| Dependency | 1.21.11 status | Consequence |
+|---|---|---|
+| **Curios API** | ✅ `14.0.0+1.21.11` | Relic slot system ships in v1.0 as planned |
+| **JEI** | ✅ `27.4.0.15` for NeoForge 1.21.11 | Recipe plugin ships in v1.0 |
+| **GeckoLib** | ⚠️ `1.21.11-5.4-alpha-1` — **alpha** | See D-03 below; this is the real cost |
+| **Patchouli** | ❌ no 1.21.11 build found | The guidebook is at risk — see below |
+| **Jade / WTHIT** | ❌ no 1.21.11 build found | Providers deferred to a post-1.0 compat pass |
+
+**Patchouli is the awkward one**, because the guidebook is deliverable 7 in the brief and the
+in-world voice of the mod. It is not a blocker until Phase 13, by which time it may well have
+updated. The fallback, if it hasn't: ship the guidebook as a mod-native book item using the same
+authored content, and add the Patchouli integration later. The *writing* is the deliverable; the
+renderer is an implementation detail, and it is not worth pinning the whole mod to an older
+Minecraft to keep one dependency.
+
+Jade and EMI drop out of the v1.0 compat matrix and into a post-1.0 pass. The README will state
+what is actually supported rather than what was aspired to.
+
+---
+
+## D-03 — GeckoLib · **REVISED: hard dependency, but the alpha is a tracked risk**
+
+Still a hard dependency — the alternative is writing an animation system, which is a mod in
+itself. But the only 1.21.11 build available is an alpha, which is a materially different bet from
+the mature 4.x on 1.21.1 that the original recommendation assumed.
+
+Mitigations, all of which D-04's art pipeline already makes cheap:
+
+- Entity animation is reached only through `entity/render/anim/`, never called from AI or
+  ability code, so a GeckoLib API break is a bounded port.
+- Art briefs fix animation and bone names in advance (D-04), so the names survive a library
+  version bump.
+- Phase 1's acceptance criterion adds: one GeckoLib-animated test entity loads, plays a looping
+  and a triggered animation, and survives a relog. If the alpha can't do that, we find out in
+  Phase 1 rather than in Phase 7 with sixteen monsters riding on it.
+
+If GeckoLib's 1.21.11 line is still alpha and unstable by Phase 7, the escalation is to hold the
+monster roster at the phase gate rather than ship broken animation — the same rule as everything
+else here.
 
 ---
 

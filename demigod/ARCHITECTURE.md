@@ -65,7 +65,7 @@ Root package: `dev.chronoly` (see Decision **D-01**).
 ```
 dev.chronoly
 ├── Chronoly.java                    mod entrypoint; constructs DeferredRegisters, binds events
-├── ChronolyConstants.java           mod id, common ResourceLocation helpers
+├── ChronolyConstants.java           mod id, common `Identifier` helpers
 │
 ├── registry/                        ALL DeferredRegister holders. Nothing else registers.
 │   ├── ChBlocks, ChItems, ChEntities, ChBlockEntities, ChMenus
@@ -140,7 +140,7 @@ dev.chronoly
 │   ├── ChronolyClient.java
 │   ├── hud/       energy arc, favor bar, ability wheel, ambrosia burn, prophecy tracker
 │   ├── render/    entity/block/armor renderers, GeckoLib bindings
-│   ├── particle/  particle providers + custom RenderTypes
+│   ├── particle/  particle providers + custom `RenderSetup` pipelines
 │   ├── camera/    ShakeDirector, FovPunch, ChromaticShift
 │   ├── mist/      MistViewCache — render-time substitution (§8)
 │   ├── input/     keybinds, charge-input handler, radial menu
@@ -155,7 +155,7 @@ dev.chronoly
 ```
 
 **Rule enforced by review:** `core/` may not import `net.minecraft.*` except for
-`ResourceLocation`, `BlockPos`, and the codec/serialisation types. Everything in `core/` is unit
+`Identifier`, `BlockPos`, and the codec/serialisation types. Everything in `core/` is unit
 testable without a running game. This is what makes the Favor, scent, prophecy, and judgment
 models testable at JUnit speed instead of GameTest speed.
 
@@ -199,7 +199,7 @@ Two kinds, and the distinction matters:
 
 | Registry key | Element | Why a registry and not an enum |
 |---|---|---|
-| `chronoly:ability` | `Ability` | addon mods add abilities; `AbilityInstance` refs serialise as `ResourceLocation`; radial menu iterates the registry |
+| `chronoly:ability` | `Ability` | addon mods add abilities; `AbilityInstance` refs serialise as `Identifier`; radial menu iterates the registry |
 | `chronoly:fatal_flaw` | `FatalFlaw` | same; flaws carry live event hooks |
 | `chronoly:ability_sim` | `SimFactory` | lets abilities compose physical models declaratively |
 
@@ -252,8 +252,8 @@ DemigodData
 ├── favor          : Object2FloatMap<ResourceKey<God>>   // per-god, 0..1000
 ├── energy         : float  (current)
 ├── overdraw       : float  (debt; drives Exhaustion)
-├── abilities      : Map<ResourceLocation, AbilityInstance>   // cooldown, charge, active ticks
-├── loadout        : List<ResourceLocation>   // radial menu order
+├── abilities      : Map<Identifier, AbilityInstance>   // cooldown, charge, active ticks
+├── loadout        : List<Identifier>          // radial menu order
 ├── scent          : ScentModel.Snapshot (cached; recomputed on a 40-tick cadence)
 ├── ambrosiaBurn   : float + lastDoseTick
 ├── record         : LifetimeRecord   // deaths, oaths sworn/broken, innocents, quests, Elysium count
@@ -580,10 +580,17 @@ line 4 to match line 1 and line 3's class. Localisation: **D-17**.
 
 ### 10.1 Particles
 
-Custom `ParticleType`s with custom `ParticleRenderType`s (own shader/blend/texture atlas), not
+Custom `ParticleType`s with their own render setup (own pipeline/blend/texture atlas), not
 `dust` recolors, for: flowing water volumes, ionised air, golden monster dust, shadow tendrils,
 Greek fire, divine sigils, celestial-bronze phase-through, mist shimmer. Signature abilities get a
 dedicated type; ambient effects may reuse.
+
+**1.21.11 note:** the old `RenderType`-static approach is gone. Custom render types are built with
+`RenderSetup#builder` against an explicit `RenderPipeline`, and the vanilla types moved from
+`RenderType` to `RenderTypes` (§17). All custom particle rendering goes through one
+`ChParticlePipelines` holder so the whole mod has a single place to touch when this API moves
+again — and it will, because 1.21.11 is the last obfuscated version and the rendering stack is
+still in motion.
 
 The 400-particle-per-instance budget is enforced by a `ParticleBudget` helper that every emitter
 must go through — it takes a seed (from `AbilityFeedback`), a count, and a scale from client
@@ -826,3 +833,89 @@ transformation sequence, the exact roster of Hecate's animals and what leaks out
 collection, and the shape of the Ganymede chalice quest. I will not write those from memory, and
 `LORE_REFERENCE.md` will carry an explicit confidence note wherever the mod invents rather than
 adapts.
+
+---
+
+## 17. Platform notes — Minecraft 1.21.11 / NeoForge 21.11
+
+Pinned per **D-02**. These are verified against the NeoForged 1.21.10 → 1.21.11 migration primer,
+not written from memory, and they change code shape rather than constants.
+
+### 17.1 `ResourceLocation` is now `Identifier`
+
+The rename is global — method names, parameters, and related classes. It is mechanical but total:
+
+| Was | Is |
+|---|---|
+| `ResourceLocation` | `Identifier` |
+| `ResourceLocationException` | `IdentifierException` |
+| `ResourceLocationArgument` | `IdentifierArgument` |
+| `ResourceLocationPattern` | `IdentifierPattern` |
+| `FriendlyByteBuf#readResourceLocation` / `write…` | `readIdentifier` / `writeIdentifier` |
+| `ResourceKey#location` | `ResourceKey#identifier` |
+
+This document uses `Identifier` throughout. Most utility classes also moved to
+`net.minecraft.util`, and `net.minecraft.advancements.critereon` became `…advancements.criterion`
+— which the advancement datagen providers (§12) touch directly.
+
+### 17.2 The rendering stack moved under us
+
+- `RenderType`'s statics are now on `RenderTypes`; custom types are built via `RenderSetup#builder`
+  with an explicit `RenderPipeline`.
+- Block/terrain pipelines split: `SOLID` → `SOLID_BLOCK` / `SOLID_TERRAIN`, `CUTOUT` →
+  `CUTOUT_BLOCK` / `CUTOUT_TERRAIN`, `TRANSLUCENT` → `TRANSLUCENT_TERRAIN`.
+- Texture binding now takes an explicit `GpuSampler` (`AddressMode` and `FilterMode` live there).
+- Items have their own atlas, `minecraft:items`, separate from the block atlas.
+
+Consequence: **every custom render path in the mod is funnelled through `client/render/pipeline/`**
+— particles, the Mist substitution draw, the Iris scrying view, and the HUD. One package to port
+when this moves again, rather than sixty call sites.
+
+### 17.3 `DimensionSpecialEffects` is gone — environment attributes replace it
+
+Sky colour, fog, cloud colour, and star brightness are no longer a client class you subclass;
+they are **registry-backed environment attributes with timelines**, activated through
+`DimensionType#timelines` tags. `ClientLevel#getSkyColor` / `getSkyDarken` / `getCloudColor` /
+`getStarBrightness` are removed.
+
+This is better for us than what it replaced. The Underworld's grey Asphodel light, Elysium's
+warmth, the Labyrinth's dead air, and Olympus' gold become **datapack-authored attributes with
+interpolation** rather than hand-written client code — which means the atmosphere of each
+dimension is tunable without a recompile, and Hecate's Veil of Night has a legitimate hook for
+rewriting a region's *look* through the same system the dimensions use.
+
+### 17.4 Permissions are no longer integers
+
+`Commands#LEVEL_*` are `PermissionCheck`s, not `int`s; `CommandSourceStack` takes a
+`PermissionSet`; `Player#getPermissionLevel` is now `permissions`. The `/chronoly` operator
+subcommands (`claim`, `favor`, `profile`) are written against `PermissionCheck` from the start.
+
+### 17.5 New weapon data components are a gift to the Mist rule
+
+1.21.11 added `DAMAGE_TYPE`, `ATTACK_RANGE`, `SWING_ANIMATION`, `USE_EFFECTS`,
+`MINIMUM_ATTACK_CHARGE`, `PIERCING_WEAPON`, and `KINETIC_WEAPON` as vanilla data components.
+
+Two places this simplifies the design:
+
+- **§7's damage axis** no longer needs a bespoke mechanism to ask "what damage type does this
+  weapon deal?" — a celestial bronze sword declares `DAMAGE_TYPE: chronoly:celestial_bronze`
+  directly, and `MistCombatResolver` reads a vanilla component instead of a mod-specific lookup.
+  The `chronoly:divine_weapon` tag stays as the belt-and-braces path for weapons from other mods.
+- **Ares' `+reach`** (§5.5 T1) uses vanilla `ATTACK_RANGE` rather than a custom attribute, so it
+  composes correctly with anything else that touches reach.
+
+### 17.6 What the primer does not cover — verify in Phase 1
+
+The migration primer says nothing about `DeferredRegister`, the `CustomPacketPayload` /
+`StreamCodec` networking API, data attachments, chunk generators, damage types, or GameTest. Silence
+is *probably* stability, but this architecture leans hard on all six, so Phase 1's acceptance
+criterion includes standing each one up for real — an empty registry, a round-tripped payload, a
+persisted attachment, a trivial custom chunk generator, a datapack damage type, and a passing
+GameTest — **before** any content is written on top of them.
+
+### 17.7 Forward note
+
+1.21.11 is the last obfuscated version of the game. Future versions ship deobfuscated, which will
+make the *next* port materially easier but does not help this one. The `client/render/pipeline/`
+funnelling in §17.2 and the single `Identifier` helper in `ChronolyConstants` are the two places
+that make the eventual move cheap.
