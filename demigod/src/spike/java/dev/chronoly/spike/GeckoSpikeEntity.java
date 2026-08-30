@@ -7,7 +7,6 @@ import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animatable.manager.AnimatableManager;
 import software.bernie.geckolib.animation.AnimationController;
-import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
@@ -38,12 +37,18 @@ public class GeckoSpikeEntity extends PathfinderMob implements GeoEntity {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "movement", 5, state ->
+        // Explicit type argument rather than the diamond: the two inference errors in the last
+        // run cascaded from an unresolved lambda return type, and being explicit means a future
+        // failure here points at the constructor rather than at inference.
+        controllers.add(new AnimationController<GeckoSpikeEntity>(this, "movement", 5, state ->
                 state.setAndContinue(IDLE)));
 
         // The triggered path — how every telegraphed monster attack in Phase 7 will fire.
-        controllers.add(new AnimationController<>(this, "attack", 0, state -> PlayState.STOP)
-                .triggerableAnim("attack", ATTACK));
+        // PlayState is not in software.bernie.geckolib.animation in the 5.x alpha, so this avoids
+        // naming it until the discovery step reports where it went. triggerableAnim is still
+        // exercised, which is the part that matters.
+        controllers.add(new AnimationController<GeckoSpikeEntity>(this, "attack", 0, state ->
+                state.setAndContinue(IDLE)).triggerableAnim("attack", ATTACK));
     }
 
     @Override

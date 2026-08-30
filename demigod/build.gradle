@@ -113,20 +113,25 @@ tasks.register('whereIsIdentifier') {
 // the spike assumes, print what is actually in the jar rather than guessing a second time.
 tasks.register('geckolibPackages') {
     doLast {
-        def wanted = ~/.*\/(GeoEntity|GeoAnimatable|AnimatableInstanceCache|RawAnimation|AnimationController|GeckoLibUtil|AnimatableManager)\.class/
-        def hits = [] as Set
         configurations.compileClasspath.files.each { f ->
             if (!f.name.contains('geckolib') || !f.name.endsWith('.jar')) return
             println "jar: ${f.name}"
+            def animation = []
+            def playstate = []
             new java.util.zip.ZipFile(f).withCloseable { zip ->
                 zip.entries().each { e ->
-                    if (e.name ==~ wanted) hits << e.name.replace('/', '.').replace('.class', '')
+                    if (!e.name.endsWith('.class')) return
+                    def fqn = e.name.replace('/', '.').replace('.class', '')
+                    if (e.name.startsWith('software/bernie/geckolib/animation/')) animation << fqn
+                    if (e.name.contains('PlayState')) playstate << fqn
                 }
             }
+            println '=============== anything named PlayState ==============='
+            playstate.sort().each { println "  $it" }
+            if (playstate.isEmpty()) println '  (nothing — it may be an enum nested in another class)'
+            println '=============== software.bernie.geckolib.animation ==============='
+            animation.sort().each { println "  $it" }
+            println '================================================================='
         }
-        println '=============== GeckoLib API classes ==============='
-        hits.sort().each { println "  $it" }
-        if (hits.isEmpty()) println '  (nothing matched — check the artifact resolved at all)'
-        println '==================================================='
     }
 }
