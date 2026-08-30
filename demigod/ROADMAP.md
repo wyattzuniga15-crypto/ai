@@ -26,11 +26,16 @@ Three rules govern this roadmap:
 
 ## Phase 1 — Skeleton
 
-> **Partially delivered.** The Minecraft-free `core/` domain model is built and passing (51 tests,
-> `tools/verify-core.sh`), and the Gradle/`mods.toml` scaffolding is written. The rest of Phase 1
-> is blocked in the development environment: `maven.neoforged.net`, `libraries.minecraft.net` and
-> `piston-meta.mojang.com` are denied by egress policy, so ModDevGradle cannot resolve Minecraft
-> and `gradlew build` has never been run. See `README.md`.
+> **Largely delivered, and building in CI.** The mod jar builds on GitHub Actions against
+> Minecraft 1.21.11 / NeoForge 21.11 and is downloadable as a workflow artifact; the Minecraft-free
+> `core/` model passes 51 tests. The local development environment still cannot build — it is
+> denied `maven.neoforged.net`, `libraries.minecraft.net` and `piston-meta.mojang.com` — so the
+> runner is the source of truth for anything touching Minecraft.
+>
+> **Spikes done:** `DeferredRegister`, the codec-backed attachment with schema versioning, the
+> `CustomPacketPayload`/`StreamCodec` round trip, both config specs, and GeckoLib (D-03).
+> **Spikes outstanding:** a custom `ChunkGenerator`, a datapack damage type, GameTest, and every
+> runtime behaviour — CI compiles and packages but never launches a game.
 
 
 | Item | Detail |

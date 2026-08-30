@@ -98,25 +98,46 @@ what is actually supported rather than what was aspired to.
 
 ---
 
-## D-03 — GeckoLib · **REVISED: hard dependency, but the alpha is a tracked risk**
+## D-03 — GeckoLib · **VERIFIED at compile level; hard dependency confirmed**
 
-Still a hard dependency — the alternative is writing an animation system, which is a mod in
-itself. But the only 1.21.11 build available is an alpha, which is a materially different bet from
-the mature 4.x on 1.21.1 that the original recommendation assumed.
+Spiked in CI over four runs. The worry was an unstable alpha that could not carry sixteen animated
+monsters. That is not what was found.
 
-Mitigations, all of which D-04's art pipeline already makes cheap:
+**The 1.21.11 alpha is usable.** It resolves, downloads, and its API is intact — `GeoEntity`,
+`AnimatableInstanceCache`, `AnimatableManager`, `RawAnimation`, `GeckoLibUtil` and
+`triggerableAnim` all compiled on the first attempt. What failed was not the library being broken
+but GeckoLib **5.x having a different shape from 4.x**, which is what a major version means and
+exactly what the spike existed to measure.
 
-- Entity animation is reached only through `entity/render/anim/`, never called from AI or
-  ability code, so a GeckoLib API break is a bounded port.
-- Art briefs fix animation and bone names in advance (D-04), so the names survive a library
-  version bump.
-- Phase 1's acceptance criterion adds: one GeckoLib-animated test entity loads, plays a looping
-  and a triggered animation, and survives a relog. If the alpha can't do that, we find out in
-  Phase 1 rather than in Phase 7 with sixteen monsters riding on it.
+### The two 5.x API changes, now measured rather than feared
 
-If GeckoLib's 1.21.11 line is still alpha and unstable by Phase 7, the escalation is to hold the
-monster roster at the phase gate rather than ship broken animation — the same rule as everything
-else here.
+| Change | Consequence for the monster roster |
+|---|---|
+| `AnimationController` **dropped the animatable argument** — the constructors are `(handler)`, `(name, handler)`, `(name, transitionTicks, handler)` | Every monster's `registerControllers` is written the new way from the start; no 4.x tutorial copied in will compile |
+| `PlayState` is **not** in `software.bernie.geckolib.animation` | Unresolved. The spike avoids naming it; where it went is a one-line answer whenever a controller needs an explicit `STOP` |
+
+### Repository correction
+
+GeckoLib is **not on Maven Central**, contrary to what this file said in an earlier revision. That
+claim came from an mvnrepository listing, and mvnrepository indexes third-party repositories
+alongside Central. Every GeckoLib artifact 404s on Central, `1.21.1` included. Cloudsmith
+(`dl.cloudsmith.io/public/geckolib3/geckolib/maven/`) is the only publisher, so the build does
+need that third-party repository.
+
+### What is still NOT verified
+
+**The animations have not been seen to play.** CI has no client, so the spike proves the artifact
+resolves and the API surface compiles — nothing more. The roadmap's Phase 1 criterion ("plays a
+looping and a triggered animation, and survives a relog") is **half satisfied**. The other half
+needs a human at a keyboard with the mod loaded, and is not claimed here.
+
+### Mitigations, kept
+
+Still worth keeping even with the alpha looking sound: entity animation is reached only through
+`entity/render/anim/`, art briefs fix animation and bone names in advance (D-04), and the spike
+lives in `src/spike/java` behind `-PwithGeckolib` in its own `continue-on-error` job — which
+earned its keep, since the spike failed three times while the downloadable mod jar stayed green
+throughout.
 
 ---
 
