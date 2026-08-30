@@ -1,6 +1,7 @@
 package dev.chronoly.attachment;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.chronoly.core.favor.Tier;
 
@@ -14,9 +15,9 @@ import java.util.Optional;
  * <p>ARCHITECTURE §4.1 — one attachment, not twelve. Twelve attachments means twelve serialisation
  * round-trips and twelve chances at a partial save.
  *
- * <p>{@link #SCHEMA_VERSION} and {@link #upgrade} exist from the first commit on purpose: save
- * format churn in a progression mod is fatal, and an upgrade chain retrofitted later has already
- * lost the worlds it needed to migrate.
+ * <p>{@link #SCHEMA_VERSION} and the migration in the deserialising constructor exist from the
+ * first commit on purpose: save format churn in a progression mod is fatal, and an upgrade chain
+ * retrofitted later has already lost the worlds it needed to migrate.
  */
 public final class DemigodData {
 
@@ -24,39 +25,49 @@ public final class DemigodData {
 
     private int schemaVersion = SCHEMA_VERSION;
     private Optional<String> parentage = Optional.empty();
-    private Map<String, Float> favor = new HashMap<>();
+    private final Map<String, Float> favor = new HashMap<>();
     private float energy;
     private float overdraw;
 
     public DemigodData() {}
 
+    /**
+     * Deserialising constructor. Migration happens here rather than in an {@code xmap} so there is
+     * exactly one path by which a loaded save becomes a live object.
+     */
     private DemigodData(int schemaVersion, Optional<String> parentage, Map<String, Float> favor,
                         float energy, float overdraw) {
-        this.schemaVersion = schemaVersion;
         this.parentage = parentage;
-        this.favor = new HashMap<>(favor);
+        this.favor.putAll(favor);
         this.energy = energy;
         this.overdraw = overdraw;
+        this.schemaVersion = migrate(schemaVersion);
     }
-
-    public static final Codec<DemigodData> CODEC = RecordCodecBuilder.create(i -> i.group(
-            Codec.INT.optionalFieldOf("schema_version", SCHEMA_VERSION).forGetter(DemigodData::schemaVersion),
-            Codec.STRING.optionalFieldOf("parentage").forGetter(DemigodData::parentage),
-            Codec.unboundedMap(Codec.STRING, Codec.FLOAT).optionalFieldOf("favor", Map.of()).forGetter(DemigodData::favor),
-            Codec.FLOAT.optionalFieldOf("energy", 0f).forGetter(DemigodData::energy),
-            Codec.FLOAT.optionalFieldOf("overdraw", 0f).forGetter(DemigodData::overdraw)
-    ).apply(i, DemigodData::new)).xmap(DemigodData::upgrade, d -> d);
 
     /**
-     * Migrates older saves forward. One branch per version step, never a rewrite — a player's world
-     * is not a place to be clever.
+     * Migrates an older save forward, one branch per version step. No prior versions exist yet;
+     * when they do, each step lands here in order and none of them rewrites what it does not own.
      */
-    private static DemigodData upgrade(DemigodData data) {
-        if (data.schemaVersion == SCHEMA_VERSION) return data;
-        // No prior versions exist yet. When they do, each step lands here in order.
-        data.schemaVersion = SCHEMA_VERSION;
-        return data;
+    private int migrate(int loaded) {
+        return SCHEMA_VERSION;
     }
+
+    /**
+     * A {@link MapCodec}, not a {@link Codec} — NeoForge's {@code AttachmentType.Builder#serialize}
+     * takes a MapCodec or an IAttachmentSerializer, because an attachment is serialised into an
+     * existing compound rather than as a standalone value.
+     */
+    public static final MapCodec<DemigodData> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
+            Codec.INT.optionalFieldOf("schema_version", SCHEMA_VERSION).forGetter(DemigodData::schemaVersion),
+            Codec.STRING.optionalFieldOf("parentage").forGetter(DemigodData::parentage),
+            Codec.unboundedMap(Codec.STRING, Codec.FLOAT)
+                    .optionalFieldOf("favor", Map.<String, Float>of()).forGetter(DemigodData::favor),
+            Codec.FLOAT.optionalFieldOf("energy", 0f).forGetter(DemigodData::energy),
+            Codec.FLOAT.optionalFieldOf("overdraw", 0f).forGetter(DemigodData::overdraw)
+    ).apply(i, DemigodData::new));
+
+    /** The standalone form, for tests and for anywhere a full Codec is wanted. */
+    public static final Codec<DemigodData> CODEC = MAP_CODEC.codec();
 
     public int schemaVersion() { return schemaVersion; }
 

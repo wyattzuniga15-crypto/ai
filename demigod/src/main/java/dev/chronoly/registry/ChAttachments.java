@@ -21,7 +21,7 @@ public final class ChAttachments {
     public static final Supplier<AttachmentType<DemigodData>> DEMIGOD =
             ATTACHMENTS.register("demigod", () -> AttachmentType
                     .builder(DemigodData::new)
-                    .serialize(DemigodData.CODEC)
+                    .serialize(DemigodData.MAP_CODEC)
                     .build());
 
     private ChAttachments() {}
