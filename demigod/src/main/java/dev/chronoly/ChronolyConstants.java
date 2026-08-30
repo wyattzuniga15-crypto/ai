@@ -1,6 +1,6 @@
 package dev.chronoly;
 
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 
 /**
  * Mod id and the one place a namespaced id is constructed.

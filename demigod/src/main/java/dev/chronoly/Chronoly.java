@@ -1,6 +1,7 @@
 package dev.chronoly;
 
 import dev.chronoly.config.ChCommonConfig;
+import dev.chronoly.net.ChPayloads;
 import dev.chronoly.config.ChServerConfig;
 import dev.chronoly.registry.ChAttachments;
 import dev.chronoly.registry.ChCreativeTabs;
@@ -23,6 +24,8 @@ public final class Chronoly {
         ChItems.init(modBus);
         ChCreativeTabs.init(modBus);
         ChAttachments.init(modBus);
+
+        modBus.addListener(ChPayloads::register);
 
         container.registerConfig(ModConfig.Type.SERVER, ChServerConfig.SPEC);
         container.registerConfig(ModConfig.Type.COMMON, ChCommonConfig.SPEC);

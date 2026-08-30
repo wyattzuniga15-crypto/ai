@@ -64,3 +64,27 @@ tasks.named('processResources', ProcessResources).configure {
     inputs.properties(expand)
     filesMatching(['META-INF/neoforge.mods.toml']) { expand it, expand }
 }
+
+// Diagnostic. 1.21.11 renamed ResourceLocation and the migration primer does not say which package
+// the new class lives in. Rather than guess a second time, ask the compile classpath directly.
+tasks.register('whereIsIdentifier') {
+    doLast {
+        def hits = [] as Set
+        sourceSets.main.compileClasspath.files.each { f ->
+            if (!f.name.endsWith('.jar') || !f.exists()) return
+            try {
+                new java.util.zip.ZipFile(f).withCloseable { zip ->
+                    zip.entries().each { e ->
+                        if (e.name ==~ /.*\/(Identifier|ResourceLocation)\.class/) {
+                            hits << e.name.replace('/', '.').replace('.class', '')
+                        }
+                    }
+                }
+            } catch (ignored) { }
+        }
+        println '=============== Identifier / ResourceLocation on the classpath ==============='
+        hits.sort().each { println "  $it" }
+        if (hits.isEmpty()) println '  (none found — the class is named something else entirely)'
+        println '============================================================================='
+    }
+}

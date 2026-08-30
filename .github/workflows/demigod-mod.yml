@@ -48,6 +48,11 @@ jobs:
         with:
           gradle-version: '8.14'
 
+      # Runs regardless of whether the build compiles: if the name is still wrong, this says what
+      # it actually is instead of costing another blind round trip.
+      - name: Where is Identifier?
+        run: gradle whereIsIdentifier --no-daemon --console=plain -q || true
+
       # No --stacktrace: it buries javac's actual errors under 200 lines of Gradle internals,
       # and the log tail is the only part that gets read.
       - name: Build
