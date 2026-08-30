@@ -676,7 +676,8 @@ hook for the Mist, and the mortal-mob targeting filter. Everything else should b
 
 ## 15. DECISIONS I NEED FROM YOU
 
-Per the brief's *Rules of Engagement* — ask before inventing. These are ordered by how much code
+Per the brief's *Rules of Engagement* — ask before inventing. **Answers live in `DECISIONS.md`;**
+**this section is the reasoning behind each question.** They are ordered by how much code
 they change. **D-01 through D-04 block Phase 1.**
 
 ### Blocking Phase 1
