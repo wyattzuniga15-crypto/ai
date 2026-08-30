@@ -109,18 +109,25 @@ jobs:
           sed -i "s/^neo_version=.*/neo_version=$NEO/" gradle.properties
           echo "::notice::NeoForge $NEO"
 
-          # GeckoLib publishes to Maven Central; artifactId carries the Minecraft version.
-          GECKO_URL=https://repo1.maven.org/maven2/software/bernie/geckolib/geckolib-neoforge-1.21.11/maven-metadata.xml
-          if curl -sSfL -o /tmp/gecko.xml "$GECKO_URL"; then
-            echo "--- every published geckolib-neoforge-1.21.11 version ---"
-            grep -oP '(?<=<version>)[^<]*' /tmp/gecko.xml
-            GECKO=$(grep -oP '(?<=<version>)[^<]*' /tmp/gecko.xml | tail -1)
-            sed -i "s/^geckolib_version=.*/geckolib_version=$GECKO/" gradle.properties
-            echo "::notice::GeckoLib $GECKO"
-          else
-            echo "::error::No geckolib-neoforge-1.21.11 on Maven Central — D-03 needs revisiting"
-            exit 1
-          fi
+          # GeckoLib publishes ONLY to Cloudsmith, not Maven Central. Non-fatal: if the metadata
+          # shape is wrong, let Gradle attempt resolution and name what it searched for, rather
+          # than dying here with less information than the build would have given.
+          GECKO_BASE=https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/software/bernie/geckolib
+          for ART in geckolib-neoforge-1.21.11 geckolib-neoforge-1.21.10 geckolib-neoforge; do
+            if curl -sSfL -o /tmp/gecko.xml "$GECKO_BASE/$ART/maven-metadata.xml" 2>/dev/null; then
+              echo "--- versions published for $ART ---"
+              grep -oP '(?<=<version>)[^<]*' /tmp/gecko.xml || true
+              LATEST=$(grep -oP '(?<=<version>)[^<]*' /tmp/gecko.xml | tail -1)
+              if [ -n "$LATEST" ]; then
+                sed -i "s/^geckolib_version=.*/geckolib_version=$LATEST/" gradle.properties
+                echo "::notice::GeckoLib $ART $LATEST"
+              fi
+              break
+            else
+              echo "no metadata at $GECKO_BASE/$ART/maven-metadata.xml"
+            fi
+          done
+          grep '^geckolib_version' gradle.properties
 
       - uses: gradle/actions/setup-gradle@v4
         with:

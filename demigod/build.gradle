@@ -30,6 +30,14 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
+    // GeckoLib is NOT on Maven Central — mvnrepository lists it, but mvnrepository indexes
+    // third-party repositories too. Cloudsmith is the only place it publishes.
+    if (project.hasProperty('withGeckolib')) {
+        maven {
+            name = 'GeckoLib'
+            url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        }
+    }
 }
 
 // DECISIONS.md D-03. GeckoLib is compiled only under -PwithGeckolib, in its own CI job, so that
