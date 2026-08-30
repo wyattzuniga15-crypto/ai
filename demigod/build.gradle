@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.78'
+    id 'net.neoforged.moddev' version '2.0.141'
 }
 
 version = mod_version
@@ -13,16 +13,10 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 neoForge {
     version = project.neo_version
 
-    parchment {
-        // Pinned once a 1.21.11 mapping exists; until then the build runs on official names.
-    }
-
     runs {
         client { client() }
         server { server(); programArgument '--nogui' }
         data { clientData() }
-        // Every ability, the damage matrix, and each dimension transition is covered here.
-        gameTestServer { type = 'gameTestServer' }
     }
 
     mods {
@@ -36,13 +30,11 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
-    maven { name = 'GeckoLib'; url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
 }
 
 dependencies {
-    // D-03: hard dependency. Animation is reached only through entity/render/anim/, so an API
-    // break in the alpha line is a bounded port rather than a rewrite.
-    implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+    // GeckoLib (D-03) is deliberately absent until its own spike runs. Nothing in Phase 1 uses it,
+    // and declaring a hard dependency on an unused alpha would fail the build for no information.
 
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'

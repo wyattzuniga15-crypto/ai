@@ -20,7 +20,8 @@ fi
 
 rm -rf build/core-classes
 mkdir -p build/core-classes
-find src -name '*.java' > build/core-sources.txt
+# core/ only — the Minecraft-facing code cannot compile without the NeoForge toolchain.
+find src/main/java/dev/chronoly/core src/test/java -name '*.java' > build/core-sources.txt
 javac -Xlint:all -Werror -cp "$JUNIT_JAR" -d build/core-classes @build/core-sources.txt
 
 java -jar "$JUNIT_JAR" execute \
