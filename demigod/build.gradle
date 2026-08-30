@@ -32,9 +32,17 @@ repositories {
     mavenCentral()
 }
 
+// DECISIONS.md D-03. GeckoLib is compiled only under -PwithGeckolib, in its own CI job, so that
+// an alpha-library break cannot take down the mod jar the rest of the project depends on.
+def withGeckolib = project.hasProperty('withGeckolib')
+if (withGeckolib) {
+    sourceSets.main.java.srcDir 'src/spike/java'
+}
+
 dependencies {
-    // GeckoLib (D-03) is deliberately absent until its own spike runs. Nothing in Phase 1 uses it,
-    // and declaring a hard dependency on an unused alpha would fail the build for no information.
+    if (withGeckolib) {
+        implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+    }
 
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -90,5 +98,27 @@ tasks.register('whereIsIdentifier') {
         hits.sort().each { println "  $it" }
         if (hits.isEmpty()) println '  (none found — the class is named something else entirely)'
         println '============================================================================='
+    }
+}
+
+// Same discovery trick that settled Identifier: if the GeckoLib 5 package layout differs from what
+// the spike assumes, print what is actually in the jar rather than guessing a second time.
+tasks.register('geckolibPackages') {
+    doLast {
+        def wanted = ~/.*\/(GeoEntity|GeoAnimatable|AnimatableInstanceCache|RawAnimation|AnimationController|GeckoLibUtil|AnimatableManager)\.class/
+        def hits = [] as Set
+        configurations.compileClasspath.files.each { f ->
+            if (!f.name.contains('geckolib') || !f.name.endsWith('.jar')) return
+            println "jar: ${f.name}"
+            new java.util.zip.ZipFile(f).withCloseable { zip ->
+                zip.entries().each { e ->
+                    if (e.name ==~ wanted) hits << e.name.replace('/', '.').replace('.class', '')
+                }
+            }
+        }
+        println '=============== GeckoLib API classes ==============='
+        hits.sort().each { println "  $it" }
+        if (hits.isEmpty()) println '  (nothing matched — check the artifact resolved at all)'
+        println '==================================================='
     }
 }
