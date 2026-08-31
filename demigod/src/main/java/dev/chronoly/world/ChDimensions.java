@@ -32,8 +32,8 @@ public final class ChDimensions {
      */
     public static boolean travel(ServerPlayer player, ResourceKey<Level> destination,
                                  double x, double y, double z) {
-        var server = player.getServer();
-        if (server == null) return false;
+        // ServerPlayer lost getServer() in 1.21.11; the level still has it.
+        var server = ((ServerLevel) player.level()).getServer();
         ServerLevel target = server.getLevel(destination);
         if (target == null) return false;
 
