@@ -170,6 +170,40 @@ tasks.register('gameTestApi') {
     }
 }
 
+// The strongest discovery tool yet: reflect over named classes from the real classpath and print
+// their public constructors and methods. Class-name scans say what exists; this says what it
+// looks like. -Pdescribe=a.b.C,d.e.F — used by CI before any round of blind API writing.
+tasks.register('describeClass') {
+    doLast {
+        def names = (project.findProperty('describe') ?: '').split(',').findAll { it }
+        def urls = sourceSets.main.compileClasspath.files.findAll { it.name.endsWith('.jar') }
+                .collect { it.toURI().toURL() } as URL[]
+        def loader = new URLClassLoader(urls, null)
+        names.each { name ->
+            println "=============== ${name} ==============="
+            try {
+                def c = Class.forName(name, false, loader)
+                def sup = c.getSuperclass()
+                println "extends ${sup?.getName()} implements ${c.getInterfaces().collect { it.getName() }}"
+                c.getDeclaredConstructors().findAll {
+                    java.lang.reflect.Modifier.isPublic(it.getModifiers()) ||
+                    java.lang.reflect.Modifier.isProtected(it.getModifiers())
+                }.each { println "  ctor ${it}" }
+                c.getDeclaredMethods().findAll {
+                    java.lang.reflect.Modifier.isPublic(it.getModifiers()) ||
+                    java.lang.reflect.Modifier.isProtected(it.getModifiers())
+                }.sort { it.getName() }.each { println "  ${it}" }
+                c.getDeclaredFields().findAll {
+                    java.lang.reflect.Modifier.isPublic(it.getModifiers())
+                }.each { println "  field ${it}" }
+            } catch (Throwable t) {
+                println "  UNAVAILABLE: ${t.getClass().getSimpleName()}: ${t.getMessage()}"
+            }
+        }
+        loader.close()
+    }
+}
+
 // Same discovery trick that settled Identifier: if the GeckoLib 5 package layout differs from what
 // the spike assumes, print what is actually in the jar rather than guessing a second time.
 tasks.register('geckolibPackages') {

@@ -56,6 +56,8 @@ public final class ChDimensions {
 
     public static void sendToOlympus(ServerPlayer player) {
         if (!travel(player, OLYMPUS, 8.5, 160, 8.5)) return;
+        // The place exists before anybody has to be told to build it.
+        dev.chronoly.world.olympus.OlympusBuilder.ensure((ServerLevel) player.level());
         player.sendSystemMessage(Component.literal(
                 "§e§lThe six hundredth floor. §6Everything is marble and nobody is looking at you yet."));
         ServerLevel level = (ServerLevel) player.level();

@@ -21,7 +21,8 @@ public final class UnderworldGate {
 
     private UnderworldGate() {}
 
-    private static boolean built;
+    /** The marker that says the shore is already built. A field would forget on restart. */
+    private static final BlockPos MARKER = new BlockPos(8, 93, 8);
 
     /** Runs on arrival. Cheap after the first time. */
     public static void ensure(ServerLevel level, ServerPlayer arriving) {
@@ -31,8 +32,12 @@ public final class UnderworldGate {
                     "§8There is a queue. There is always a queue. §7Somewhere ahead of it, "
                     + "something very large is barking."));
         }
-        if (built) return;
-        built = true;
+        // Asphodel, Elysium and Punishment stand whether or not the shore does; each keeps
+        // its own marker, so a half-built Underworld finishes itself.
+        UnderworldDistricts.ensure(level);
+
+        if (level.getBlockState(MARKER).is(net.minecraft.world.level.block.Blocks.LODESTONE)) return;
+        level.setBlock(MARKER, net.minecraft.world.level.block.Blocks.LODESTONE.defaultBlockState(), 2);
 
         BlockPos origin = new BlockPos(8, 96, 8);
         shore(level, origin);

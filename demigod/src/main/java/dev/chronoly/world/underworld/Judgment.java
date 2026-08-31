@@ -29,11 +29,11 @@ public final class Judgment {
     /** Where each verdict puts you, relative to the Underworld's arrival point. */
     private record Destination(double x, double y, double z, String arrival) {}
 
-    private static final Destination ASPHODEL = new Destination(8.5, 96, 8.5,
+    private static final Destination ASPHODEL = new Destination(8.5, 96, 80.5,
             "§7Asphodel. An endless grey crowd, and nobody is looking for you. "
             + "Most people end up here and most people are fine.");
 
-    private static final Destination ELYSIUM = new Destination(180.5, 110, 8.5,
+    private static final Destination ELYSIUM = new Destination(180.5, 110.0, 8.5,
             "§6Elysium. §7It is warm, and it is beautiful, and leaving is going to be hard.");
 
     private static final Destination PUNISHMENT = new Destination(-180.5, 80, 8.5,
@@ -52,6 +52,8 @@ public final class Judgment {
         };
 
         ChDimensions.travel(player, ChDimensions.UNDERWORLD, where.x(), where.y(), where.z());
+        // The dead can arrive before any living traveller has; the districts build either way.
+        UnderworldDistricts.ensure((net.minecraft.server.level.ServerLevel) player.level());
 
         player.sendSystemMessage(Component.literal("§5§lThe Judgment Pavilion"));
         player.sendSystemMessage(Component.literal("§d\"" + ruling.because() + ".\""));
