@@ -59,6 +59,14 @@ if (withGeckolib) {
     sourceSets.main.java.srcDir 'src/spike/java'
 }
 
+// Same isolation, same reason. The GameTest sources are written against an API this project has
+// not yet confirmed exists in 1.21.11 — the first attempt used net.minecraft.gametest.framework
+// .GameTest, which the package no longer contains. Until the gametest job compiles them once,
+// they stay out of the jar's way.
+if (project.hasProperty('withGameTest')) {
+    sourceSets.main.java.srcDir 'src/gametest/java'
+}
+
 dependencies {
     if (withGeckolib) {
         implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
@@ -121,6 +129,39 @@ tasks.register('whereIsIdentifier') {
         println '=============== Identifier / ResourceLocation on the classpath ==============='
         hits.sort().each { println "  $it" }
         if (hits.isEmpty()) println '  (none found — the class is named something else entirely)'
+        println '============================================================================='
+    }
+}
+
+// The GameTest annotation moved. net.minecraft.gametest.framework.GameTest resolved as a package
+// but not as a class, which means the framework is still there and only the entry point changed —
+// Mojang reworked tests into registry-driven instances somewhere in the 1.21.x line. Print the
+// package's real contents, and anything named like a test annotation on either side of the
+// Minecraft/NeoForge split, instead of guessing a second time.
+tasks.register('gameTestApi') {
+    doLast {
+        def framework = [] as Set
+        def annotations = [] as Set
+        sourceSets.main.compileClasspath.files.each { f ->
+            if (!f.name.endsWith('.jar') || !f.exists()) return
+            try {
+                new java.util.zip.ZipFile(f).withCloseable { zip ->
+                    zip.entries().each { e ->
+                        if (!e.name.endsWith('.class')) return
+                        def fqn = e.name.replace('/', '.').replace('.class', '')
+                        if (e.name.startsWith('net/minecraft/gametest/framework/')) framework << fqn
+                        if (e.name ==~ /.*(GameTest|TestHolder|TestInstance|TestFunction)[A-Za-z]*\.class/) {
+                            annotations << fqn
+                        }
+                    }
+                }
+            } catch (ignored) { }
+        }
+        println '=============== net.minecraft.gametest.framework ==============='
+        framework.sort().each { println "  $it" }
+        if (framework.isEmpty()) println '  (empty — the framework moved package entirely)'
+        println '=============== anything test-shaped, either side of the split ==============='
+        annotations.sort().each { println "  $it" }
         println '============================================================================='
     }
 }

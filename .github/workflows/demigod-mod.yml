@@ -247,6 +247,11 @@ jobs:
         with:
           gradle-version: '8.14'
 
+      # The @GameTest annotation this project first reached for no longer exists in 1.21.11.
+      # Print the real API before trying to use it, the same way Identifier was settled.
+      - name: What the GameTest API actually looks like
+        run: gradle gameTestApi --no-daemon --console=plain -q || true
+
       - name: Run GameTests
         run: |
           set -o pipefail

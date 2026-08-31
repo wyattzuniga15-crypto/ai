@@ -23,6 +23,7 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 | `KeyMapping(String, IKeyConflictContext, Type, int, String)` | last argument is a `Category` object, not a String |
 | GeckoLib 4 `new AnimationController<>(this, name, ticks, handler)` | GeckoLib 5 drops the animatable: `(name, ticks, handler)` |
 | GeckoLib 4 `software.bernie.geckolib.animation.PlayState` | moved; location still unconfirmed |
+| `net.minecraft.gametest.framework.GameTest` (annotation) | gone — the package resolves, the annotation does not. Tests were reworked into registry-driven instances; the real entry point is unconfirmed |
 
 ## Confirmed working (guessed right, first try)
 
@@ -49,4 +50,9 @@ only worth having if it is consulted.
 
 - `ServerPlayer#teleportTo(ServerLevel, x, y, z, Set, yaw, pitch, boolean)` — the cross-dimension
   signature. All dimension travel goes through `ChDimensions#travel` so there is one call site.
-- Everything at runtime. CI compiles and packages; it never launches a game.
+- The whole GameTest entry point. `src/gametest/java` is written against the old annotation and is
+  compiled only under `-PwithGameTest`, so it cannot break the jar. The `gameTestApi` Gradle task
+  prints the framework package's real contents; the gametest job runs it on every push. Read that
+  output before touching `ChGameTests` again.
+- Everything at runtime. CI compiles and packages; it never launches a game. That is still true —
+  the tests written to change it do not compile yet.
