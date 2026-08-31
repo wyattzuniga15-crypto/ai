@@ -1,4 +1,5 @@
-[classpath: 80 jars]
+[classpath: 79 jars]
+[game jar: mixinextras-neoforge-0.5.3.jar]
 =============== net.minecraft.world.entity.EntityType$Builder ===============
   Error: class not found: net.minecraft.world.entity.EntityType$Builder
 =============== net.minecraft.client.model.geom.builders.LayerDefinition ===============
