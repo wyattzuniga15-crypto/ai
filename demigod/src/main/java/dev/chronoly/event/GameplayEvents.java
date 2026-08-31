@@ -77,7 +77,7 @@ public final class GameplayEvents {
                 SoundSource.PLAYERS, 1.5f, 0.8f);
 
         String epithet = EPITHET.getOrDefault(god, "the Nameless");
-        Component hail = Component.literal("§6§lHail, " + player.getGameProfile().getName()
+        Component hail = Component.literal("§6§lHail, " + player.getName().getString()
                 + ", child of " + capitalise(god) + " — " + epithet + ".");
         for (ServerPlayer other : level.getServer().getPlayerList().getPlayers()) {
             other.sendSystemMessage(hail);

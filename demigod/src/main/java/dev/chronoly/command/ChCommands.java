@@ -26,7 +26,7 @@ public final class ChCommands {
      * {@code hasPermission(int)} is gone. The op list is a stable way to ask the same question.
      */
     private static boolean isOperator(CommandSourceStack source, ServerPlayer player) {
-        return source.getServer().getPlayerList().isOp(player.getGameProfile());
+        return source.getServer().getPlayerList().isOp(player.nameAndId());
     }
 
     public static void register(RegisterCommandsEvent event) {
