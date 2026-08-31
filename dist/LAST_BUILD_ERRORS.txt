@@ -1,4 +1,4 @@
-BUILD FAILED for d30e0e971cf1f675d86ada5a0c4d0c5b8ae01d1b at 2026-08-31T15:48:23Z
+BUILD FAILED for c35642daa7f44e03aac6b45b71d3d0510deb1c59 at 2026-08-31T15:49:33Z
 
 =============== javac errors ===============
 65:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
