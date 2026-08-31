@@ -17,14 +17,14 @@ neoForge {
         client { client() }
         server { server(); programArgument '--nogui' }
         data { clientData() }
-        // Boots a real server and runs the @GameTest methods. This is the only thing in the
-        // project that verifies behaviour rather than compilation.
-        gameTestServer { type = 'gameTestServer' }
-    }
-
-    unitTest {
-        enable()
-        testedMod = mods."${mod_id}"
+        // Boots a real server and runs the @GameTest methods — the only thing in the project
+        // that verifies behaviour rather than compilation. Registered only under
+        // -PwithGameTest, for the same reason the GeckoLib spike is: an unverified run type
+        // that fails at configuration time would take the jar down with it, and the jar is
+        // the deliverable. The gametest job passes the flag; nothing else does.
+        if (project.hasProperty('withGameTest')) {
+            gameTestServer { type = 'gameTestServer' }
+        }
     }
 
     mods {
@@ -32,6 +32,10 @@ neoForge {
             sourceSet(sourceSets.main)
         }
     }
+
+    // No unitTest {} block on purpose. src/test holds the Minecraft-free core suite, which
+    // runs fine on a plain classpath — wiring it through the NeoForge test framework would
+    // put a Minecraft bootstrap in the jar's critical path for nothing.
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }

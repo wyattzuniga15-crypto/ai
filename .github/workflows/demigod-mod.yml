@@ -250,7 +250,7 @@ jobs:
       - name: Run GameTests
         run: |
           set -o pipefail
-          gradle runGameTestServer --no-daemon --console=plain 2>&1 | tee /tmp/gametest.log
+          gradle runGameTestServer -PwithGameTest --no-daemon --console=plain 2>&1 | tee /tmp/gametest.log
 
       - name: What the tests said
         if: always()
