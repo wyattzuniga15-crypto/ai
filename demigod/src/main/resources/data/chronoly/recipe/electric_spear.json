@@ -1,0 +1,4 @@
+{"type":"minecraft:crafting_shaped","category":"equipment","pattern":[" I "," R "," S "],
+ "key":{"I":{"item":"chronoly:imperial_gold_ingot"},"R":{"item":"minecraft:lightning_rod"},
+        "S":{"item":"minecraft:stick"}},
+ "result":{"id":"chronoly:electric_spear","count":1}}

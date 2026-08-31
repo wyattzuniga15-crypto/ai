@@ -303,6 +303,17 @@ public final class Bosses {
             drop(level, at, new ItemStack(ChItems.AMBROSIA.get(), 4));
         }
 
+        // The named relics are not craftable. Each one comes off the thing that guarded it, which
+        // is both the lore and the only reason to fight the harder bosses twice.
+        switch (fight.kind) {
+            case NEMEAN_LION -> drop(level, at, new ItemStack(ChItems.NEMEAN_PELT.get()));
+            case CERBERUS -> drop(level, at, new ItemStack(ChItems.HELM_OF_DARKNESS.get()));
+            case HYDRA -> drop(level, at, new ItemStack(ChItems.GOLDEN_FLEECE.get()));
+            case MEDUSA -> drop(level, at, new ItemStack(ChItems.AEGIS.get()));
+            case LYDIAN_DRAKON -> drop(level, at, new ItemStack(ChItems.MASTER_BOLT.get()));
+            default -> { }
+        }
+
         announce(level, "§6§l" + fight.kind.title + " comes apart into golden dust. §7It will be back.");
     }
 

@@ -1,0 +1,3 @@
+{"type":"minecraft:crafting_shaped","category":"equipment","pattern":["MMM","MPM"],
+ "key":{"M":{"item":"chronoly:mist_glass"},"P":{"item":"minecraft:blue_wool"}},
+ "result":{"id":"chronoly:yankees_cap","count":1}}

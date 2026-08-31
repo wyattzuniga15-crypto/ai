@@ -1,0 +1,4 @@
+{"type":"minecraft:crafting_shaped","category":"equipment","pattern":[" IB","IPI","BI "],
+ "key":{"I":{"item":"chronoly:celestial_bronze_ingot"},"B":{"item":"minecraft:ink_sac"},
+        "P":{"item":"chronoly:celestial_bronze_sword"}},
+ "result":{"id":"chronoly:riptide","count":1}}

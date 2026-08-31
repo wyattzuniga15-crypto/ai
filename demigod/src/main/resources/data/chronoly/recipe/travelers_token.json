@@ -1,0 +1,4 @@
+{"type":"minecraft:crafting_shapeless","category":"misc",
+ "ingredients":[{"item":"chronoly:golden_drachma"},{"item":"chronoly:golden_drachma"},
+                {"item":"minecraft:ender_pearl"}],
+ "result":{"id":"chronoly:travelers_token","count":1}}
