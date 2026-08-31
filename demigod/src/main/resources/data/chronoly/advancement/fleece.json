@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:underworld",
+  "display": {
+    "icon": {"id": "chronoly:golden_fleece"},
+    "title": {"translate": "advancement.chronoly.fleece.title"},
+    "description": {"translate": "advancement.chronoly.fleece.desc"},
+    "frame": "goal", "show_toast": true, "announce_to_chat": true
+  },
+  "criteria": {
+    "have": {"trigger": "minecraft:inventory_changed",
+      "conditions": {"items": [{"items": "chronoly:golden_fleece"}]}}
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:first_monster",
+  "display": {
+    "icon": {"id": "chronoly:celestial_bronze_ingot"},
+    "title": {"translate": "advancement.chronoly.bronze.title"},
+    "description": {"translate": "advancement.chronoly.bronze.desc"},
+    "frame": "task", "show_toast": true, "announce_to_chat": false
+  },
+  "criteria": {
+    "have": {"trigger": "minecraft:inventory_changed",
+      "conditions": {"items": [{"items": "chronoly:celestial_bronze_ingot"}]}}
+  }
+}

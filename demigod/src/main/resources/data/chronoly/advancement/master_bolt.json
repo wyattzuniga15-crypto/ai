@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:riptide",
+  "display": {
+    "icon": {"id": "chronoly:master_bolt"},
+    "title": {"translate": "advancement.chronoly.master_bolt.title"},
+    "description": {"translate": "advancement.chronoly.master_bolt.desc"},
+    "frame": "challenge", "show_toast": true, "announce_to_chat": true
+  },
+  "criteria": {
+    "have": {"trigger": "minecraft:inventory_changed",
+      "conditions": {"items": [{"items": "chronoly:master_bolt"}]}}
+  }
+}

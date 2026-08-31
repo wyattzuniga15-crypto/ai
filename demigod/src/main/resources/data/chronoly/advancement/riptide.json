@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:bronze",
+  "display": {
+    "icon": {"id": "chronoly:riptide"},
+    "title": {"translate": "advancement.chronoly.riptide.title"},
+    "description": {"translate": "advancement.chronoly.riptide.desc"},
+    "frame": "goal", "show_toast": true, "announce_to_chat": true
+  },
+  "criteria": {
+    "have": {"trigger": "minecraft:inventory_changed",
+      "conditions": {"items": [{"items": "chronoly:riptide"}]}}
+  }
+}

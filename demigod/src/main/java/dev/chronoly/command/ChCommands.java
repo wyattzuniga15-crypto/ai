@@ -38,6 +38,27 @@ public final class ChCommands {
         return source.getServer().getPlayerList().isOp(player.nameAndId());
     }
 
+    /** Everything the mod can do, in the order a new player would want it. */
+    private static int help(ServerPlayer p) {
+        p.sendSystemMessage(Component.literal("§6§lDemigod: Chronicles of Olympus"));
+        p.sendSystemMessage(Component.literal(
+                "§7Kill something that should not exist and a god will speak for you."));
+        p.sendSystemMessage(Component.literal("§8—"));
+        p.sendSystemMessage(Component.literal("§e/chronoly status §7— parent, favour, energy, flaw, quest"));
+        p.sendSystemMessage(Component.literal("§e/chronoly cast §7— your birthright §8(or press G)"));
+        p.sendSystemMessage(Component.literal("§e/chronoly prophecy §7— the Oracle sends you somewhere"));
+        p.sendSystemMessage(Component.literal("§e/chronoly quest §7— what you were sent to do"));
+        p.sendSystemMessage(Component.literal("§e/chronoly camp ward §7— are you inside the borders?"));
+        p.sendSystemMessage(Component.literal("§e/chronoly travel underworld|olympus|home"));
+        p.sendSystemMessage(Component.literal("§e/chronoly charon §7— a drachma buys the crossing out"));
+        p.sendSystemMessage(Component.literal("§8Operators: /chronoly claim <god>, summon <boss>, camp build, favor <n>"));
+        p.sendSystemMessage(Component.literal("§8—"));
+        p.sendSystemMessage(Component.literal(
+                "§7Celestial bronze passes through mortals. Ordinary steel passes through monsters. "
+                + "§8You are hurt by both."));
+        return 1;
+    }
+
     public static void register(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("chronoly");
 
@@ -213,6 +234,9 @@ public final class ChCommands {
                             : "§cYou are outside the borders. §7Whatever is hunting you can still smell you."));
                     return 1;
                 })));
+
+        root.executes(ctx -> help(ctx.getSource().getPlayerOrException()));
+        root.then(Commands.literal("help").executes(ctx -> help(ctx.getSource().getPlayerOrException())));
 
         event.getDispatcher().register(root);
     }

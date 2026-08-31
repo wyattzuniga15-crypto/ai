@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:underworld",
+  "display": {
+    "icon": {"id": "chronoly:imperial_gold_ingot"},
+    "title": {"translate": "advancement.chronoly.olympus.title"},
+    "description": {"translate": "advancement.chronoly.olympus.desc"},
+    "frame": "challenge", "show_toast": true, "announce_to_chat": true
+  },
+  "criteria": {
+    "arrive": {"trigger": "minecraft:changed_dimension",
+      "conditions": {"to": "chronoly:olympus"}}
+  }
+}

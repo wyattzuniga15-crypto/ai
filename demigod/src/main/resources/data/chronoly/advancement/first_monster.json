@@ -1,0 +1,16 @@
+{
+  "parent": "chronoly:root",
+  "display": {
+    "icon": {"id": "chronoly:celestial_bronze_dagger"},
+    "title": {"translate": "advancement.chronoly.first_monster.title"},
+    "description": {"translate": "advancement.chronoly.first_monster.desc"},
+    "frame": "task", "show_toast": true, "announce_to_chat": true
+  },
+  "criteria": {
+    "kill": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": {"entity": [{"condition": "minecraft:entity_properties",
+        "entity": "this", "predicate": {"type": "#chronoly:monster"}}]}
+    }
+  }
+}

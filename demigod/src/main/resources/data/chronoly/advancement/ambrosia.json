@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:bronze",
+  "display": {
+    "icon": {"id": "chronoly:ambrosia"},
+    "title": {"translate": "advancement.chronoly.ambrosia.title"},
+    "description": {"translate": "advancement.chronoly.ambrosia.desc"},
+    "frame": "task", "show_toast": true, "announce_to_chat": false
+  },
+  "criteria": {
+    "have": {"trigger": "minecraft:inventory_changed",
+      "conditions": {"items": [{"items": "chronoly:ambrosia"}]}}
+  }
+}

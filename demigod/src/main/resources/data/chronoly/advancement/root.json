@@ -1,0 +1,10 @@
+{
+  "display": {
+    "icon": {"id": "chronoly:celestial_bronze_sword"},
+    "title": {"translate": "advancement.chronoly.root.title"},
+    "description": {"translate": "advancement.chronoly.root.desc"},
+    "background": "minecraft:textures/block/deepslate_bricks.png",
+    "frame": "task", "show_toast": true, "announce_to_chat": false
+  },
+  "criteria": {"exists": {"trigger": "minecraft:tick"}}
+}

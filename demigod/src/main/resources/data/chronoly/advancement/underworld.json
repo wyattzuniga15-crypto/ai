@@ -1,0 +1,13 @@
+{
+  "parent": "chronoly:first_monster",
+  "display": {
+    "icon": {"id": "chronoly:golden_drachma"},
+    "title": {"translate": "advancement.chronoly.underworld.title"},
+    "description": {"translate": "advancement.chronoly.underworld.desc"},
+    "frame": "goal", "show_toast": true, "announce_to_chat": true
+  },
+  "criteria": {
+    "arrive": {"trigger": "minecraft:changed_dimension",
+      "conditions": {"to": "chronoly:underworld"}}
+  }
+}
