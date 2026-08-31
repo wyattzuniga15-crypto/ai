@@ -176,8 +176,17 @@ tasks.register('gameTestApi') {
 tasks.register('describeClass') {
     doLast {
         def names = (project.findProperty('describe') ?: '').split(',').findAll { it }
-        def jars = sourceSets.main.compileClasspath.files.findAll { it.name.endsWith('.jar') }
+        // The compile classpath's 80 jars turned out not to include the Minecraft artifact at
+        // execution time — javap could not find EntityType itself. MDG materialises the game
+        // somewhere under the build and cache directories, so sweep both and take everything.
+        def jars = (sourceSets.main.compileClasspath.files
+                + fileTree(dir: layout.buildDirectory.get().asFile, include: '**/*.jar').files
+                + fileTree(dir: new File(gradle.gradleUserHomeDir, 'caches'), include: '**/neoforge*.jar').files)
+                .findAll { it.name.endsWith('.jar') && it.exists() }
         println "[classpath: ${jars.size()} jars]"
+        jars.findAll { it.name =~ /minecraft|neoforge|joined|client-extra/ }.each {
+            println "[game jar: ${it.name}]"
+        }
         def cp = jars.collect { it.absolutePath }.join(File.pathSeparator)
         def javap = new File(System.getProperty('java.home'), 'bin/javap').absolutePath
         names.each { name ->
