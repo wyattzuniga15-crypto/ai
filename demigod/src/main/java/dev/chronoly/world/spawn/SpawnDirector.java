@@ -65,14 +65,14 @@ public final class SpawnDirector {
             case UNSEEN -> 0f;
             case FAINT -> 0.25f;
             case NOTICED -> 0.5f;
-            case HUNTED -> 0.85f;
+            case HUNTED -> 0.6f;
         };
     }
 
     private static void send(ServerLevel level, ServerPlayer player, ThreatTier tier) {
         int count = switch (tier) {
-            case HUNTED -> 3;
-            case NOTICED -> 2;
+            case HUNTED -> 2;
+            case NOTICED -> 1;
             default -> 1;
         };
 

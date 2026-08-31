@@ -65,6 +65,28 @@ public final class UnderworldGate {
         }
     }
 
+    /** Where the gate stands, so walking into it can mean something. */
+    public static final BlockPos GATE = new BlockPos(8, 96, 34);
+
+    /**
+     * Standing in the gateway with a drachma is the way out. A command works too, but a door you
+     * can walk through is a place and a command is a menu.
+     */
+    public static void tickGate(ServerLevel level, ServerPlayer player) {
+        if (!dev.chronoly.world.ChDimensions.isUnderworld(level)) return;
+        if (player.blockPosition().distSqr(GATE) > 16) return;
+
+        DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
+        if (!data.hasFlag("gate_warned")) {
+            data.raiseFlag("gate_warned");
+            player.sendSystemMessage(Component.literal(
+                    "§7The gate is open and nobody is stopping you. §8Charon wants his fare first — "
+                    + "hold a drachma and walk through."));
+            return;
+        }
+        Judgment.payCharon(player);
+    }
+
     /** The gate out, and the columns that make it look official. */
     private static void gate(ServerLevel level, BlockPos at) {
         for (int dy = 0; dy < 9; dy++) {

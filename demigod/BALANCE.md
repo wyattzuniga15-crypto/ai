@@ -122,6 +122,23 @@ The exit is a function of **graph distance from the entrance**, never of coordin
 dimension — so the distance mismatch is the only relationship that ever existed between the two
 spaces, not a fudge applied at the door. A ~30-corridor walk exits ~27,000 blocks away.
 
+## Balance pass — first, after the content landed
+
+Numbers set in isolation stopped being right once the systems could interact. Changed:
+
+| What | From | To | Why |
+|---|---|---|---|
+| Earthshaker radius | 7.0 | 5.5 | It cleared a screen for 45 energy and outclassed every other signature |
+| Earthshaker damage | 8 | 7 | Same reason, smaller lever |
+| Hecate's raised dead | permanent | wither, ~60s | Raised dead that stay raised is an army, not a spell |
+| Ambrosia burn per dose | 34 | 40 | Three doses to golden fire was forgiving for a rule the books make lethal — now closer to two and a half |
+| Spawn chance at HUNTED | 0.85 | 0.6 | Every eight seconds was a siege rather than a hunt |
+| Monsters per wave (HUNTED) | 3 | 2 | Reinforced monsters in threes stacked faster than anyone can fight |
+
+Untouched on purpose: ability energy costs, favour coefficients, boss health. Those still read
+correctly against each other, and changing numbers that are working is how balance passes make
+things worse.
+
 ## Reserved
 
 Per-ability energy costs, cooldowns, fatigue tails, and PvP coefficients land with their abilities

@@ -86,8 +86,8 @@ public final class Abilities {
     private static void earthshaker(ServerPlayer player, ServerLevel level) {
         Vec3 c = player.position();
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class,
-                new AABB(c, c).inflate(7.0), e -> e != player && e.onGround())) {
-            e.hurt(level.damageSources().playerAttack(player), 8.0f);
+                new AABB(c, c).inflate(5.5), e -> e != player && e.onGround())) {
+            e.hurt(level.damageSources().playerAttack(player), 7.0f);
             Vec3 away = e.position().subtract(c).normalize();
             e.push(away.x * 1.1, 0.75, away.z * 1.1);
             e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 80, 2));
@@ -190,6 +190,8 @@ public final class Abilities {
             if (ally == null) continue;
             ally.setPos(c.x + (i == 0 ? 1.5 : -1.5), c.y, c.z);
             ally.addEffect(new MobEffectInstance(MobEffects.GLOWING, 1200, 0));
+            // They crumble. Raised dead that stay raised is an army, not a spell.
+            ally.addEffect(new MobEffectInstance(MobEffects.WITHER, 1200, 0));
             level.addFreshEntity(ally);
         }
         player.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 2400, 0));

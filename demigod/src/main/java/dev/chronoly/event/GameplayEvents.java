@@ -170,6 +170,7 @@ public final class GameplayEvents {
             if (data.ambrosiaBurn() > 0f) data.setAmbrosiaBurn(data.ambrosiaBurn() - 0.15f);
 
             FatalFlaws.curiosityTick(player, data, (ServerLevel) player.level());
+            dev.chronoly.world.underworld.UnderworldGate.tickGate((ServerLevel) player.level(), player);
             returnRiptide(player, data);
             expireQuest(player, data);
             syncToClient(player, data);

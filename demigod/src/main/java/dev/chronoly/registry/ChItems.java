@@ -58,7 +58,7 @@ public final class ChItems {
      * counter that makes that true is Phase 4.
      */
     public static final DeferredItem<Item> AMBROSIA = ITEMS.registerItem("ambrosia",
-            props -> new AmbrosiaItem(props.stacksTo(16), 10f, 34f, 100f));
+            props -> new AmbrosiaItem(props.stacksTo(16), 10f, 40f, 100f));
 
     /** The drink to ambrosia's food; the same rule, the same danger. */
     public static final DeferredItem<Item> NECTAR = ITEMS.registerItem("nectar",
