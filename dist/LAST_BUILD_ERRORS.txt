@@ -1,0 +1,58 @@
+BUILD FAILED for 4e4ed081ee6ef3db94d5be929b634d452fd8d91e at 2026-08-31T03:18:38Z
+
+=============== javac errors ===============
+65:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
+70:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
+91:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
+96:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
+
+=============== detail ===============
+
+> Task :compileJava
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
+        WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
+                                            ^
+  symbol:   method location()
+  location: class ResourceKey<Level>
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
+        String dim = level.dimension().location().toString();
+                                      ^
+  symbol:   method location()
+  location: class ResourceKey<Level>
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+--
+  Note: Recompile with -Xlint:deprecation for details.
+  Note: Some input files use or override a deprecated API.
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
+          WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
+                                              ^
+    symbol:   method location()
+    location: class ResourceKey<Level>
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
+          String dim = level.dimension().location().toString();
+                                        ^
+    symbol:   method location()
+    location: class ResourceKey<Level>
+  2 errors
+
+
+=============== what went wrong ===============
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  Note: Recompile with -Xlint:deprecation for details.
+  Note: Some input files use or override a deprecated API.
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
+          WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
+                                              ^
+    symbol:   method location()
+    location: class ResourceKey<Level>
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
+          String dim = level.dimension().location().toString();
+                                        ^
+    symbol:   method location()
+    location: class ResourceKey<Level>
+  2 errors
+
+* Try:
