@@ -99,6 +99,7 @@ public final class PietyEvents {
         DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
         if (!data.isClaimed()) return;
         String god = data.parentage().orElseThrow();
+        noteKillSite(player, dead);
 
         if (dead.getType().is(ChTags.MONSTER)
                 && player.getHealth() < player.getMaxHealth() * 0.2f) {
@@ -125,6 +126,61 @@ public final class PietyEvents {
     /** Dying is embarrassing for everyone involved. The ledger says so: minus forty. */
     public static void onDemigodDeath(ServerPlayer player, DemigodData data) {
         data.addFavor(data.parentage().orElse(""), -40f);
+    }
+
+    // ---- burial rites -----------------------------------------------------------------------
+
+    /** Where each player's recent kills fell. The dead are owed a minute of memory. */
+    private static final java.util.Map<java.util.UUID, java.util.List<long[]>> RECENT_KILLS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    static void noteKillSite(ServerPlayer player, LivingEntity dead) {
+        var list = RECENT_KILLS.computeIfAbsent(player.getUUID(),
+                k -> java.util.Collections.synchronizedList(new java.util.ArrayList<>()));
+        list.add(new long[]{dead.blockPosition().getX(), dead.blockPosition().getY(),
+                dead.blockPosition().getZ(), player.level().getGameTime()});
+        if (list.size() > 5) list.remove(0);
+    }
+
+    /**
+     * The burial rite. The dead are Hades' and he notices who is careless: cover where something
+     * fell with earth within a minute and the ledger credits you five. It has to be earth — the
+     * rite is dirt over the dead, not cobblestone over an inconvenience.
+     */
+    public static void onPlace(net.neoforged.neoforge.event.level.BlockEvent.EntityPlaceEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        var state = event.getPlacedBlock();
+        if (!state.is(net.minecraft.world.level.block.Blocks.DIRT)
+                && !state.is(net.minecraft.world.level.block.Blocks.COARSE_DIRT)
+                && !state.is(net.minecraft.world.level.block.Blocks.PODZOL)
+                && !state.is(net.minecraft.world.level.block.Blocks.GRAVEL)
+                && !state.is(net.minecraft.world.level.block.Blocks.MUD)) return;
+
+        var list = RECENT_KILLS.get(player.getUUID());
+        if (list == null || list.isEmpty()) return;
+        long now = player.level().getGameTime();
+        var pos = event.getPos();
+
+        synchronized (list) {
+            var it = list.iterator();
+            while (it.hasNext()) {
+                long[] site = it.next();
+                if (now - site[3] > 1200) { it.remove(); continue; }
+                long dx = pos.getX() - site[0], dy = pos.getY() - site[1], dz = pos.getZ() - site[2];
+                if (dx * dx + dy * dy + dz * dz > 9) continue;
+
+                it.remove();
+                DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
+                if (!data.isClaimed()) return;
+                data.addFavor(data.parentage().orElseThrow(), 5f);
+                if (data.raiseFlag("lesson_burial")) {
+                    player.sendSystemMessage(Component.literal(
+                            "§5Somewhere below, something nods. §7The dead are his, and he "
+                            + "notices who is careful with them."));
+                }
+                return;
+            }
+        }
     }
 
     // ---- boasting ---------------------------------------------------------------------------
