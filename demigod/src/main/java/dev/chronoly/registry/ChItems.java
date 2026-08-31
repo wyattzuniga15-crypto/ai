@@ -2,6 +2,7 @@ package dev.chronoly.registry;
 
 import dev.chronoly.ChronolyConstants;
 import dev.chronoly.item.AmbrosiaItem;
+import dev.chronoly.item.RelicItem;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -107,9 +108,58 @@ public final class ChItems {
                 .build();
     }
 
-    /** Creative-tab order: weapons, currency, metals, consumables. */
+    // ---- named relics --------------------------------------------------------------------
+
+    /** The Lightning Thief, ch. 21 — the master bolt itself. Three strikes where you look. */
+    public static final DeferredItem<Item> MASTER_BOLT = ITEMS.registerItem("master_bolt",
+            props -> new RelicItem(props.stacksTo(1).fireResistant(), RelicItem.Power.MASTER_BOLT));
+
+    /** The Lightning Thief, ch. 19 — Hades' helm of darkness. */
+    public static final DeferredItem<Item> HELM_OF_DARKNESS = ITEMS.registerItem("helm_of_darkness",
+            props -> new RelicItem(props.stacksTo(1), RelicItem.Power.HELM_OF_DARKNESS));
+
+    /** The Sea of Monsters — it heals what is near it, which is why camp's borders hold. */
+    public static final DeferredItem<Item> GOLDEN_FLEECE = ITEMS.registerItem("golden_fleece",
+            props -> new RelicItem(props.stacksTo(1), RelicItem.Power.GOLDEN_FLEECE));
+
+    /** The Titan's Curse — Medusa's face on a shield; nothing that looks at it keeps moving. */
+    public static final DeferredItem<Item> AEGIS = ITEMS.registerItem("aegis",
+            props -> new RelicItem(props.stacksTo(1), RelicItem.Power.AEGIS));
+
+    /** The Lightning Thief, ch. 12 — Annabeth's cap, and it simply works. */
+    public static final DeferredItem<Item> YANKEES_CAP = ITEMS.registerItem("yankees_cap",
+            props -> new RelicItem(props.stacksTo(1), RelicItem.Power.YANKEES_CAP));
+
+    /** Clarisse's spear, which the books are emphatic about. */
+    public static final DeferredItem<Item> ELECTRIC_SPEAR = ITEMS.registerItem("electric_spear",
+            props -> new RelicItem(props.durability(400)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(9.0, -2.8)),
+                    RelicItem.Power.ELECTRIC_SPEAR));
+
+    /** A drachma spent on the road rather than the ferryman. */
+    public static final DeferredItem<Item> TRAVELERS_TOKEN = ITEMS.registerItem("travelers_token",
+            props -> new RelicItem(props.stacksTo(1), RelicItem.Power.TRAVELERS_TOKEN));
+
+    /** The Lightning Thief, ch. 6 — a pen until it is not. Bronze, and it comes back to you. */
+    public static final DeferredItem<Item> RIPTIDE = ITEMS.registerItem("riptide",
+            props -> new Item(props.stacksTo(1).fireResistant()
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(9.0, -2.2))));
+
+    /** Backbiter — half mortal steel, half celestial bronze, and it cuts both ways. */
+    public static final DeferredItem<Item> BACKBITER = ITEMS.registerItem("backbiter",
+            props -> new Item(props.durability(1000)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(8.5, -2.3))));
+
+    /** The Titan's Curse — Zoë's twin hunting knives, fast rather than heavy. */
+    public static final DeferredItem<Item> HUNTING_KNIVES = ITEMS.registerItem("hunting_knives",
+            props -> new Item(props.durability(600)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(5.5, -1.4))));
+
+    /** Creative-tab order: weapons, relics, currency, metals, consumables. */
     public static final List<DeferredItem<Item>> TAB_ORDER = List.of(
             CELESTIAL_BRONZE_SWORD, CELESTIAL_BRONZE_DAGGER, IMPERIAL_GOLD_SWORD, STYGIAN_IRON_SWORD,
+            RIPTIDE, BACKBITER, HUNTING_KNIVES, ELECTRIC_SPEAR,
+            MASTER_BOLT, HELM_OF_DARKNESS, GOLDEN_FLEECE, AEGIS, YANKEES_CAP, TRAVELERS_TOKEN,
             GOLDEN_DRACHMA,
             CELESTIAL_BRONZE_INGOT, IMPERIAL_GOLD_INGOT, STYGIAN_IRON_INGOT,
             AMBROSIA, NECTAR, GREEK_FIRE, MIST_GLASS);

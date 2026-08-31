@@ -3,7 +3,11 @@ package dev.chronoly.command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.chronoly.ability.Abilities;
 import dev.chronoly.attachment.DemigodData;
+import dev.chronoly.boss.BossKind;
+import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
+import dev.chronoly.world.ChDimensions;
+import net.minecraft.server.level.ServerLevel;
 import dev.chronoly.event.GameplayEvents;
 import dev.chronoly.registry.ChAttachments;
 import net.minecraft.commands.CommandSourceStack;
@@ -82,6 +86,49 @@ public final class ChCommands {
                                     com.mojang.brigadier.arguments.FloatArgumentType.getFloat(ctx, "amount"));
                             return 1;
                         })));
+
+        // Travel. The Underworld you can always reach; Olympus wants standing.
+        root.then(Commands.literal("travel")
+                .then(Commands.literal("underworld").executes(ctx -> {
+                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    ChDimensions.sendToUnderworld(p, "You walk in on your own two feet. Few do.");
+                    return 1;
+                }))
+                .then(Commands.literal("olympus").executes(ctx -> {
+                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    DemigodData d = p.getData(ChAttachments.DEMIGOD.get());
+                    if (!d.isClaimed()) {
+                        p.sendSystemMessage(Component.literal(
+                                "§7The lift does not have a six hundredth floor for you."));
+                        return 0;
+                    }
+                    ChDimensions.sendToOlympus(p);
+                    return 1;
+                }))
+                .then(Commands.literal("home").executes(ctx -> {
+                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    ChDimensions.travel(p, net.minecraft.world.level.Level.OVERWORLD,
+                            p.getX(), 128, p.getZ());
+                    p.sendSystemMessage(Component.literal("§7Back where the air is ordinary."));
+                    return 1;
+                })));
+
+        // Boss summoning stays an operator tool until quests place them properly.
+        var summon = Commands.literal("summon");
+        for (BossKind kind : BossKind.values()) {
+            summon.then(Commands.literal(kind.id()).executes(ctx -> {
+                ServerPlayer p = ctx.getSource().getPlayerOrException();
+                if (!isOperator(ctx.getSource(), p)) {
+                    p.sendSystemMessage(Component.literal("§7Only an operator may call one of those."));
+                    return 0;
+                }
+                var look = p.getLookAngle();
+                Bosses.spawn((ServerLevel) p.level(), kind,
+                        p.getX() + look.x * 8, p.getY(), p.getZ() + look.z * 8);
+                return 1;
+            }));
+        }
+        root.then(summon);
 
         event.getDispatcher().register(root);
     }

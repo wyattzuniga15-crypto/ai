@@ -5,7 +5,9 @@ import dev.chronoly.attachment.DemigodData;
 import dev.chronoly.combat.MistCombatResolver;
 import dev.chronoly.core.energy.EnergyProfile;
 import dev.chronoly.core.energy.Surroundings;
+import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
+import dev.chronoly.world.ChDimensions;
 import dev.chronoly.registry.ChAttachments;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -39,6 +41,15 @@ public final class GameplayEvents {
     public static void onDeath(LivingDeathEvent event) {
         LivingEntity dead = event.getEntity();
         if (dead.level().isClientSide()) return;
+
+        // Named monsters come apart into golden dust and leave something worth having.
+        if (Bosses.isBoss(dead)) {
+            Bosses.onBossKilled((ServerLevel) dead.level(), dead);
+            if (event.getSource().getEntity() instanceof ServerPlayer slayer) {
+                DemigodData sd = slayer.getData(ChAttachments.DEMIGOD.get());
+                if (sd.isClaimed()) sd.addFavor(sd.parentage().orElseThrow(), 90f);
+            }
+        }
         if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
         if (!dead.getType().is(ChTags.MONSTER)) return;
 
@@ -106,6 +117,10 @@ public final class GameplayEvents {
     public static void onServerTick(ServerTickEvent.Post event) {
         if (++tick % 20 != 0) return;
 
+        for (ServerLevel level : event.getServer().getAllLevels()) {
+            Bosses.tick(level);
+        }
+
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
             DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
             if (!data.isClaimed()) continue;
@@ -158,5 +173,29 @@ public final class GameplayEvents {
 
     public static void onIncomingDamage(net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent e) {
         MistCombatResolver.onIncomingDamage(e);
+        if (!e.isCanceled() && Bosses.isBoss(e.getEntity())) {
+            Bosses.onBossDamaged(e.getEntity(), e.getSource(), e.getAmount());
+        }
+    }
+
+    /**
+     * Death sends a demigod to the Underworld rather than to a respawn screen.
+     * ROADMAP Phase 9 in its first form: you arrive, and you have to walk out.
+     */
+    public static void onPlayerDeath(LivingDeathEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (player.level().isClientSide()) return;
+        if (ChDimensions.isUnderworld(player.level())) return;   // already there
+
+        DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
+        if (!data.isClaimed()) return;                            // mortals get the ordinary death
+
+        event.setCanceled(true);
+        player.setHealth(player.getMaxHealth() * 0.5f);
+        player.clearFire();
+        data.setEnergy(0f);
+        data.setOverdraw(data.maxEnergy() * 0.5f);
+        ChDimensions.sendToUnderworld(player,
+                "You do not wake up. You arrive.");
     }
 }

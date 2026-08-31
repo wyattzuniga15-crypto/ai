@@ -32,6 +32,7 @@ public final class Chronoly {
 
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onDeath);
+        NeoForge.EVENT_BUS.addListener(GameplayEvents::onPlayerDeath);
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(ChCommands::register);
 
