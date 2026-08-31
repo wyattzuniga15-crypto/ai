@@ -14,6 +14,7 @@ import dev.chronoly.world.spawn.SpawnDirector;
 import net.minecraft.world.item.ItemStack;
 import dev.chronoly.core.favor.Tier;
 import dev.chronoly.world.ChDimensions;
+import dev.chronoly.world.underworld.Judgment;
 import dev.chronoly.registry.ChAttachments;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -55,12 +56,14 @@ public final class GameplayEvents {
                 DemigodData sd = slayer.getData(ChAttachments.DEMIGOD.get());
                 if (sd.isClaimed()) {
                     sd.addFavor(sd.parentage().orElseThrow(), 90f);
+                    sd.raiseFlag("killed_boss");
 
                     // If the Oracle sent them after this one, that is the quest done.
                     for (BossKind kind : BossKind.values()) {
                         if (!sd.questTarget().equals(kind.id())) continue;
                         if (!dead.getName().getString().contains(kind.title)) continue;
                         sd.clearQuest();
+                        sd.raiseFlag("completed_quest");
                         sd.addFavor(sd.parentage().orElseThrow(), 120f);
                         slayer.sendSystemMessage(Component.literal(
                                 "§6§lThe prophecy is spent. §7You did what it said, more or less."));
@@ -269,7 +272,8 @@ public final class GameplayEvents {
         player.clearFire();
         data.setEnergy(0f);
         data.setOverdraw(data.maxEnergy() * 0.5f);
-        ChDimensions.sendToUnderworld(player,
-                "You do not wake up. You arrive.");
+        player.sendSystemMessage(Component.literal("§8You do not wake up. You arrive."));
+        Judgment.judge(player, data);
+        Judgment.mercy(player, data);
     }
 }

@@ -7,6 +7,7 @@ import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
 import dev.chronoly.quest.Oracle;
+import dev.chronoly.world.underworld.Judgment;
 import dev.chronoly.world.camp.CampBuilder;
 import dev.chronoly.world.camp.CampWard;
 import dev.chronoly.world.ChDimensions;
@@ -110,11 +111,25 @@ public final class ChCommands {
                 }))
                 .then(Commands.literal("home").executes(ctx -> {
                     ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    // Leaving the Underworld is a transaction, not a command.
+                    if (ChDimensions.isUnderworld(p.level())) {
+                        return Judgment.payCharon(p) ? 1 : 0;
+                    }
                     ChDimensions.travel(p, net.minecraft.world.level.Level.OVERWORLD,
                             p.getX(), 128, p.getZ());
                     p.sendSystemMessage(Component.literal("§7Back where the air is ordinary."));
                     return 1;
                 })));
+
+        root.then(Commands.literal("charon").executes(ctx -> {
+            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            if (!ChDimensions.isUnderworld(p.level())) {
+                p.sendSystemMessage(Component.literal(
+                        "§7Charon is not up here. He does not do house calls."));
+                return 0;
+            }
+            return Judgment.payCharon(p) ? 1 : 0;
+        }));
 
         // Boss summoning stays an operator tool until quests place them properly.
         var summon = Commands.literal("summon");
