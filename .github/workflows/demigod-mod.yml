@@ -12,6 +12,8 @@ on:
 jobs:
   jar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: demigod
@@ -83,6 +85,38 @@ jobs:
           name: chronoly-mod-jar
           path: demigod/build/libs/*.jar
           if-no-files-found: error
+
+      # Also commit the jar into the repo. Workflow artifacts live on blob.core.windows.net, which
+      # some environments cannot reach; git over github.com is reachable anywhere the repo is.
+      # Lands in /dist at the repo root, NOT under demigod/, so committing it does not retrigger
+      # this workflow and spin forever.
+      - name: Commit the jar to /dist
+        if: success()
+        working-directory: .
+        run: |
+          set -euo pipefail
+          JAR=$(ls demigod/build/libs/*.jar | head -1)
+          echo "publishing $(basename "$JAR")"
+          cp "$JAR" /tmp/built.jar
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$GITHUB_REF_NAME"
+          git checkout "$GITHUB_REF_NAME"
+          git reset --hard "origin/$GITHUB_REF_NAME"
+
+          mkdir -p dist
+          rm -f dist/*.jar
+          cp /tmp/built.jar "dist/$(basename "$JAR")"
+          echo "Built from ${GITHUB_SHA} on $(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/BUILD_INFO.txt
+
+          git add dist
+          if git diff --cached --quiet; then
+            echo "jar unchanged; nothing to commit"
+          else
+            git commit -m "Publish ${{ github.sha }} build to /dist [skip ci]"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
 
   # DECISIONS.md D-03. Separate job on purpose: the mod hard-depends on GeckoLib, the only 1.21.11
   # build is an alpha, and a break in it must not take down the jar the rest of the project needs.
