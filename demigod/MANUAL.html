@@ -410,14 +410,17 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
         <tr><td>Craft a kind of thing for the first time</td><td class="num">+10</td><td><span class="pill ok">live</span></td></tr>
         <tr><td>Die</td><td class="num">−40</td><td><span class="pill ok">live</span></td></tr>
         <tr><td>Kill a villager or wandering trader</td><td class="num">−25</td><td><span class="pill ok">live</span></td></tr>
-        <tr><td>Boast — declaring a fight won early</td><td class="num">−20</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+        <tr><td>Boast — say the fight is won within 20s of combat ("ez", "too easy", "i win"…)</td><td class="num">−20</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Bury what you killed under earth within a minute</td><td class="num">+5</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Keep a Styx oath — complete a quest you swore</td><td class="num">+240 total</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Break a Styx oath — fail a quest you swore</td><td class="num">−150</td><td><span class="pill ok">live</span></td></tr>
         <tr><td>Break an oath sworn on the Styx</td><td class="num">−150</td><td><span class="pill no">defined, not hooked up</span></td></tr>
       </tbody>
     </table>
   </div>
   <div class="note warn">
     <span class="tag">Be honest about this table</span>
-    <p>Fifteen favour reasons are fully specified with tested coefficients in the core model, and nine now fire during play. Boasting, burial rites and Styx oaths still need mechanics of their own; a fake trigger would be worse than an honest gap.</p>
+    <p>Fifteen favour reasons are fully specified with tested coefficients in the core model, and twelve now fire during play. The remaining three belong to parents who are not yet playable — Demeter's harvests, Hephaestus' forge, Hermes' errands as distinct from travel.</p>
   </div>
 
   <h3>Ambrosia and nectar will kill you</h3>
@@ -472,7 +475,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
 <section id="bosses">
   <span class="sec-num">Monsters</span>
   <h2>The nine named monsters</h2>
-  <p class="lede">Each one is a fight with its own rule, not a bigger health bar — and each now wears its own body: the Minotaur a horned bulk, Medusa a snake-haired figure, Cerberus one dog with three heads, Charybdis a ring of teeth. Two of them cannot be beaten by damage at all.</p>
+  <p class="lede">Each one is a fight with its own rule, not a bigger health bar — and each now wears its own body: the Minotaur a horned bulk, Medusa a snake-haired figure, Cerberus one dog with three heads, Charybdis a ring of teeth. Two of them cannot be beaten by damage at all. Every melee boss telegraphs its heavy blow — it rears back glowing for half a second and warns anyone in reach, then hits for half again its damage in four blocks. A blow you can read is a fight.</p>
   <div class="bosses">
 
     <article class="boss">
@@ -630,6 +633,8 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
     <li><strong>Failure:</strong> −40 favour, and <em>"whatever you were sent for, somebody else will have to go."</em></li>
     <li><strong>Check it:</strong> <code>/chronoly quest</code>.</li>
   </ul>
+  <h3>Swearing on the Styx</h3>
+  <p><code>/chronoly oath</code> binds your current quest to the river. Keep it and the prophecy pays <strong>double</strong> — 240 favour plus the boss's 90. Break it and the river collects: <strong>−150 favour and a permanent mark</strong> the Judgment Pavilion checks before it reads anything good about you. An oath on the Styx is not a promise; it is a mechanism.</p>
 </section>
 
 <section id="economy">
@@ -981,6 +986,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
         <tr><td class="name"><code>/chronoly cast</code></td><td>Your birthright — same as pressing <kbd>G</kbd></td><td>Anyone</td></tr>
         <tr><td class="name"><code>/chronoly prophecy</code></td><td>The Oracle speaks and binds you to a quest</td><td>Anyone</td></tr>
         <tr><td class="name"><code>/chronoly quest</code></td><td>What you were sent to do, and how long is left</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly oath</code></td><td>Swear your quest on the Styx — double pay, or the river collects</td><td>Anyone</td></tr>
         <tr><td class="name"><code>/chronoly camp ward</code></td><td>Whether you're inside the borders</td><td>Anyone</td></tr>
         <tr><td class="name"><code>/chronoly travel underworld│olympus│home</code></td><td>Dimension travel</td><td>Anyone</td></tr>
         <tr><td class="name"><code>/chronoly charon</code></td><td>Pay a drachma for the crossing out</td><td>Anyone</td></tr>
@@ -1024,10 +1030,10 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
   <p class="lede">This is v0.1.0. Everything above is real and in the jar; everything below is missing, and you should know before you install it.</p>
   <ul class="plain">
     <li><strong>Nothing has been observed running.</strong> The build compiles and packages in CI, but no automated test has ever launched the game. The mod's runtime behaviour is verified by reasoning and by 51 unit tests over the Minecraft-free core, not by a server that booted.</li>
-    <li><strong>Boss animation is a first pass.</strong> All nine monsters have their own custom-modelled bodies, hand-painted textures, and procedural motion — walking legs, weaving hydra necks, beating wings, snake hair that never stops, a maw that grinds. What they lack is attack animations and bespoke poses; hits land without a lunge to telegraph them.</li>
+    <li><strong>Boss art is a first pass.</strong> All nine monsters have custom bodies, hand-painted textures, procedural motion, swing-lunges on every hit and a telegraphed heavy blow. What they still lack is bespoke poses and per-boss attack variety — one heavy-blow pattern serves all the melee fights.</li>
     <li><strong>Abilities are one tier of four.</strong> Favour tiers change your energy pool and nothing else. Higher tiers are meant to change what an ability <em>is</em>, and they don't yet.</li>
     <li><strong>Camp auto-builds only in fresh worlds.</strong> In a world under ten minutes old, camp raises itself a little off spawn; in an older world it still waits for an operator, because a summer camp landing on somebody's house is not lore, it is griefing.</li>
-    <li><strong>Six of the fifteen favour reasons are not hooked up</strong> — down from eleven. Boasting, oaths and burial rites are the notable absences.</li>
+    <li><strong>Three of the fifteen favour reasons are not hooked up</strong> — down from eleven this morning. All three belong to parents who are not yet playable.</li>
     <li><strong>No in-game guidebook.</strong> This page is it.</li>
     <li><strong>The Labyrinth, charmspeak, and the Fissure of Erebus</strong> are designed and partly built in the core model, but have no in-game entry point.</li>
   </ul>
