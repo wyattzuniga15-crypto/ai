@@ -53,6 +53,13 @@ public final class Oracle {
             new Element(Slot.COST, "the_way_back",
                     List.of("the road you came in by", "the door behind you")));
 
+    /** Eight winds are enough for a prophecy. */
+    private static String bearing(double angle) {
+        String[] winds = {"east", "southeast", "south", "southwest", "west", "northwest", "north", "northeast"};
+        int idx = (int) Math.round(angle / (Math.PI / 4)) & 7;
+        return winds[idx];
+    }
+
     /** Speaks a prophecy and binds the player to the quest it encodes. */
     public static Prophecy consult(ServerPlayer player, DemigodData data) {
         Random rng = new Random(player.getUUID().getLeastSignificantBits() ^ player.level().getGameTime());
@@ -67,6 +74,20 @@ public final class Oracle {
         Prophecy prophecy = ProphecyGrammar.english().compose(plan, rng);
 
         data.setQuest(target.id(), place.id(), player.level().getGameTime() + plan.deadlineTicks());
+
+        // The prophecy is a contract, so the world must hold up its end: the named monster
+        // actually exists, out there, now. Before this, a quest could only be completed if an
+        // operator happened to summon the target — the mod's central loop needed a stagehand.
+        ServerLevel world = (ServerLevel) player.level();
+        double angle = rng.nextDouble() * Math.PI * 2;
+        double dist = 90 + rng.nextInt(50);
+        int sx = (int) Math.round(player.getX() + Math.cos(angle) * dist);
+        int sz = (int) Math.round(player.getZ() + Math.sin(angle) * dist);
+        int sy = world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, sx, sz);
+        dev.chronoly.boss.Bosses.spawn(world, target, sx + 0.5, sy, sz + 0.5);
+        player.sendSystemMessage(Component.literal(
+                "§7Somewhere to the §f" + bearing(angle) + "§7, something feels the words land on it, "
+                + "and turns around."));
 
         ServerLevel level = (ServerLevel) player.level();
         level.playSound(null, player.blockPosition(), SoundEvents.ENDER_DRAGON_AMBIENT,
