@@ -63,11 +63,17 @@ public final class GameplayEvents {
                     for (BossKind kind : BossKind.values()) {
                         if (!sd.questTarget().equals(kind.id())) continue;
                         if (!dead.getName().getString().contains(kind.title)) continue;
+                        boolean sworn = sd.hasFlag("oath_" + sd.questTarget() + "_" + sd.questDeadline());
                         sd.clearQuest();
                         sd.raiseFlag("completed_quest");
-                        sd.addFavor(sd.parentage().orElseThrow(), 120f);
+                        sd.addFavor(sd.parentage().orElseThrow(), sworn ? 240f : 120f);
                         slayer.sendSystemMessage(Component.literal(
                                 "§6§lThe prophecy is spent. §7You did what it said, more or less."));
+                        if (sworn) {
+                            slayer.sendSystemMessage(Component.literal(
+                                    "§5The river remembers you kept your word. §7Kept oaths are rarer "
+                                    + "than heroes, and they pay accordingly."));
+                        }
                         break;
                     }
                 }
@@ -230,11 +236,20 @@ public final class GameplayEvents {
         if (!data.hasQuest()) return;
         if (player.level().getGameTime() < data.questDeadline()) return;
 
+        boolean sworn = data.hasFlag("oath_" + data.questTarget() + "_" + data.questDeadline());
         data.clearQuest();
         String god = data.parentage().orElse("");
-        if (!god.isEmpty()) data.addFavor(god, -40f);
+        if (!god.isEmpty()) data.addFavor(god, sworn ? -150f : -40f);
         player.sendSystemMessage(Component.literal(
                 "§8The deadline passes. §7Whatever you were sent for, somebody else will have to go."));
+        if (sworn) {
+            // The heaviest loss in the mod, and the pavilion reads this flag before it reads
+            // anything good about you. The books are unsentimental about exactly this.
+            data.raiseFlag("broke_oath");
+            player.sendSystemMessage(Component.literal(
+                    "§4§lYou swore on the Styx. §cThe river collects: a hundred and fifty favour, "
+                    + "and a mark the Judgment Pavilion will not overlook."));
+        }
     }
 
     /** One sample per player per second; every predicate reads from this, never from the world. */
@@ -273,6 +288,8 @@ public final class GameplayEvents {
     }
 
     public static void onIncomingDamage(net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent e) {
+        if (e.getEntity() instanceof ServerPlayer victim) PietyEvents.noteCombat(victim);
+        if (e.getSource().getEntity() instanceof ServerPlayer attacker) PietyEvents.noteCombat(attacker);
         MistCombatResolver.onIncomingDamage(e);
         if (!e.isCanceled() && Bosses.isBoss(e.getEntity())) {
             if (Bosses.deflects(e.getEntity(), e.getSource())) {

@@ -50,6 +50,7 @@ public final class ChCommands {
         p.sendSystemMessage(Component.literal("§e/chronoly cast §7— your birthright §8(or press G)"));
         p.sendSystemMessage(Component.literal("§e/chronoly prophecy §7— the Oracle sends you somewhere"));
         p.sendSystemMessage(Component.literal("§e/chronoly quest §7— what you were sent to do"));
+        p.sendSystemMessage(Component.literal("§e/chronoly oath §7— swear your quest on the Styx: double pay, or the river collects"));
         p.sendSystemMessage(Component.literal("§e/chronoly camp ward §7— are you inside the borders?"));
         p.sendSystemMessage(Component.literal("§e/chronoly travel underworld|olympus|home"));
         p.sendSystemMessage(Component.literal("§e/chronoly charon §7— a drachma buys the crossing out"));
@@ -194,6 +195,35 @@ public final class ChCommands {
                 return 0;
             }
             Oracle.consult(p, d);
+            return 1;
+        }));
+
+        root.then(Commands.literal("oath").executes(ctx -> {
+            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            var d = p.getData(dev.chronoly.registry.ChAttachments.DEMIGOD.get());
+            if (!d.isClaimed()) {
+                p.sendSystemMessage(Component.literal("§7The river does not know you yet."));
+                return 0;
+            }
+            if (!d.hasQuest()) {
+                p.sendSystemMessage(Component.literal(
+                        "§7An oath needs something to swear to. §8Ask the Oracle first."));
+                return 0;
+            }
+            String key = "oath_" + d.questTarget() + "_" + d.questDeadline();
+            if (!d.raiseFlag(key)) {
+                p.sendSystemMessage(Component.literal("§7You have already sworn. §8It heard you the first time."));
+                return 0;
+            }
+            p.sendSystemMessage(Component.literal(
+                    "§5§lYou swear it on the River Styx."));
+            p.sendSystemMessage(Component.literal(
+                    "§7Thunder, somewhere, on a clear day. §8Finish the quest and the oath pays "
+                    + "double. Fail it and the river collects — and the river's ledger follows "
+                    + "you to the pavilion."));
+            ((ServerLevel) p.level()).playSound(null, p.blockPosition(),
+                    net.minecraft.sounds.SoundEvents.LIGHTNING_BOLT_THUNDER,
+                    net.minecraft.sounds.SoundSource.AMBIENT, 0.7f, 0.7f);
             return 1;
         }));
 

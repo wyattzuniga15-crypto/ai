@@ -48,6 +48,9 @@ public final class Bosses {
         public int cooldown;
         /** Nemean Lion: ticks left with the mouth open, the only window damage lands. */
         public int mouthOpen;
+        /** The heavy blow: cooldown between wind-ups, and the wind-up itself counting down. */
+        public int heavyCd = 120;
+        public int heavyWind;
 
         Fight(BossKind kind, ServerBossEvent bar) {
             this.kind = kind;
@@ -149,6 +152,7 @@ public final class Bosses {
     /** What makes each fight its own thing rather than a bigger health bar. */
     private static void mechanic(ServerLevel level, LivingEntity boss, Fight fight) {
         float frac = boss.getHealth() / boss.getMaxHealth();
+        heavyBlow(level, boss, fight);
 
         switch (fight.kind) {
             case MINOTAUR -> {
@@ -300,6 +304,55 @@ public final class Bosses {
                     level.sendParticles(ParticleTypes.SNEEZE, boss.getX(), boss.getY() + 1.5, boss.getZ(),
                             40, 2.0, 0.5, 2.0, 0.02);
                 }
+            }
+        }
+    }
+
+    /**
+     * The telegraphed heavy attack, for everything that fights with its body. Ten ticks of
+     * wind-up — reared glow, rising particles, a drawn breath of a sound — and then everything
+     * still standing within four blocks takes half again the boss's damage and is thrown. The
+     * warning is the point: a blow you can read is a fight, a blow you cannot is a tax.
+     */
+    private static void heavyBlow(ServerLevel level, LivingEntity boss, Fight fight) {
+        switch (fight.kind) {
+            case MEDUSA, CHARYBDIS, FURY -> { return; }   // their menace works differently
+            default -> { }
+        }
+        if (fight.heavyWind > 0) {
+            fight.heavyWind--;
+            level.sendParticles(ParticleTypes.CRIT, boss.getX(), boss.getY() + 2.2, boss.getZ(),
+                    6, 0.5, 0.3, 0.5, 0.02);
+            if (fight.heavyWind == 0) {
+                Vec3 c = boss.position();
+                level.playSound(null, boss.blockPosition(), SoundEvents.RAVAGER_ATTACK,
+                        SoundSource.HOSTILE, 1.4f, 0.7f);
+                level.sendParticles(ParticleTypes.EXPLOSION, c.x, c.y + 0.4, c.z, 6, 1.2, 0.2, 1.2, 0.0);
+                for (ServerPlayer p : level.players()) {
+                    if (p.distanceToSqr(boss) > 4.0 * 4.0) continue;
+                    p.hurt(level.damageSources().mobAttack(boss), fight.kind.damage * 1.5f);
+                    Vec3 away = p.position().subtract(c).normalize();
+                    p.push(away.x * 1.4, 0.5, away.z * 1.4);
+                    p.hurtMarked = true;
+                }
+            }
+            return;
+        }
+        if (fight.heavyCd > 0) {
+            fight.heavyCd--;
+            return;
+        }
+        // Only wind up with somebody actually in reach soon; an empty heavy is noise.
+        boolean anyoneNear = level.players().stream().anyMatch(p -> p.distanceToSqr(boss) < 7.0 * 7.0);
+        if (!anyoneNear) return;
+        fight.heavyCd = 160;
+        fight.heavyWind = 10;
+        boss.addEffect(new MobEffectInstance(MobEffects.GLOWING, 12, 0));
+        level.playSound(null, boss.blockPosition(), SoundEvents.RAVAGER_ROAR,
+                SoundSource.HOSTILE, 1.0f, 1.4f);
+        for (ServerPlayer p : level.players()) {
+            if (p.distanceToSqr(boss) < 10.0 * 10.0) {
+                p.sendSystemMessage(Component.literal("§c§lIt rears back. §7Move."));
             }
         }
     }

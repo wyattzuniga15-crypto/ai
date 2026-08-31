@@ -17,14 +17,19 @@ import net.minecraft.resources.Identifier;
  * a re-skinned witch. Articulated limbs are the next art pass and belong to the model layer, not
  * here.
  */
-public class ChBossRenderer extends MobRenderer<ChBossEntity, LivingEntityRenderState, ChBossRenderer.BossModel> {
+public class ChBossRenderer extends MobRenderer<ChBossEntity, ChBossRenderer.BossRenderState, ChBossRenderer.BossModel> {
+
+    /** The base state has no attack fields, so this one carries the swing across the wire. */
+    public static class BossRenderState extends LivingEntityRenderState {
+        public float attackAnim;
+    }
 
     /**
      * The first motion these bodies have had. Everything is driven off three numbers the render
      * state already carries — walk position, walk speed, age — and every rotation is assigned
      * rather than accumulated, so a frame owes nothing to the one before it.
      */
-    public static class BossModel extends EntityModel<LivingEntityRenderState> {
+    public static class BossModel extends EntityModel<BossRenderState> {
 
         private static final String[] LEG_PAIRS = {"leg0", "leg3", "left_leg", "right_arm"};
         private static final String[] LEG_PAIRS_B = {"leg1", "leg2", "right_leg", "left_arm"};
@@ -34,9 +39,12 @@ public class ChBossRenderer extends MobRenderer<ChBossEntity, LivingEntityRender
         }
 
         @Override
-        public void setupAnim(LivingEntityRenderState state) {
+        public void setupAnim(BossRenderState state) {
             super.setupAnim(state);
             ModelPart root = root();
+            // The lunge: while the entity swings, everything leans into the blow and the arms
+            // come down. sin(anim * PI) rises and falls over the swing, so it self-clears.
+            float lunge = net.minecraft.util.Mth.sin(state.attackAnim * (float) Math.PI);
             float swing = net.minecraft.util.Mth.cos(state.walkAnimationPos * 0.6662f)
                     * 1.1f * state.walkAnimationSpeed;
             float age = state.ageInTicks;
@@ -48,13 +56,18 @@ public class ChBossRenderer extends MobRenderer<ChBossEntity, LivingEntityRender
             for (String name : LEG_PAIRS_B) {
                 if (root.hasChild(name)) root.getChild(name).xRot = -swing;
             }
+            for (String name : new String[]{"left_arm", "right_arm"}) {
+                if (root.hasChild(name)) root.getChild(name).xRot -= lunge * 1.6f;
+            }
+            if (root.hasChild("body")) root.getChild("body").xRot = lunge * 0.25f;
 
-            // Heads breathe; the crowd of them on Cerberus disagrees slightly.
+            // Heads breathe; the crowd of them on Cerberus disagrees slightly. In a swing they
+            // all pitch down into the bite instead.
             int h = 0;
             for (String name : new String[]{"head", "head_mid", "head_left", "head_right", "goat_head"}) {
                 if (!root.hasChild(name)) continue;
                 ModelPart part = root.getChild(name);
-                part.xRot = net.minecraft.util.Mth.sin(age * 0.06f + h) * 0.06f;
+                part.xRot = net.minecraft.util.Mth.sin(age * 0.06f + h) * 0.06f + lunge * 0.5f;
                 part.yRot = net.minecraft.util.Mth.sin(age * 0.045f + h * 2f) * 0.10f;
                 h++;
             }
@@ -112,12 +125,18 @@ public class ChBossRenderer extends MobRenderer<ChBossEntity, LivingEntityRender
     }
 
     @Override
-    public Identifier getTextureLocation(LivingEntityRenderState state) {
+    public Identifier getTextureLocation(BossRenderState state) {
         return texture;
     }
 
     @Override
-    public LivingEntityRenderState createRenderState() {
-        return new LivingEntityRenderState();
+    public BossRenderState createRenderState() {
+        return new BossRenderState();
+    }
+
+    @Override
+    public void extractRenderState(ChBossEntity entity, BossRenderState state, float partialTick) {
+        super.extractRenderState(entity, state, partialTick);
+        state.attackAnim = entity.getAttackAnim(partialTick);
     }
 }

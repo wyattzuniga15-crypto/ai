@@ -114,6 +114,7 @@ public final class PietyEvents {
                 || dead.getType() == net.minecraft.world.entity.EntityType.WANDERING_TRADER;
         if (person) {
             data.addFavor(god, -25f);
+            data.raiseFlag("killed_helpless");   // Judgment reads this exact flag at the pavilion
             if (data.raiseFlag("lesson_helpless")) {
                 player.sendSystemMessage(Component.literal(
                         "§cThey could not fight back. §7The gods keep a different ledger for that."));
@@ -124,5 +125,52 @@ public final class PietyEvents {
     /** Dying is embarrassing for everyone involved. The ledger says so: minus forty. */
     public static void onDemigodDeath(ServerPlayer player, DemigodData data) {
         data.addFavor(data.parentage().orElse(""), -40f);
+    }
+
+    // ---- boasting ---------------------------------------------------------------------------
+
+    /** Who was in a fight, and when. Twenty seconds of memory is enough to know a boast. */
+    private static final java.util.Map<java.util.UUID, Long> LAST_COMBAT =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void noteCombat(Player player) {
+        LAST_COMBAT.put(player.getUUID(), player.level().getGameTime());
+    }
+
+    /** Words that declare a fight won. Matched as whole words so "gaze" is not "ez". */
+    private static final java.util.Set<String> BOAST_WORDS = java.util.Set.of(
+            "ez", "easy", "gg", "rekt", "unstoppable", "invincible", "untouchable", "noob");
+    private static final String[] BOAST_PHRASES = {
+            "too easy", "i win", "i won", "cant touch me", "can't touch me",
+            "no match", "already won", "cannot lose", "cant lose", "can't lose"};
+
+    /**
+     * Hubris, spoken aloud. The Lightning Thief and everything after it — the gods have opinions
+     * about declarations, and they collect while the fight is still on. Only in combat's shadow:
+     * the same words in camp small talk cost nothing.
+     */
+    public static void onChat(net.neoforged.neoforge.event.ServerChatEvent event) {
+        ServerPlayer player = event.getPlayer();
+        Long last = LAST_COMBAT.get(player.getUUID());
+        if (last == null || player.level().getGameTime() - last > 400) return;
+
+        String said = event.getMessage().getString().toLowerCase(java.util.Locale.ROOT);
+        boolean boast = false;
+        for (String phrase : BOAST_PHRASES) {
+            if (said.contains(phrase)) { boast = true; break; }
+        }
+        if (!boast) {
+            for (String word : said.split("[^a-z']+")) {
+                if (BOAST_WORDS.contains(word)) { boast = true; break; }
+            }
+        }
+        if (!boast) return;
+
+        DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
+        if (!data.isClaimed()) return;
+        data.addFavor(data.parentage().orElseThrow(), -20f);
+        player.sendSystemMessage(Component.literal(
+                "§cSomething vast pauses to listen. §7The fight is not over, and now they are "
+                + "watching to see if you were right."));
     }
 }
