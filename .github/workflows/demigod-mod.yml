@@ -107,11 +107,6 @@ jobs:
           git commit -m "CI: build errors for ${GITHUB_SHA} [skip ci]" || echo "no change"
           git push origin "HEAD:$GITHUB_REF_NAME" || echo "push raced; will retry next run"
 
-      - name: Clear stale error file on success
-        if: success()
-        working-directory: .
-        run: rm -f dist/LAST_BUILD_ERRORS.txt || true
-
       - name: Show what was produced
         if: always()
         run: ls -la build/libs || true
@@ -147,7 +142,11 @@ jobs:
           cp /tmp/built.jar "dist/$(basename "$JAR")"
           echo "Built from ${GITHUB_SHA} on $(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/BUILD_INFO.txt
 
-          git add dist
+          # Clear a stale failure report. Without this the file survives the fix that resolved it,
+          # and anything reading it later chases a problem that no longer exists.
+          rm -f dist/LAST_BUILD_ERRORS.txt
+
+          git add -A dist
           if git diff --cached --quiet; then
             echo "jar unchanged; nothing to commit"
           else
