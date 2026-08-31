@@ -26,6 +26,9 @@
     "result": {
       "item": "chronoly:electric_spear",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

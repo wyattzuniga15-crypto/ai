@@ -19,6 +19,9 @@
     "result": {
       "item": "chronoly:bronze_helmet",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

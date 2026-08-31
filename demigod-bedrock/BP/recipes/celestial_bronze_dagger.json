@@ -22,6 +22,9 @@
     "result": {
       "item": "chronoly:celestial_bronze_dagger",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

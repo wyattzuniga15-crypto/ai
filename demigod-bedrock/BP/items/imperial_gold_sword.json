@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_imperial_gold_sword"
-      },
+      "minecraft:icon": "chronoly_imperial_gold_sword",
       "minecraft:display_name": {
         "value": "Imperial Gold Sword"
       },

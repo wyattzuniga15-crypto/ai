@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_helm_of_darkness"
-      },
+      "minecraft:icon": "chronoly_helm_of_darkness",
       "minecraft:display_name": {
         "value": "Helm of Darkness"
       },

@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_celestial_bronze_dagger"
-      },
+      "minecraft:icon": "chronoly_celestial_bronze_dagger",
       "minecraft:display_name": {
         "value": "Celestial Bronze Dagger"
       },

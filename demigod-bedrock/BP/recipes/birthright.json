@@ -18,6 +18,9 @@
     "result": {
       "item": "chronoly:birthright",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

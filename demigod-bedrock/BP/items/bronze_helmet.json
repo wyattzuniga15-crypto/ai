@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_bronze_helmet"
-      },
+      "minecraft:icon": "chronoly_bronze_helmet",
       "minecraft:display_name": {
         "value": "Celestial Bronze Helmet"
       },

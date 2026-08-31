@@ -21,6 +21,9 @@
     "result": {
       "item": "chronoly:stygian_iron_ingot",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

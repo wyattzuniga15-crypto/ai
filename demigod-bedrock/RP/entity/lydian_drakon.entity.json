@@ -22,7 +22,11 @@
       },
       "render_controllers": [
         "controller.render.default"
-      ]
+      ],
+      "spawn_egg": {
+        "base_color": "#5a5b2e",
+        "overlay_color": "#7de84d"
+      }
     }
   }
 }

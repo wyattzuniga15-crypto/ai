@@ -18,6 +18,9 @@
     "result": {
       "item": "chronoly:golden_drachma",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

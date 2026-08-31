@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:ambrosia",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_ambrosia"
-      },
+      "minecraft:icon": "chronoly_ambrosia",
       "minecraft:display_name": {
         "value": "Ambrosia"
       },
@@ -23,7 +21,8 @@
       "minecraft:use_modifiers": {
         "use_duration": 1.2,
         "movement_modifier": 0.35
-      }
+      },
+      "minecraft:use_animation": "eat"
     }
   }
 }

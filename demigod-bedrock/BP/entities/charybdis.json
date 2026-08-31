@@ -91,9 +91,13 @@
       "minecraft:loot": {
         "table": "loot_tables/entities/charybdis.json"
       },
-      "minecraft:breathability": "water",
       "minecraft:underwater_movement": {
         "value": 0.1
+      },
+      "minecraft:breathable": {
+        "breathes_water": true,
+        "breathes_air": true,
+        "total_supply": 15
       }
     }
   }

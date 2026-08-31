@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_bronze_chestplate"
-      },
+      "minecraft:icon": "chronoly_bronze_chestplate",
       "minecraft:display_name": {
         "value": "Celestial Bronze Chestplate"
       },

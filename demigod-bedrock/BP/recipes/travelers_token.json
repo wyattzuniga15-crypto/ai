@@ -21,6 +21,9 @@
     "result": {
       "item": "chronoly:travelers_token",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

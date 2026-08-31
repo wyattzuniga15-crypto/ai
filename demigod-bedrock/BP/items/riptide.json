@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_riptide"
-      },
+      "minecraft:icon": "chronoly_riptide",
       "minecraft:display_name": {
         "value": "Riptide"
       },

@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:stygian_iron_ingot",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_stygian_iron_ingot"
-      },
+      "minecraft:icon": "chronoly_stygian_iron_ingot",
       "minecraft:display_name": {
         "value": "Stygian Iron Ingot"
       },

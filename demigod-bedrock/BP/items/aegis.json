@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_aegis"
-      },
+      "minecraft:icon": "chronoly_aegis",
       "minecraft:display_name": {
         "value": "Aegis"
       },

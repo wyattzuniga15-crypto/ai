@@ -26,6 +26,9 @@
     "result": {
       "item": "chronoly:backbiter",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

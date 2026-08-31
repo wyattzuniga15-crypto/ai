@@ -23,6 +23,9 @@
     "result": {
       "item": "chronoly:stygian_iron_sword",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

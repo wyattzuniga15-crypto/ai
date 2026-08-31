@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:greek_fire",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_greek_fire"
-      },
+      "minecraft:icon": "chronoly_greek_fire",
       "minecraft:display_name": {
         "value": "Greek Fire"
       },

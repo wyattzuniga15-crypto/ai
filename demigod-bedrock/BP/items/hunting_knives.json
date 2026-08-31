@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_hunting_knives"
-      },
+      "minecraft:icon": "chronoly_hunting_knives",
       "minecraft:display_name": {
         "value": "Hunting Knives"
       },

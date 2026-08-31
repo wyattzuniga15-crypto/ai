@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:mist_glass",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_mist_glass"
-      },
+      "minecraft:icon": "chronoly_mist_glass",
       "minecraft:display_name": {
         "value": "Mist Glass"
       },

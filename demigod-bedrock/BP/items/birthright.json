@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_birthright"
-      },
+      "minecraft:icon": "chronoly_birthright",
       "minecraft:display_name": {
         "value": "Birthright"
       },

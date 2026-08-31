@@ -19,6 +19,9 @@
     "result": {
       "item": "chronoly:bronze_boots",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

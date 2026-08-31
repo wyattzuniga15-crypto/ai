@@ -21,6 +21,9 @@
     "result": {
       "item": "chronoly:greek_fire",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_yankees_cap"
-      },
+      "minecraft:icon": "chronoly_yankees_cap",
       "minecraft:display_name": {
         "value": "Yankees Cap"
       },

@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_celestial_bronze_sword"
-      },
+      "minecraft:icon": "chronoly_celestial_bronze_sword",
       "minecraft:display_name": {
         "value": "Celestial Bronze Sword"
       },

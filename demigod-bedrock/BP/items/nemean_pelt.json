@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_nemean_pelt"
-      },
+      "minecraft:icon": "chronoly_nemean_pelt",
       "minecraft:display_name": {
         "value": "Nemean Pelt"
       },

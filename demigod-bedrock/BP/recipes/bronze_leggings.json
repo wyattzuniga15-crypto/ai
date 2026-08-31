@@ -20,6 +20,9 @@
     "result": {
       "item": "chronoly:bronze_leggings",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

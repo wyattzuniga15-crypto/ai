@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_travelers_token"
-      },
+      "minecraft:icon": "chronoly_travelers_token",
       "minecraft:display_name": {
         "value": "Traveler's Token"
       },

@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_bronze_boots"
-      },
+      "minecraft:icon": "chronoly_bronze_boots",
       "minecraft:display_name": {
         "value": "Celestial Bronze Boots"
       },

@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:nectar",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_nectar"
-      },
+      "minecraft:icon": "chronoly_nectar",
       "minecraft:display_name": {
         "value": "Nectar"
       },
@@ -23,7 +21,8 @@
       "minecraft:use_modifiers": {
         "use_duration": 1.0,
         "movement_modifier": 0.35
-      }
+      },
+      "minecraft:use_animation": "eat"
     }
   }
 }

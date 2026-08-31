@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_bronze_leggings"
-      },
+      "minecraft:icon": "chronoly_bronze_leggings",
       "minecraft:display_name": {
         "value": "Celestial Bronze Leggings"
       },

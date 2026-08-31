@@ -23,6 +23,9 @@
     "result": {
       "item": "chronoly:imperial_gold_sword",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

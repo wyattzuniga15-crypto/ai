@@ -26,6 +26,9 @@
     "result": {
       "item": "chronoly:celestial_bronze_ingot",
       "count": 2
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

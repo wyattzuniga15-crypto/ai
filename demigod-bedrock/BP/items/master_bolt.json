@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_master_bolt"
-      },
+      "minecraft:icon": "chronoly_master_bolt",
       "minecraft:display_name": {
         "value": "The Master Bolt"
       },

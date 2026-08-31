@@ -26,6 +26,9 @@
     "result": {
       "item": "chronoly:nectar",
       "count": 2
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

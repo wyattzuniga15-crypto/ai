@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_electric_spear"
-      },
+      "minecraft:icon": "chronoly_electric_spear",
       "minecraft:display_name": {
         "value": "Electric Spear"
       },

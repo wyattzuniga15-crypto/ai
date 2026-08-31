@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:imperial_gold_ingot",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_imperial_gold_ingot"
-      },
+      "minecraft:icon": "chronoly_imperial_gold_ingot",
       "minecraft:display_name": {
         "value": "Imperial Gold Ingot"
       },

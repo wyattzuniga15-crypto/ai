@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_backbiter"
-      },
+      "minecraft:icon": "chronoly_backbiter",
       "minecraft:display_name": {
         "value": "Backbiter"
       },

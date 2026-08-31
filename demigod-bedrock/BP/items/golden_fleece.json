@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_golden_fleece"
-      },
+      "minecraft:icon": "chronoly_golden_fleece",
       "minecraft:display_name": {
         "value": "The Golden Fleece"
       },

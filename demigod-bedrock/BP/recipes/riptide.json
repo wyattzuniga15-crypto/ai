@@ -26,6 +26,9 @@
     "result": {
       "item": "chronoly:riptide",
       "count": 1
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }

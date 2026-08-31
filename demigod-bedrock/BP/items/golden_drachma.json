@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:golden_drachma",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_golden_drachma"
-      },
+      "minecraft:icon": "chronoly_golden_drachma",
       "minecraft:display_name": {
         "value": "Golden Drachma"
       },

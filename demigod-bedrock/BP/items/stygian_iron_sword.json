@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_stygian_iron_sword"
-      },
+      "minecraft:icon": "chronoly_stygian_iron_sword",
       "minecraft:display_name": {
         "value": "Stygian Iron Sword"
       },

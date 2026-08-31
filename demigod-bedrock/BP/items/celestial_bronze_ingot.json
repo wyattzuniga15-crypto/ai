@@ -4,13 +4,11 @@
     "description": {
       "identifier": "chronoly:celestial_bronze_ingot",
       "menu_category": {
-        "category": "equipment"
+        "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "chronoly_celestial_bronze_ingot"
-      },
+      "minecraft:icon": "chronoly_celestial_bronze_ingot",
       "minecraft:display_name": {
         "value": "Celestial Bronze Ingot"
       },

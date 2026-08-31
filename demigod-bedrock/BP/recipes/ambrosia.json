@@ -23,6 +23,9 @@
     "result": {
       "item": "chronoly:ambrosia",
       "count": 2
+    },
+    "unlock": {
+      "context": "AlwaysUnlocked"
     }
   }
 }
