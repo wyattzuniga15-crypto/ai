@@ -13,6 +13,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import dev.chronoly.world.spawn.SpawnDirector;
 import net.minecraft.world.item.ItemStack;
 import dev.chronoly.core.favor.Tier;
+import dev.chronoly.flaw.FatalFlaws;
 import dev.chronoly.world.ChDimensions;
 import dev.chronoly.world.underworld.Judgment;
 import dev.chronoly.registry.ChAttachments;
@@ -117,6 +118,8 @@ public final class GameplayEvents {
         }
         player.sendSystemMessage(Component.literal(
                 "§7Press §fG§7 to use your birthright. §8/chronoly status tells you where you stand."));
+        player.sendSystemMessage(Component.literal(
+                FatalFlaws.describe(FatalFlaws.flawOf(god))));
     }
 
     private static String roll(ServerPlayer player) {
@@ -157,6 +160,7 @@ public final class GameplayEvents {
             // Ambrosia burn cools over real minutes — The Lightning Thief, ch. 4.
             if (data.ambrosiaBurn() > 0f) data.setAmbrosiaBurn(data.ambrosiaBurn() - 0.15f);
 
+            FatalFlaws.curiosityTick(player, data, (ServerLevel) player.level());
             returnRiptide(player, data);
             expireQuest(player, data);
             syncToClient(player, data);
@@ -253,6 +257,10 @@ public final class GameplayEvents {
             }
             Bosses.onBossDamaged(e.getEntity(), e.getSource(), e.getAmount());
         }
+        if (!e.isCanceled()) {
+            FatalFlaws.onDamaged(e);
+            FatalFlaws.onDealDamage(e);
+        }
     }
 
     /**
@@ -266,6 +274,10 @@ public final class GameplayEvents {
 
         DemigodData data = player.getData(ChAttachments.DEMIGOD.get());
         if (!data.isClaimed()) return;                            // mortals get the ordinary death
+
+        FatalFlaws.rememberKiller(player, data,
+                event.getSource().getEntity() instanceof LivingEntity k ? k : null);
+        FatalFlaws.onAllyDeath((ServerLevel) player.level(), player);
 
         event.setCanceled(true);
         player.setHealth(player.getMaxHealth() * 0.5f);

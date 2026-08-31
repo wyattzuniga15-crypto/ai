@@ -6,6 +6,7 @@ import dev.chronoly.attachment.DemigodData;
 import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
+import dev.chronoly.flaw.FatalFlaws;
 import dev.chronoly.quest.Oracle;
 import dev.chronoly.world.underworld.Judgment;
 import dev.chronoly.world.camp.CampBuilder;
@@ -55,6 +56,11 @@ public final class ChCommands {
                     god.substring(0, 1).toUpperCase() + god.substring(1),
                     favor, Tier.forFavor(favor), d.energy(), d.maxEnergy(),
                     d.overdraw() > 0 ? String.format(" §8| exhausted %.0f", d.overdraw()) : "")));
+            p.sendSystemMessage(Component.literal(FatalFlaws.describe(FatalFlaws.flawOf(god))));
+            if (d.hasQuest()) {
+                p.sendSystemMessage(Component.literal(
+                        "§6Quest: §fdestroy " + d.questTarget() + " §7in §f" + d.questPlace()));
+            }
             return 1;
         }));
 
