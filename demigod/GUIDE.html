@@ -1,0 +1,407 @@
+<title>Demigod Field Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#14181d; --ink-soft:#3b434d; --mute:#6b7078;
+    --ground:#f2efe8; --raised:#faf8f4; --line:#ddd6c9;
+    --bronze:#a8642c; --bronze-lit:#c98442; --verdigris:#3f7568;
+    --danger:#9d3b2f; --ok:#4a7a48;
+    --grid-cell:#e7e1d5; --grid-line:#c9bfab;
+    --shadow:0 1px 2px rgba(20,24,29,.06), 0 8px 24px rgba(20,24,29,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ink:#ece7dd; --ink-soft:#b6b0a5; --mute:#8a8f97;
+      --ground:#14181d; --raised:#1c2229; --line:#2c343d;
+      --bronze:#d9924e; --bronze-lit:#f0b370; --verdigris:#69a394;
+      --danger:#d4685a; --ok:#7fae76;
+      --grid-cell:#232b33; --grid-line:#39434e;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#ece7dd; --ink-soft:#b6b0a5; --mute:#8a8f97;
+    --ground:#14181d; --raised:#1c2229; --line:#2c343d;
+    --bronze:#d9924e; --bronze-lit:#f0b370; --verdigris:#69a394;
+    --danger:#d4685a; --ok:#7fae76;
+    --grid-cell:#232b33; --grid-line:#39434e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:Karla,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.6; margin:0;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 24px 96px}
+
+  /* ---- masthead ---- */
+  header{
+    border-bottom:1px solid var(--line); padding:72px 0 40px; margin-bottom:56px;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11px;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--bronze); margin:0 0 18px;
+  }
+  h1{
+    font-family:"Cormorant Garamond",Georgia,serif; font-weight:600;
+    font-size:clamp(44px,7vw,76px); line-height:1.02; letter-spacing:-.015em;
+    margin:0 0 20px; text-wrap:balance;
+  }
+  .standfirst{
+    font-size:19px; color:var(--ink-soft); max-width:60ch; margin:0 0 28px;
+  }
+  .meta{
+    display:flex; flex-wrap:wrap; gap:8px 10px;
+    font-family:"IBM Plex Mono",monospace; font-size:12px;
+  }
+  .chip{
+    border:1px solid var(--line); border-radius:2px; padding:4px 9px; color:var(--mute);
+  }
+  .chip strong{color:var(--ink); font-weight:500}
+
+  /* ---- the rule ---- */
+  .rule-card{
+    background:var(--raised); border:1px solid var(--line);
+    border-left:3px solid var(--bronze); padding:26px 28px; margin:0 0 56px;
+    box-shadow:var(--shadow);
+  }
+  .rule-card h2{margin-top:0}
+  .matrix{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-top:20px;
+  }
+  .matrix div{
+    font-family:"IBM Plex Mono",monospace; font-size:13px; line-height:1.5;
+    padding:12px 14px; background:var(--ground); border:1px solid var(--line);
+  }
+  .matrix .yes{border-left:2px solid var(--ok)}
+  .matrix .no{border-left:2px solid var(--danger)}
+
+  /* ---- sections ---- */
+  section{margin:0 0 72px; scroll-margin-top:24px}
+  h2{
+    font-family:"Cormorant Garamond",Georgia,serif; font-weight:600;
+    font-size:clamp(30px,4vw,42px); line-height:1.1; letter-spacing:-.01em;
+    margin:0 0 8px; text-wrap:balance;
+  }
+  .sec-note{color:var(--mute); font-size:15px; margin:0 0 28px; max-width:62ch}
+  h3{
+    font-family:Karla,sans-serif; font-size:15px; font-weight:700;
+    letter-spacing:.01em; margin:0 0 6px;
+  }
+  p{max-width:66ch}
+
+  /* ---- step sequence ---- */
+  .steps{display:grid; gap:2px; background:var(--line); border:1px solid var(--line)}
+  .step{background:var(--raised); padding:20px 22px; display:grid;
+        grid-template-columns:112px 1fr; gap:20px; align-items:start}
+  .step-label{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--bronze); padding-top:3px;
+  }
+  .step p{margin:0; font-size:15px; color:var(--ink-soft)}
+  .step code{
+    font-family:"IBM Plex Mono",monospace; font-size:13px;
+    background:var(--ground); border:1px solid var(--line); padding:1px 5px; color:var(--ink);
+  }
+  @media(max-width:640px){ .step{grid-template-columns:1fr; gap:6px} }
+
+  /* ---- parents ---- */
+  .parents{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px}
+  .parent{
+    background:var(--raised); border:1px solid var(--line); padding:18px 20px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .parent-name{
+    font-family:"Cormorant Garamond",serif; font-size:26px; font-weight:600; line-height:1;
+  }
+  .power{font-size:14px}
+  .power b{color:var(--bronze); font-weight:700}
+  .flaw{
+    font-size:13px; color:var(--ink-soft); border-top:1px dashed var(--line);
+    padding-top:10px; margin-top:auto;
+  }
+  .flaw b{color:var(--verdigris)}
+  .cost{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--mute);
+    letter-spacing:.04em;
+  }
+
+  /* ---- crafting grids ---- */
+  .recipes{display:grid; grid-template-columns:repeat(auto-fill,minmax(276px,1fr)); gap:20px}
+  .recipe{background:var(--raised); border:1px solid var(--line); padding:18px}
+  .recipe-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:14px}
+  .recipe-name{font-weight:700; font-size:15px}
+  .yield{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--bronze)}
+  .grid{display:grid; gap:3px; width:max-content; margin-bottom:12px}
+  .cell{
+    width:52px; height:52px; background:var(--grid-cell); border:1px solid var(--grid-line);
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-family:"IBM Plex Mono",monospace; font-size:9px; line-height:1.15;
+    color:var(--ink-soft); padding:3px; overflow:hidden;
+  }
+  .cell.empty{background:transparent; border-style:dashed; opacity:.45}
+  .cell.key{border-color:var(--bronze); color:var(--ink)}
+  .shapeless{
+    font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-soft);
+    line-height:1.7;
+  }
+  .shapeless span{
+    display:inline-block; border:1px solid var(--grid-line); background:var(--grid-cell);
+    padding:3px 8px; margin:0 4px 4px 0;
+  }
+  .tag{
+    font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--mute);
+  }
+
+  /* ---- bosses ---- */
+  .bosses{display:grid; gap:2px; background:var(--line); border:1px solid var(--line)}
+  .boss{background:var(--raised); padding:20px 22px; display:grid;
+        grid-template-columns:1fr auto; gap:6px 24px; align-items:start}
+  .boss-name{font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:600; line-height:1.1}
+  .boss-stats{
+    font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--mute);
+    text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;
+  }
+  .boss-how{grid-column:1/-1; font-size:15px; color:var(--ink-soft); max-width:70ch; margin:4px 0 0}
+  .boss-how b{color:var(--bronze); font-weight:700}
+  .drop{
+    grid-column:1/-1; font-family:"IBM Plex Mono",monospace; font-size:11px;
+    color:var(--verdigris); letter-spacing:.04em; margin-top:6px;
+  }
+
+  /* ---- commands ---- */
+  .cmds{width:100%; border-collapse:collapse; font-size:14px}
+  .cmds td{border-bottom:1px solid var(--line); padding:11px 12px 11px 0; vertical-align:top}
+  .cmds tr:last-child td{border-bottom:none}
+  .cmds td:first-child{
+    font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--bronze);
+    white-space:nowrap; padding-right:22px;
+  }
+  .cmds td:last-child{color:var(--ink-soft)}
+  .table-scroll{overflow-x:auto}
+
+  /* ---- status ---- */
+  .status{background:var(--raised); border:1px solid var(--line); padding:24px 26px}
+  .status ul{margin:0; padding-left:20px}
+  .status li{margin-bottom:7px; color:var(--ink-soft); font-size:15px}
+  .status li b{color:var(--ink)}
+
+  footer{border-top:1px solid var(--line); padding-top:24px; color:var(--mute); font-size:13px}
+  a{color:var(--bronze)}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Demigod: Chronicles of Olympus — field guide</p>
+  <h1>You are going to be found before you are ready.</h1>
+  <p class="standfirst">
+    A Percy Jackson mod for Minecraft 1.21.11. Everything below is read straight out of the
+    build — the recipes are the shipped JSON, the numbers are the shipped constants.
+  </p>
+  <div class="meta">
+    <span class="chip"><strong>8</strong> parents</span>
+    <span class="chip"><strong>8</strong> bosses</span>
+    <span class="chip"><strong>23</strong> recipes</span>
+    <span class="chip"><strong>27</strong> items</span>
+    <span class="chip"><strong>2</strong> dimensions</span>
+    <span class="chip">NeoForge <strong>21.11</strong></span>
+  </div>
+</header>
+
+<div class="rule-card">
+  <h2>The one rule</h2>
+  <p>Everything else in the mod is downstream of this. Learn it before you need it.</p>
+  <div class="matrix">
+    <div class="no">celestial bronze&nbsp;→&nbsp;a cow<br><b>passes straight through</b></div>
+    <div class="no">an iron sword&nbsp;→&nbsp;a zombie<br><b>passes straight through</b></div>
+    <div class="yes">celestial bronze&nbsp;→&nbsp;a monster<br><b>lands</b></div>
+    <div class="yes">anything&nbsp;→&nbsp;you<br><b>lands. Both sides.</b></div>
+  </div>
+</div>
+
+<section>
+  <h2>How it starts</h2>
+  <p class="sec-note">Nobody hands you a book. This is the order it actually happens in.</p>
+  <div class="steps">
+    <div class="step"><div class="step-label">Found</div><p>
+      A satyr falls into step beside you and tells you not to panic. Four conversations over
+      several minutes. He gives you two drachmas, then a bronze knife, and the only lesson that
+      matters: ordinary metal will not touch them.</p></div>
+    <div class="step"><div class="step-label">Claimed</div><p>
+      Kill something that should not exist. A god speaks for you, everyone on the server hears it,
+      and you are told your fatal flaw in the same breath. Big Three are 3% combined.</p></div>
+    <div class="step"><div class="step-label">Armed</div><p>
+      Forge celestial bronze. Until you do, monsters are invulnerable to you and you are not
+      invulnerable to them. <code>/chronoly help</code> lists everything.</p></div>
+    <div class="step"><div class="step-label">Hunted</div><p>
+      Favour raises your scent, and scent brings worse things. Past a threshold, digging down
+      stops working. Stand on gold, or inside camp's borders, and the world loses you.</p></div>
+    <div class="step"><div class="step-label">Dead</div><p>
+      You do not respawn. Your record is weighed and you land in Asphodel, Elysium or the Fields
+      of Punishment. Leaving costs a drachma — <code>/chronoly charon</code>.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>The eight parents</h2>
+  <p class="sec-note">
+    Press <b>G</b> or use <code>/chronoly cast</code>. Energy regenerates on your parent's terms —
+    a child of Poseidon refills in water and barely at all in a desert.
+  </p>
+  <div class="parents" id="parents"></div>
+</section>
+
+<section>
+  <h2>Crafting</h2>
+  <p class="sec-note">
+    Every recipe in the build. Celestial bronze is the gate: almost nothing else matters until
+    you have some.
+  </p>
+  <div class="recipes" id="recipes"></div>
+</section>
+
+<section>
+  <h2>The named eight</h2>
+  <p class="sec-note">
+    Summoned with <code>/chronoly summon &lt;name&gt;</code> (operator). Two of them cannot be
+    beaten by damage at all. The five legendary relics are not craftable — each comes off the
+    thing that guarded it.
+  </p>
+  <div class="bosses" id="bosses"></div>
+</section>
+
+<section>
+  <h2>Commands</h2>
+  <div class="table-scroll">
+    <table class="cmds" id="cmds"></table>
+  </div>
+</section>
+
+<section>
+  <h2>Where it actually stands</h2>
+  <div class="status">
+    <ul>
+      <li><b>Bosses wear vanilla bodies.</b> The Minotaur is a ravager with 220 health, a name and
+        a horn-break phase. Custom models are the next art pass; the fights are real now.</li>
+      <li><b>Nothing has been tested at runtime by its author.</b> CI compiles and packages the
+        mod but never launches a game. Every claim here is true of the code, not of a playthrough.</li>
+      <li><b>No guidebook in-game.</b> The advancement tree is currently the only in-world thing
+        pointing you at what to do next, which is why its descriptions carry instructions.</li>
+      <li><b>Abilities are one per parent.</b> The design calls for four tiers each; tier one is
+        what exists.</li>
+      <li><b>Camp and Olympus are built by command</b>, not generated into the world.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  Unofficial fan work. <em>Percy Jackson &amp; the Olympians</em> belongs to Rick Riordan and
+  Disney; this project is non-commercial and unaffiliated.
+</footer>
+</div>
+
+<script>
+const PARENTS = [
+  ["Poseidon","Earthshaker","Everything touching the ground takes 8, is thrown, and is slowed.",45,"Personal loyalty","formidable beside a hurt ally; nearly useless after watching one die"],
+  ["Zeus","Lightning Bolt","A real bolt where you are looking, up to 48 blocks.",45,"—","(shares the Big Three weight; flaw table lists fear of failure)"],
+  ["Hades","Shadow Travel","Step out up to 32 blocks away, through walls, and arrive nauseous.",35,"Holding grudges","anything that has killed you takes 75% more, forever; everything else 15% less"],
+  ["Athena","Tactical Sight","Every hostile within 28 blocks glows through walls, and it counts them.",25,"Hubris","+25% damage; struck while barely scratched, you stagger and take 60% more"],
+  ["Ares","War Cry","Breaks morale in 10 blocks; rage and resistance for you.",30,"Wrath","the lower your health the harder you hit"],
+  ["Apollo","Healing Hymn","Heals everyone but monsters within 8 blocks for 8, plus regeneration.",30,"Vanity","stronger with an audience, weaker alone"],
+  ["Hermes","Blink","Instant translocation up to 20 blocks, chainable while energy holds.",25,"Recklessness","fall damage doubled"],
+  ["Hecate","Witchlight","Raises two glowing dead to fight for you, and night vision.",25,"Curiosity","you see in the dark; the dark is more interested in you"],
+];
+document.getElementById("parents").innerHTML = PARENTS.map(([n,p,d,c,f,fd]) => `
+  <div class="parent">
+    <div class="parent-name">${n}</div>
+    <div class="power"><b>${p}</b> — ${d}</div>
+    <div class="cost">${c} energy</div>
+    <div class="flaw"><b>${f}</b> · ${fd}</div>
+  </div>`).join("");
+
+const SHAPED = [
+  ["Celestial Bronze Ingot",4,["GCG","CIC","GCG"],{G:"gold ingot",C:"copper ingot",I:"nether star"}],
+  ["Celestial Bronze Ingot",2,["GCG","CBC","GCG"],{G:"gold ingot",C:"copper ingot",B:"blaze rod"}],
+  ["Celestial Bronze Sword",1,[" I "," I "," S "],{I:"bronze ingot",S:"stick"}],
+  ["Celestial Bronze Dagger",1,["I","S"],{I:"bronze ingot",S:"stick"}],
+  ["Imperial Gold Sword",1,[" I "," I "," S "],{I:"imperial gold",S:"stick"}],
+  ["Stygian Iron Sword",1,[" I "," I "," S "],{I:"stygian iron",S:"stick"}],
+  ["Riptide",1,[" IB","IPI","BI "],{I:"bronze ingot",B:"ink sac",P:"bronze sword"}],
+  ["Backbiter",1,[" B "," S "," H "],{B:"bronze ingot",S:"iron ingot",H:"stick"}],
+  ["Hunting Knives",1,["I I","S S"],{I:"iron ingot",S:"Mist-glass"}],
+  ["Electric Spear",1,[" I "," R "," S "],{I:"imperial gold",R:"lightning rod",S:"stick"}],
+  ["Yankees Cap",1,["MMM","MPM"],{M:"Mist-glass",P:"blue wool"}],
+  ["Ambrosia",2,["GGG","GHG","GGG"],{G:"glowstone dust",H:"honeycomb"}],
+  ["Nectar",2,["G G","GHG"," B "],{G:"glowstone dust",H:"honey bottle",B:"glass bottle"}],
+  ["Bronze Helmet",1,["III","I I"],{I:"bronze ingot"}],
+  ["Bronze Cuirass",1,["I I","III","III"],{I:"bronze ingot"}],
+  ["Bronze Greaves",1,["III","I I","I I"],{I:"bronze ingot"}],
+  ["Bronze Sandals",1,["I I","I I"],{I:"bronze ingot"}],
+];
+const SHAPELESS = [
+  ["Golden Drachma",1,["gold nugget","gold nugget"]],
+  ["Imperial Gold Ingot",1,["celestial bronze ingot","gold block","glowstone dust"]],
+  ["Stygian Iron Ingot",1,["celestial bronze ingot","netherite scrap","soul sand"]],
+  ["Mist-glass",2,["glass","phantom membrane"]],
+  ["Greek Fire",1,["glass bottle","blaze powder","magma cream"]],
+  ["Traveller's Token",1,["golden drachma","golden drachma","ender pearl"]],
+];
+document.getElementById("recipes").innerHTML =
+  SHAPED.map(([name,n,pat,key]) => {
+    const cols = Math.max(...pat.map(r => r.length));
+    const cells = pat.map(row =>
+      Array.from({length:cols}, (_,i) => row[i] || " ").map(ch =>
+        ch === " " ? '<div class="cell empty"></div>'
+                   : `<div class="cell key">${key[ch]}</div>`).join("")).join("");
+    return `<div class="recipe">
+      <div class="recipe-head"><span class="recipe-name">${name}</span><span class="yield">×${n}</span></div>
+      <div class="grid" style="grid-template-columns:repeat(${cols},52px)">${cells}</div>
+      <div class="tag">shaped</div></div>`;
+  }).join("") +
+  SHAPELESS.map(([name,n,ing]) => `
+    <div class="recipe">
+      <div class="recipe-head"><span class="recipe-name">${name}</span><span class="yield">×${n}</span></div>
+      <div class="shapeless">${ing.map(i=>`<span>${i}</span>`).join("")}</div>
+      <div class="tag">shapeless — any arrangement</div></div>`).join("");
+
+const BOSSES = [
+  ["The Minotaur",220,12,"Charges in straight lines. At half health a horn snaps off and it gets <b>faster</b>, not weaker.",null],
+  ["The Hydra",300,9,"Hit it with anything that is not fire and heads grow back and it heals. <b>Cauterise, or you are making more of it.</b>",'drops the Golden Fleece'],
+  ["Cerberus",260,10,"A second head at two thirds, a third at one third, and each one calls the pack. Three times normal size.",'drops the Helm of Darkness'],
+  ["Alecto",140,8,"Fast, flies, blinks away when you close. The one fight that is about catching something.",null],
+  ["Medusa",180,7,"<b>Looking at her turns you to stone.</b> Line of sight plus a narrow facing cone: you slow, your mining stalls, you take damage. Look away and it stops.",'drops Aegis'],
+  ["The Nemean Lion",340,13,"The hide turns everything. Every seven seconds it roars and <b>the mouth is open for two</b> — that window is the only time a blow lands.",'drops the Nemean Pelt'],
+  ["The Chimera",300,14,"Fire and poison on a cycle within 14 blocks. The straightforward one.",null],
+  ["The Lydian Drakon",420,16,"The hardest thing in the mod. Poisons everything standing near it, permanently.",'drops the Master Bolt'],
+];
+document.getElementById("bosses").innerHTML = BOSSES.map(([n,hp,dmg,how,drop]) => `
+  <div class="boss">
+    <div class="boss-name">${n}</div>
+    <div class="boss-stats">${hp} HP · ${dmg} dmg</div>
+    <p class="boss-how">${how}</p>
+    ${drop ? `<div class="drop">▸ ${drop}</div>` : ""}
+  </div>`).join("");
+
+const CMDS = [
+  ["/chronoly help","Everything, including the rule that matters."],
+  ["/chronoly status","Parent, favour, tier, energy, exhaustion, flaw, quest."],
+  ["/chronoly cast","Your birthright. Same as pressing G."],
+  ["/chronoly prophecy","The Oracle names a boss, a place and a cost, and binds you to it."],
+  ["/chronoly quest","What you were sent to do, and how long is left."],
+  ["/chronoly camp ward","Whether the world can currently smell you."],
+  ["/chronoly travel underworld|olympus|home","Olympus needs you claimed. Leaving the Underworld needs a coin."],
+  ["/chronoly charon","A drachma buys the crossing out."],
+  ["/chronoly iris &lt;player&gt;","Needs water, open sky and daylight. A drachma."],
+  ["/chronoly deliver &lt;player&gt;","Hermes Express. Posts what is in your hand. A drachma."],
+  ["/chronoly olympus &lt;god&gt;","Petition a throne. Only your own parent answers."],
+  ["/chronoly claim &lt;god&gt;","Operator. Assign parentage directly."],
+  ["/chronoly summon &lt;boss&gt;","Operator. Eight names."],
+  ["/chronoly camp build","Operator. Raises Camp Half-Blood where you stand."],
+  ["/chronoly olympus build","Operator. Raises the throne room."],
+];
+document.getElementById("cmds").innerHTML = CMDS.map(([c,d]) =>
+  `<tr><td>${c}</td><td>${d}</td></tr>`).join("");
+</script>
