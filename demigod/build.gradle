@@ -156,3 +156,24 @@ tasks.register('whatIsAKeyCategory') {
         }
     }
 }
+
+// KeyMapping wants a Category object in 1.21.11 rather than a String. Print what the class
+// actually offers, so a wrong guess costs one run instead of several.
+tasks.register('keyCategories') {
+    doLast {
+        sourceSets.main.compileClasspath.files.each { f ->
+            if (!f.name.endsWith('.jar') || !f.exists()) return
+            try {
+                new java.util.zip.ZipFile(f).withCloseable { zip ->
+                    zip.entries().each { e ->
+                        if (e.name ==~ /.*KeyMapping.*\.class/
+                                || e.name ==~ /.*ClientPacketDistributor\.class/
+                                || e.name ==~ /.*PacketDistributor\.class/) {
+                            println "  ${e.name}"
+                        }
+                    }
+                }
+            } catch (ignored) { }
+        }
+    }
+}

@@ -55,6 +55,9 @@ jobs:
       - name: Where is Identifier?
         run: gradle whereIsIdentifier --no-daemon --console=plain -q || true
 
+      - name: Key mapping and packet distributor classes
+        run: gradle keyCategories --no-daemon --console=plain -q || true
+
       # No --stacktrace: it buries javac's actual errors under 200 lines of Gradle internals,
       # and the log tail is the only part that gets read.
       - name: Build

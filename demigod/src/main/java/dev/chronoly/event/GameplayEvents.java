@@ -7,7 +7,9 @@ import dev.chronoly.core.energy.EnergyProfile;
 import dev.chronoly.core.energy.Surroundings;
 import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
+import dev.chronoly.net.s2c.DemigodSnapshotPayload;
 import dev.chronoly.registry.ChItems;
+import net.neoforged.neoforge.network.PacketDistributor;
 import dev.chronoly.world.spawn.SpawnDirector;
 import net.minecraft.world.item.ItemStack;
 import dev.chronoly.core.favor.Tier;
@@ -154,7 +156,16 @@ public final class GameplayEvents {
 
             returnRiptide(player, data);
             expireQuest(player, data);
+            syncToClient(player, data);
         }
+    }
+
+    /** Push the player's own state so the HUD draws something true rather than something guessed. */
+    private static void syncToClient(ServerPlayer player, DemigodData data) {
+        String god = data.parentage().orElse("");
+        PacketDistributor.sendToPlayer(player, new DemigodSnapshotPayload(
+                god, data.energy(), data.overdraw(), data.maxEnergy(),
+                god.isEmpty() ? 0f : data.favorWith(god)));
     }
 
     /**

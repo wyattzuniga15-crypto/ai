@@ -7,12 +7,12 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /**
- * The full private view of a player's own state, sent on join, respawn, and dimension change.
+ * The player's own state, pushed to their client so the HUD has something true to draw.
  *
- * <p>ARCHITECTURE §5.1 — the server owns all game state; the client owns only presentation. This
- * payload is a snapshot, never a request.
+ * <p>ARCHITECTURE §5.1 — the server owns all game state; this is a snapshot, never a request.
  */
-public record DemigodSnapshotPayload(String parentage, float energy, float overdraw)
+public record DemigodSnapshotPayload(String parentage, float energy, float overdraw,
+                                     float maxEnergy, float favor)
         implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<DemigodSnapshotPayload> TYPE =
@@ -23,6 +23,8 @@ public record DemigodSnapshotPayload(String parentage, float energy, float overd
                     ByteBufCodecs.STRING_UTF8, DemigodSnapshotPayload::parentage,
                     ByteBufCodecs.FLOAT, DemigodSnapshotPayload::energy,
                     ByteBufCodecs.FLOAT, DemigodSnapshotPayload::overdraw,
+                    ByteBufCodecs.FLOAT, DemigodSnapshotPayload::maxEnergy,
+                    ByteBufCodecs.FLOAT, DemigodSnapshotPayload::favor,
                     DemigodSnapshotPayload::new);
 
     @Override
