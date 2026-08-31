@@ -1,0 +1,28 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "chronoly:ambrosia"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "GGG",
+      "GHG",
+      "GGG"
+    ],
+    "key": {
+      "G": {
+        "item": "minecraft:glowstone_dust"
+      },
+      "H": {
+        "item": "minecraft:honeycomb"
+      }
+    },
+    "result": {
+      "item": "chronoly:ambrosia",
+      "count": 2
+    }
+  }
+}

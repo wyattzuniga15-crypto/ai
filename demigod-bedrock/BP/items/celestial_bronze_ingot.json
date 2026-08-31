@@ -1,0 +1,20 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:item": {
+    "description": {
+      "identifier": "chronoly:celestial_bronze_ingot",
+      "menu_category": {
+        "category": "equipment"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "chronoly_celestial_bronze_ingot"
+      },
+      "minecraft:display_name": {
+        "value": "Celestial Bronze Ingot"
+      },
+      "minecraft:max_stack_size": 64
+    }
+  }
+}

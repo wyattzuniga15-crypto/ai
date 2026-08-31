@@ -1,0 +1,245 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.chronoly.nemean_lion",
+        "texture_width": 128,
+        "texture_height": 128,
+        "visible_bounds_width": 6,
+        "visible_bounds_height": 5,
+        "visible_bounds_offset": [
+          0,
+          2,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "root",
+          "pivot": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "body",
+          "pivot": [
+            0,
+            20,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8,
+                13,
+                -13
+              ],
+              "size": [
+                16,
+                14,
+                26
+              ],
+              "uv": [
+                0,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "head",
+          "pivot": [
+            0,
+            27,
+            -14
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -5,
+                23,
+                -23
+              ],
+              "size": [
+                10,
+                10,
+                9
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "tail",
+          "pivot": [
+            0,
+            26,
+            13
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1,
+                25,
+                13
+              ],
+              "size": [
+                2,
+                2,
+                12
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "mane",
+          "pivot": [
+            0,
+            26,
+            -11
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8,
+                18,
+                -15
+              ],
+              "size": [
+                16,
+                16,
+                8
+              ],
+              "uv": [
+                64,
+                0
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "leg0",
+          "pivot": [
+            -6,
+            13,
+            -9
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8.5,
+                0,
+                -11.5
+              ],
+              "size": [
+                5,
+                13,
+                5
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "leg1",
+          "pivot": [
+            -6,
+            13,
+            9
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8.5,
+                0,
+                6.5
+              ],
+              "size": [
+                5,
+                13,
+                5
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "leg2",
+          "pivot": [
+            6,
+            13,
+            -9
+          ],
+          "cubes": [
+            {
+              "origin": [
+                3.5,
+                0,
+                -11.5
+              ],
+              "size": [
+                5,
+                13,
+                5
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "leg3",
+          "pivot": [
+            6,
+            13,
+            9
+          ],
+          "cubes": [
+            {
+              "origin": [
+                3.5,
+                0,
+                6.5
+              ],
+              "size": [
+                5,
+                13,
+                5
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        }
+      ]
+    }
+  ]
+}

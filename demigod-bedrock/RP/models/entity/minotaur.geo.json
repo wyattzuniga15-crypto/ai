@@ -1,0 +1,223 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.chronoly.minotaur",
+        "texture_width": 128,
+        "texture_height": 128,
+        "visible_bounds_width": 6,
+        "visible_bounds_height": 5,
+        "visible_bounds_offset": [
+          0,
+          2,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "root",
+          "pivot": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "body",
+          "pivot": [
+            0,
+            16,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -9,
+                16,
+                -6
+              ],
+              "size": [
+                18,
+                16,
+                12
+              ],
+              "uv": [
+                0,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "head",
+          "pivot": [
+            0,
+            32,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -5,
+                32,
+                -5
+              ],
+              "size": [
+                10,
+                10,
+                10
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            },
+            {
+              "origin": [
+                -8,
+                40,
+                -1
+              ],
+              "size": [
+                3,
+                6,
+                3
+              ],
+              "uv": [
+                64,
+                0
+              ]
+            },
+            {
+              "origin": [
+                5,
+                40,
+                -1
+              ],
+              "size": [
+                3,
+                6,
+                3
+              ],
+              "uv": [
+                64,
+                0
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "left_arm",
+          "pivot": [
+            11.5,
+            30,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                9.0,
+                14,
+                -2.5
+              ],
+              "size": [
+                5,
+                16,
+                5
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "right_arm",
+          "pivot": [
+            -11.5,
+            30,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -14.0,
+                14,
+                -2.5
+              ],
+              "size": [
+                5,
+                16,
+                5
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "left_leg",
+          "pivot": [
+            5,
+            16,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                2,
+                0,
+                -3
+              ],
+              "size": [
+                6,
+                16,
+                6
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "right_leg",
+          "pivot": [
+            -5,
+            16,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8,
+                0,
+                -3
+              ],
+              "size": [
+                6,
+                16,
+                6
+              ],
+              "uv": [
+                64,
+                40
+              ]
+            }
+          ],
+          "parent": "root"
+        }
+      ]
+    }
+  ]
+}

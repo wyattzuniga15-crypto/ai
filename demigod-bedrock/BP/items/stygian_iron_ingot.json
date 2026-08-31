@@ -1,0 +1,20 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:item": {
+    "description": {
+      "identifier": "chronoly:stygian_iron_ingot",
+      "menu_category": {
+        "category": "equipment"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "chronoly_stygian_iron_ingot"
+      },
+      "minecraft:display_name": {
+        "value": "Stygian Iron Ingot"
+      },
+      "minecraft:max_stack_size": 64
+    }
+  }
+}

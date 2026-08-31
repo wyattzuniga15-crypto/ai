@@ -1,0 +1,90 @@
+{
+  "resource_pack_name": "chronoly",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "chronoly_golden_drachma": {
+      "textures": "textures/items/golden_drachma"
+    },
+    "chronoly_celestial_bronze_ingot": {
+      "textures": "textures/items/celestial_bronze_ingot"
+    },
+    "chronoly_imperial_gold_ingot": {
+      "textures": "textures/items/imperial_gold_ingot"
+    },
+    "chronoly_stygian_iron_ingot": {
+      "textures": "textures/items/stygian_iron_ingot"
+    },
+    "chronoly_mist_glass": {
+      "textures": "textures/items/mist_glass"
+    },
+    "chronoly_greek_fire": {
+      "textures": "textures/items/greek_fire"
+    },
+    "chronoly_ambrosia": {
+      "textures": "textures/items/ambrosia"
+    },
+    "chronoly_nectar": {
+      "textures": "textures/items/nectar"
+    },
+    "chronoly_celestial_bronze_sword": {
+      "textures": "textures/items/celestial_bronze_sword"
+    },
+    "chronoly_celestial_bronze_dagger": {
+      "textures": "textures/items/celestial_bronze_dagger"
+    },
+    "chronoly_imperial_gold_sword": {
+      "textures": "textures/items/imperial_gold_sword"
+    },
+    "chronoly_stygian_iron_sword": {
+      "textures": "textures/items/stygian_iron_sword"
+    },
+    "chronoly_riptide": {
+      "textures": "textures/items/riptide"
+    },
+    "chronoly_backbiter": {
+      "textures": "textures/items/backbiter"
+    },
+    "chronoly_hunting_knives": {
+      "textures": "textures/items/hunting_knives"
+    },
+    "chronoly_electric_spear": {
+      "textures": "textures/items/electric_spear"
+    },
+    "chronoly_bronze_helmet": {
+      "textures": "textures/items/bronze_helmet"
+    },
+    "chronoly_bronze_chestplate": {
+      "textures": "textures/items/bronze_chestplate"
+    },
+    "chronoly_bronze_leggings": {
+      "textures": "textures/items/bronze_leggings"
+    },
+    "chronoly_bronze_boots": {
+      "textures": "textures/items/bronze_boots"
+    },
+    "chronoly_nemean_pelt": {
+      "textures": "textures/items/nemean_pelt"
+    },
+    "chronoly_master_bolt": {
+      "textures": "textures/items/master_bolt"
+    },
+    "chronoly_helm_of_darkness": {
+      "textures": "textures/items/helm_of_darkness"
+    },
+    "chronoly_golden_fleece": {
+      "textures": "textures/items/golden_fleece"
+    },
+    "chronoly_aegis": {
+      "textures": "textures/items/aegis"
+    },
+    "chronoly_yankees_cap": {
+      "textures": "textures/items/yankees_cap"
+    },
+    "chronoly_travelers_token": {
+      "textures": "textures/items/travelers_token"
+    },
+    "chronoly_birthright": {
+      "textures": "textures/items/birthright"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:item": {
+    "description": {
+      "identifier": "chronoly:yankees_cap",
+      "menu_category": {
+        "category": "equipment"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "chronoly_yankees_cap"
+      },
+      "minecraft:display_name": {
+        "value": "Yankees Cap"
+      },
+      "minecraft:max_stack_size": 1
+    }
+  }
+}

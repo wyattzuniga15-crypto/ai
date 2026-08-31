@@ -1,0 +1,31 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "chronoly:backbiter"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      " B ",
+      " S ",
+      " H "
+    ],
+    "key": {
+      "B": {
+        "item": "chronoly:celestial_bronze_ingot"
+      },
+      "S": {
+        "item": "minecraft:iron_ingot"
+      },
+      "H": {
+        "item": "minecraft:stick"
+      }
+    },
+    "result": {
+      "item": "chronoly:backbiter",
+      "count": 1
+    }
+  }
+}

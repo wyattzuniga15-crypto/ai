@@ -1,0 +1,54 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Demigod: Chronicles of Olympus [BP]",
+    "description": "Percy Jackson total-content addon - behaviors, bosses, the Mist, favour, quests.",
+    "uuid": "ada1c205-729f-5fe7-b406-530b77e3598a",
+    "version": [
+      0,
+      1,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      0
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "8070b578-9897-54b3-b9c0-1494801d1223",
+      "version": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "6c8b287f-f077-566b-8838-38063746c054",
+      "version": [
+        0,
+        1,
+        0
+      ],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "1.13.0"
+    },
+    {
+      "uuid": "f9ac5f02-aac2-5ca2-93f3-c423a7d589a7",
+      "version": [
+        0,
+        1,
+        0
+      ]
+    }
+  ]
+}

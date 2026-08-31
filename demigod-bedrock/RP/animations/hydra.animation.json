@@ -1,0 +1,59 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.chronoly.hydra.move": {
+      "loop": true,
+      "bones": {
+        "leg0": {
+          "rotation": [
+            "math.cos(query.modified_distance_moved * 38.17) * 45 * query.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "leg3": {
+          "rotation": [
+            "math.cos(query.modified_distance_moved * 38.17) * 45 * query.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "leg1": {
+          "rotation": [
+            "-math.cos(query.modified_distance_moved * 38.17) * 45 * query.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "leg2": {
+          "rotation": [
+            "-math.cos(query.modified_distance_moved * 38.17) * 45 * query.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "neck0": {
+          "rotation": [
+            "math.sin(query.life_time * 80 + 0) * 8",
+            0,
+            "math.cos(query.life_time * 65 + 0) * 5"
+          ]
+        },
+        "neck1": {
+          "rotation": [
+            "math.sin(query.life_time * 80 + 120) * 8",
+            0,
+            "math.cos(query.life_time * 65 + 100) * 5"
+          ]
+        },
+        "neck2": {
+          "rotation": [
+            "math.sin(query.life_time * 80 + 240) * 8",
+            0,
+            "math.cos(query.life_time * 65 + 200) * 5"
+          ]
+        }
+      }
+    }
+  }
+}
