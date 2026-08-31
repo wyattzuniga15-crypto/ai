@@ -63,7 +63,14 @@ public enum BossKind {
      * The Lightning Thief, ch. 20 — fire, lion, goat, snake, and none of it negotiable.
      */
     CHIMERA("The Chimera", EntityType.RAVAGER, 300f, 14f, 0.30f,
-            BossEvent.BossBarColor.RED, "Three deaths in one body");
+            BossEvent.BossBarColor.RED, "Three deaths in one body"),
+
+    /**
+     * The Sea of Monsters, ch. 14 — not really a creature so much as a place that eats things.
+     * She drags you in; the fight is about getting out of the water, not about damage.
+     */
+    CHARYBDIS("Charybdis", EntityType.ELDER_GUARDIAN, 380f, 11f, 0.10f,
+            BossEvent.BossBarColor.BLUE, "The mouth of the strait");
 
     public final String title;
     public final EntityType<?> base;

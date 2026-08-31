@@ -51,6 +51,7 @@ public final class ChDimensions {
         ServerLevel level = (ServerLevel) player.level();
         level.playSound(null, player.blockPosition(), SoundEvents.WITHER_SPAWN,
                 SoundSource.AMBIENT, 0.4f, 0.4f);
+        dev.chronoly.world.underworld.UnderworldGate.ensure(level, player);
     }
 
     public static void sendToOlympus(ServerPlayer player) {

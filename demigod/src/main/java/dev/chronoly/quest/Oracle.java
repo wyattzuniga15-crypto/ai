@@ -91,6 +91,7 @@ public final class Oracle {
             case MEDUSA -> List.of("the aunt with the bad temper", "the gaze that makes a garden");
             case NEMEAN_LION -> List.of("the hide that turns everything", "what only opens once");
             case CHIMERA -> List.of("three deaths in one body", "the thing with the wrong number of heads");
+            case CHARYBDIS -> List.of("the mouth in the water", "what the strait is really called");
         };
     }
 }

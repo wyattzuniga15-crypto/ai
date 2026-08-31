@@ -219,6 +219,31 @@ public final class Bosses {
                             SoundSource.HOSTILE, 1.4f, 0.7f);
                 }
             }
+            case CHARYBDIS -> {
+                // The pull is the fight. Everything within twenty blocks is dragged toward the
+                // centre, and standing in it drowns you — get to land, or get eaten.
+                Vec3 centre = boss.position();
+                for (ServerPlayer p : level.players()) {
+                    double dist = p.distanceTo(boss);
+                    if (dist > 20 || dist < 1.5) continue;
+
+                    Vec3 pull = centre.subtract(p.position()).normalize().scale(0.42);
+                    p.push(pull.x, pull.y * 0.2, pull.z);
+                    p.hurtMarked = true;
+
+                    if (dist < 6) {
+                        p.hurt(level.damageSources().drown(), 4.0f);
+                        p.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 2));
+                    }
+                }
+                if (fight.cooldown == 0) {
+                    fight.cooldown = 60;
+                    level.sendParticles(ParticleTypes.BUBBLE_COLUMN_UP,
+                            centre.x, centre.y, centre.z, 120, 4.0, 1.0, 4.0, 0.2);
+                    level.playSound(null, boss.blockPosition(), SoundEvents.CONDUIT_AMBIENT,
+                            SoundSource.HOSTILE, 1.6f, 0.5f);
+                }
+            }
             case LYDIAN_DRAKON -> {
                 if (fight.cooldown == 0) {
                     fight.cooldown = 120;
@@ -311,6 +336,7 @@ public final class Bosses {
             case HYDRA -> drop(level, at, new ItemStack(ChItems.GOLDEN_FLEECE.get()));
             case MEDUSA -> drop(level, at, new ItemStack(ChItems.AEGIS.get()));
             case LYDIAN_DRAKON -> drop(level, at, new ItemStack(ChItems.MASTER_BOLT.get()));
+            case CHARYBDIS -> drop(level, at, new ItemStack(ChItems.MIST_GLASS.get(), 8));
             default -> { }
         }
 
