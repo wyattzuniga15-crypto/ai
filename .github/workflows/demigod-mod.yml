@@ -35,7 +35,7 @@ jobs:
             https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml
           echo "--- all 21.11.x versions published ---"
           grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/meta.xml || echo "(none found)"
-          RESOLVED=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/meta.xml | tail -1)
+          RESOLVED=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/meta.xml | sort -V | tail -1)
           if [ -z "$RESOLVED" ]; then
             echo "::error::No 21.11.x NeoForge version exists on maven.neoforged.net"
             echo "--- the newest 20 versions of anything ---"
@@ -205,7 +205,7 @@ jobs:
           set -euo pipefail
           curl -sSfL -o /tmp/neo.xml \
             https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml
-          NEO=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/neo.xml | tail -1)
+          NEO=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/neo.xml | sort -V | tail -1)
           sed -i "s/^neo_version=.*/neo_version=$NEO/" gradle.properties
           echo "::notice::NeoForge $NEO"
 
@@ -270,7 +270,7 @@ jobs:
           set -euo pipefail
           curl -sSfL -o /tmp/neo.xml \
             https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml
-          NEO=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/neo.xml | tail -1)
+          NEO=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/neo.xml | sort -V | tail -1)
           sed -i "s/^neo_version=.*/neo_version=$NEO/" gradle.properties
 
       - uses: gradle/actions/setup-gradle@v4
