@@ -46,6 +46,8 @@ public final class Bosses {
         public int hydraHeads;
         public boolean hornBroken;
         public int cooldown;
+        /** Nemean Lion: ticks left with the mouth open, the only window damage lands. */
+        public int mouthOpen;
 
         Fight(BossKind kind, ServerBossEvent bar) {
             this.kind = kind;
@@ -167,6 +169,56 @@ public final class Bosses {
                             25, 0.5, 0.5, 0.5, 0.1);
                 }
             }
+            case MEDUSA -> {
+                // Look at her and you start to set. Look away and it stops. Nothing else works.
+                for (ServerPlayer p : level.players()) {
+                    if (p.distanceToSqr(boss) > 24 * 24) continue;
+                    if (!p.hasLineOfSight(boss)) continue;
+
+                    Vec3 toBoss = boss.position().subtract(p.getEyePosition()).normalize();
+                    double facing = toBoss.dot(p.getLookAngle());
+                    if (facing < 0.86) continue;   // not looking at her
+
+                    p.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 3));
+                    p.addEffect(new MobEffectInstance(MobEffects.MINING_FATIGUE, 60, 2));
+                    p.hurt(level.damageSources().magic(), 2.0f);
+                    if (fight.cooldown == 0) {
+                        fight.cooldown = 40;
+                        p.sendSystemMessage(Component.literal(
+                                "§2Your legs are getting heavy. §7Stop looking at her."));
+                    }
+                }
+            }
+            case NEMEAN_LION -> {
+                // The hide turns everything. Every few seconds it roars, and for two of them the
+                // mouth is open — see onBossDamaged, which is where the rule is enforced.
+                if (fight.mouthOpen > 0) {
+                    fight.mouthOpen--;
+                    level.sendParticles(ParticleTypes.FLAME, boss.getX(), boss.getY() + 1.6, boss.getZ(),
+                            8, 0.3, 0.2, 0.3, 0.01);
+                } else if (fight.cooldown == 0) {
+                    fight.cooldown = 140;
+                    fight.mouthOpen = 40;
+                    boss.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40, 0));
+                    level.playSound(null, boss.blockPosition(), SoundEvents.RAVAGER_ROAR,
+                            SoundSource.HOSTILE, 1.3f, 0.6f);
+                    announce(level, "§eThe lion roars — §7its mouth is open. That is the only way in.");
+                }
+            }
+            case CHIMERA -> {
+                if (fight.cooldown == 0) {
+                    fight.cooldown = 110;
+                    for (ServerPlayer p : level.players()) {
+                        if (p.distanceToSqr(boss) > 14 * 14) continue;
+                        p.igniteForSeconds(5);
+                        p.addEffect(new MobEffectInstance(MobEffects.POISON, 120, 1));
+                    }
+                    level.sendParticles(ParticleTypes.FLAME, boss.getX(), boss.getY() + 1.2, boss.getZ(),
+                            60, 2.5, 0.6, 2.5, 0.05);
+                    level.playSound(null, boss.blockPosition(), SoundEvents.BLAZE_SHOOT,
+                            SoundSource.HOSTILE, 1.4f, 0.7f);
+                }
+            }
             case LYDIAN_DRAKON -> {
                 if (fight.cooldown == 0) {
                     fight.cooldown = 120;
@@ -206,15 +258,30 @@ public final class Bosses {
      */
     public static void onBossDamaged(LivingEntity boss, DamageSource source, float amount) {
         Fight fight = ACTIVE.get(boss.getUUID());
-        if (fight == null || fight.kind != BossKind.HYDRA) return;
+        if (fight == null) return;
 
-        boolean fire = source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)
-                || (source.getEntity() instanceof LivingEntity a && a.isOnFire());
-        if (fire) {
-            if (fight.hydraHeads > 0) fight.hydraHeads--;
-        } else if (amount > 6f) {
-            fight.hydraHeads = Math.min(6, fight.hydraHeads + 1);
+        if (fight.kind == BossKind.HYDRA) {
+            boolean fire = source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)
+                    || (source.getEntity() instanceof LivingEntity a && a.isOnFire());
+            if (fire) {
+                if (fight.hydraHeads > 0) fight.hydraHeads--;
+            } else if (amount > 6f) {
+                fight.hydraHeads = Math.min(6, fight.hydraHeads + 1);
+            }
         }
+    }
+
+    /**
+     * The Nemean Lion's hide. Returns true when the blow should simply not land.
+     *
+     * <p>The Titan's Curse, ch. 9 — everything glances off except what goes in the open mouth,
+     * so the fight is about waiting for the roar rather than out-damaging it.
+     */
+    public static boolean deflects(LivingEntity boss, DamageSource source) {
+        Fight fight = ACTIVE.get(boss.getUUID());
+        if (fight == null || fight.kind != BossKind.NEMEAN_LION) return false;
+        if (fight.mouthOpen > 0) return false;
+        return !source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_ARMOR);
     }
 
     /** Golden dust, a drop worth having, and the bar goes away. */

@@ -43,7 +43,27 @@ public enum BossKind {
      * The Last Olympian — armoured everywhere, and the prophecy says whose blade ends it.
      */
     LYDIAN_DRAKON("The Lydian Drakon", EntityType.RAVAGER, 420f, 16f, 0.26f,
-            BossEvent.BossBarColor.YELLOW, "Older than the gods");
+            BossEvent.BossBarColor.YELLOW, "Older than the gods"),
+
+    /**
+     * The Lightning Thief, ch. 11 — Aunty Em. Look at her and you start turning to stone; the
+     * fight is won by not looking, which is the hardest instruction in any game.
+     */
+    MEDUSA("Medusa", EntityType.WITCH, 180f, 7f, 0.3f,
+            BossEvent.BossBarColor.GREEN, "Aunty Em"),
+
+    /**
+     * The Titan's Curse, ch. 9 — the hide turns everything. Only the open mouth can be hurt, so
+     * the fight is about patience and timing rather than damage.
+     */
+    NEMEAN_LION("The Nemean Lion", EntityType.RAVAGER, 340f, 13f, 0.32f,
+            BossEvent.BossBarColor.YELLOW, "Impervious"),
+
+    /**
+     * The Lightning Thief, ch. 20 — fire, lion, goat, snake, and none of it negotiable.
+     */
+    CHIMERA("The Chimera", EntityType.RAVAGER, 300f, 14f, 0.30f,
+            BossEvent.BossBarColor.RED, "Three deaths in one body");
 
     public final String title;
     public final EntityType<?> base;

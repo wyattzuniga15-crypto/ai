@@ -240,6 +240,14 @@ public final class GameplayEvents {
     public static void onIncomingDamage(net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent e) {
         MistCombatResolver.onIncomingDamage(e);
         if (!e.isCanceled() && Bosses.isBoss(e.getEntity())) {
+            if (Bosses.deflects(e.getEntity(), e.getSource())) {
+                e.setCanceled(true);
+                if (e.getSource().getEntity() instanceof ServerPlayer p) {
+                    p.sendSystemMessage(Component.literal(
+                            "§7Your blade skids off the hide. §8Wait for the roar."));
+                }
+                return;
+            }
             Bosses.onBossDamaged(e.getEntity(), e.getSource(), e.getAmount());
         }
     }
