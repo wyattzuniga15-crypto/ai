@@ -78,6 +78,21 @@ public final class Bosses {
             setAttribute(mob, Attributes.SCALE, 1.4);
         }
 
+        if (kind == BossKind.CHARYBDIS) {
+            // The mouth of the strait needs a strait. A pool under her, so the pull has water
+            // to drag you through and "get to land" means something.
+            var centre = net.minecraft.core.BlockPos.containing(x, y - 1, z);
+            for (int dx = -9; dx <= 9; dx++) {
+                for (int dz = -9; dz <= 9; dz++) {
+                    if (dx * dx + dz * dz > 81) continue;
+                    level.setBlock(centre.offset(dx, 0, dz),
+                            net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
+                    level.setBlock(centre.offset(dx, -1, dz),
+                            net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
+                }
+            }
+        }
+
         ServerBossEvent bar = new ServerBossEvent(
                 Component.literal("§6" + kind.title), kind.colour, BossEvent.BossBarOverlay.PROGRESS);
         bar.setProgress(1.0f);

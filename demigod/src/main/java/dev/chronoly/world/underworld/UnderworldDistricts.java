@@ -28,9 +28,30 @@ public final class UnderworldDistricts {
 
     /** Idempotent; the lodestone under each district is the "already built" marker. */
     public static void ensure(ServerLevel level) {
-        if (!level.getBlockState(ASPHODEL.below(2)).is(Blocks.LODESTONE)) asphodel(level);
+        if (!level.getBlockState(ASPHODEL.below(2)).is(Blocks.LODESTONE)) { asphodel(level); shades(level); }
         if (!level.getBlockState(ELYSIUM.below(2)).is(Blocks.LODESTONE)) elysium(level);
         if (!level.getBlockState(PUNISHMENT.below(2)).is(Blocks.LODESTONE)) punishment(level);
+    }
+
+    /**
+     * The endless grey crowd needs a crowd. Shades are husks with no interest in anyone: no AI
+     * beyond standing, no attack, no despawn, silent. The Lightning Thief, ch. 18 — the dead of
+     * Asphodel mill about; they do not menace.
+     */
+    private static void shades(ServerLevel level) {
+        var rng = level.random;
+        for (int i = 0; i < 14; i++) {
+            var shade = net.minecraft.world.entity.EntityType.HUSK.create(level,
+                    net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
+            if (shade == null) continue;
+            shade.setPos(ASPHODEL.getX() + rng.nextInt(41) - 20, ASPHODEL.getY(),
+                    ASPHODEL.getZ() + rng.nextInt(41) - 20);
+            shade.setNoAi(true);
+            shade.setSilent(true);
+            shade.setPersistenceRequired();
+            shade.setCustomName(net.minecraft.network.chat.Component.literal("§8A shade"));
+            level.addFreshEntity(shade);
+        }
     }
 
     /** A platform with a themed floor and headroom, the shared skeleton of all three. */
