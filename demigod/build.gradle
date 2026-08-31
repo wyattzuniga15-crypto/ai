@@ -66,6 +66,10 @@ test {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    // Without this the em-dash in the license string comes out as mojibake in the shipped
+    // mods.toml — Gradle filters with the platform default charset otherwise.
+    filteringCharset = 'UTF-8'
+
     // The map must NOT be called `expand`: Groovy then resolves `expand props` against the map
     // itself rather than FileCopyDetails.expand, and fails with LinkedHashMap.call().
     def tokens = [

@@ -18,7 +18,8 @@ public final class ChCreativeTabs {
             () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.chronoly.main"))
                     .icon(() -> new ItemStack(ChItems.GOLDEN_DRACHMA.get()))
-                    .displayItems((params, output) -> output.accept(ChItems.GOLDEN_DRACHMA.get()))
+                    .displayItems((params, output) ->
+                            ChItems.TAB_ORDER.forEach(item -> output.accept(item.get())))
                     .build());
 
     private ChCreativeTabs() {}
