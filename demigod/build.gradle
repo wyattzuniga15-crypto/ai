@@ -178,7 +178,7 @@ tasks.register('describeClass') {
         def names = (project.findProperty('describe') ?: '').split(',').findAll { it }
         def urls = sourceSets.main.compileClasspath.files.findAll { it.name.endsWith('.jar') }
                 .collect { it.toURI().toURL() } as URL[]
-        def loader = new URLClassLoader(urls, null)
+        def loader = new URLClassLoader(urls, (ClassLoader) null)
         names.each { name ->
             println "=============== ${name} ==============="
             try {
