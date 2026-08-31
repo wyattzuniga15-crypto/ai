@@ -136,7 +136,7 @@ public final class UnderworldDistricts {
         for (int dx = -18; dx <= 18; dx += 9) {
             for (int dz = -12; dz <= 18; dz += 10) {
                 for (int dy = 5; dy < 9; dy++) {
-                    level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
+                    level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.IRON_CHAIN.defaultBlockState(), 2);
                 }
                 for (int bx = -1; bx <= 1; bx++) {
                     for (int bz = -1; bz <= 1; bz++) {

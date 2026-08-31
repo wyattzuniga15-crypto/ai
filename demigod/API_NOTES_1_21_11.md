@@ -23,6 +23,7 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 | `KeyMapping(String, IKeyConflictContext, Type, int, String)` | last argument is a `Category` object, not a String |
 | GeckoLib 4 `new AnimationController<>(this, name, ticks, handler)` | GeckoLib 5 drops the animatable: `(name, ticks, handler)` |
 | GeckoLib 4 `software.bernie.geckolib.animation.PlayState` | moved; location still unconfirmed |
+| `Blocks.CHAIN` | `Blocks.IRON_CHAIN` — the copper-chain additions renamed the original |
 | `net.minecraft.gametest.framework.GameTest` (annotation) | not a rename — the entire `net.minecraft.gametest` tree is absent from the compile classpath (measured, run 42) |
 
 ## Confirmed working (guessed right, first try)
