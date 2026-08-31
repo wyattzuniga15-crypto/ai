@@ -7,6 +7,8 @@ import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
 import dev.chronoly.quest.Oracle;
+import dev.chronoly.world.camp.CampBuilder;
+import dev.chronoly.world.camp.CampWard;
 import dev.chronoly.world.ChDimensions;
 import net.minecraft.server.level.ServerLevel;
 import dev.chronoly.event.GameplayEvents;
@@ -162,6 +164,34 @@ public final class ChCommands {
                     d.questTarget(), d.questPlace(), Math.max(0, left))));
             return 1;
         }));
+
+        root.then(Commands.literal("camp")
+                .then(Commands.literal("build").executes(ctx -> {
+                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    if (!isOperator(ctx.getSource(), p)) {
+                        p.sendSystemMessage(Component.literal("§7Only an operator may raise the camp."));
+                        return 0;
+                    }
+                    ServerLevel level = (ServerLevel) p.level();
+                    var origin = p.blockPosition();
+                    int cabins = CampBuilder.build(level, origin);
+                    CampWard.register(level, origin, CampBuilder.RADIUS);
+                    p.sendSystemMessage(Component.literal(
+                            "§6Camp Half-Blood stands. §7" + cabins
+                            + " cabins, the Big House, the pavilion, and a pine on the hill."));
+                    p.sendSystemMessage(Component.literal(
+                            "§7Inside the borders nothing can smell you."));
+                    return 1;
+                }))
+                .then(Commands.literal("ward").executes(ctx -> {
+                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    ServerLevel level = (ServerLevel) p.level();
+                    boolean safe = CampWard.isWarded(level, p.blockPosition());
+                    p.sendSystemMessage(Component.literal(safe
+                            ? "§aYou are inside the borders. Nothing out there knows where you are."
+                            : "§cYou are outside the borders. §7Whatever is hunting you can still smell you."));
+                    return 1;
+                })));
 
         event.getDispatcher().register(root);
     }

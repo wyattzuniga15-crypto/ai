@@ -163,6 +163,9 @@ public final class SpawnDirector {
      * reducing it — is the real one.
      */
     private static boolean insideWard(ServerLevel level, ServerPlayer player) {
+        if (dev.chronoly.world.camp.CampWard.isWarded(level, player.blockPosition())) return true;
+        // Portable fallback: stand on gold and the world loses your scent. A craftable ward in
+        // its simplest possible form, and it works anywhere without a registered camp.
         BlockPos below = player.blockPosition().below();
         return level.getBlockState(below).is(Blocks.GOLD_BLOCK)
                 || level.getBlockState(below.below()).is(Blocks.GOLD_BLOCK);
