@@ -46,5 +46,14 @@
   "advancement.chronoly.olympus.title": "The Six Hundredth Floor",
   "advancement.chronoly.olympus.desc": "Reach Olympus. The lift music is worse than you imagined.",
   "advancement.chronoly.fleece.title": "The Wool That Fixes Everything",
-  "advancement.chronoly.fleece.desc": "Obtain the Golden Fleece, which solves one problem and creates several."
+  "advancement.chronoly.fleece.desc": "Obtain the Golden Fleece, which solves one problem and creates several.",
+  "entity.chronoly.minotaur": "The Minotaur",
+  "entity.chronoly.hydra": "The Hydra",
+  "entity.chronoly.cerberus": "Cerberus",
+  "entity.chronoly.fury": "Alecto",
+  "entity.chronoly.lydian_drakon": "The Lydian Drakon",
+  "entity.chronoly.medusa": "Medusa",
+  "entity.chronoly.nemean_lion": "The Nemean Lion",
+  "entity.chronoly.chimera": "The Chimera",
+  "entity.chronoly.charybdis": "Charybdis"
 }

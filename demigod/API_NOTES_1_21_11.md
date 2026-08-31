@@ -26,6 +26,21 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 | `Blocks.CHAIN` | `Blocks.IRON_CHAIN` — the copper-chain additions renamed the original |
 | `net.minecraft.gametest.framework.GameTest` (annotation) | not a rename — the entire `net.minecraft.gametest` tree is absent from the compile classpath (measured, run 42) |
 
+## Confirmed working (read from dist/API_SIGNATURES.txt, compiled first try)
+
+- `EntityType.Builder.of(factory, MobCategory).sized(w,h).fireImmune().clientTrackingRange(n).build(ResourceKey)`
+- `MobRenderer(EntityRendererProvider.Context, model, shadowRadius)` with generics `<T extends Mob, S extends LivingEntityRenderState, M extends EntityModel<? super S>>`
+- `getTextureLocation(S)` is abstract and returns `Identifier`; `createRenderState()` supplies the state
+- `EntityModel(ModelPart)` is protected — subclass to instantiate
+- `EntityRenderersEvent.RegisterLayerDefinitions#registerLayerDefinition(ModelLayerLocation, Supplier<LayerDefinition>)`
+- `EntityRenderersEvent.RegisterRenderers#registerEntityRenderer(type, provider)`; `EntityAttributeCreationEvent#put(type, AttributeSupplier)`
+- `Context#bakeLayer(ModelLayerLocation)`; `LayerDefinition.create(MeshDefinition, texW, texH)`; `PartDefinition#addOrReplaceChild(name, CubeListBuilder, PartPose)`
+
+The lesson worth keeping: the signature dump ran after Build (artifacts must exist on disk), swept
+`build/` and the Gradle cache for the game jar (the compile classpath's 80 jars do not include it
+at execution time), and spoke javap (Groovy URLClassLoader reflection failed silently). Three CI
+rounds to build the tool, zero rounds wasted on the API it was built for.
+
 ## Confirmed working (guessed right, first try)
 
 - `KeyMapping.Category.GAMEPLAY` as the last constructor argument
