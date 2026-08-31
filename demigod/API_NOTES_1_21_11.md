@@ -38,6 +38,13 @@ Read it before writing, not after failing. `ResourceKey#location` was already in
 when I wrote `level.dimension().location()` in CampWard and lost a round trip to it. The table is
 only worth having if it is consulted.
 
+## Deliberately routed around
+
+- `Item#appendHoverText` — signature unverified, and 1.21.11 has moved comparable methods. Item
+  lore goes through NeoForge's `ItemTooltipEvent` instead: one call site to be wrong about rather
+  than fourteen overrides. The lines themselves are data in `Lore`, so the delivery mechanism can
+  change without touching the writing.
+
 ## Still unverified
 
 - `ServerPlayer#teleportTo(ServerLevel, x, y, z, Set, yaw, pitch, boolean)` — the cross-dimension
