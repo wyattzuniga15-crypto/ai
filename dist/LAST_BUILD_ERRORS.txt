@@ -1,0 +1,41 @@
+BUILD FAILED for d30e0e971cf1f675d86ada5a0c4d0c5b8ae01d1b at 2026-08-31T15:48:23Z
+
+=============== javac errors ===============
+65:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
+85:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
+
+=============== detail ===============
+
+> Task :compileJava
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
+                    level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
+                                                                        ^
+  symbol:   variable CHAIN
+  location: class Blocks
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+--
+> Compilation failed; see the compiler output below.
+  Note: Recompile with -Xlint:deprecation for details.
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
+                      level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
+                                                                          ^
+    symbol:   variable CHAIN
+    location: class Blocks
+  Note: Some input files use or override a deprecated API.
+  1 error
+
+=============== what went wrong ===============
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  Note: Recompile with -Xlint:deprecation for details.
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
+                      level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
+                                                                          ^
+    symbol:   variable CHAIN
+    location: class Blocks
+  Note: Some input files use or override a deprecated API.
+  1 error
+
+* Try:
