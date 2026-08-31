@@ -126,7 +126,7 @@ public final class GameplayEvents {
         ServerLevel level = (ServerLevel) p.level();
         var pos = p.blockPosition();
         boolean sky = level.canSeeSky(pos);
-        boolean day = level.isDay();
+        boolean day = level.getDayTime() % 24000L < 12000L;
         boolean nether = level.dimension() == net.minecraft.world.level.Level.NETHER;
         var biome = level.getBiome(pos);
         boolean desert = biome.is(net.minecraft.tags.BiomeTags.IS_BADLANDS)

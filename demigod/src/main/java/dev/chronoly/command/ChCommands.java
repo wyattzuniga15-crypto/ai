@@ -25,9 +25,8 @@ public final class ChCommands {
      * 1.21.11 replaced integer permission levels with PermissionChecks, so the old
      * {@code hasPermission(int)} is gone. The op list is a stable way to ask the same question.
      */
-    private static boolean isOperator(ServerPlayer player) {
-        return player.getServer() != null
-                && player.getServer().getPlayerList().isOp(player.getGameProfile());
+    private static boolean isOperator(CommandSourceStack source, ServerPlayer player) {
+        return source.getServer().getPlayerList().isOp(player.getGameProfile());
     }
 
     public static void register(RegisterCommandsEvent event) {
@@ -62,7 +61,7 @@ public final class ChCommands {
         for (String god : GODS) {
             claim.then(Commands.literal(god).executes(ctx -> {
                 ServerPlayer p = ctx.getSource().getPlayerOrException();
-                if (!isOperator(p)) {
+                if (!isOperator(ctx.getSource(), p)) {
                     p.sendSystemMessage(Component.literal("§7Only an operator may hand out parentage."));
                     return 0;
                 }
@@ -76,7 +75,7 @@ public final class ChCommands {
                 .then(Commands.argument("amount", com.mojang.brigadier.arguments.FloatArgumentType.floatArg())
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                            if (!isOperator(p)) return 0;
+                            if (!isOperator(ctx.getSource(), p)) return 0;
                             DemigodData d = p.getData(ChAttachments.DEMIGOD.get());
                             if (!d.isClaimed()) return 0;
                             d.addFavor(d.parentage().orElseThrow(),

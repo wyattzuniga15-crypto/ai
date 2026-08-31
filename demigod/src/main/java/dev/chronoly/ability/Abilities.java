@@ -104,7 +104,7 @@ public final class Abilities {
         BlockPos target = lookedAtBlock(player, 48);
         Entity bolt = EntityType.LIGHTNING_BOLT.create(level, net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
         if (bolt != null) {
-            bolt.moveTo(target.getX() + 0.5, (double) target.getY(), target.getZ() + 0.5);
+            bolt.setPos(target.getX() + 0.5, target.getY(), target.getZ() + 0.5);
             level.addFreshEntity(bolt);
         }
     }
@@ -188,7 +188,7 @@ public final class Abilities {
         for (int i = 0; i < 2; i++) {
             Skeleton ally = EntityType.SKELETON.create(level, net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
             if (ally == null) continue;
-            ally.moveTo(c.x + (i == 0 ? 1.5 : -1.5), c.y, c.z, player.getYRot(), 0f);
+            ally.setPos(c.x + (i == 0 ? 1.5 : -1.5), c.y, c.z);
             ally.addEffect(new MobEffectInstance(MobEffects.GLOWING, 1200, 0));
             level.addFreshEntity(ally);
         }
