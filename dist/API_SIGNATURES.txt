@@ -1,0 +1,20 @@
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file '/home/runner/work/ai/ai/demigod/build.gradle' line: 181
+
+* What went wrong:
+Execution failed for task ':describeClass'.
+> Ambiguous method overloading for method java.net.URLClassLoader#<init>.
+  Cannot resolve which method to invoke for [class [Ljava.net.URL;, null] due to overlapping prototypes between:
+  	[class [Ljava.net.URL;, class java.security.AccessControlContext]
+  	[class [Ljava.net.URL;, class java.lang.ClassLoader]
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 6s
