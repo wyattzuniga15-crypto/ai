@@ -9,6 +9,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -108,6 +109,45 @@ public final class ChItems {
                 .build();
     }
 
+    // ---- armour --------------------------------------------------------------------------
+
+    /**
+     * Celestial bronze plate. The Titan's Curse — camp armour is bronze because bronze is what
+     * works on the things that come for you.
+     */
+    public static final DeferredItem<Item> BRONZE_HELMET = ITEMS.registerItem("bronze_helmet",
+            props -> new Item(props.durability(400)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, armour(2.0, 0.0, EquipmentSlot.HEAD))));
+
+    public static final DeferredItem<Item> BRONZE_CHESTPLATE = ITEMS.registerItem("bronze_chestplate",
+            props -> new Item(props.durability(580)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, armour(6.0, 1.0, EquipmentSlot.CHEST))));
+
+    public static final DeferredItem<Item> BRONZE_LEGGINGS = ITEMS.registerItem("bronze_leggings",
+            props -> new Item(props.durability(540)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, armour(5.0, 0.0, EquipmentSlot.LEGS))));
+
+    public static final DeferredItem<Item> BRONZE_BOOTS = ITEMS.registerItem("bronze_boots",
+            props -> new Item(props.durability(460)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, armour(2.0, 0.0, EquipmentSlot.FEET))));
+
+    /** The Nemean Pelt. The Titan's Curse, ch. 9 — the hide that turned everything, worn. */
+    public static final DeferredItem<Item> NEMEAN_PELT = ITEMS.registerItem("nemean_pelt",
+            props -> new Item(props.durability(900).fireResistant()
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, armour(9.0, 3.0, EquipmentSlot.CHEST))));
+
+    private static ItemAttributeModifiers armour(double armourValue, double toughness, EquipmentSlot slot) {
+        var group = EquipmentSlotGroup.bySlot(slot);
+        return ItemAttributeModifiers.builder()
+                .add(Attributes.ARMOR,
+                        new AttributeModifier(ChronolyConstants.id("armour_" + slot.getName()),
+                                armourValue, AttributeModifier.Operation.ADD_VALUE), group)
+                .add(Attributes.ARMOR_TOUGHNESS,
+                        new AttributeModifier(ChronolyConstants.id("tough_" + slot.getName()),
+                                toughness, AttributeModifier.Operation.ADD_VALUE), group)
+                .build();
+    }
+
     // ---- named relics --------------------------------------------------------------------
 
     /** The Lightning Thief, ch. 21 — the master bolt itself. Three strikes where you look. */
@@ -159,6 +199,7 @@ public final class ChItems {
     public static final List<DeferredItem<Item>> TAB_ORDER = List.of(
             CELESTIAL_BRONZE_SWORD, CELESTIAL_BRONZE_DAGGER, IMPERIAL_GOLD_SWORD, STYGIAN_IRON_SWORD,
             RIPTIDE, BACKBITER, HUNTING_KNIVES, ELECTRIC_SPEAR,
+            BRONZE_HELMET, BRONZE_CHESTPLATE, BRONZE_LEGGINGS, BRONZE_BOOTS, NEMEAN_PELT,
             MASTER_BOLT, HELM_OF_DARKNESS, GOLDEN_FLEECE, AEGIS, YANKEES_CAP, TRAVELERS_TOKEN,
             GOLDEN_DRACHMA,
             CELESTIAL_BRONZE_INGOT, IMPERIAL_GOLD_INGOT, STYGIAN_IRON_INGOT,

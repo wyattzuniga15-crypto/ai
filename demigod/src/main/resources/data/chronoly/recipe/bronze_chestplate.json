@@ -1,0 +1,3 @@
+{"type":"minecraft:crafting_shaped","category":"equipment","pattern":["I I","III","III"],
+ "key":{"I":{"item":"chronoly:celestial_bronze_ingot"}},
+ "result":{"id":"chronoly:bronze_chestplate","count":1}}

@@ -47,6 +47,7 @@ public final class SpawnDirector {
             String god = data.parentage().orElseThrow();
             float scent = ScentModel.compute(new ScentModel.Inputs(
                     data.favorWith(god), rarity(god), countRelics(player), 0, insideWard(level, player)));
+            if (wearingBronze(player)) scent *= 0.7f;   // the set bonus, felt where it matters
             ThreatTier tier = ScentModel.threat(scent);
             if (tier == ThreatTier.UNSEEN) continue;
 
@@ -139,6 +140,25 @@ public final class SpawnDirector {
             }
         }
         return null;
+    }
+
+    /** Any two pieces of the bronze set start to mask you; the full set masks you most. */
+    private static boolean wearingBronze(ServerPlayer player) {
+        int pieces = 0;
+        for (var slot : new net.minecraft.world.entity.EquipmentSlot[]{
+                net.minecraft.world.entity.EquipmentSlot.HEAD,
+                net.minecraft.world.entity.EquipmentSlot.CHEST,
+                net.minecraft.world.entity.EquipmentSlot.LEGS,
+                net.minecraft.world.entity.EquipmentSlot.FEET}) {
+            var stack = player.getItemBySlot(slot);
+            if (stack.is(dev.chronoly.registry.ChItems.BRONZE_HELMET.get())
+                    || stack.is(dev.chronoly.registry.ChItems.BRONZE_CHESTPLATE.get())
+                    || stack.is(dev.chronoly.registry.ChItems.BRONZE_LEGGINGS.get())
+                    || stack.is(dev.chronoly.registry.ChItems.BRONZE_BOOTS.get())) {
+                pieces++;
+            }
+        }
+        return pieces >= 2;
     }
 
     private static float rarity(String god) {

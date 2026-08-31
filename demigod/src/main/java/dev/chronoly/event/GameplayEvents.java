@@ -153,6 +153,14 @@ public final class GameplayEvents {
 
             EnergyProfile profile = profileFor(data.parentage().orElseThrow());
             float rate = profile.rateIn(sample(player));
+            if (fullBronze(player)) {
+                rate *= 1.4f;
+                if (data.raiseFlag("lesson_bronze_set")) {
+                    player.sendSystemMessage(Component.literal(
+                            "§6The whole set together feels different. §7Camp armour is bronze for a "
+                            + "reason, and it is not the look."));
+                }
+            }
             float max = data.maxEnergy();
             data.setEnergy(Math.min(max, data.energy() + rate));
             data.setOverdraw(data.overdraw() - 1.5f);
@@ -165,6 +173,24 @@ public final class GameplayEvents {
             expireQuest(player, data);
             syncToClient(player, data);
         }
+    }
+
+    /**
+     * Full celestial bronze: the camp armour set bonus.
+     *
+     * <p>Bronze is what camp wears because bronze is what works, so the bonus is thematic rather
+     * than numeric — the metal sits between you and the things that hunt by smell, and your own
+     * blood recovers faster inside it.
+     */
+    private static boolean fullBronze(ServerPlayer player) {
+        return player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)
+                        .is(ChItems.BRONZE_HELMET.get())
+                && player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST)
+                        .is(ChItems.BRONZE_CHESTPLATE.get())
+                && player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS)
+                        .is(ChItems.BRONZE_LEGGINGS.get())
+                && player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET)
+                        .is(ChItems.BRONZE_BOOTS.get());
     }
 
     /** Push the player's own state so the HUD draws something true rather than something guessed. */

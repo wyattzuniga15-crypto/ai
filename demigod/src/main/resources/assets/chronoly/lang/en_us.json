@@ -23,5 +23,10 @@
   "item.chronoly.aegis": "Aegis",
   "item.chronoly.yankees_cap": "Yankees Cap",
   "item.chronoly.electric_spear": "Electric Spear",
-  "item.chronoly.travelers_token": "Traveller's Token"
+  "item.chronoly.travelers_token": "Traveller's Token",
+  "item.chronoly.bronze_helmet": "Celestial Bronze Helmet",
+  "item.chronoly.bronze_chestplate": "Celestial Bronze Cuirass",
+  "item.chronoly.bronze_leggings": "Celestial Bronze Greaves",
+  "item.chronoly.bronze_boots": "Celestial Bronze Sandals",
+  "item.chronoly.nemean_pelt": "The Nemean Pelt"
 }
