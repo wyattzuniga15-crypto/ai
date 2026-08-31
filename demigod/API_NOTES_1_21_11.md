@@ -38,6 +38,9 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 - `Context#bakeLayer(ModelLayerLocation)`; `LayerDefinition.create(MeshDefinition, texW, texH)`; `PartDefinition#addOrReplaceChild(name, CubeListBuilder, PartPose)`
 - `Model#setupAnim(S)` public with `root()` accessor; render state carries `walkAnimationPos`, `walkAnimationSpeed`, `ageInTicks`; `ModelPart` exposes `xRot/yRot/zRot`, `hasChild`, `getChild`
 - `MobEffects.SLOW_FALLING` survived the effect renames
+- `ServerChatEvent#getPlayer()` / `#getMessage().getString()`; `BlockEvent.EntityPlaceEvent#getPlacedBlock()/getPos()`
+- `LivingEntity#getAttackAnim(partialTick)` still exists and syncs with mob swings; a custom `LivingEntityRenderState` subclass + `extractRenderState` override carries it to the model
+- `SoundEvents.RAVAGER_ATTACK`; `damageSources().mobAttack(LivingEntity)`
 
 The lesson worth keeping: the signature dump ran after Build (artifacts must exist on disk), swept
 `build/` and the Gradle cache for the game jar (the compile classpath's 80 jars do not include it
