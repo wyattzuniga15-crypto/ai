@@ -32,11 +32,11 @@ public final class CampWard {
 
     public static void register(ServerLevel level, BlockPos centre, int radius) {
         WARDS.removeIf(w -> w.centre().equals(centre));
-        WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
+        WARDS.add(new Ward(level.dimension().identifier().toString(), centre, radius));
     }
 
     public static boolean isWarded(ServerLevel level, BlockPos pos) {
-        String dim = level.dimension().location().toString();
+        String dim = level.dimension().identifier().toString();
         for (Ward w : WARDS) {
             if (w.covers(dim, pos)) return true;
         }

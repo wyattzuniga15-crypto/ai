@@ -24,6 +24,20 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 | GeckoLib 4 `new AnimationController<>(this, name, ticks, handler)` | GeckoLib 5 drops the animatable: `(name, ticks, handler)` |
 | GeckoLib 4 `software.bernie.geckolib.animation.PlayState` | moved; location still unconfirmed |
 
+## Confirmed working (guessed right, first try)
+
+- `KeyMapping.Category.GAMEPLAY` as the last constructor argument
+- `ClientPacketDistributor.sendToServer(payload)` for client→server
+- `RegisterGuiLayersEvent#registerAboveAll(Identifier, layer)` for a HUD
+- `PacketDistributor.sendToPlayer(player, payload)` for server→client
+- `ServerPlayer#teleportTo(ServerLevel, x, y, z, Set, yaw, pitch, boolean)` — cross-dimension travel
+
+## How to use this file
+
+Read it before writing, not after failing. `ResourceKey#location` was already in the table above
+when I wrote `level.dimension().location()` in CampWard and lost a round trip to it. The table is
+only worth having if it is consulted.
+
 ## Still unverified
 
 - `ServerPlayer#teleportTo(ServerLevel, x, y, z, Set, yaw, pitch, boolean)` — the cross-dimension
