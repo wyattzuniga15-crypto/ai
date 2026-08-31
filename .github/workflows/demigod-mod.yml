@@ -56,11 +56,29 @@ jobs:
         run: gradle whereIsIdentifier --no-daemon --console=plain -q || true
 
       # Reflection over the classes the custom-entity work needs: real signatures, not guesses.
+      # Committed to /dist because job logs get truncated by every tool that reads them; a file
+      # in git can be read whole, by any session, with nothing but git.
       - name: Entity and renderer API signatures
         run: |
           gradle describeClass --no-daemon --console=plain -q \
-            -Pdescribe=net.minecraft.world.entity.EntityType\$Builder,net.minecraft.client.model.geom.builders.LayerDefinition,net.minecraft.client.model.geom.builders.CubeListBuilder,net.minecraft.client.model.geom.builders.PartDefinition,net.minecraft.client.model.geom.ModelLayerLocation,net.minecraft.client.model.EntityModel,net.minecraft.client.renderer.entity.MobRenderer,net.minecraft.client.renderer.entity.state.LivingEntityRenderState,net.neoforged.neoforge.client.event.EntityRenderersEvent\$RegisterRenderers,net.neoforged.neoforge.client.event.EntityRenderersEvent\$RegisterLayerDefinitions,net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent,net.minecraft.world.entity.monster.Monster \
-            || true
+            -Pdescribe=net.minecraft.world.entity.EntityType\$Builder,net.minecraft.client.model.geom.builders.LayerDefinition,net.minecraft.client.model.geom.builders.CubeListBuilder,net.minecraft.client.model.geom.builders.PartDefinition,net.minecraft.client.model.geom.builders.MeshDefinition,net.minecraft.client.model.geom.ModelLayerLocation,net.minecraft.client.model.geom.ModelPart,net.minecraft.client.model.EntityModel,net.minecraft.client.renderer.entity.MobRenderer,net.minecraft.client.renderer.entity.LivingEntityRenderer,net.minecraft.client.renderer.entity.EntityRendererProvider\$Context,net.minecraft.client.renderer.entity.state.LivingEntityRenderState,net.neoforged.neoforge.client.event.EntityRenderersEvent\$RegisterRenderers,net.neoforged.neoforge.client.event.EntityRenderersEvent\$RegisterLayerDefinitions,net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent,net.minecraft.world.entity.monster.Monster,net.minecraft.world.entity.EntityType \
+            > /tmp/api_signatures.txt 2>&1 || true
+          tail -5 /tmp/api_signatures.txt
+
+      - name: Commit API signatures to /dist
+        working-directory: .
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$GITHUB_REF_NAME"
+          git checkout "$GITHUB_REF_NAME"
+          git reset --hard "origin/$GITHUB_REF_NAME"
+          mkdir -p dist
+          cp /tmp/api_signatures.txt dist/API_SIGNATURES.txt
+          git add dist/API_SIGNATURES.txt
+          git commit -m "CI: entity/renderer API signatures for ${GITHUB_SHA} [skip ci]" || echo "no change"
+          git push origin "HEAD:$GITHUB_REF_NAME" || echo "push raced; will retry next run"
 
       - name: Key mapping and packet distributor classes
         run: gradle keyCategories --no-daemon --console=plain -q || true
