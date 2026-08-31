@@ -152,6 +152,22 @@ public final class Bosses {
 
         switch (fight.kind) {
             case MINOTAUR -> {
+                // The charge. He only knows straight lines: every seven seconds, if his target is
+                // at running distance, he is suddenly covering it. Sidestep or be somewhere else.
+                if (fight.cooldown == 0 && boss instanceof net.minecraft.world.entity.Mob m
+                        && m.getTarget() != null) {
+                    double gap = m.distanceTo(m.getTarget());
+                    if (gap > 5 && gap < 24) {
+                        fight.cooldown = 140;
+                        Vec3 at = m.getTarget().position().subtract(boss.position()).normalize();
+                        boss.push(at.x * 2.2, 0.1, at.z * 2.2);
+                        boss.hurtMarked = true;
+                        level.playSound(null, boss.blockPosition(), SoundEvents.RAVAGER_ROAR,
+                                SoundSource.HOSTILE, 1.4f, 0.5f);
+                        level.sendParticles(ParticleTypes.CLOUD, boss.getX(), boss.getY() + 0.2,
+                                boss.getZ(), 25, 0.5, 0.1, 0.5, 0.08);
+                    }
+                }
                 // Half health: a horn breaks. Less damage, far more speed — the books' second wind.
                 if (!fight.hornBroken && frac < 0.5f) {
                     fight.hornBroken = true;
@@ -180,9 +196,18 @@ public final class Bosses {
                 }
             }
             case FURY -> {
+                // The swoop. She lost her Vex body and its flight with it; this gives her the
+                // part of flying that mattered — arriving from above, fast, wings out.
                 if (fight.cooldown == 0) {
-                    fight.cooldown = 160;
+                    fight.cooldown = 150;
                     boss.addEffect(new MobEffectInstance(MobEffects.SPEED, 120, 2));
+                    if (boss instanceof net.minecraft.world.entity.Mob m && m.getTarget() != null
+                            && boss.onGround()) {
+                        Vec3 at = m.getTarget().position().subtract(boss.position()).normalize();
+                        boss.push(at.x * 1.3, 0.9, at.z * 1.3);
+                        boss.hurtMarked = true;
+                        boss.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 60, 0));
+                    }
                     level.sendParticles(ParticleTypes.SMOKE, boss.getX(), boss.getY() + 1, boss.getZ(),
                             25, 0.5, 0.5, 0.5, 0.1);
                 }
