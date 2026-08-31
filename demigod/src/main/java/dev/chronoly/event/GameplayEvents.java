@@ -145,6 +145,7 @@ public final class GameplayEvents {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             Bosses.tick(level);
             SpawnDirector.tick(level);
+            dev.chronoly.world.onboard.SatyrGuide.tick(level);
         }
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
