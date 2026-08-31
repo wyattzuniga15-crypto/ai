@@ -29,8 +29,38 @@ public final class UnderworldDistricts {
     /** Idempotent; the lodestone under each district is the "already built" marker. */
     public static void ensure(ServerLevel level) {
         if (!level.getBlockState(ASPHODEL.below(2)).is(Blocks.LODESTONE)) { asphodel(level); shades(level); }
-        if (!level.getBlockState(ELYSIUM.below(2)).is(Blocks.LODESTONE)) elysium(level);
-        if (!level.getBlockState(PUNISHMENT.below(2)).is(Blocks.LODESTONE)) punishment(level);
+        if (!level.getBlockState(ELYSIUM.below(2)).is(Blocks.LODESTONE)) { elysium(level); heroes(level); }
+        if (!level.getBlockState(PUNISHMENT.below(2)).is(Blocks.LODESTONE)) { punishment(level); tormentors(level); }
+    }
+
+    /** Elysium's dead walk in the sun they earned. Villagers at rest, nobody selling anything. */
+    private static void heroes(ServerLevel level) {
+        var rng = level.random;
+        for (int i = 0; i < 6; i++) {
+            var hero = net.minecraft.world.entity.EntityType.VILLAGER.create(level,
+                    net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
+            if (hero == null) continue;
+            hero.setPos(ELYSIUM.getX() + rng.nextInt(31) - 15, ELYSIUM.getY(),
+                    ELYSIUM.getZ() + rng.nextInt(31) - 15);
+            hero.setPersistenceRequired();
+            hero.setCustomName(net.minecraft.network.chat.Component.literal("§6A hero, at rest"));
+            level.addFreshEntity(hero);
+        }
+    }
+
+    /** Punishment staffs itself. Blazes patrol the pens, and they are not neutral about you. */
+    private static void tormentors(ServerLevel level) {
+        var rng = level.random;
+        for (int i = 0; i < 5; i++) {
+            var blaze = net.minecraft.world.entity.EntityType.BLAZE.create(level,
+                    net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
+            if (blaze == null) continue;
+            blaze.setPos(PUNISHMENT.getX() + rng.nextInt(41) - 20, PUNISHMENT.getY() + 3,
+                    PUNISHMENT.getZ() + rng.nextInt(41) - 20);
+            blaze.setPersistenceRequired();
+            blaze.setCustomName(net.minecraft.network.chat.Component.literal("§4A tormentor"));
+            level.addFreshEntity(blaze);
+        }
     }
 
     /**
