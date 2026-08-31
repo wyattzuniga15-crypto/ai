@@ -7,6 +7,7 @@ import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
 import dev.chronoly.flaw.FatalFlaws;
+import dev.chronoly.economy.IrisMessage;
 import dev.chronoly.quest.Oracle;
 import dev.chronoly.world.underworld.Judgment;
 import dev.chronoly.world.camp.CampBuilder;
@@ -51,6 +52,8 @@ public final class ChCommands {
         p.sendSystemMessage(Component.literal("§e/chronoly camp ward §7— are you inside the borders?"));
         p.sendSystemMessage(Component.literal("§e/chronoly travel underworld|olympus|home"));
         p.sendSystemMessage(Component.literal("§e/chronoly charon §7— a drachma buys the crossing out"));
+        p.sendSystemMessage(Component.literal("§e/chronoly iris <player> §7— a drachma into a rainbow"));
+        p.sendSystemMessage(Component.literal("§e/chronoly deliver <player> §7— Hermes Express, one drachma"));
         p.sendSystemMessage(Component.literal("§8Operators: /chronoly claim <god>, summon <boss>, camp build, favor <n>"));
         p.sendSystemMessage(Component.literal("§8—"));
         p.sendSystemMessage(Component.literal(
@@ -234,6 +237,24 @@ public final class ChCommands {
                             : "§cYou are outside the borders. §7Whatever is hunting you can still smell you."));
                     return 1;
                 })));
+
+        root.then(Commands.literal("iris")
+                .then(Commands.argument("player", net.minecraft.commands.arguments.EntityArgument.player())
+                        .executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            ServerPlayer target =
+                                    net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx, "player");
+                            return IrisMessage.send((ServerLevel) p.level(), p, target) ? 1 : 0;
+                        })));
+
+        root.then(Commands.literal("deliver")
+                .then(Commands.argument("player", net.minecraft.commands.arguments.EntityArgument.player())
+                        .executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            ServerPlayer target =
+                                    net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx, "player");
+                            return IrisMessage.deliver(p, target) ? 1 : 0;
+                        })));
 
         root.executes(ctx -> help(ctx.getSource().getPlayerOrException()));
         root.then(Commands.literal("help").executes(ctx -> help(ctx.getSource().getPlayerOrException())));
