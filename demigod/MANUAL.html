@@ -1,0 +1,1043 @@
+<title>Chronoly Field Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,800;1,400&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  --paper:#EDF0EC; --surface:#F7F9F6; --sunk:#E2E7E1;
+  --ink:#16211F; --ink-2:#3D4C48; --ink-3:#6B7A75;
+  --rule:#CFD8D2; --rule-2:#DFE6E0;
+  --bronze:#9A6414; --bronze-hi:#C08A2E; --bronze-wash:#F2E7D3;
+  --verd:#1F6A58; --verd-wash:#DCEBE5;
+  --blood:#9C3225; --blood-wash:#F5E1DD;
+  --shadow:rgba(22,33,31,.09);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1413; --surface:#161F1D; --sunk:#1D2825;
+    --ink:#E6ECE8; --ink-2:#AEBDB7; --ink-3:#7E8F89;
+    --rule:#2A3733; --rule-2:#222E2B;
+    --bronze:#D9A555; --bronze-hi:#EFC079; --bronze-wash:#2A2114;
+    --verd:#5FBBA0; --verd-wash:#122A25;
+    --blood:#D9705E; --blood-wash:#2B1713;
+    --shadow:rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1413; --surface:#161F1D; --sunk:#1D2825;
+  --ink:#E6ECE8; --ink-2:#AEBDB7; --ink-3:#7E8F89;
+  --rule:#2A3733; --rule-2:#222E2B;
+  --bronze:#D9A555; --bronze-hi:#EFC079; --bronze-wash:#2A2114;
+  --verd:#5FBBA0; --verd-wash:#122A25;
+  --blood:#D9705E; --blood-wash:#2B1713;
+  --shadow:rgba(0,0,0,.4);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:Archivo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.62; margin:0;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{display:grid; grid-template-columns:1fr; max-width:1240px; margin:0 auto; padding:0 22px}
+@media (min-width:1040px){ .wrap{grid-template-columns:222px minmax(0,1fr); gap:52px; padding:0 32px} }
+
+/* ---- contents rail ---- */
+nav.toc{display:none}
+@media (min-width:1040px){
+  nav.toc{
+    display:block; position:sticky; top:0; align-self:start;
+    max-height:100vh; overflow-y:auto; padding:46px 0 40px;
+  }
+}
+.toc-label{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:10px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--ink-3); margin-bottom:14px;
+}
+.toc a{
+  display:block; padding:4px 0 4px 12px; border-left:2px solid var(--rule-2);
+  color:var(--ink-2); text-decoration:none; font-size:13.5px; line-height:1.35;
+}
+.toc a:hover,.toc a:focus-visible{color:var(--bronze); border-left-color:var(--bronze)}
+.toc a:focus-visible{outline:2px solid var(--bronze); outline-offset:2px}
+
+main{padding:0 0 96px; min-width:0}
+
+/* ---- masthead ---- */
+header.mast{padding:56px 0 34px; border-bottom:3px double var(--rule)}
+.eyebrow{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:11px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--bronze); margin-bottom:16px;
+}
+h1{
+  font-family:Spectral,Georgia,serif; font-weight:800; font-size:clamp(2.5rem,6.5vw,4rem);
+  line-height:1.02; letter-spacing:-.022em; margin:0 0 6px; text-wrap:balance;
+}
+.subtitle{
+  font-family:Spectral,Georgia,serif; font-style:italic; font-weight:400;
+  font-size:clamp(1.1rem,2.6vw,1.4rem); color:var(--ink-2); margin:0 0 22px;
+}
+.standfirst{max-width:64ch; color:var(--ink-2); margin:0}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:26px;
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:11.5px; color:var(--ink-3);
+}
+.meta b{color:var(--ink); font-weight:700}
+
+/* ---- sections ---- */
+section{padding-top:52px; scroll-margin-top:20px}
+h2{
+  font-family:Spectral,Georgia,serif; font-weight:700; font-size:clamp(1.55rem,3.4vw,2.05rem);
+  line-height:1.14; letter-spacing:-.014em; margin:0 0 4px; text-wrap:balance;
+}
+.sec-num{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:11px; letter-spacing:.18em;
+  color:var(--bronze); text-transform:uppercase; display:block; margin-bottom:9px;
+}
+h2+.lede{color:var(--ink-2); max-width:66ch; margin:10px 0 26px}
+h3{
+  font-family:Spectral,Georgia,serif; font-weight:600; font-size:1.22rem;
+  margin:34px 0 10px; letter-spacing:-.008em;
+}
+h4{font-family:Archivo,sans-serif; font-weight:600; font-size:1rem; margin:22px 0 8px}
+p{max-width:66ch; margin:0 0 15px}
+a{color:var(--bronze); text-underline-offset:2px}
+strong{font-weight:600}
+em{font-style:italic}
+
+code,.mono{font-family:"JetBrains Mono",ui-monospace,monospace; font-size:.86em}
+code{background:var(--sunk); padding:.12em .38em; border-radius:3px; color:var(--ink)}
+
+/* ---- tables ---- */
+.scroller{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:5px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:14px; min-width:560px}
+th{
+  text-align:left; font-family:"JetBrains Mono",ui-monospace,monospace; font-weight:700;
+  font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3);
+  padding:11px 14px; border-bottom:1px solid var(--rule); white-space:nowrap;
+  background:var(--sunk);
+}
+td{padding:11px 14px; border-bottom:1px solid var(--rule-2); vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+td.num,th.num{font-family:"JetBrains Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+td.name{font-weight:600; white-space:nowrap}
+
+/* ---- callouts ---- */
+.note{
+  border:1px solid var(--rule); border-left:3px solid var(--verd); background:var(--surface);
+  padding:15px 18px; margin:0 0 22px; border-radius:0 5px 5px 0;
+}
+.note.warn{border-left-color:var(--blood)}
+.note.gold{border-left-color:var(--bronze)}
+.note p{margin:0} .note p+p{margin-top:9px}
+.note .tag{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:10px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--verd); display:block; margin-bottom:7px; font-weight:700;
+}
+.note.warn .tag{color:var(--blood)}
+.note.gold .tag{color:var(--bronze)}
+
+/* ---- numbered walkthrough ---- */
+ol.steps{list-style:none; counter-reset:s; padding:0; margin:0 0 20px}
+ol.steps>li{counter-increment:s; position:relative; padding:0 0 22px 46px}
+ol.steps>li::before{
+  content:counter(s,decimal-leading-zero); position:absolute; left:0; top:1px;
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; font-weight:700;
+  color:var(--bronze); border:1px solid var(--rule); border-radius:50%;
+  width:30px; height:30px; display:grid; place-items:center; background:var(--surface);
+}
+ol.steps>li:not(:last-child)::after{
+  content:""; position:absolute; left:15px; top:33px; bottom:4px; width:1px; background:var(--rule);
+}
+ol.steps h4{margin:2px 0 5px}
+ol.steps p{margin:0}
+
+/* ---- the crafting bench: the signature component ---- */
+.recipes{display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(292px,1fr))}
+.recipe{border:1px solid var(--rule); border-radius:6px; background:var(--surface); overflow:hidden}
+.recipe-head{
+  display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:11px 14px; border-bottom:1px solid var(--rule-2); background:var(--sunk);
+}
+.recipe-head h4{margin:0; font-size:14.5px}
+.recipe-head .yield{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; color:var(--bronze); font-weight:700;
+}
+.recipe-body{display:flex; gap:14px; padding:14px; align-items:flex-start}
+.bench{display:grid; gap:3px; flex:0 0 auto}
+.bench[data-cols="3"]{grid-template-columns:repeat(3,26px)}
+.bench[data-cols="2"]{grid-template-columns:repeat(2,26px)}
+.bench[data-cols="1"]{grid-template-columns:26px}
+.cell{
+  width:26px; height:26px; border:1px solid var(--rule); border-radius:2px; background:var(--paper);
+  display:grid; place-items:center;
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; font-weight:700; color:var(--ink-3);
+}
+.cell.filled{background:var(--bronze-wash); border-color:var(--bronze); color:var(--bronze)}
+.shapeless{
+  display:flex; flex-wrap:wrap; gap:5px; flex:0 0 auto; max-width:112px;
+}
+.chip{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:11px; font-weight:700;
+  background:var(--verd-wash); color:var(--verd); border:1px solid var(--verd);
+  border-radius:12px; padding:2px 9px;
+}
+.legend{list-style:none; margin:0; padding:0; font-size:12.5px; color:var(--ink-2); min-width:0}
+.legend li{display:flex; gap:8px; padding:1px 0; line-height:1.4}
+.legend b{
+  font-family:"JetBrains Mono",ui-monospace,monospace; color:var(--bronze); font-weight:700;
+  flex:0 0 auto; min-width:11px;
+}
+.legend.free b{color:var(--verd)}
+
+/* ---- boss cards ---- */
+.bosses{display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+.boss{border:1px solid var(--rule); border-radius:6px; background:var(--surface); padding:16px 17px}
+.boss h4{margin:0; font-family:Spectral,Georgia,serif; font-weight:700; font-size:1.16rem}
+.boss .epithet{
+  font-family:Spectral,Georgia,serif; font-style:italic; color:var(--ink-3);
+  font-size:13.5px; margin:1px 0 11px;
+}
+.stats{
+  display:flex; gap:16px; flex-wrap:wrap; padding:9px 0 11px; margin-bottom:11px;
+  border-top:1px solid var(--rule-2); border-bottom:1px solid var(--rule-2);
+}
+.stat{display:flex; flex-direction:column; gap:1px}
+.stat .k{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:9.5px; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.stat .v{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:14px; font-weight:700;
+  font-variant-numeric:tabular-nums;
+}
+.boss p{font-size:14px; margin:0 0 11px; max-width:none}
+.drops{font-size:12.5px; color:var(--ink-2); border-top:1px dashed var(--rule); padding-top:10px}
+.drops .k{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:9.5px; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--ink-3); display:block; margin-bottom:3px;
+}
+.tell{color:var(--blood); font-weight:600}
+
+/* ---- misc ---- */
+ul.plain{padding-left:20px; margin:0 0 16px; max-width:66ch}
+ul.plain li{margin-bottom:6px}
+.pill{
+  display:inline-block; font-family:"JetBrains Mono",ui-monospace,monospace; font-size:10px;
+  letter-spacing:.1em; text-transform:uppercase; font-weight:700; padding:2px 8px;
+  border-radius:11px; border:1px solid currentColor;
+}
+.pill.ok{color:var(--verd)} .pill.no{color:var(--blood)} .pill.part{color:var(--bronze)}
+footer{
+  margin-top:64px; padding:26px 0 44px; border-top:3px double var(--rule);
+  font-size:13px; color:var(--ink-3); max-width:70ch;
+}
+hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+<nav class="toc">
+  <div class="toc-label">Contents</div>
+  <a href="#install">Installing</a>
+  <a href="#start">Your first hour</a>
+  <a href="#mist">The Mist — the one rule</a>
+  <a href="#parents">Being claimed</a>
+  <a href="#powers">The eight powers</a>
+  <a href="#energy">Energy &amp; favour</a>
+  <a href="#flaws">Fatal flaws</a>
+  <a href="#scent">Scent &amp; being hunted</a>
+  <a href="#bosses">The nine monsters</a>
+  <a href="#places">Camp, Underworld, Olympus</a>
+  <a href="#oracle">The Oracle &amp; quests</a>
+  <a href="#economy">Drachmas &amp; messages</a>
+  <a href="#gear">Weapons &amp; armour</a>
+  <a href="#relics">The seven relics</a>
+  <a href="#recipes">Every recipe</a>
+  <a href="#commands">Commands</a>
+  <a href="#advancements">Advancements</a>
+  <a href="#limits">What doesn't work yet</a>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Field manual · v0.1.0</div>
+  <h1>Demigod: Chronicles&nbsp;of&nbsp;Olympus</h1>
+  <p class="subtitle">Everything the mod does, and how to survive it.</p>
+  <p class="standfirst">A total-content Percy Jackson mod for Minecraft. You are claimed by a god, hunted by things that can smell what you are, and sent after monsters by an Oracle that rhymes. This manual documents every mechanic, item, recipe and command in the build — read from source, not from memory.</p>
+  <div class="meta">
+    <span><b>Minecraft</b> 1.21.11</span>
+    <span><b>Loader</b> NeoForge 21.11</span>
+    <span><b>Mod ID</b> chronoly</span>
+    <span><b>Java</b> 21</span>
+  </div>
+</header>
+
+<section id="install">
+  <span class="sec-num">Installing</span>
+  <h2>Getting it running</h2>
+  <p class="lede">There are no dependencies. Drop it in and go.</p>
+  <ol class="steps">
+    <li><h4>Install NeoForge for Minecraft 1.21.11</h4><p>Any 21.11.x build. The mod is compiled against the newest one at build time.</p></li>
+    <li><h4>Put <code>chronoly-0.1.0.jar</code> in your <code>mods</code> folder</h4><p>Windows: <code>%appdata%\.minecraft\mods</code>. macOS: <code>~/Library/Application Support/minecraft/mods</code>.</p></li>
+    <li><h4>Launch, make a world, and type <code>/chronoly help</code></h4><p>Everything in this manual is reachable from that one command.</p></li>
+  </ol>
+  <div class="note gold">
+    <span class="tag">Server play</span>
+    <p>The mod is server-authoritative — every decision about damage, energy and favour is made on the server, so a modified client cannot cheat any of it. The jar goes on both the server and each client.</p>
+  </div>
+</section>
+
+<section id="start">
+  <span class="sec-num">Getting started</span>
+  <h2>Your first hour</h2>
+  <p class="lede">Nothing needs explaining to you in a menu. The world does the teaching, mostly by hurting you.</p>
+  <ol class="steps">
+    <li><h4>A satyr finds you</h4><p>Within your first minutes, a satyr falls into step beside you and talks you through four stages. He gives you two drachmas at stage three and a bronze knife at the end. He will not appear again once you're claimed.</p></li>
+    <li><h4>Get celestial bronze before you fight anything</h4><p>Ordinary iron cannot touch a monster — it passes straight through. Craft a <strong>celestial bronze ingot</strong> (gold + copper around a blaze rod) and make a dagger or a sword from it.</p></li>
+    <li><h4>Kill one monster</h4><p>The first monster you kill with a divine weapon claims you. A god is picked for you by weighted random — you do not choose, and the Big Three are 3% combined. From that moment you have a power, a fatal flaw and a scent.</p></li>
+    <li><h4>Press <kbd>G</kbd></h4><p>Your parent's signature power. It costs Divine Energy, which the HUD shows top-left along with your favour.</p></li>
+    <li><h4>Ask the Oracle for a quest</h4><p><code>/chronoly prophecy</code>. You get four lines of verse and 60 real minutes to kill what it names. Finishing pays 120 favour; letting the clock run out costs 40.</p></li>
+  </ol>
+</section>
+
+<section id="mist">
+  <span class="sec-num">Core mechanic</span>
+  <h2>The Mist decides who can hurt whom</h2>
+  <p class="lede">This is the most important rule in the mod, and everything else is arranged around it. Celestial bronze passes harmlessly through mortals. Mortal steel passes harmlessly through monsters. You are hurt by both.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Your weapon</th><th>vs. Monster</th><th>vs. Mortal / animal</th><th>vs. Demigod</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Divine metal <span class="mono">(bronze, imperial gold, Stygian iron)</span></td><td>Full damage</td><td><strong>Phases through</strong></td><td>Full damage</td></tr>
+        <tr><td class="name">Mortal steel <span class="mono">(anything else)</span></td><td><strong>Phases through</strong></td><td>Full damage</td><td>Full damage</td></tr>
+        <tr><td class="name">Backbiter <span class="mono">(bypasses the Mist)</span></td><td>Full damage</td><td>Full damage</td><td>Full damage</td></tr>
+        <tr><td class="name">Fire, falling, drowning, Greek fire</td><td>Full damage</td><td>Full damage</td><td>Full damage</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Mortal steel is defined by exclusion, not by a list.</strong> A weapon is divine only if it carries the <code>chronoly:divine_weapon</code> tag. Everything else in the game — including swords added by other mods that don't know this mod exists — fails against a monster. That is deliberate: enumerating every mortal weapon would go stale the moment somebody adds a sword.</p>
+  <p>The first time the rule surprises you, the game says so once, in plain language, and then never mentions it again.</p>
+  <div class="note">
+    <span class="tag">What counts as a monster</span>
+    <p>Zombies, husks, drowned, skeletons, strays, wither skeletons, spiders, cave spiders, creepers, endermen, witches, blazes, ghasts, magma cubes, phantoms, vindicators, pillagers, ravagers, evokers, hoglins, zoglins, piglin brutes, the Warden, the Wither and the Ender Dragon.</p>
+    <p><strong>Mortals</strong> are villagers, wandering traders, iron golems and every passive animal. Anything the mod doesn't recognise is treated as mortal — so an unknown creature is safe from your bronze, not vulnerable to it.</p>
+  </div>
+</section>
+
+<section id="parents">
+  <span class="sec-num">Parentage</span>
+  <h2>Being claimed</h2>
+  <p class="lede">You do not pick your parent. Kill your first monster and a god speaks for you.</p>
+  <p>Claiming is a weighted roll. The Big Three — Poseidon, Zeus and Hades — are <strong>3% combined</strong>, which is roughly what the books imply and is meant to make a child of Poseidon rare enough to be a story. The other five are drawn evenly from the remainder. Your parent fixes three things permanently: your signature power, how your energy regenerates, and which fatal flaw runs in your blood.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Parent</th><th>Signature power</th><th class="num">Cost</th><th>Energy comes back</th><th>Fatal flaw</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Poseidon</td><td>Earthshaker</td><td class="num">45</td><td>×4 submerged, ×2 near water; nearly nothing in desert or Nether</td><td>Personal loyalty</td></tr>
+        <tr><td class="name">Zeus</td><td>Lightning Bolt</td><td class="num">45</td><td>+1.5 above y&nbsp;100, ×1.8 in rain, ×3 in a thunderstorm; crippled underground</td><td>Fear of failure</td></tr>
+        <tr><td class="name">Hades</td><td>Shadow Travel</td><td class="num">35</td><td>×3 in darkness, ×1.6 underground, +1 near the dead; nearly nothing in bright daylight</td><td>Holding grudges</td></tr>
+        <tr><td class="name">Apollo</td><td>Healing Hymn</td><td class="num">30</td><td>×3.5 in direct sunlight; nearly nothing at night</td><td>Vanity</td></tr>
+        <tr><td class="name">Ares</td><td>War Cry</td><td class="num">30</td><td>×2.5 after recent violence; throttled in peacetime</td><td>Wrath</td></tr>
+        <tr><td class="name">Athena</td><td>Tactical Sight</td><td class="num">25</td><td>Faster while watching enemies that haven't hit you; ×2 once you're tracking three</td><td>Hubris</td></tr>
+        <tr><td class="name">Hermes</td><td>Blink</td><td class="num">25</td><td>Faster while travelling; throttled standing still</td><td>Recklessness</td></tr>
+        <tr><td class="name">Hecate</td><td>Witchlight</td><td class="num">25</td><td>×3 at a crossroads, ×1.8 at night, +0.5 near torches</td><td>Curiosity</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note gold">
+    <span class="tag">The point of the regeneration table</span>
+    <p>A son of Poseidon in a desert is a different resource than one in the sea, without a single ability being switched off. Where you fight matters as much as what you brought. Alaska — anywhere flagged beyond the gods' reach — zeroes regeneration for everyone.</p>
+    <p>Ares' and Hermes' rules are <strong>invented</strong>; the source brief gives no regeneration clause for either, and both are flagged in the code for sign-off.</p>
+  </div>
+</section>
+
+<section id="powers">
+  <span class="sec-num">Abilities</span>
+  <h2>The eight powers</h2>
+  <p class="lede">One key, <kbd>G</kbd>, or <code>/chronoly cast</code>. What it does depends entirely on who your parent is.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Power</th><th>Parent</th><th class="num">Cost</th><th>What actually happens</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Earthshaker</td><td>Poseidon</td><td class="num">45</td><td>Everything touching the ground within 5.5 blocks takes 7 damage, is thrown upward and outward, and gets Slowness III for 4s.</td></tr>
+        <tr><td class="name">Lightning Bolt</td><td>Zeus</td><td class="num">45</td><td>A real lightning bolt strikes the block you're looking at, up to 48 blocks away.</td></tr>
+        <tr><td class="name">Shadow Travel</td><td>Hades</td><td class="num">35</td><td>Teleport to where you're looking, up to 32 blocks. Costs you 3s of Nausea, and it should.</td></tr>
+        <tr><td class="name">Healing Hymn</td><td>Apollo</td><td class="num">30</td><td>Heals 8 and grants Regeneration II for 6s to you and every non-monster within 8 blocks.</td></tr>
+        <tr><td class="name">War Cry</td><td>Ares</td><td class="num">30</td><td>Monsters within 10 blocks get Weakness II (10s) and Slowness II (5s). You get Strength II and Resistance for 15s.</td></tr>
+        <tr><td class="name">Blink</td><td>Hermes</td><td class="num">25</td><td>Instant hop of up to 20 blocks plus Speed II for 10s. Chainable while your energy holds.</td></tr>
+        <tr><td class="name">Tactical Sight</td><td>Athena</td><td class="num">25</td><td>Every monster within 28 blocks glows through walls for 30s. Night Vision for 60s, and it tells you the count.</td></tr>
+        <tr><td class="name">Witchlight</td><td>Hecate</td><td class="num">25</td><td>Raises two glowing skeletons that fight for you and wither away after 60s. Night Vision for 120s.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Casting is refused in exactly one situation: when your energy debt is above 90% of your maximum pool. The message is <em>"You are too spent. Everything is grey and far away."</em></p>
+</section>
+
+<section id="energy">
+  <span class="sec-num">Progression</span>
+  <h2>Divine Energy and your parent's favour</h2>
+
+  <h3>Energy is a debt, not a wall</h3>
+  <p>Your pool is <code>100 + favour × 0.4</code>, so growing in your parent's regard genuinely means holding more. Spending past empty is <strong>always allowed</strong> — the shortfall becomes debt, drawn on the HUD eating into the bar from the right. Debt burns off at 1.5 per second. The books are about people who overreach, so the mod lets you.</p>
+
+  <h3>Favour, and the four tiers</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Tier</th><th class="num">Favour needed</th><th class="num">Energy pool</th></tr></thead>
+      <tbody>
+        <tr><td class="name">T1</td><td class="num">0</td><td class="num">100</td></tr>
+        <tr><td class="name">T2</td><td class="num">200</td><td class="num">180</td></tr>
+        <tr><td class="name">T3</td><td class="num">500</td><td class="num">300</td></tr>
+        <tr><td class="name">T4</td><td class="num">850</td><td class="num">440</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Tier is derived from favour, never stored — a stored tier is one that can disagree with the favour that produced it. Crossing a threshold tells you, and warns you that whatever is out there can smell the change.</p>
+
+  <h3>What moves the needle</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Event</th><th class="num">Favour</th><th>Wired up?</th></tr></thead>
+      <tbody>
+        <tr><td>Kill a monster</td><td class="num">+6</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Kill a named boss</td><td class="num">+90</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Complete the Oracle's quest</td><td class="num">+120</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Let a quest deadline pass</td><td class="num">−40</td><td><span class="pill ok">live</span></td></tr>
+        <tr><td>Burnt offering of your best food</td><td class="num">+12</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+        <tr><td>Win a fight near death</td><td class="num">+15</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+        <tr><td>Craft a kind of thing for the first time</td><td class="num">+10</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+        <tr><td>Boast — declaring a fight won early</td><td class="num">−20</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+        <tr><td>Kill something that could not fight back</td><td class="num">−25</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+        <tr><td>Break an oath sworn on the Styx</td><td class="num">−150</td><td><span class="pill no">defined, not hooked up</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note warn">
+    <span class="tag">Be honest about this table</span>
+    <p>Fifteen favour reasons are fully specified with tested coefficients in the core model. Only four currently fire during play. The rest are real code waiting on the events that should trigger them — they are not decoration, but they are not doing anything yet either.</p>
+  </div>
+
+  <h3>Ambrosia and nectar will kill you</h3>
+  <p>Both heal — ambrosia 10, nectar 6 — and both add to a <strong>burn counter</strong> that only cools at 0.15 per second. Ambrosia adds 40 per dose, nectar 20. Cross 100 and you start burning from the inside out. A mortal who eats either simply dies: <em>"It tastes like a memory, and then like burning. This was never meant for you."</em></p>
+</section>
+
+<section id="flaws">
+  <span class="sec-num">Fatal flaws</span>
+  <h2>Every flaw cuts both ways</h2>
+  <p class="lede">A flaw that is only a downside is a punishment; one that is only an upside is a perk. Each of these is strong enough that you'd choose it and dangerous enough that it will kill you.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Flaw</th><th>Parent</th><th>The edge</th><th>The cost</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Hubris</td><td>Athena</td><td>You deal 25% more damage, always.</td><td>Struck while above 90% health: you take <strong>60% more</strong> and get Slowness IV + Mining Fatigue III for 4s.</td></tr>
+        <tr><td class="name">Wrath</td><td>Ares</td><td>The lower your health, the harder you hit — up to +90% at death's door.</td><td>The incentive is to stay hurt, and staying hurt is how you die.</td></tr>
+        <tr><td class="name">Holding grudges</td><td>Hades</td><td>Anything that has killed you once takes <strong>75% more</strong> from you forever after.</td><td>Everything that hasn't takes 15% less.</td></tr>
+        <tr><td class="name">Personal loyalty</td><td>Poseidon</td><td>+50% damage while an ally within 20 blocks is below half health.</td><td>Only fires when a friend is already in trouble.</td></tr>
+        <tr><td class="name">Vanity</td><td>Apollo</td><td>+30% damage with another player watching within 32 blocks.</td><td>Alone: 15% less damage dealt and 25% more taken.</td></tr>
+        <tr><td class="name">Recklessness</td><td>Hermes</td><td>Faster and freer in open ground.</td><td>Falling hurts <strong>twice</strong> as much.</td></tr>
+        <tr><td class="name">Curiosity</td><td>Hecate</td><td>You find more than other people do.</td><td>The dark takes more interest in you.</td></tr>
+        <tr><td class="name">Fear of failure</td><td>Zeus &amp; others</td><td>Your first blow in a fight lands hard.</td><td>Miss it and you are shaken.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Hades' grudge is the only flaw that keeps a ledger: the mod records the entity type of whatever killed you, permanently, and reads it back on every hit you land.</p>
+</section>
+
+<section id="scent">
+  <span class="sec-num">Threat</span>
+  <h2>Scent — why getting stronger is dangerous</h2>
+  <p class="lede">Power raises scent, scent raises threat. Getting stronger raises the stakes instead of flattening them, and that loop is load-bearing.</p>
+  <p>Your scent runs 0 to 1 and is built from four things: your favour (up to 0.50 of it), your parent's rarity (up to 0.25 — a child of Poseidon reeks), the divine relics you're carrying (up to 0.15) and how recently you've killed (up to 0.10).</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Scent</th><th>Threat</th><th>What comes for you</th><th>Can you hide underground?</th></tr></thead>
+      <tbody>
+        <tr><td class="num">0.00 – 0.15</td><td class="name">Unseen</td><td>Nothing extra.</td><td>Yes</td></tr>
+        <tr><td class="num">0.15 – 0.45</td><td class="name">Faint</td><td>Occasional attention.</td><td>Yes</td></tr>
+        <tr><td class="num">0.45 – 0.75</td><td class="name">Noticed</td><td>One vindicator, husk or stray at a time, ×1.35 health and ×1.25 damage.</td><td><strong>No</strong></td></tr>
+        <tr><td class="num">0.75 – 1.00</td><td class="name">Hunted</td><td>Two at a time — ravagers, vindicators, wither skeletons — at ×1.8 health and ×1.6 damage.</td><td><strong>No</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note warn">
+    <span class="tag">Digging down is not a strategy</span>
+    <p>The spawn director tests your scent, not the light level. Above 0.45 you cannot hide underground — burying yourself in a hole puts you in a small dark room with the thing that followed you in.</p>
+  </div>
+  <p><strong>A ward zeroes scent outright</strong>, rather than reducing it. That absoluteness is what makes Camp Half-Blood feel like home rather than merely safer.</p>
+</section>
+
+<section id="bosses">
+  <span class="sec-num">Monsters</span>
+  <h2>The nine named monsters</h2>
+  <p class="lede">Each one is a fight with its own rule, not a bigger health bar. Two of them cannot be beaten by damage at all.</p>
+  <div class="bosses">
+
+    <article class="boss">
+      <h4>The Minotaur</h4>
+      <p class="epithet">Son of Pasiphaë</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">220</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">12</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.34</span></div>
+      </div>
+      <p>Charges in straight lines and does not know how to turn. At half health a horn snaps off in your hands and it gets markedly faster and permanently stronger.</p>
+      <p class="drops"><span class="k">Drops</span>8–16 drachmas, 3–6 celestial bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>The Hydra</h4>
+      <p class="epithet">Many-headed</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">300</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">9</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.24</span></div>
+      </div>
+      <p><span class="tell">Fire is the only answer.</span> Any non-fire hit above 6 damage grows a new head, up to six. Every five seconds it heals 4 per head. Fire damage — or attacking while you are on fire — burns one off.</p>
+      <p class="drops"><span class="k">Drops</span>The <strong>Golden Fleece</strong>, 2 Stygian iron, 8–16 drachmas, 3–6 bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>Cerberus</h4>
+      <p class="epithet">Guard of the Gate</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">260</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">10</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.38</span></div>
+      </div>
+      <p>Three heads, three phases. At two-thirds and one-third health a second and then a third head starts barking, and each one calls two more wolves into the fight.</p>
+      <p class="drops"><span class="k">Drops</span>The <strong>Helm of Darkness</strong>, 4 ambrosia, 8–16 drachmas, 3–6 bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>Medusa</h4>
+      <p class="epithet">Aunty Em</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">180</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">7</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.30</span></div>
+      </div>
+      <p><span class="tell">Do not look at her.</span> Within 24 blocks and in line of sight, looking anywhere near her costs 2 damage a tick plus Slowness IV and Mining Fatigue III. The fight is won by not looking, which is the hardest instruction in any game.</p>
+      <p class="drops"><span class="k">Drops</span><strong>Aegis</strong>, 8–16 drachmas, 3–6 bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>The Nemean Lion</h4>
+      <p class="epithet">Impervious</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">340</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">13</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.32</span></div>
+      </div>
+      <p><span class="tell">The hide turns everything.</span> Every seven seconds it roars, glows, and its mouth is open for two seconds — that window is the only time any blow lands. Patience, not damage.</p>
+      <p class="drops"><span class="k">Drops</span>The <strong>Nemean Pelt</strong>, 8–16 drachmas, 3–6 bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>The Chimera</h4>
+      <p class="epithet">Three deaths in one body</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">300</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">14</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.30</span></div>
+      </div>
+      <p>Every five and a half seconds it breathes fire: everything within 14 blocks is set alight for 5 seconds and poisoned for 6. Fire resistance is close to mandatory.</p>
+      <p class="drops"><span class="k">Drops</span>8–16 drachmas, 3–6 celestial bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>Charybdis</h4>
+      <p class="epithet">The mouth of the strait</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">380</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">11</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.10</span></div>
+      </div>
+      <p><span class="tell">The pull is the fight.</span> Everything within 20 blocks is dragged toward the centre every tick. Inside 6 blocks you take 4 drowning damage and Slowness III. Get to land — this is a fight about escaping, not damage.</p>
+      <p class="drops"><span class="k">Drops</span>8 Mist glass, 8–16 drachmas, 3–6 bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>Alecto</h4>
+      <p class="epithet">Kindly One</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">140</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">8</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.62</span></div>
+      </div>
+      <p>She was your maths teacher, and then she was not. The fastest thing in the mod, and every eight seconds she takes Speed III on top of that. Flying, low health, very hard to corner.</p>
+      <p class="drops"><span class="k">Drops</span>8–16 drachmas, 3–6 celestial bronze</p>
+    </article>
+
+    <article class="boss">
+      <h4>The Lydian Drakon</h4>
+      <p class="epithet">Older than the gods</p>
+      <div class="stats">
+        <div class="stat"><span class="k">Health</span><span class="v">420</span></div>
+        <div class="stat"><span class="k">Damage</span><span class="v">16</span></div>
+        <div class="stat"><span class="k">Speed</span><span class="v">0.26</span></div>
+      </div>
+      <p>The hardest thing in the mod. Armoured everywhere, hits for 16, and poisons everything within 12 blocks every six seconds. Bring the Fleece.</p>
+      <p class="drops"><span class="k">Drops</span>The <strong>Master Bolt</strong>, 2 Stygian iron, 8–16 drachmas, 3–6 bronze</p>
+    </article>
+
+  </div>
+  <div class="note gold">
+    <span class="tag">How to fight one</span>
+    <p>An operator summons them with <code>/chronoly summon &lt;name&gt;</code>, and the Oracle sends you after one when you ask for a prophecy. Each gets a boss bar in its own colour. Killing one is worth <strong>+90 favour</strong>, or +210 if it was the one the Oracle named.</p>
+    <p>The five named relics are <strong>not craftable</strong>. Each comes off the monster that guarded it, which is the only reason to fight the hard ones twice.</p>
+  </div>
+</section>
+
+<section id="places">
+  <span class="sec-num">Places</span>
+  <h2>Camp Half-Blood, the Underworld, Olympus</h2>
+
+  <h3>Camp Half-Blood</h3>
+  <p>An operator raises it with <code>/chronoly camp build</code>. Twenty cabins go up in the horseshoe the books describe, Zeus and Hera at the head, each in its god's colours with a numbered sign. A ward covers a <strong>48-block radius</strong> and zeroes scent completely inside it — monsters stop coming, and a new player can breathe. Check where you stand with <code>/chronoly camp ward</code>.</p>
+
+  <h3>The Underworld</h3>
+  <p><code>/chronoly travel underworld</code>. On arrival you are judged. The pavilion reads your whole life and routes you, and it checks for <strong>Punishment before Elysium</strong> on purpose — a hero who broke an oath on the Styx is not redeemed by the quests they finished first.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Verdict</th><th>Sent because</th><th>What it's like</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Punishment</td><td>You broke a Styx oath, killed three who couldn't fight back, or committed eight acts of hubris</td><td>Exactly as advertised</td></tr>
+        <tr><td class="name">Elysium</td><td>Five heroic deeds, or two quests, or 700 peak favour</td><td>Three lifetimes here unlocks the Isles of the Blest</td></tr>
+        <tr><td class="name">Asphodel</td><td>"You were, on balance, fine"</td><td>Grey, and blinding on arrival</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Getting out costs a drachma.</strong> Charon does not ferry anybody for nothing. Hold a golden drachma and walk through the gate, or use <code>/chronoly charon</code>. Arrive with empty pockets and you are given exactly one drachma, exactly once, so nobody is stranded forever.</p>
+
+  <h3>Olympus</h3>
+  <p><code>/chronoly travel olympus</code>, six hundred floors up. Twelve thrones, and eleven of them have nothing for you — being told so by eleven gods in turn is part of the experience of standing in that room.</p>
+  <p>Petition your own parent with <code>/chronoly olympus &lt;god&gt;</code>. You need <strong>150 favour</strong>, and the boon is once per character: your energy is refilled, your debt cleared, and you gain permanent Health Boost II plus Regeneration II. <em>"Something settles into your chest that was not there before. It does not feel like a gift so much as a debt."</em></p>
+  <p>Come back with <code>/chronoly travel home</code>.</p>
+</section>
+
+<section id="oracle">
+  <span class="sec-num">Quests</span>
+  <h2>The Oracle of Delphi</h2>
+  <p class="lede">Prophecies are generated objective-first: a real, solvable quest is planned, and the verse is written as a view onto it. The rhyme never describes something you cannot do.</p>
+  <p><code>/chronoly prophecy</code> gives you four lines in two rhyming couplets, naming a target, a place, a relic and a cost — shuffled, so the same quest reads differently each time. Every monster in the mod has its own kennings; the Oracle is structurally unable to name something it has no words for.</p>
+  <ul class="plain">
+    <li><strong>Deadline:</strong> 72,000 ticks — 60 real minutes, three Minecraft days.</li>
+    <li><strong>Reward:</strong> +120 favour on top of the +90 for the boss itself.</li>
+    <li><strong>Failure:</strong> −40 favour, and <em>"whatever you were sent for, somebody else will have to go."</em></li>
+    <li><strong>Check it:</strong> <code>/chronoly quest</code>.</li>
+  </ul>
+</section>
+
+<section id="economy">
+  <span class="sec-num">Economy</span>
+  <h2>Drachmas, rainbows and two snakes</h2>
+  <p>A <strong>golden drachma</strong> is two gold nuggets, and it is the only currency the mod has. It pays Charon, it opens an Iris-message, and it pays Hermes Express.</p>
+
+  <h3>Iris-messaging</h3>
+  <p><code>/chronoly iris &lt;player&gt;</code>, one drachma. <strong>The rainbow requirement is real:</strong> you need water within reach, open sky and daylight — all three, or there is no rainbow and no call. When it connects you learn where the other player is, roughly how hurt they are, and what the light is like around them. They see the air in front of them shimmer.</p>
+
+  <h3>Hermes Express</h3>
+  <p><code>/chronoly deliver &lt;player&gt;</code>, one drachma. George and Martha carry the parcel and complain the whole way; distance costs time, which is the only honest way to price it. Without a coin: <em>"No coin, no delivery," says Martha. "We are not a charity."</em></p>
+</section>
+
+<section id="gear">
+  <span class="sec-num">Equipment</span>
+  <h2>Weapons and armour</h2>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Weapon</th><th class="num">Damage</th><th class="num">Speed</th><th class="num">Durability</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Riptide</td><td class="num">+9.0</td><td class="num">−2.2</td><td class="num">unbreakable</td><td>Fireproof. <strong>Returns to your pocket</strong> once you've carried it — you cannot lose it, drop it or leave it behind.</td></tr>
+        <tr><td class="name">Electric Spear</td><td class="num">+9.0</td><td class="num">−2.8</td><td class="num">400</td><td>Also a relic — see below.</td></tr>
+        <tr><td class="name">Backbiter</td><td class="num">+8.5</td><td class="num">−2.3</td><td class="num">1000</td><td>The only weapon that wounds mortals <em>and</em> monsters.</td></tr>
+        <tr><td class="name">Imperial gold sword</td><td class="num">+8.0</td><td class="num">−2.6</td><td class="num">700</td><td>Harsher and less stable than bronze. Roman work.</td></tr>
+        <tr><td class="name">Stygian iron sword</td><td class="num">+7.5</td><td class="num">−2.4</td><td class="num">1100</td><td>The most durable blade in the mod.</td></tr>
+        <tr><td class="name">Celestial bronze sword</td><td class="num">+7.0</td><td class="num">−2.4</td><td class="num">900</td><td>The workhorse. Craft this first.</td></tr>
+        <tr><td class="name">Hunting Knives</td><td class="num">+5.5</td><td class="num">−1.4</td><td class="num">600</td><td>Zoë's twin knives — much faster than anything else.</td></tr>
+        <tr><td class="name">Celestial bronze dagger</td><td class="num">+4.5</td><td class="num">−1.8</td><td class="num">500</td><td>Cheap, quick, and enough to get you claimed.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Armour</th><th>Slot</th><th class="num">Armour</th><th class="num">Toughness</th><th class="num">Durability</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Nemean Pelt</td><td>Chest</td><td class="num">9.0</td><td class="num">3.0</td><td class="num">900</td></tr>
+        <tr><td class="name">Bronze chestplate</td><td>Chest</td><td class="num">6.0</td><td class="num">1.0</td><td class="num">580</td></tr>
+        <tr><td class="name">Bronze leggings</td><td>Legs</td><td class="num">5.0</td><td class="num">0.0</td><td class="num">540</td></tr>
+        <tr><td class="name">Bronze helmet</td><td>Head</td><td class="num">2.0</td><td class="num">0.0</td><td class="num">400</td></tr>
+        <tr><td class="name">Bronze boots</td><td>Feet</td><td class="num">2.0</td><td class="num">0.0</td><td class="num">460</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note gold">
+    <span class="tag">Set bonus</span>
+    <p>All four bronze pieces at once: <strong>Divine Energy regenerates 40% faster.</strong> The bonus is thematic rather than numeric — camp wears bronze because bronze is what works, and your own blood recovers faster inside it. The Nemean Pelt is fireproof and far better armour, but wearing it breaks the set.</p>
+  </div>
+</section>
+
+<section id="relics">
+  <span class="sec-num">Relics</span>
+  <h2>The seven relics</h2>
+  <p class="lede">Right-click to use. Each costs Divine Energy and has its own cooldown. Five of them only exist as boss drops.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Relic</th><th class="num">Energy</th><th class="num">Cooldown</th><th>Effect</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Master Bolt</td><td class="num">60</td><td class="num">9s</td><td>Three real lightning bolts, 40 blocks out. <em>"The sky does what you tell it."</em></td><td>Lydian Drakon</td></tr>
+        <tr><td class="name">Helm of Darkness</td><td class="num">45</td><td class="num">20s</td><td>Invisibility 30s, plus Weakness II and Slowness II on everything within 16 blocks.</td><td>Cerberus</td></tr>
+        <tr><td class="name">Aegis</td><td class="num">30</td><td class="num">8s</td><td>Monsters within 14 blocks get Slowness V, Weakness III and glow for 10s. You get Resistance II.</td><td>Medusa</td></tr>
+        <tr><td class="name">Golden Fleece</td><td class="num">20</td><td class="num">10s</td><td>Heals 14, Regeneration III for 15s, extinguishes fire — for you and every non-monster within 12 blocks.</td><td>Hydra</td></tr>
+        <tr><td class="name">Traveler's Token</td><td class="num">30</td><td class="num">6s</td><td>Teleport to where you look, up to 48 blocks. Refused in the Underworld and on Olympus.</td><td>Craftable</td></tr>
+        <tr><td class="name">Yankees Cap</td><td class="num">25</td><td class="num">15s</td><td>Invisibility for 60 seconds, and nothing else. It simply works.</td><td>Craftable</td></tr>
+        <tr><td class="name">Electric Spear</td><td class="num">15</td><td class="num">4s</td><td>12 lightning damage and Slowness IV to everything within 5 blocks.</td><td>Craftable</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note warn">
+    <span class="tag">Relics raise your scent</span>
+    <p>Carrying divine items is loud — up to 0.15 of your total scent for six or more. Walking around with the Master Bolt is exactly as conspicuous as it sounds.</p>
+  </div>
+</section>
+
+<section id="recipes">
+  <span class="sec-num">Crafting</span>
+  <h2>Every recipe</h2>
+  <p class="lede">Twenty-three recipes. Everything craftable in the mod is here; the five relics not listed come off bosses.</p>
+
+  <h3>Materials</h3>
+  <div class="recipes">
+    <div class="recipe">
+      <div class="recipe-head"><h4>Celestial bronze ingot</h4><span class="yield">×4</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">G</div><div class="cell filled">C</div><div class="cell filled">G</div>
+          <div class="cell filled">C</div><div class="cell filled">N</div><div class="cell filled">C</div>
+          <div class="cell filled">G</div><div class="cell filled">C</div><div class="cell filled">G</div>
+        </div>
+        <ul class="legend"><li><b>G</b> Gold ingot</li><li><b>C</b> Copper ingot</li><li><b>N</b> Nether star</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Celestial bronze — the cheap way</h4><span class="yield">×2</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">G</div><div class="cell filled">C</div><div class="cell filled">G</div>
+          <div class="cell filled">C</div><div class="cell filled">B</div><div class="cell filled">C</div>
+          <div class="cell filled">G</div><div class="cell filled">C</div><div class="cell filled">G</div>
+        </div>
+        <ul class="legend"><li><b>G</b> Gold ingot</li><li><b>C</b> Copper ingot</li><li><b>B</b> Blaze rod</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Imperial gold ingot</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="shapeless"><span class="chip">Bronze</span><span class="chip">Gold block</span><span class="chip">Glowstone</span></div>
+        <ul class="legend free"><li>Shapeless — any arrangement.</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Stygian iron ingot</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="shapeless"><span class="chip">Bronze</span><span class="chip">Netherite scrap</span><span class="chip">Soul sand</span></div>
+        <ul class="legend free"><li>Shapeless — any arrangement.</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Golden drachma</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="shapeless"><span class="chip">Gold nugget</span><span class="chip">Gold nugget</span></div>
+        <ul class="legend free"><li>The whole economy, two nuggets at a time.</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Mist glass</h4><span class="yield">×2</span></div>
+      <div class="recipe-body">
+        <div class="shapeless"><span class="chip">Glass</span><span class="chip">Phantom membrane</span></div>
+        <ul class="legend free"><li>Worked Mist, held in a solid.</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Greek fire</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="shapeless"><span class="chip">Glass bottle</span><span class="chip">Blaze powder</span><span class="chip">Magma cream</span></div>
+        <ul class="legend free"><li>Hurts everyone. Bypasses the Mist entirely.</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Consumables</h3>
+  <div class="recipes">
+    <div class="recipe">
+      <div class="recipe-head"><h4>Ambrosia</h4><span class="yield">×2</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">G</div><div class="cell filled">G</div><div class="cell filled">G</div>
+          <div class="cell filled">G</div><div class="cell filled">H</div><div class="cell filled">G</div>
+          <div class="cell filled">G</div><div class="cell filled">G</div><div class="cell filled">G</div>
+        </div>
+        <ul class="legend"><li><b>G</b> Glowstone dust</li><li><b>H</b> Honeycomb</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Nectar</h4><span class="yield">×2</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">G</div><div class="cell"></div><div class="cell filled">G</div>
+          <div class="cell filled">G</div><div class="cell filled">H</div><div class="cell filled">G</div>
+          <div class="cell"></div><div class="cell filled">B</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>G</b> Glowstone dust</li><li><b>H</b> Honey bottle</li><li><b>B</b> Glass bottle</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Weapons</h3>
+  <div class="recipes">
+    <div class="recipe">
+      <div class="recipe-head"><h4>Celestial bronze sword</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">S</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>I</b> Celestial bronze ingot</li><li><b>S</b> Stick</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Celestial bronze dagger</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="1">
+          <div class="cell filled">I</div>
+          <div class="cell filled">S</div>
+        </div>
+        <ul class="legend"><li><b>I</b> Celestial bronze ingot</li><li><b>S</b> Stick</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Imperial gold sword</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">S</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>I</b> Imperial gold ingot</li><li><b>S</b> Stick</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Stygian iron sword</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">S</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>I</b> Stygian iron ingot</li><li><b>S</b> Stick</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Riptide</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell filled">B</div>
+          <div class="cell filled">I</div><div class="cell filled">P</div><div class="cell filled">I</div>
+          <div class="cell filled">B</div><div class="cell filled">I</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>P</b> Celestial bronze sword</li><li><b>I</b> Bronze ingot</li><li><b>B</b> Ink sac</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Backbiter</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell"></div><div class="cell filled">B</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">S</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">H</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>B</b> Celestial bronze ingot</li><li><b>S</b> Iron ingot</li><li><b>H</b> Stick</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Hunting Knives</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+          <div class="cell filled">M</div><div class="cell"></div><div class="cell filled">M</div>
+        </div>
+        <ul class="legend"><li><b>I</b> Iron ingot</li><li><b>M</b> Mist glass</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Electric Spear</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell"></div><div class="cell filled">I</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">R</div><div class="cell"></div>
+          <div class="cell"></div><div class="cell filled">S</div><div class="cell"></div>
+        </div>
+        <ul class="legend"><li><b>I</b> Imperial gold ingot</li><li><b>R</b> Lightning rod</li><li><b>S</b> Stick</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Armour and gear</h3>
+  <div class="recipes">
+    <div class="recipe">
+      <div class="recipe-head"><h4>Bronze helmet</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">I</div><div class="cell filled">I</div><div class="cell filled">I</div>
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+        </div>
+        <ul class="legend"><li><b>I</b> Celestial bronze ingot</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Bronze chestplate</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+          <div class="cell filled">I</div><div class="cell filled">I</div><div class="cell filled">I</div>
+          <div class="cell filled">I</div><div class="cell filled">I</div><div class="cell filled">I</div>
+        </div>
+        <ul class="legend"><li><b>I</b> Celestial bronze ingot</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Bronze leggings</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">I</div><div class="cell filled">I</div><div class="cell filled">I</div>
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+        </div>
+        <ul class="legend"><li><b>I</b> Celestial bronze ingot</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Bronze boots</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+          <div class="cell filled">I</div><div class="cell"></div><div class="cell filled">I</div>
+        </div>
+        <ul class="legend"><li><b>I</b> Celestial bronze ingot</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Yankees Cap</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="bench" data-cols="3">
+          <div class="cell filled">M</div><div class="cell filled">M</div><div class="cell filled">M</div>
+          <div class="cell filled">M</div><div class="cell filled">W</div><div class="cell filled">M</div>
+        </div>
+        <ul class="legend"><li><b>M</b> Mist glass</li><li><b>W</b> Blue wool</li></ul>
+      </div>
+    </div>
+
+    <div class="recipe">
+      <div class="recipe-head"><h4>Traveler's Token</h4><span class="yield">×1</span></div>
+      <div class="recipe-body">
+        <div class="shapeless"><span class="chip">Drachma</span><span class="chip">Drachma</span><span class="chip">Ender pearl</span></div>
+        <ul class="legend free"><li>A drachma spent on the road rather than the ferryman.</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="commands">
+  <span class="sec-num">Reference</span>
+  <h2>Commands</h2>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Command</th><th>Does</th><th>Who</th></tr></thead>
+      <tbody>
+        <tr><td class="name"><code>/chronoly help</code></td><td>Everything below, in-game</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly status</code></td><td>Parent, favour, energy, flaw, current quest</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly cast</code></td><td>Your birthright — same as pressing <kbd>G</kbd></td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly prophecy</code></td><td>The Oracle speaks and binds you to a quest</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly quest</code></td><td>What you were sent to do, and how long is left</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly camp ward</code></td><td>Whether you're inside the borders</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly travel underworld│olympus│home</code></td><td>Dimension travel</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly charon</code></td><td>Pay a drachma for the crossing out</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly iris &lt;player&gt;</code></td><td>A drachma into a rainbow</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly deliver &lt;player&gt;</code></td><td>Hermes Express, one drachma</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly olympus &lt;god&gt;</code></td><td>Petition a throne — only your parent answers</td><td>Anyone</td></tr>
+        <tr><td class="name"><code>/chronoly claim &lt;god&gt;</code></td><td>Assign parentage directly</td><td>Operator</td></tr>
+        <tr><td class="name"><code>/chronoly summon &lt;boss&gt;</code></td><td>Call one of the nine</td><td>Operator</td></tr>
+        <tr><td class="name"><code>/chronoly camp build</code></td><td>Raise Camp Half-Blood where you stand</td><td>Operator</td></tr>
+        <tr><td class="name"><code>/chronoly favor &lt;n&gt;</code></td><td>Adjust favour</td><td>Operator</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="advancements">
+  <span class="sec-num">Reference</span>
+  <h2>Advancements</h2>
+  <p class="lede">Nine, titled in the books' voice.</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Title</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Demigod</td><td>Something is going to find you eventually.</td></tr>
+        <tr><td class="name">I Accidentally Vaporize My Pre-Algebra Teacher</td><td>Kill something that should not exist.</td></tr>
+        <tr><td class="name">Ordinary Metal Won't Touch Them</td><td>Get hold of celestial bronze.</td></tr>
+        <tr><td class="name">I Eat The Food Of The Gods And Regret The Portion Size</td><td>Obtain ambrosia. Do not have seconds.</td></tr>
+        <tr><td class="name">My Pen Is A Sword, Which Is Not A Metaphor</td><td>Hold Riptide. Try losing it.</td></tr>
+        <tr><td class="name">I Am Holding The Thing Everybody Is Looking For</td><td>Obtain the master bolt.</td></tr>
+        <tr><td class="name">I Take A Very Bad Holiday</td><td>Arrive in the Underworld. Bring a coin.</td></tr>
+        <tr><td class="name">The Six Hundredth Floor</td><td>Reach Olympus.</td></tr>
+        <tr><td class="name">The Wool That Fixes Everything</td><td>Obtain the Golden Fleece.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="limits">
+  <span class="sec-num">Honest section</span>
+  <h2>What doesn't work yet</h2>
+  <p class="lede">This is v0.1.0. Everything above is real and in the jar; everything below is missing, and you should know before you install it.</p>
+  <ul class="plain">
+    <li><strong>Nothing has been observed running.</strong> The build compiles and packages in CI, but no automated test has ever launched the game. The mod's runtime behaviour is verified by reasoning and by 51 unit tests over the Minecraft-free core, not by a server that booted.</li>
+    <li><strong>Bosses wear vanilla bodies.</strong> Medusa is a re-skinned witch, the Minotaur a ravager, Charybdis an elder guardian. The mechanics are real; the models are not. Swapping the base type is one line per boss once there is art.</li>
+    <li><strong>Abilities are one tier of four.</strong> Favour tiers change your energy pool and nothing else. Higher tiers are meant to change what an ability <em>is</em>, and they don't yet.</li>
+    <li><strong>Camp and Olympus are built by command, not generated.</strong> They exist as structures an operator raises; they do not appear in a fresh world on their own.</li>
+    <li><strong>Eleven of the fifteen favour reasons are not hooked up.</strong> See the table above — they're specified and tested, but no event fires them.</li>
+    <li><strong>No in-game guidebook.</strong> This page is it.</li>
+    <li><strong>The Labyrinth, charmspeak, and the Fissure of Erebus</strong> are designed and partly built in the core model, but have no in-game entry point.</li>
+  </ul>
+  <div class="note warn">
+    <span class="tag">Fixed while writing this manual</span>
+    <p>Documenting the weapons turned up a real bug: Backbiter, the Hunting Knives and the Electric Spear were missing from the divine-weapon tag, so all three were classified as mortal steel and <strong>passed harmlessly through every monster</strong> — three of eight weapons, two of them boss-tier, did literally nothing to the things they were made to fight. All three now work, and Backbiter got the third damage axis it always needed.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Compiled from the mod source at <code>demigod/</code> on branch <code>claude/prompt-usage-gskss7</code>. Every number here — damage, cooldowns, thresholds, recipe patterns — was read out of the code and data files rather than recalled, and the honest section is as carefully sourced as the rest.</p>
+  <p>Percy Jackson and the Olympians is the work of Rick Riordan. This is an unofficial fan project.</p>
+</footer>
+</main>
+</div>
