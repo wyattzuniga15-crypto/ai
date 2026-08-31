@@ -6,6 +6,7 @@ import dev.chronoly.attachment.DemigodData;
 import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
 import dev.chronoly.core.favor.Tier;
+import dev.chronoly.quest.Oracle;
 import dev.chronoly.world.ChDimensions;
 import net.minecraft.server.level.ServerLevel;
 import dev.chronoly.event.GameplayEvents;
@@ -129,6 +130,38 @@ public final class ChCommands {
             }));
         }
         root.then(summon);
+
+        root.then(Commands.literal("prophecy").executes(ctx -> {
+            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            DemigodData d = p.getData(ChAttachments.DEMIGOD.get());
+            if (!d.isClaimed()) {
+                p.sendSystemMessage(Component.literal(
+                        "§7The Oracle does not waste breath on the unclaimed."));
+                return 0;
+            }
+            if (d.hasQuest()) {
+                p.sendSystemMessage(Component.literal(
+                        "§7You already have somewhere to be. §8/chronoly quest"));
+                return 0;
+            }
+            Oracle.consult(p, d);
+            return 1;
+        }));
+
+        root.then(Commands.literal("quest").executes(ctx -> {
+            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            DemigodData d = p.getData(ChAttachments.DEMIGOD.get());
+            if (!d.hasQuest()) {
+                p.sendSystemMessage(Component.literal(
+                        "§7No prophecy on you. §8/chronoly prophecy if you want one."));
+                return 0;
+            }
+            long left = (d.questDeadline() - p.level().getGameTime()) / 20L;
+            p.sendSystemMessage(Component.literal(String.format(
+                    "§6Quest: §fdestroy %s §7in §f%s §7| §e%d§7s left",
+                    d.questTarget(), d.questPlace(), Math.max(0, left))));
+            return 1;
+        }));
 
         event.getDispatcher().register(root);
     }

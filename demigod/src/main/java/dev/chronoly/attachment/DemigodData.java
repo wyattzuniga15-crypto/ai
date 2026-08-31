@@ -32,6 +32,9 @@ public final class DemigodData {
     private float energy;
     private float overdraw;
     private float ambrosiaBurn;
+    private String questTarget = "";
+    private String questPlace = "";
+    private long questDeadline;
     private final Set<String> flags = new HashSet<>();
 
     public DemigodData() {}
@@ -41,13 +44,17 @@ public final class DemigodData {
      * exactly one path by which a loaded save becomes a live object.
      */
     private DemigodData(int schemaVersion, Optional<String> parentage, Map<String, Float> favor,
-                        float energy, float overdraw, float ambrosiaBurn, List<String> flags) {
+                        float energy, float overdraw, float ambrosiaBurn, List<String> flags,
+                        String questTarget, String questPlace, long questDeadline) {
         this.parentage = parentage;
         this.favor.putAll(favor);
         this.energy = energy;
         this.overdraw = overdraw;
         this.ambrosiaBurn = ambrosiaBurn;
         this.flags.addAll(flags);
+        this.questTarget = questTarget;
+        this.questPlace = questPlace;
+        this.questDeadline = questDeadline;
         this.schemaVersion = migrate(schemaVersion);
     }
 
@@ -72,7 +79,10 @@ public final class DemigodData {
             Codec.FLOAT.optionalFieldOf("energy", 0f).forGetter(DemigodData::energy),
             Codec.FLOAT.optionalFieldOf("overdraw", 0f).forGetter(DemigodData::overdraw),
             Codec.FLOAT.optionalFieldOf("ambrosia_burn", 0f).forGetter(DemigodData::ambrosiaBurn),
-            Codec.STRING.listOf().optionalFieldOf("flags", List.<String>of()).forGetter(DemigodData::flagList)
+            Codec.STRING.listOf().optionalFieldOf("flags", List.<String>of()).forGetter(DemigodData::flagList),
+            Codec.STRING.optionalFieldOf("quest_target", "").forGetter(DemigodData::questTarget),
+            Codec.STRING.optionalFieldOf("quest_place", "").forGetter(DemigodData::questPlace),
+            Codec.LONG.optionalFieldOf("quest_deadline", 0L).forGetter(DemigodData::questDeadline)
     ).apply(i, DemigodData::new));
 
     /** The standalone form, for tests and for anywhere a full Codec is wanted. */
@@ -125,6 +135,26 @@ public final class DemigodData {
         float fromPool = Math.min(energy, cost);
         energy -= fromPool;
         overdraw += (cost - fromPool);
+    }
+
+    public String questTarget() { return questTarget; }
+
+    public String questPlace() { return questPlace; }
+
+    public long questDeadline() { return questDeadline; }
+
+    public boolean hasQuest() { return !questTarget.isEmpty(); }
+
+    public void setQuest(String target, String place, long deadline) {
+        this.questTarget = target;
+        this.questPlace = place;
+        this.questDeadline = deadline;
+    }
+
+    public void clearQuest() {
+        this.questTarget = "";
+        this.questPlace = "";
+        this.questDeadline = 0L;
     }
 
     public float maxEnergy() {

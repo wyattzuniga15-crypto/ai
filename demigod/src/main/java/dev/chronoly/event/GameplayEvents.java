@@ -5,7 +5,11 @@ import dev.chronoly.attachment.DemigodData;
 import dev.chronoly.combat.MistCombatResolver;
 import dev.chronoly.core.energy.EnergyProfile;
 import dev.chronoly.core.energy.Surroundings;
+import dev.chronoly.boss.BossKind;
 import dev.chronoly.boss.Bosses;
+import dev.chronoly.registry.ChItems;
+import dev.chronoly.world.spawn.SpawnDirector;
+import net.minecraft.world.item.ItemStack;
 import dev.chronoly.core.favor.Tier;
 import dev.chronoly.world.ChDimensions;
 import dev.chronoly.registry.ChAttachments;
@@ -47,7 +51,20 @@ public final class GameplayEvents {
             Bosses.onBossKilled((ServerLevel) dead.level(), dead);
             if (event.getSource().getEntity() instanceof ServerPlayer slayer) {
                 DemigodData sd = slayer.getData(ChAttachments.DEMIGOD.get());
-                if (sd.isClaimed()) sd.addFavor(sd.parentage().orElseThrow(), 90f);
+                if (sd.isClaimed()) {
+                    sd.addFavor(sd.parentage().orElseThrow(), 90f);
+
+                    // If the Oracle sent them after this one, that is the quest done.
+                    for (BossKind kind : BossKind.values()) {
+                        if (!sd.questTarget().equals(kind.id())) continue;
+                        if (!dead.getName().getString().contains(kind.title)) continue;
+                        sd.clearQuest();
+                        sd.addFavor(sd.parentage().orElseThrow(), 120f);
+                        slayer.sendSystemMessage(Component.literal(
+                                "§6§lThe prophecy is spent. §7You did what it said, more or less."));
+                        break;
+                    }
+                }
             }
         }
         if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
@@ -119,6 +136,7 @@ public final class GameplayEvents {
 
         for (ServerLevel level : event.getServer().getAllLevels()) {
             Bosses.tick(level);
+            SpawnDirector.tick(level);
         }
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
@@ -133,7 +151,44 @@ public final class GameplayEvents {
 
             // Ambrosia burn cools over real minutes — The Lightning Thief, ch. 4.
             if (data.ambrosiaBurn() > 0f) data.setAmbrosiaBurn(data.ambrosiaBurn() - 0.15f);
+
+            returnRiptide(player, data);
+            expireQuest(player, data);
         }
+    }
+
+    /**
+     * The Lightning Thief, ch. 6 — Riptide always comes back to your pocket. Lose it, drop it,
+     * leave it in a chest: it is a pen again and it is in your pocket.
+     *
+     * <p>The flag matters. Only somebody who has actually held it gets it back, so this is a
+     * property of the sword rather than a free item.
+     */
+    private static void returnRiptide(ServerPlayer player, DemigodData data) {
+        if (player.getInventory().contains(s -> s.is(ChItems.RIPTIDE.get()))) {
+            data.raiseFlag("held_riptide");
+            return;
+        }
+        if (!data.hasFlag("held_riptide")) return;
+
+        player.getInventory().add(new ItemStack(ChItems.RIPTIDE.get()));
+        if (data.raiseFlag("lesson_riptide")) {
+            player.sendSystemMessage(Component.literal(
+                    "§bYou put your hand in your pocket and the pen is there again. "
+                    + "§7It was always going to be."));
+        }
+    }
+
+    /** A quest with a deadline is a quest you can fail. */
+    private static void expireQuest(ServerPlayer player, DemigodData data) {
+        if (!data.hasQuest()) return;
+        if (player.level().getGameTime() < data.questDeadline()) return;
+
+        data.clearQuest();
+        String god = data.parentage().orElse("");
+        if (!god.isEmpty()) data.addFavor(god, -40f);
+        player.sendSystemMessage(Component.literal(
+                "§8The deadline passes. §7Whatever you were sent for, somebody else will have to go."));
     }
 
     /** One sample per player per second; every predicate reads from this, never from the world. */
