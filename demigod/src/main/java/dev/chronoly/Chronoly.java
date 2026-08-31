@@ -40,6 +40,8 @@ public final class Chronoly {
         NeoForge.EVENT_BUS.addListener(dev.chronoly.event.PietyEvents::onCraft);
         NeoForge.EVENT_BUS.addListener(dev.chronoly.event.PietyEvents::onKill);
         NeoForge.EVENT_BUS.addListener(dev.chronoly.item.LoreTooltips::onTooltip);
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.server.ServerStartedEvent e) ->
+                dev.chronoly.world.camp.CampBuilder.ensureAtSpawn(e.getServer().overworld()));
 
         container.registerConfig(ModConfig.Type.SERVER, ChServerConfig.SPEC);
         container.registerConfig(ModConfig.Type.COMMON, ChCommonConfig.SPEC);

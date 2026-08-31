@@ -75,7 +75,7 @@ jobs:
         if: always()
         run: |
           gradle describeClass --no-daemon --console=plain -q \
-            -Pdescribe=net.minecraft.server.level.ServerLevel,net.minecraft.world.level.storage.LevelData,net.minecraft.world.level.storage.ServerLevelData \
+            -Pdescribe=net.minecraft.client.renderer.entity.state.LivingEntityRenderState,net.minecraft.client.renderer.entity.state.EntityRenderState,net.minecraft.client.model.geom.ModelPart,net.minecraft.client.model.Model,net.minecraft.client.model.EntityModel,net.minecraft.client.model.QuadrupedModel,net.minecraft.util.Mth \
             > /tmp/api_signatures.txt 2>&1 || true
           tail -5 /tmp/api_signatures.txt
 

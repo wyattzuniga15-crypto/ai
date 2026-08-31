@@ -55,6 +55,34 @@ public final class CampBuilder {
             new Cabin("Tyche", 19, Blocks.CALCITE, Blocks.EMERALD_BLOCK),
             new Cabin("Hecate", 20, Blocks.BLACKSTONE, Blocks.CRYING_OBSIDIAN));
 
+    /**
+     * Camp raises itself in a fresh world. The Lightning Thief, ch. 5 — camp was there long
+     * before you were. Only in a young world (under ten minutes of game time): in an old one
+     * the area near spawn belongs to whoever built there, and a summer camp landing on top of
+     * somebody's house is not lore, it is griefing. Older worlds keep the operator command.
+     */
+    public static void ensureAtSpawn(ServerLevel level) {
+        BlockPos spawn = level.getRespawnData().pos();
+        // Off to one side of spawn, so the camp frames the player's first walk rather than
+        // burying the spawn point itself.
+        int x = spawn.getX() + 90, z = spawn.getZ() + 90;
+        BlockPos origin = new BlockPos(x,
+                level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z),
+                z);
+
+        boolean standing = level.getBlockState(origin.below(3))
+                .is(net.minecraft.world.level.block.Blocks.LODESTONE);
+        if (!standing) {
+            if (level.getGameTime() > 12000L) return;
+            level.setBlock(origin.below(3),
+                    net.minecraft.world.level.block.Blocks.LODESTONE.defaultBlockState(), 2);
+            build(level, origin);
+        }
+        // The ward ledger lives in memory, so a camp that stands re-registers its ward on
+        // every start. Without this, the borders held only until the first server restart.
+        CampWard.register(level, origin, RADIUS);
+    }
+
     /** Places the whole camp centred on {@code origin}. Returns the number of cabins built. */
     public static int build(ServerLevel level, BlockPos origin) {
         flatten(level, origin);
