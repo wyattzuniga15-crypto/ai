@@ -176,31 +176,17 @@ tasks.register('gameTestApi') {
 tasks.register('describeClass') {
     doLast {
         def names = (project.findProperty('describe') ?: '').split(',').findAll { it }
-        def urls = sourceSets.main.compileClasspath.files.findAll { it.name.endsWith('.jar') }
-                .collect { it.toURI().toURL() } as URL[]
-        def loader = new URLClassLoader(urls, (ClassLoader) null)
+        def jars = sourceSets.main.compileClasspath.files.findAll { it.name.endsWith('.jar') }
+        println "[classpath: ${jars.size()} jars]"
+        def cp = jars.collect { it.absolutePath }.join(File.pathSeparator)
+        def javap = new File(System.getProperty('java.home'), 'bin/javap').absolutePath
         names.each { name ->
             println "=============== ${name} ==============="
-            try {
-                def c = Class.forName(name, false, loader)
-                def sup = c.getSuperclass()
-                println "extends ${sup?.getName()} implements ${c.getInterfaces().collect { it.getName() }}"
-                c.getDeclaredConstructors().findAll {
-                    java.lang.reflect.Modifier.isPublic(it.getModifiers()) ||
-                    java.lang.reflect.Modifier.isProtected(it.getModifiers())
-                }.each { println "  ctor ${it}" }
-                c.getDeclaredMethods().findAll {
-                    java.lang.reflect.Modifier.isPublic(it.getModifiers()) ||
-                    java.lang.reflect.Modifier.isProtected(it.getModifiers())
-                }.sort { it.getName() }.each { println "  ${it}" }
-                c.getDeclaredFields().findAll {
-                    java.lang.reflect.Modifier.isPublic(it.getModifiers())
-                }.each { println "  field ${it}" }
-            } catch (Throwable t) {
-                println "  UNAVAILABLE: ${t.getClass().getSimpleName()}: ${t.getMessage()}"
-            }
+            def proc = new ProcessBuilder([javap, '-protected', '-cp', cp, name])
+                    .redirectErrorStream(true).start()
+            proc.inputStream.eachLine { println "  ${it}" }
+            proc.waitFor()
         }
-        loader.close()
     }
 }
 
