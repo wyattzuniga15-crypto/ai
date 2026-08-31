@@ -19,10 +19,80 @@ import net.minecraft.resources.Identifier;
  */
 public class ChBossRenderer extends MobRenderer<ChBossEntity, LivingEntityRenderState, ChBossRenderer.BossModel> {
 
-    /** EntityModel's constructor is protected; this subclass exists to make it reachable. */
+    /**
+     * The first motion these bodies have had. Everything is driven off three numbers the render
+     * state already carries — walk position, walk speed, age — and every rotation is assigned
+     * rather than accumulated, so a frame owes nothing to the one before it.
+     */
     public static class BossModel extends EntityModel<LivingEntityRenderState> {
+
+        private static final String[] LEG_PAIRS = {"leg0", "leg3", "left_leg", "right_arm"};
+        private static final String[] LEG_PAIRS_B = {"leg1", "leg2", "right_leg", "left_arm"};
+
         public BossModel(ModelPart root) {
             super(root);
+        }
+
+        @Override
+        public void setupAnim(LivingEntityRenderState state) {
+            super.setupAnim(state);
+            ModelPart root = root();
+            float swing = net.minecraft.util.Mth.cos(state.walkAnimationPos * 0.6662f)
+                    * 1.1f * state.walkAnimationSpeed;
+            float age = state.ageInTicks;
+
+            // Diagonal gait: leg0+leg3 against leg1+leg2, and arms against their legs.
+            for (String name : LEG_PAIRS) {
+                if (root.hasChild(name)) root.getChild(name).xRot = swing;
+            }
+            for (String name : LEG_PAIRS_B) {
+                if (root.hasChild(name)) root.getChild(name).xRot = -swing;
+            }
+
+            // Heads breathe; the crowd of them on Cerberus disagrees slightly.
+            int h = 0;
+            for (String name : new String[]{"head", "head_mid", "head_left", "head_right", "goat_head"}) {
+                if (!root.hasChild(name)) continue;
+                ModelPart part = root.getChild(name);
+                part.xRot = net.minecraft.util.Mth.sin(age * 0.06f + h) * 0.06f;
+                part.yRot = net.minecraft.util.Mth.sin(age * 0.045f + h * 2f) * 0.10f;
+                h++;
+            }
+
+            // Hydra necks weave out of phase, which is most of why three heads feel like three.
+            for (int n = 0; n < 3; n++) {
+                if (!root.hasChild("neck" + n)) continue;
+                ModelPart neck = root.getChild("neck" + n);
+                neck.xRot = net.minecraft.util.Mth.sin(age * 0.09f + n * 2.1f) * 0.14f;
+                neck.zRot = net.minecraft.util.Mth.cos(age * 0.07f + n * 1.7f) * 0.08f;
+            }
+
+            if (root.hasChild("snakes")) {
+                ModelPart snakes = root.getChild("snakes");
+                snakes.yRot = net.minecraft.util.Mth.sin(age * 0.15f) * 0.25f;
+                snakes.zRot = net.minecraft.util.Mth.cos(age * 0.11f) * 0.10f;
+            }
+            for (String name : new String[]{"tail", "snake_tail"}) {
+                if (!root.hasChild(name)) continue;
+                root.getChild(name).yRot = swing * 0.25f
+                        + net.minecraft.util.Mth.sin(age * 0.07f) * 0.12f;
+            }
+            if (root.hasChild("left_wing")) {
+                float flap = 0.35f + net.minecraft.util.Mth.cos(age * 0.35f) * 0.45f;
+                root.getChild("left_wing").yRot = flap;
+                root.getChild("right_wing").yRot = -flap;
+            }
+            // The maw grinds. Slowly. It does not need to hurry.
+            if (root.hasChild("teeth")) root.getChild("teeth").yRot = age * 0.06f;
+            if (root.hasChild("fins")) root.getChild("fins").yRot = -age * 0.03f;
+
+            // The serpent's spine follows the walk laterally.
+            for (int seg = 1; seg <= 3; seg++) {
+                if (!root.hasChild("seg" + seg)) continue;
+                root.getChild("seg" + seg).yRot =
+                        net.minecraft.util.Mth.sin(state.walkAnimationPos * 0.4f - seg * 0.6f)
+                                * 0.10f * Math.min(1f, state.walkAnimationSpeed * 3f);
+            }
         }
     }
 
