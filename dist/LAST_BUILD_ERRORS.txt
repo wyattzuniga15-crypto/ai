@@ -1,12 +1,109 @@
-BUILD FAILED for 4e0f0ce2d3cd21ce98cb8a87177c6d9038174f33 at 2026-08-31T06:18:01Z
+BUILD FAILED for 996b9bad158fdada4d53db6ccae7c2a32dc423fa at 2026-08-31T06:30:16Z
 
 =============== javac errors ===============
+65:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:7: error: cannot find symbol
+70:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:28: error: cannot find symbol
+75:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:42: error: cannot find symbol
+80:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:55: error: cannot find symbol
+85:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:73: error: cannot find symbol
+105:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:7: error: cannot find symbol
+110:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:28: error: cannot find symbol
+115:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:42: error: cannot find symbol
+120:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:55: error: cannot find symbol
+125:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:73: error: cannot find symbol
 
 =============== detail ===============
 
+> Task :compileJava
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:7: error: cannot find symbol
+import net.minecraft.gametest.framework.GameTest;
+                                       ^
+  symbol:   class GameTest
+  location: package net.minecraft.gametest.framework
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:28: error: cannot find symbol
+    @GameTest(template = "chronoly:empty")
+     ^
+  symbol:   class GameTest
+  location: class ChGameTests
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:42: error: cannot find symbol
+    @GameTest(template = "chronoly:empty")
+     ^
+  symbol:   class GameTest
+  location: class ChGameTests
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:55: error: cannot find symbol
+    @GameTest(template = "chronoly:empty")
+     ^
+  symbol:   class GameTest
+  location: class ChGameTests
+/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:73: error: cannot find symbol
+    @GameTest(template = "chronoly:empty")
+     ^
+  symbol:   class GameTest
+  location: class ChGameTests
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+--
+> Compilation failed; see the compiler output below.
+  Note: Recompile with -Xlint:deprecation for details.
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:7: error: cannot find symbol
+  import net.minecraft.gametest.framework.GameTest;
+                                         ^
+    symbol:   class GameTest
+    location: package net.minecraft.gametest.framework
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:28: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:42: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:55: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:73: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  Note: Some input files use or override a deprecated API.
+  5 errors
+
 =============== what went wrong ===============
 * What went wrong:
-A problem occurred evaluating root project 'chronoly'.
-> Could not get unknown property 'chronoly' for ModModel container of type org.gradle.api.internal.FactoryNamedDomainObjectContainer.
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  Note: Recompile with -Xlint:deprecation for details.
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:7: error: cannot find symbol
+  import net.minecraft.gametest.framework.GameTest;
+                                         ^
+    symbol:   class GameTest
+    location: package net.minecraft.gametest.framework
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:28: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:42: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:55: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/gametest/ChGameTests.java:73: error: cannot find symbol
+      @GameTest(template = "chronoly:empty")
+       ^
+    symbol:   class GameTest
+    location: class ChGameTests
+  Note: Some input files use or override a deprecated API.
+  5 errors
 
 * Try:
