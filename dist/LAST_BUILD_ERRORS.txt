@@ -1,0 +1,12 @@
+BUILD FAILED for 4e0f0ce2d3cd21ce98cb8a87177c6d9038174f33 at 2026-08-31T06:18:01Z
+
+=============== javac errors ===============
+
+=============== detail ===============
+
+=============== what went wrong ===============
+* What went wrong:
+A problem occurred evaluating root project 'chronoly'.
+> Could not get unknown property 'chronoly' for ModModel container of type org.gradle.api.internal.FactoryNamedDomainObjectContainer.
+
+* Try:
