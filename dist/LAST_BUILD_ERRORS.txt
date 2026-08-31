@@ -1,41 +1,19 @@
-BUILD FAILED for c35642daa7f44e03aac6b45b71d3d0510deb1c59 at 2026-08-31T15:49:33Z
+BUILD FAILED for 0c6e0139eaa8af518a32caa25443eb10a96cc84a at 2026-08-31T15:53:04Z
 
 =============== javac errors ===============
-65:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
-85:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
 
 =============== detail ===============
 
-> Task :compileJava
-/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
-                    level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
-                                                                        ^
-  symbol:   variable CHAIN
-  location: class Blocks
-Note: Some input files use or override a deprecated API.
-Note: Recompile with -Xlint:deprecation for details.
---
-> Compilation failed; see the compiler output below.
-  Note: Recompile with -Xlint:deprecation for details.
-  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
-                      level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
-                                                                          ^
-    symbol:   variable CHAIN
-    location: class Blocks
-  Note: Some input files use or override a deprecated API.
-  1 error
-
 =============== what went wrong ===============
 * What went wrong:
-Execution failed for task ':compileJava'.
-> Compilation failed; see the compiler output below.
-  Note: Recompile with -Xlint:deprecation for details.
-  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/underworld/UnderworldDistricts.java:139: error: cannot find symbol
-                      level.setBlock(PUNISHMENT.offset(dx, dy, dz), Blocks.CHAIN.defaultBlockState(), 2);
-                                                                          ^
-    symbol:   variable CHAIN
-    location: class Blocks
-  Note: Some input files use or override a deprecated API.
-  1 error
+Execution failed for task ':createMinecraftArtifacts'.
+> Error while evaluating property 'artifactManifestEntries' of task ':createMinecraftArtifacts'.
+   > Could not resolve all artifacts for configuration ':neoFormRuntimeDependenciesNeoForgeClasses'.
+      > Could not find net.neoforged:neoforge:21.11.0.
+        Searched in the following locations:
+          - https://maven.neoforged.net/releases/net/neoforged/neoforge/21.11.0/neoforge-21.11.0.pom
+          - https://repo.maven.apache.org/maven2/net/neoforged/neoforge/21.11.0/neoforge-21.11.0.pom
+        Required by:
+            root project :
 
 * Try:
