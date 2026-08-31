@@ -1,12 +1,8 @@
-BUILD FAILED for ce07d3c991de0db9d8c8ee23c68f51545e05a21c at 2026-08-31T03:21:17Z
+BUILD FAILED for c898d834729f433fcda6d215c128e5b51d7990aa at 2026-08-31T03:21:28Z
 
 =============== javac errors ===============
 65:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/quest/Oracle.java:85: error: the switch expression does not cover all possible input values
-68:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
-73:/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
-92:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/quest/Oracle.java:85: error: the switch expression does not cover all possible input values
-97:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
-102:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
+82:  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/quest/Oracle.java:85: error: the switch expression does not cover all possible input values
 
 =============== detail ===============
 
@@ -14,18 +10,10 @@ BUILD FAILED for ce07d3c991de0db9d8c8ee23c68f51545e05a21c at 2026-08-31T03:21:17
 /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/quest/Oracle.java:85: error: the switch expression does not cover all possible input values
         return switch (kind) {
                ^
-/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
-        WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
-                                            ^
-  symbol:   method location()
-  location: class ResourceKey<Level>
-/home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
-        String dim = level.dimension().location().toString();
-                                      ^
-  symbol:   method location()
-  location: class ResourceKey<Level>
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
+1 error
+
 --
 Execution failed for task ':compileJava'.
 > Compilation failed; see the compiler output below.
@@ -34,17 +22,7 @@ Execution failed for task ':compileJava'.
                  ^
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use or override a deprecated API.
-  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
-          WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
-                                              ^
-    symbol:   method location()
-    location: class ResourceKey<Level>
-  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
-          String dim = level.dimension().location().toString();
-                                        ^
-    symbol:   method location()
-    location: class ResourceKey<Level>
-  3 errors
+  1 error
 
 
 =============== what went wrong ===============
@@ -56,16 +34,6 @@ Execution failed for task ':compileJava'.
                  ^
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use or override a deprecated API.
-  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:35: error: cannot find symbol
-          WARDS.add(new Ward(level.dimension().location().toString(), centre, radius));
-                                              ^
-    symbol:   method location()
-    location: class ResourceKey<Level>
-  /home/runner/work/ai/ai/demigod/src/main/java/dev/chronoly/world/camp/CampWard.java:39: error: cannot find symbol
-          String dim = level.dimension().location().toString();
-                                        ^
-    symbol:   method location()
-    location: class ResourceKey<Level>
-  3 errors
+  1 error
 
 * Try:
