@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [{"item": "minecraft:glass"}, {"item": "minecraft:phantom_membrane"}],
+  "result": {"id": "chronoly:mist_glass", "count": 2}
+}

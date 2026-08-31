@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {"item": "chronoly:celestial_bronze_ingot"},
+    {"item": "minecraft:netherite_scrap"},
+    {"item": "minecraft:soul_sand"}
+  ],
+  "result": {"id": "chronoly:stygian_iron_ingot", "count": 1}
+}

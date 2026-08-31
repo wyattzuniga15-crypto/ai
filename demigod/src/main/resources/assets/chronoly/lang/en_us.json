@@ -1,6 +1,5 @@
 {
   "itemGroup.chronoly.main": "Demigod: Chronicles of Olympus",
-
   "item.chronoly.golden_drachma": "Golden Drachma",
   "item.chronoly.celestial_bronze_ingot": "Celestial Bronze Ingot",
   "item.chronoly.imperial_gold_ingot": "Imperial Gold Ingot",
@@ -8,5 +7,11 @@
   "item.chronoly.ambrosia": "Ambrosia",
   "item.chronoly.nectar": "Nectar",
   "item.chronoly.greek_fire": "Greek Fire",
-  "item.chronoly.mist_glass": "Mist-glass"
+  "item.chronoly.mist_glass": "Mist-glass",
+  "item.chronoly.celestial_bronze_sword": "Celestial Bronze Sword",
+  "item.chronoly.celestial_bronze_dagger": "Celestial Bronze Dagger",
+  "item.chronoly.imperial_gold_sword": "Imperial Gold Sword",
+  "item.chronoly.stygian_iron_sword": "Stygian Iron Sword",
+  "key.categories.chronoly": "Demigod",
+  "key.chronoly.cast": "Use Birthright"
 }

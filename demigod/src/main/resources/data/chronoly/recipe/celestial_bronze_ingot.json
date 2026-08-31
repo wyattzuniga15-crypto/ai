@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["GCG", "CIC", "GCG"],
+  "key": {
+    "G": {"item": "minecraft:gold_ingot"},
+    "C": {"item": "minecraft:copper_ingot"},
+    "I": {"item": "minecraft:nether_star"}
+  },
+  "result": {"id": "chronoly:celestial_bronze_ingot", "count": 4}
+}

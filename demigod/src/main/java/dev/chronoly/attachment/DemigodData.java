@@ -6,8 +6,11 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.chronoly.core.favor.Tier;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Everything the mod knows about one player.
@@ -28,6 +31,8 @@ public final class DemigodData {
     private final Map<String, Float> favor = new HashMap<>();
     private float energy;
     private float overdraw;
+    private float ambrosiaBurn;
+    private final Set<String> flags = new HashSet<>();
 
     public DemigodData() {}
 
@@ -36,11 +41,13 @@ public final class DemigodData {
      * exactly one path by which a loaded save becomes a live object.
      */
     private DemigodData(int schemaVersion, Optional<String> parentage, Map<String, Float> favor,
-                        float energy, float overdraw) {
+                        float energy, float overdraw, float ambrosiaBurn, List<String> flags) {
         this.parentage = parentage;
         this.favor.putAll(favor);
         this.energy = energy;
         this.overdraw = overdraw;
+        this.ambrosiaBurn = ambrosiaBurn;
+        this.flags.addAll(flags);
         this.schemaVersion = migrate(schemaVersion);
     }
 
@@ -63,7 +70,9 @@ public final class DemigodData {
             Codec.unboundedMap(Codec.STRING, Codec.FLOAT)
                     .optionalFieldOf("favor", Map.<String, Float>of()).forGetter(DemigodData::favor),
             Codec.FLOAT.optionalFieldOf("energy", 0f).forGetter(DemigodData::energy),
-            Codec.FLOAT.optionalFieldOf("overdraw", 0f).forGetter(DemigodData::overdraw)
+            Codec.FLOAT.optionalFieldOf("overdraw", 0f).forGetter(DemigodData::overdraw),
+            Codec.FLOAT.optionalFieldOf("ambrosia_burn", 0f).forGetter(DemigodData::ambrosiaBurn),
+            Codec.STRING.listOf().optionalFieldOf("flags", List.<String>of()).forGetter(DemigodData::flagList)
     ).apply(i, DemigodData::new));
 
     /** The standalone form, for tests and for anywhere a full Codec is wanted. */
@@ -94,5 +103,32 @@ public final class DemigodData {
 
     public float overdraw() { return overdraw; }
 
-    public void setOverdraw(float overdraw) { this.overdraw = overdraw; }
+    public void setOverdraw(float overdraw) { this.overdraw = Math.max(0f, overdraw); }
+
+    public float ambrosiaBurn() { return ambrosiaBurn; }
+
+    public void setAmbrosiaBurn(float v) { this.ambrosiaBurn = Math.max(0f, v); }
+
+    public List<String> flagList() { return List.copyOf(flags); }
+
+    /** Raises a one-shot flag. Returns true only the first time, so lessons fire exactly once. */
+    public boolean raiseFlag(String flag) { return flags.add(flag); }
+
+    public boolean hasFlag(String flag) { return flags.contains(flag); }
+
+    public void addFavor(String god, float amount) {
+        setFavor(god, Math.max(0f, Math.min(1000f, favorWith(god) + amount)));
+    }
+
+    /** Spends energy, allowing overdraw as debt. Never refuses — see BALANCE.md. */
+    public void spend(float cost) {
+        float fromPool = Math.min(energy, cost);
+        energy -= fromPool;
+        overdraw += (cost - fromPool);
+    }
+
+    public float maxEnergy() {
+        float f = parentage.map(this::favorWith).orElse(0f);
+        return 100f + f * 0.4f;
+    }
 }

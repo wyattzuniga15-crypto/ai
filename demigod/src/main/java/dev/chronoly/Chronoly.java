@@ -10,6 +10,9 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.NeoForge;
+import dev.chronoly.command.ChCommands;
+import dev.chronoly.event.GameplayEvents;
 
 /**
  * Entry point.
@@ -26,6 +29,11 @@ public final class Chronoly {
         ChAttachments.init(modBus);
 
         modBus.addListener(ChPayloads::register);
+
+        NeoForge.EVENT_BUS.addListener(GameplayEvents::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(GameplayEvents::onDeath);
+        NeoForge.EVENT_BUS.addListener(GameplayEvents::onServerTick);
+        NeoForge.EVENT_BUS.addListener(ChCommands::register);
 
         container.registerConfig(ModConfig.Type.SERVER, ChServerConfig.SPEC);
         container.registerConfig(ModConfig.Type.COMMON, ChCommonConfig.SPEC);

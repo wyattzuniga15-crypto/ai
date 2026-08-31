@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "food",
+  "pattern": ["G G", "GHG", " B "],
+  "key": {
+    "G": {"item": "minecraft:glowstone_dust"},
+    "H": {"item": "minecraft:honey_bottle"},
+    "B": {"item": "minecraft:glass_bottle"}
+  },
+  "result": {"id": "chronoly:nectar", "count": 2}
+}

@@ -1,7 +1,13 @@
 package dev.chronoly.registry;
 
 import dev.chronoly.ChronolyConstants;
+import dev.chronoly.item.AmbrosiaItem;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.entity.EquipmentSlotGroup;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -49,10 +55,12 @@ public final class ChItems {
      * The Lightning Thief, ch. 4 — food of the gods, and lethal to a demigod in quantity. The burn
      * counter that makes that true is Phase 4.
      */
-    public static final DeferredItem<Item> AMBROSIA = ITEMS.registerSimpleItem("ambrosia");
+    public static final DeferredItem<Item> AMBROSIA = ITEMS.registerItem("ambrosia",
+            props -> new AmbrosiaItem(props.stacksTo(16), 10f, 34f, 100f));
 
     /** The drink to ambrosia's food; the same rule, the same danger. */
-    public static final DeferredItem<Item> NECTAR = ITEMS.registerSimpleItem("nectar");
+    public static final DeferredItem<Item> NECTAR = ITEMS.registerItem("nectar",
+            props -> new AmbrosiaItem(props.stacksTo(8), 6f, 20f, 100f));
 
     /**
      * The Sea of Monsters — fire that water spreads rather than stops. One of the few things in
@@ -63,8 +71,45 @@ public final class ChItems {
     /** Worked Mist, held in a solid. The material Hecate's work is built from. */
     public static final DeferredItem<Item> MIST_GLASS = ITEMS.registerSimpleItem("mist_glass");
 
-    /** Creative-tab order: currency, then the three divine metals, then the consumables. */
+    /**
+     * The Lightning Thief, ch. 6 — Riptide. Bronze bites the immortal and finds nothing in a mortal.
+     * Attack power comes from a vanilla attribute modifier rather than a tool material, so the
+     * weapon composes with everything else that touches reach and damage.
+     */
+    public static final DeferredItem<Item> CELESTIAL_BRONZE_SWORD = ITEMS.registerItem(
+            "celestial_bronze_sword", props -> new Item(props.durability(900)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(7.0, -2.4))));
+
+    public static final DeferredItem<Item> CELESTIAL_BRONZE_DAGGER = ITEMS.registerItem(
+            "celestial_bronze_dagger", props -> new Item(props.durability(500)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(4.5, -1.8))));
+
+    /** Harsher and less stable than bronze, as consecrated metal should be. */
+    public static final DeferredItem<Item> IMPERIAL_GOLD_SWORD = ITEMS.registerItem(
+            "imperial_gold_sword", props -> new Item(props.durability(700)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(8.0, -2.6))));
+
+    /** The Last Olympian — it keeps a little of whatever it kills. */
+    public static final DeferredItem<Item> STYGIAN_IRON_SWORD = ITEMS.registerItem(
+            "stygian_iron_sword", props -> new Item(props.durability(1100)
+                    .component(DataComponents.ATTRIBUTE_MODIFIERS, weapon(7.5, -2.4))));
+
+    private static ItemAttributeModifiers weapon(double damage, double speed) {
+        return ItemAttributeModifiers.builder()
+                .add(Attributes.ATTACK_DAMAGE,
+                        new AttributeModifier(ChronolyConstants.id("weapon_damage"), damage,
+                                AttributeModifier.Operation.ADD_VALUE),
+                        EquipmentSlotGroup.MAINHAND)
+                .add(Attributes.ATTACK_SPEED,
+                        new AttributeModifier(ChronolyConstants.id("weapon_speed"), speed,
+                                AttributeModifier.Operation.ADD_VALUE),
+                        EquipmentSlotGroup.MAINHAND)
+                .build();
+    }
+
+    /** Creative-tab order: weapons, currency, metals, consumables. */
     public static final List<DeferredItem<Item>> TAB_ORDER = List.of(
+            CELESTIAL_BRONZE_SWORD, CELESTIAL_BRONZE_DAGGER, IMPERIAL_GOLD_SWORD, STYGIAN_IRON_SWORD,
             GOLDEN_DRACHMA,
             CELESTIAL_BRONZE_INGOT, IMPERIAL_GOLD_INGOT, STYGIAN_IRON_INGOT,
             AMBROSIA, NECTAR, GREEK_FIRE, MIST_GLASS);

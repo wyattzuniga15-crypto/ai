@@ -1,6 +1,10 @@
 package dev.chronoly.net;
 
+import dev.chronoly.ability.Abilities;
+import dev.chronoly.net.c2s.CastAbilityPayload;
 import dev.chronoly.net.s2c.DemigodSnapshotPayload;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
@@ -24,6 +28,16 @@ public final class ChPayloads {
                 (payload, context) -> context.enqueueWork(() -> {
                     // Phase 2 binds this to client-side HUD state. The handler exists now so the
                     // payload round-trip is exercised rather than assumed.
+                }));
+
+        registrar.playToServer(
+                CastAbilityPayload.TYPE,
+                CastAbilityPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer player) {
+                        Abilities.Result result = Abilities.cast(player);
+                        player.sendSystemMessage(Component.literal(result.message()));
+                    }
                 }));
     }
 }
