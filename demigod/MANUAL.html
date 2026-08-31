@@ -483,7 +483,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
         <div class="stat"><span class="k">Damage</span><span class="v">12</span></div>
         <div class="stat"><span class="k">Speed</span><span class="v">0.34</span></div>
       </div>
-      <p>Charges in straight lines and does not know how to turn. At half health a horn snaps off in your hands and it gets markedly faster and permanently stronger.</p>
+      <p><span class="tell">He charges.</span> Every seven seconds, if you're at running distance, he's abruptly covering it — sidestep or be somewhere else. At half health a horn snaps off in your hands and he gets markedly faster and permanently stronger.</p>
       <p class="drops"><span class="k">Drops</span>8–16 drachmas, 3–6 celestial bronze</p>
     </article>
 
@@ -567,7 +567,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
         <div class="stat"><span class="k">Damage</span><span class="v">8</span></div>
         <div class="stat"><span class="k">Speed</span><span class="v">0.62</span></div>
       </div>
-      <p>She was your maths teacher, and then she was not. The fastest thing in the mod, and every eight seconds she takes Speed III on top of that. Flying, low health, very hard to corner.</p>
+      <p>She was your maths teacher, and then she was not. The fastest thing in the mod, she takes Speed III every seven seconds, and she swoops — leaping at you from the ground and arriving from above on slow-falling wings. Low health, very hard to corner.</p>
       <p class="drops"><span class="k">Drops</span>8–16 drachmas, 3–6 celestial bronze</p>
     </article>
 
@@ -596,7 +596,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
   <h2>Camp Half-Blood, the Underworld, Olympus</h2>
 
   <h3>Camp Half-Blood</h3>
-  <p>An operator raises it with <code>/chronoly camp build</code>. Twenty cabins go up in the horseshoe the books describe, Zeus and Hera at the head, each in its god's colours with a numbered sign. A ward covers a <strong>48-block radius</strong> and zeroes scent completely inside it — monsters stop coming, and a new player can breathe. Check where you stand with <code>/chronoly camp ward</code>.</p>
+  <p>In a fresh world it raises itself a little off spawn within the first ten minutes; in an older world an operator raises it with <code>/chronoly camp build</code>. Twenty cabins go up in the horseshoe the books describe, Zeus and Hera at the head, each in its god's colours with a numbered sign. A ward covers a <strong>48-block radius</strong> and zeroes scent completely inside it — monsters stop coming, and a new player can breathe. Check where you stand with <code>/chronoly camp ward</code>.</p>
 
   <h3>The Underworld</h3>
   <p><code>/chronoly travel underworld</code>. The shore, the gate and all three districts build themselves into the terrain on first arrival — Asphodel is a grey field of white tulips where fourteen silent shades mill about, Elysium has the only grass in the Underworld — gold paths, glowstone hung like a borrowed sky, and six heroes at rest walking it — and Punishment is blackstone, lava channels, chains over iron-barred pens, and five tormentors who are not neutral about visitors. On arrival you are judged. The pavilion reads your whole life and routes you, and it checks for <strong>Punishment before Elysium</strong> on purpose — a hero who broke an oath on the Styx is not redeemed by the quests they finished first.</p>
@@ -1026,7 +1026,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
     <li><strong>Nothing has been observed running.</strong> The build compiles and packages in CI, but no automated test has ever launched the game. The mod's runtime behaviour is verified by reasoning and by 51 unit tests over the Minecraft-free core, not by a server that booted.</li>
     <li><strong>Boss animation is a first pass.</strong> All nine monsters have their own custom-modelled bodies, hand-painted textures, and procedural motion — walking legs, weaving hydra necks, beating wings, snake hair that never stops, a maw that grinds. What they lack is attack animations and bespoke poses; hits land without a lunge to telegraph them.</li>
     <li><strong>Abilities are one tier of four.</strong> Favour tiers change your energy pool and nothing else. Higher tiers are meant to change what an ability <em>is</em>, and they don't yet.</li>
-    <li><strong>Camp Half-Blood is still built by command.</strong> The Underworld and Olympus now build themselves on first arrival; camp still waits for an operator to raise it.</li>
+    <li><strong>Camp auto-builds only in fresh worlds.</strong> In a world under ten minutes old, camp raises itself a little off spawn; in an older world it still waits for an operator, because a summer camp landing on somebody's house is not lore, it is griefing.</li>
     <li><strong>Six of the fifteen favour reasons are not hooked up</strong> — down from eleven. Boasting, oaths and burial rites are the notable absences.</li>
     <li><strong>No in-game guidebook.</strong> This page is it.</li>
     <li><strong>The Labyrinth, charmspeak, and the Fissure of Erebus</strong> are designed and partly built in the core model, but have no in-game entry point.</li>

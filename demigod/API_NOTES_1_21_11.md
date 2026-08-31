@@ -24,6 +24,7 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 | GeckoLib 4 `new AnimationController<>(this, name, ticks, handler)` | GeckoLib 5 drops the animatable: `(name, ticks, handler)` |
 | GeckoLib 4 `software.bernie.geckolib.animation.PlayState` | moved; location still unconfirmed |
 | `Blocks.CHAIN` | `Blocks.IRON_CHAIN` — the copper-chain additions renamed the original |
+| `ServerLevel#getSharedSpawnPos()` | gone — `level.getRespawnData().pos()` (a `LevelData.RespawnData` record) |
 | `net.minecraft.gametest.framework.GameTest` (annotation) | not a rename — the entire `net.minecraft.gametest` tree is absent from the compile classpath (measured, run 42) |
 
 ## Confirmed working (read from dist/API_SIGNATURES.txt, compiled first try)
@@ -35,6 +36,8 @@ Every one of these cost a CI round trip. Written down so they cost it once.
 - `EntityRenderersEvent.RegisterLayerDefinitions#registerLayerDefinition(ModelLayerLocation, Supplier<LayerDefinition>)`
 - `EntityRenderersEvent.RegisterRenderers#registerEntityRenderer(type, provider)`; `EntityAttributeCreationEvent#put(type, AttributeSupplier)`
 - `Context#bakeLayer(ModelLayerLocation)`; `LayerDefinition.create(MeshDefinition, texW, texH)`; `PartDefinition#addOrReplaceChild(name, CubeListBuilder, PartPose)`
+- `Model#setupAnim(S)` public with `root()` accessor; render state carries `walkAnimationPos`, `walkAnimationSpeed`, `ageInTicks`; `ModelPart` exposes `xRot/yRot/zRot`, `hasChild`, `getChild`
+- `MobEffects.SLOW_FALLING` survived the effect renames
 
 The lesson worth keeping: the signature dump ran after Build (artifacts must exist on disk), swept
 `build/` and the Gradle cache for the game jar (the compile classpath's 80 jars do not include it
