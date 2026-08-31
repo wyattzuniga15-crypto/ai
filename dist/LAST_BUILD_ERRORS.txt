@@ -1,0 +1,19 @@
+BUILD FAILED for e145eb72494ffee8751c4810a0a6c89b6cf67243 at 2026-08-31T15:55:45Z
+
+=============== javac errors ===============
+
+=============== detail ===============
+
+=============== what went wrong ===============
+* What went wrong:
+Execution failed for task ':createMinecraftArtifacts'.
+> Error while evaluating property 'artifactManifestEntries' of task ':createMinecraftArtifacts'.
+   > Could not resolve all artifacts for configuration ':neoFormRuntimeDependenciesNeoForgeClasses'.
+      > Could not find net.neoforged:neoforge:21.11.0.
+        Searched in the following locations:
+          - https://maven.neoforged.net/releases/net/neoforged/neoforge/21.11.0/neoforge-21.11.0.pom
+          - https://repo.maven.apache.org/maven2/net/neoforged/neoforge/21.11.0/neoforge-21.11.0.pom
+        Required by:
+            root project :
+
+* Try:
