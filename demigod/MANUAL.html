@@ -555,7 +555,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
         <div class="stat"><span class="k">Damage</span><span class="v">11</span></div>
         <div class="stat"><span class="k">Speed</span><span class="v">0.10</span></div>
       </div>
-      <p><span class="tell">The pull is the fight.</span> Everything within 20 blocks is dragged toward the centre every tick. Inside 6 blocks you take 4 drowning damage and Slowness III. Get to land — this is a fight about escaping, not damage.</p>
+      <p><span class="tell">The pull is the fight.</span> She spawns over her own poured pool. Everything within 20 blocks is dragged toward the centre every tick; inside 6 blocks you take 4 drowning damage and Slowness III. Get to land — this is a fight about escaping, not damage.</p>
       <p class="drops"><span class="k">Drops</span>8 Mist glass, 8–16 drachmas, 3–6 bronze</p>
     </article>
 
@@ -599,7 +599,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
   <p>An operator raises it with <code>/chronoly camp build</code>. Twenty cabins go up in the horseshoe the books describe, Zeus and Hera at the head, each in its god's colours with a numbered sign. A ward covers a <strong>48-block radius</strong> and zeroes scent completely inside it — monsters stop coming, and a new player can breathe. Check where you stand with <code>/chronoly camp ward</code>.</p>
 
   <h3>The Underworld</h3>
-  <p><code>/chronoly travel underworld</code>. The shore, the gate and all three districts build themselves into the terrain on first arrival — Asphodel is a grey field of white tulips past the gate, Elysium has the only grass in the Underworld with gold paths and glowstone hung like a borrowed sky, Punishment is blackstone, lava channels and chains over iron-barred pens. On arrival you are judged. The pavilion reads your whole life and routes you, and it checks for <strong>Punishment before Elysium</strong> on purpose — a hero who broke an oath on the Styx is not redeemed by the quests they finished first.</p>
+  <p><code>/chronoly travel underworld</code>. The shore, the gate and all three districts build themselves into the terrain on first arrival — Asphodel is a grey field of white tulips where fourteen silent shades mill about, Elysium has the only grass in the Underworld — gold paths, glowstone hung like a borrowed sky, and six heroes at rest walking it — and Punishment is blackstone, lava channels, chains over iron-barred pens, and five tormentors who are not neutral about visitors. On arrival you are judged. The pavilion reads your whole life and routes you, and it checks for <strong>Punishment before Elysium</strong> on purpose — a hero who broke an oath on the Styx is not redeemed by the quests they finished first.</p>
   <div class="scroller">
     <table>
       <thead><tr><th>Verdict</th><th>Sent because</th><th>What it's like</th></tr></thead>
@@ -623,6 +623,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
   <h2>The Oracle of Delphi</h2>
   <p class="lede">Prophecies are generated objective-first: a real, solvable quest is planned, and the verse is written as a view onto it. The rhyme never describes something you cannot do.</p>
   <p><code>/chronoly prophecy</code> gives you four lines in two rhyming couplets, naming a target, a place, a relic and a cost — shuffled, so the same quest reads differently each time. Every monster in the mod has its own kennings; the Oracle is structurally unable to name something it has no words for.</p>
+  <p><strong>The named monster is real.</strong> The moment the verse ends, it spawns 90–140 blocks out at a random bearing, and the text tells you which of the eight winds to walk into. The world holds up its end of the contract.</p>
   <ul class="plain">
     <li><strong>Deadline:</strong> 72,000 ticks — 60 real minutes, three Minecraft days.</li>
     <li><strong>Reward:</strong> +120 favour on top of the +90 for the boss itself.</li>
@@ -1023,7 +1024,7 @@ hr.rule{border:none; border-top:1px solid var(--rule); margin:38px 0}
   <p class="lede">This is v0.1.0. Everything above is real and in the jar; everything below is missing, and you should know before you install it.</p>
   <ul class="plain">
     <li><strong>Nothing has been observed running.</strong> The build compiles and packages in CI, but no automated test has ever launched the game. The mod's runtime behaviour is verified by reasoning and by 51 unit tests over the Minecraft-free core, not by a server that booted.</li>
-    <li><strong>Boss bodies are static.</strong> All nine monsters now have their own custom-modelled bodies and hand-painted textures — but no animation yet. They stand, walk and loom without articulating. That is the next art pass.</li>
+    <li><strong>Boss animation is a first pass.</strong> All nine monsters have their own custom-modelled bodies, hand-painted textures, and procedural motion — walking legs, weaving hydra necks, beating wings, snake hair that never stops, a maw that grinds. What they lack is attack animations and bespoke poses; hits land without a lunge to telegraph them.</li>
     <li><strong>Abilities are one tier of four.</strong> Favour tiers change your energy pool and nothing else. Higher tiers are meant to change what an ability <em>is</em>, and they don't yet.</li>
     <li><strong>Camp Half-Blood is still built by command.</strong> The Underworld and Olympus now build themselves on first arrival; camp still waits for an operator to raise it.</li>
     <li><strong>Six of the fifteen favour reasons are not hooked up</strong> — down from eleven. Boasting, oaths and burial rites are the notable absences.</li>
