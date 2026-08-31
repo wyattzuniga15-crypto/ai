@@ -41,7 +41,8 @@ public final class MistCombatResolver {
 
         ItemStack weapon = attacker.getMainHandItem();
         boolean divine = weapon.is(ChTags.DIVINE_WEAPON);
-        Attack attack = new Attack(divine, false, false);
+        boolean bypasses = weapon.is(ChTags.BYPASSES_MIST);
+        Attack attack = new Attack(divine, false, bypasses);
 
         Flesh flesh = fleshOf(target);
         Resolution resolution = MistRule.resolve(attack.axis(), flesh);
