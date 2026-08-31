@@ -1,36 +1,488 @@
-[classpath: 79 jars]
+[classpath: 85 jars]
+[game jar: neoforge-21.11.45.jar]
 [game jar: mixinextras-neoforge-0.5.3.jar]
+[game jar: neoforge-21.11.45-client-extra-aka-minecraft-resources.jar]
+[game jar: neoforge-21.11.45-universal.jar]
+[game jar: neoforge-21.11.45-sources.jar]
+[game jar: neoforge-21.11.45-userdev.jar]
 =============== net.minecraft.world.entity.EntityType$Builder ===============
-  Error: class not found: net.minecraft.world.entity.EntityType$Builder
+  Compiled from "EntityType.java"
+  public class net.minecraft.world.entity.EntityType$Builder<T extends net.minecraft.world.entity.Entity> {
+    public static <T extends net.minecraft.world.entity.Entity> net.minecraft.world.entity.EntityType$Builder<T> of(net.minecraft.world.entity.EntityType$EntityFactory<T>, net.minecraft.world.entity.MobCategory);
+    public static <T extends net.minecraft.world.entity.Entity> net.minecraft.world.entity.EntityType$Builder<T> createNothing(net.minecraft.world.entity.MobCategory);
+    public net.minecraft.world.entity.EntityType$Builder<T> sized(float, float);
+    public net.minecraft.world.entity.EntityType$Builder<T> spawnDimensionsScale(float);
+    public net.minecraft.world.entity.EntityType$Builder<T> eyeHeight(float);
+    public net.minecraft.world.entity.EntityType$Builder<T> passengerAttachments(float...);
+    public net.minecraft.world.entity.EntityType$Builder<T> passengerAttachments(net.minecraft.world.phys.Vec3...);
+    public net.minecraft.world.entity.EntityType$Builder<T> vehicleAttachment(net.minecraft.world.phys.Vec3);
+    public net.minecraft.world.entity.EntityType$Builder<T> ridingOffset(float);
+    public net.minecraft.world.entity.EntityType$Builder<T> nameTagOffset(float);
+    public net.minecraft.world.entity.EntityType$Builder<T> attach(net.minecraft.world.entity.EntityAttachment, float, float, float);
+    public net.minecraft.world.entity.EntityType$Builder<T> attach(net.minecraft.world.entity.EntityAttachment, net.minecraft.world.phys.Vec3);
+    public net.minecraft.world.entity.EntityType$Builder<T> noSummon();
+    public net.minecraft.world.entity.EntityType$Builder<T> noSave();
+    public net.minecraft.world.entity.EntityType$Builder<T> fireImmune();
+    public net.minecraft.world.entity.EntityType$Builder<T> immuneTo(net.minecraft.world.level.block.Block...);
+    public net.minecraft.world.entity.EntityType$Builder<T> canSpawnFarFromPlayer();
+    public net.minecraft.world.entity.EntityType$Builder<T> clientTrackingRange(int);
+    public net.minecraft.world.entity.EntityType$Builder<T> updateInterval(int);
+    public net.minecraft.world.entity.EntityType$Builder<T> requiredFeatures(net.minecraft.world.flag.FeatureFlag...);
+    public net.minecraft.world.entity.EntityType$Builder<T> noLootTable();
+    public net.minecraft.world.entity.EntityType$Builder<T> notInPeaceful();
+    public net.minecraft.world.entity.EntityType$Builder<T> setUpdateInterval(int);
+    public net.minecraft.world.entity.EntityType$Builder<T> setTrackingRange(int);
+    public net.minecraft.world.entity.EntityType$Builder<T> setShouldReceiveVelocityUpdates(boolean);
+    public net.minecraft.world.entity.EntityType$Builder<T> setOnlyOpCanSetNbt(boolean);
+    public net.minecraft.world.entity.EntityType<T> build(net.minecraft.resources.ResourceKey<net.minecraft.world.entity.EntityType<?>>);
+  }
 =============== net.minecraft.client.model.geom.builders.LayerDefinition ===============
-  Error: class not found: net.minecraft.client.model.geom.builders.LayerDefinition
+  Compiled from "LayerDefinition.java"
+  public class net.minecraft.client.model.geom.builders.LayerDefinition {
+    public net.minecraft.client.model.geom.builders.LayerDefinition apply(net.minecraft.client.model.geom.builders.MeshTransformer);
+    public net.minecraft.client.model.geom.ModelPart bakeRoot();
+    public static net.minecraft.client.model.geom.builders.LayerDefinition create(net.minecraft.client.model.geom.builders.MeshDefinition, int, int);
+  }
 =============== net.minecraft.client.model.geom.builders.CubeListBuilder ===============
-  Error: class not found: net.minecraft.client.model.geom.builders.CubeListBuilder
+  Compiled from "CubeListBuilder.java"
+  public class net.minecraft.client.model.geom.builders.CubeListBuilder {
+    public net.minecraft.client.model.geom.builders.CubeListBuilder();
+    public net.minecraft.client.model.geom.builders.CubeListBuilder texOffs(int, int);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder mirror();
+    public net.minecraft.client.model.geom.builders.CubeListBuilder mirror(boolean);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(java.lang.String, float, float, float, int, int, int, net.minecraft.client.model.geom.builders.CubeDeformation, int, int);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(java.lang.String, float, float, float, int, int, int, int, int);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(float, float, float, float, float, float);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(float, float, float, float, float, float, java.util.Set<net.minecraft.core.Direction>);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(java.lang.String, float, float, float, float, float, float);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(java.lang.String, float, float, float, float, float, float, net.minecraft.client.model.geom.builders.CubeDeformation);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(float, float, float, float, float, float, boolean);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(float, float, float, float, float, float, net.minecraft.client.model.geom.builders.CubeDeformation, float, float);
+    public net.minecraft.client.model.geom.builders.CubeListBuilder addBox(float, float, float, float, float, float, net.minecraft.client.model.geom.builders.CubeDeformation);
+    public java.util.List<net.minecraft.client.model.geom.builders.CubeDefinition> getCubes();
+    public static net.minecraft.client.model.geom.builders.CubeListBuilder create();
+  }
 =============== net.minecraft.client.model.geom.builders.PartDefinition ===============
-  Error: class not found: net.minecraft.client.model.geom.builders.PartDefinition
+  Compiled from "PartDefinition.java"
+  public class net.minecraft.client.model.geom.builders.PartDefinition {
+    public net.minecraft.client.model.geom.builders.PartDefinition addOrReplaceChild(java.lang.String, net.minecraft.client.model.geom.builders.CubeListBuilder, net.minecraft.client.model.geom.PartPose);
+    public net.minecraft.client.model.geom.builders.PartDefinition addOrReplaceChild(java.lang.String, net.minecraft.client.model.geom.builders.PartDefinition);
+    public net.minecraft.client.model.geom.builders.PartDefinition clearRecursively();
+    public net.minecraft.client.model.geom.builders.PartDefinition clearChild(java.lang.String);
+    public void retainPartsAndChildren(java.util.Set<java.lang.String>);
+    public void retainExactParts(java.util.Set<java.lang.String>);
+    public net.minecraft.client.model.geom.ModelPart bake(int, int);
+    public net.minecraft.client.model.geom.builders.PartDefinition getChild(java.lang.String);
+    public java.util.Set<java.util.Map$Entry<java.lang.String, net.minecraft.client.model.geom.builders.PartDefinition>> getChildren();
+    public net.minecraft.client.model.geom.builders.PartDefinition transformed(java.util.function.UnaryOperator<net.minecraft.client.model.geom.PartPose>);
+  }
 =============== net.minecraft.client.model.geom.builders.MeshDefinition ===============
-  Error: class not found: net.minecraft.client.model.geom.builders.MeshDefinition
+  Compiled from "MeshDefinition.java"
+  public class net.minecraft.client.model.geom.builders.MeshDefinition {
+    public net.minecraft.client.model.geom.builders.MeshDefinition();
+    public net.minecraft.client.model.geom.builders.PartDefinition getRoot();
+    public net.minecraft.client.model.geom.builders.MeshDefinition transformed(java.util.function.UnaryOperator<net.minecraft.client.model.geom.PartPose>);
+    public net.minecraft.client.model.geom.builders.MeshDefinition apply(net.minecraft.client.model.geom.builders.MeshTransformer);
+  }
 =============== net.minecraft.client.model.geom.ModelLayerLocation ===============
-  Error: class not found: net.minecraft.client.model.geom.ModelLayerLocation
+  Compiled from "ModelLayerLocation.java"
+  public final class net.minecraft.client.model.geom.ModelLayerLocation extends java.lang.Record {
+    public net.minecraft.client.model.geom.ModelLayerLocation(net.minecraft.resources.Identifier, java.lang.String);
+    public java.lang.String toString();
+    public final int hashCode();
+    public final boolean equals(java.lang.Object);
+    public net.minecraft.resources.Identifier model();
+    public java.lang.String layer();
+  }
 =============== net.minecraft.client.model.geom.ModelPart ===============
-  Error: class not found: net.minecraft.client.model.geom.ModelPart
+  Compiled from "ModelPart.java"
+  public final class net.minecraft.client.model.geom.ModelPart {
+    public static final float DEFAULT_SCALE;
+    public float x;
+    public float y;
+    public float z;
+    public float xRot;
+    public float yRot;
+    public float zRot;
+    public float xScale;
+    public float yScale;
+    public float zScale;
+    public boolean visible;
+    public boolean skipDraw;
+    public net.minecraft.client.model.geom.ModelPart(java.util.List<net.minecraft.client.model.geom.ModelPart$Cube>, java.util.Map<java.lang.String, net.minecraft.client.model.geom.ModelPart>);
+    public net.minecraft.client.model.geom.PartPose storePose();
+    public net.minecraft.client.model.geom.PartPose getInitialPose();
+    public void setInitialPose(net.minecraft.client.model.geom.PartPose);
+    public void resetPose();
+    public void loadPose(net.minecraft.client.model.geom.PartPose);
+    public boolean hasChild(java.lang.String);
+    public net.minecraft.client.model.geom.ModelPart getChild(java.lang.String);
+    public void setPos(float, float, float);
+    public void setRotation(float, float, float);
+    public void render(com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, int, int);
+    public void render(com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, int, int, int);
+    public void rotateBy(org.joml.Quaternionf);
+    public void getExtentsForGui(com.mojang.blaze3d.vertex.PoseStack, java.util.function.Consumer<org.joml.Vector3fc>);
+    public void visit(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.model.geom.ModelPart$Visitor);
+    public void translateAndRotate(com.mojang.blaze3d.vertex.PoseStack);
+    public net.minecraft.client.model.geom.ModelPart$Cube getRandomCube(net.minecraft.util.RandomSource);
+    public boolean isEmpty();
+    public void offsetPos(org.joml.Vector3f);
+    public void offsetRotation(org.joml.Vector3f);
+    public void offsetScale(org.joml.Vector3f);
+    public java.util.List<net.minecraft.client.model.geom.ModelPart> getAllParts();
+    public java.util.function.Function<java.lang.String, net.minecraft.client.model.geom.ModelPart> createPartLookup();
+  }
 =============== net.minecraft.client.model.EntityModel ===============
-  Error: class not found: net.minecraft.client.model.EntityModel
+  Compiled from "EntityModel.java"
+  public abstract class net.minecraft.client.model.EntityModel<T extends net.minecraft.client.renderer.entity.state.EntityRenderState> extends net.minecraft.client.model.Model<T> {
+    public static final float MODEL_Y_OFFSET;
+    protected net.minecraft.client.model.EntityModel(net.minecraft.client.model.geom.ModelPart);
+    protected net.minecraft.client.model.EntityModel(net.minecraft.client.model.geom.ModelPart, java.util.function.Function<net.minecraft.resources.Identifier, net.minecraft.client.renderer.rendertype.RenderType>);
+  }
 =============== net.minecraft.client.renderer.entity.MobRenderer ===============
-  Error: class not found: net.minecraft.client.renderer.entity.MobRenderer
+  Compiled from "MobRenderer.java"
+  public abstract class net.minecraft.client.renderer.entity.MobRenderer<T extends net.minecraft.world.entity.Mob, S extends net.minecraft.client.renderer.entity.state.LivingEntityRenderState, M extends net.minecraft.client.model.EntityModel<? super S>> extends net.minecraft.client.renderer.entity.LivingEntityRenderer<T, S, M> {
+    public net.minecraft.client.renderer.entity.MobRenderer(net.minecraft.client.renderer.entity.EntityRendererProvider$Context, M, float);
+    protected boolean shouldShowName(T, double);
+    protected float getShadowRadius(S);
+    protected static boolean checkMagicName(net.minecraft.world.entity.Entity, java.lang.String);
+    protected boolean shouldShowName(net.minecraft.world.entity.LivingEntity, double);
+    protected float getShadowRadius(net.minecraft.client.renderer.entity.state.EntityRenderState);
+    protected boolean shouldShowName(net.minecraft.world.entity.Entity, double);
+  }
 =============== net.minecraft.client.renderer.entity.LivingEntityRenderer ===============
-  Error: class not found: net.minecraft.client.renderer.entity.LivingEntityRenderer
+  Compiled from "LivingEntityRenderer.java"
+  public abstract class net.minecraft.client.renderer.entity.LivingEntityRenderer<T extends net.minecraft.world.entity.LivingEntity, S extends net.minecraft.client.renderer.entity.state.LivingEntityRenderState, M extends net.minecraft.client.model.EntityModel<? super S>> extends net.minecraft.client.renderer.entity.EntityRenderer<T, S> implements net.minecraft.client.renderer.entity.RenderLayerParent<S, M> {
+    protected M model;
+    protected final net.minecraft.client.renderer.item.ItemModelResolver itemModelResolver;
+    protected final java.util.List<net.minecraft.client.renderer.entity.layers.RenderLayer<S, M>> layers;
+    public net.minecraft.client.renderer.entity.LivingEntityRenderer(net.minecraft.client.renderer.entity.EntityRendererProvider$Context, M, float);
+    public final boolean addLayer(net.minecraft.client.renderer.entity.layers.RenderLayer<S, M>);
+    public M getModel();
+    protected net.minecraft.world.phys.AABB getBoundingBoxForCulling(T);
+    public void submit(S, com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.renderer.SubmitNodeCollector, net.minecraft.client.renderer.state.CameraRenderState);
+    protected boolean shouldRenderLayers(S);
+    protected int getModelTint(S);
+    public abstract net.minecraft.resources.Identifier getTextureLocation(S);
+    protected net.minecraft.client.renderer.rendertype.RenderType getRenderType(S, boolean, boolean, boolean);
+    public static int getOverlayCoords(net.minecraft.client.renderer.entity.state.LivingEntityRenderState, float);
+    protected boolean isBodyVisible(S);
+    protected boolean isShaking(S);
+    protected void setupRotations(S, com.mojang.blaze3d.vertex.PoseStack, float, float);
+    protected float getFlipDegrees();
+    protected float getWhiteOverlayProgress(S);
+    protected void scale(S, com.mojang.blaze3d.vertex.PoseStack);
+    protected boolean shouldShowName(T, double);
+    public boolean isEntityUpsideDown(T);
+    protected static boolean isUpsideDownName(java.lang.String);
+    protected float getShadowRadius(S);
+    public void extractRenderState(T, S, float);
+    public void extractRenderState(net.minecraft.world.entity.Entity, net.minecraft.client.renderer.entity.state.EntityRenderState, float);
+    protected float getShadowRadius(net.minecraft.client.renderer.entity.state.EntityRenderState);
+    protected boolean shouldShowName(net.minecraft.world.entity.Entity, double);
+    public void submit(net.minecraft.client.renderer.entity.state.EntityRenderState, com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.renderer.SubmitNodeCollector, net.minecraft.client.renderer.state.CameraRenderState);
+    protected net.minecraft.world.phys.AABB getBoundingBoxForCulling(net.minecraft.world.entity.Entity);
+  }
 =============== net.minecraft.client.renderer.entity.EntityRendererProvider$Context ===============
-  Error: class not found: net.minecraft.client.renderer.entity.EntityRendererProvider$Context
+  Compiled from "EntityRendererProvider.java"
+  public class net.minecraft.client.renderer.entity.EntityRendererProvider$Context {
+    public net.minecraft.client.renderer.entity.EntityRendererProvider$Context(net.minecraft.client.renderer.entity.EntityRenderDispatcher, net.minecraft.client.renderer.item.ItemModelResolver, net.minecraft.client.renderer.MapRenderer, net.minecraft.client.renderer.block.BlockRenderDispatcher, net.minecraft.server.packs.resources.ResourceManager, net.minecraft.client.model.geom.EntityModelSet, net.minecraft.client.resources.model.EquipmentAssetManager, net.minecraft.client.resources.model.AtlasManager, net.minecraft.client.gui.Font, net.minecraft.client.renderer.PlayerSkinRenderCache);
+    public net.minecraft.client.renderer.entity.EntityRenderDispatcher getEntityRenderDispatcher();
+    public net.minecraft.client.renderer.item.ItemModelResolver getItemModelResolver();
+    public net.minecraft.client.renderer.MapRenderer getMapRenderer();
+    public net.minecraft.client.renderer.block.BlockRenderDispatcher getBlockRenderDispatcher();
+    public net.minecraft.server.packs.resources.ResourceManager getResourceManager();
+    public net.minecraft.client.model.geom.EntityModelSet getModelSet();
+    public net.minecraft.client.resources.model.EquipmentAssetManager getEquipmentAssets();
+    public net.minecraft.client.renderer.entity.layers.EquipmentLayerRenderer getEquipmentRenderer();
+    public net.minecraft.client.resources.model.MaterialSet getMaterials();
+    public net.minecraft.client.renderer.texture.TextureAtlas getAtlas(net.minecraft.resources.Identifier);
+    public net.minecraft.client.model.geom.ModelPart bakeLayer(net.minecraft.client.model.geom.ModelLayerLocation);
+    public net.minecraft.client.gui.Font getFont();
+    public net.minecraft.client.renderer.PlayerSkinRenderCache getPlayerSkinRenderCache();
+  }
 =============== net.minecraft.client.renderer.entity.state.LivingEntityRenderState ===============
-  Error: class not found: net.minecraft.client.renderer.entity.state.LivingEntityRenderState
+  Compiled from "LivingEntityRenderState.java"
+  public class net.minecraft.client.renderer.entity.state.LivingEntityRenderState extends net.minecraft.client.renderer.entity.state.EntityRenderState {
+    public float bodyRot;
+    public float yRot;
+    public float xRot;
+    public float deathTime;
+    public float walkAnimationPos;
+    public float walkAnimationSpeed;
+    public float scale;
+    public float ageScale;
+    public float ticksSinceKineticHitFeedback;
+    public boolean isUpsideDown;
+    public boolean isFullyFrozen;
+    public boolean isBaby;
+    public boolean isInWater;
+    public boolean isAutoSpinAttack;
+    public boolean hasRedOverlay;
+    public boolean isInvisibleToPlayer;
+    public net.minecraft.core.Direction bedOrientation;
+    public net.minecraft.world.entity.Pose pose;
+    public final net.minecraft.client.renderer.item.ItemStackRenderState headItem;
+    public float wornHeadAnimationPos;
+    public net.minecraft.world.level.block.SkullBlock$Type wornHeadType;
+    public net.minecraft.world.item.component.ResolvableProfile wornHeadProfile;
+    public net.minecraft.client.renderer.entity.state.LivingEntityRenderState();
+    public boolean hasPose(net.minecraft.world.entity.Pose);
+  }
 =============== net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterRenderers ===============
-  Error: class not found: net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterRenderers
+  Compiled from "EntityRenderersEvent.java"
+  public class net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterRenderers extends net.neoforged.neoforge.client.event.EntityRenderersEvent {
+    public net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterRenderers();
+    public <T extends net.minecraft.world.entity.Entity> void registerEntityRenderer(net.minecraft.world.entity.EntityType<? extends T>, net.minecraft.client.renderer.entity.EntityRendererProvider<T>);
+    public <T extends net.minecraft.world.level.block.entity.BlockEntity, S extends net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState> void registerBlockEntityRenderer(net.minecraft.world.level.block.entity.BlockEntityType<? extends T>, net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider<T, S>);
+  }
 =============== net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterLayerDefinitions ===============
-  Error: class not found: net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterLayerDefinitions
+  Compiled from "EntityRenderersEvent.java"
+  public class net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterLayerDefinitions extends net.neoforged.neoforge.client.event.EntityRenderersEvent {
+    public net.neoforged.neoforge.client.event.EntityRenderersEvent$RegisterLayerDefinitions();
+    public void registerLayerDefinition(net.minecraft.client.model.geom.ModelLayerLocation, java.util.function.Supplier<net.minecraft.client.model.geom.builders.LayerDefinition>);
+  }
 =============== net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent ===============
-  Error: class not found: net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent
+  Compiled from "EntityAttributeCreationEvent.java"
+  public class net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent extends net.neoforged.bus.api.Event implements net.neoforged.fml.event.IModBusEvent {
+    public net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent(java.util.Map<net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.LivingEntity>, net.minecraft.world.entity.ai.attributes.AttributeSupplier>);
+    public void put(net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.LivingEntity>, net.minecraft.world.entity.ai.attributes.AttributeSupplier);
+  }
 =============== net.minecraft.world.entity.monster.Monster ===============
-  Error: class not found: net.minecraft.world.entity.monster.Monster
+  Compiled from "Monster.java"
+  public abstract class net.minecraft.world.entity.monster.Monster extends net.minecraft.world.entity.PathfinderMob implements net.minecraft.world.entity.monster.Enemy {
+    protected net.minecraft.world.entity.monster.Monster(net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.monster.Monster>, net.minecraft.world.level.Level);
+    public net.minecraft.sounds.SoundSource getSoundSource();
+    public void aiStep();
+    protected void updateNoActionTime();
+    protected net.minecraft.sounds.SoundEvent getSwimSound();
+    protected net.minecraft.sounds.SoundEvent getSwimSplashSound();
+    protected net.minecraft.sounds.SoundEvent getHurtSound(net.minecraft.world.damagesource.DamageSource);
+    protected net.minecraft.sounds.SoundEvent getDeathSound();
+    public net.minecraft.world.entity.LivingEntity$Fallsounds getFallSounds();
+    public float getWalkTargetValue(net.minecraft.core.BlockPos, net.minecraft.world.level.LevelReader);
+    public static boolean isDarkEnoughToSpawn(net.minecraft.world.level.ServerLevelAccessor, net.minecraft.core.BlockPos, net.minecraft.util.RandomSource);
+    public static boolean checkMonsterSpawnRules(net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.Mob>, net.minecraft.world.level.ServerLevelAccessor, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.core.BlockPos, net.minecraft.util.RandomSource);
+    public static boolean checkAnyLightMonsterSpawnRules(net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.monster.Monster>, net.minecraft.world.level.LevelAccessor, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.core.BlockPos, net.minecraft.util.RandomSource);
+    public static boolean checkSurfaceMonstersSpawnRules(net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.Mob>, net.minecraft.world.level.ServerLevelAccessor, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.core.BlockPos, net.minecraft.util.RandomSource);
+    public static net.minecraft.world.entity.ai.attributes.AttributeSupplier$Builder createMonsterAttributes();
+    public boolean shouldDropExperience();
+    protected boolean shouldDropLoot(net.minecraft.server.level.ServerLevel);
+    public boolean isPreventingPlayerRest(net.minecraft.server.level.ServerLevel, net.minecraft.world.entity.player.Player);
+    public net.minecraft.world.item.ItemStack getProjectile(net.minecraft.world.item.ItemStack);
+  }
 =============== net.minecraft.world.entity.EntityType ===============
-  Error: class not found: net.minecraft.world.entity.EntityType
+  Compiled from "EntityType.java"
+  public class net.minecraft.world.entity.EntityType<T extends net.minecraft.world.entity.Entity> implements net.minecraft.world.flag.FeatureElement, net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, T> {
+    public static final com.mojang.serialization.Codec<net.minecraft.world.entity.EntityType<?>> CODEC;
+    public static final net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, net.minecraft.world.entity.EntityType<?>> STREAM_CODEC;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> ACACIA_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> ACACIA_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.allay.Allay> ALLAY;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.AreaEffectCloud> AREA_EFFECT_CLOUD;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.armadillo.Armadillo> ARMADILLO;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.decoration.ArmorStand> ARMOR_STAND;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.arrow.Arrow> ARROW;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.axolotl.Axolotl> AXOLOTL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestRaft> BAMBOO_CHEST_RAFT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Raft> BAMBOO_RAFT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.ambient.Bat> BAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.bee.Bee> BEE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> BIRCH_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> BIRCH_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Blaze> BLAZE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.Display$BlockDisplay> BLOCK_DISPLAY;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.skeleton.Bogged> BOGGED;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.breeze.Breeze> BREEZE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.BreezeWindCharge> BREEZE_WIND_CHARGE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.camel.Camel> CAMEL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.camel.CamelHusk> CAMEL_HUSK;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.feline.Cat> CAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.spider.CaveSpider> CAVE_SPIDER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> CHERRY_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> CHERRY_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.MinecartChest> CHEST_MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.chicken.Chicken> CHICKEN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.fish.Cod> COD;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.golem.CopperGolem> COPPER_GOLEM;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.MinecartCommandBlock> COMMAND_BLOCK_MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.cow.Cow> COW;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.creaking.Creaking> CREAKING;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Creeper> CREEPER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> DARK_OAK_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> DARK_OAK_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.dolphin.Dolphin> DOLPHIN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.Donkey> DONKEY;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball> DRAGON_FIREBALL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.zombie.Drowned> DROWNED;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg> EGG;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.ElderGuardian> ELDER_GUARDIAN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.EnderMan> ENDERMAN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Endermite> ENDERMITE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.boss.enderdragon.EnderDragon> ENDER_DRAGON;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl> ENDER_PEARL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.boss.enderdragon.EndCrystal> END_CRYSTAL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.illager.Evoker> EVOKER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.EvokerFangs> EVOKER_FANGS;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownExperienceBottle> EXPERIENCE_BOTTLE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.ExperienceOrb> EXPERIENCE_ORB;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.EyeOfEnder> EYE_OF_ENDER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.item.FallingBlockEntity> FALLING_BLOCK;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball> FIREBALL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.FireworkRocketEntity> FIREWORK_ROCKET;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.fox.Fox> FOX;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.frog.Frog> FROG;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.MinecartFurnace> FURNACE_MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Ghast> GHAST;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.happyghast.HappyGhast> HAPPY_GHAST;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Giant> GIANT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.decoration.GlowItemFrame> GLOW_ITEM_FRAME;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.squid.GlowSquid> GLOW_SQUID;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.goat.Goat> GOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Guardian> GUARDIAN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.hoglin.Hoglin> HOGLIN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.MinecartHopper> HOPPER_MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.Horse> HORSE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.zombie.Husk> HUSK;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.illager.Illusioner> ILLUSIONER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.Interaction> INTERACTION;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.golem.IronGolem> IRON_GOLEM;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.item.ItemEntity> ITEM;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.Display$ItemDisplay> ITEM_DISPLAY;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.decoration.ItemFrame> ITEM_FRAME;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> JUNGLE_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> JUNGLE_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.decoration.LeashFenceKnotEntity> LEASH_KNOT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.LightningBolt> LIGHTNING_BOLT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.Llama> LLAMA;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.LlamaSpit> LLAMA_SPIT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.MagmaCube> MAGMA_CUBE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> MANGROVE_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> MANGROVE_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.decoration.Mannequin> MANNEQUIN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.Marker> MARKER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.Minecart> MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.cow.MushroomCow> MOOSHROOM;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.Mule> MULE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.nautilus.Nautilus> NAUTILUS;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> OAK_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> OAK_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.feline.Ocelot> OCELOT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.OminousItemSpawner> OMINOUS_ITEM_SPAWNER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.decoration.painting.Painting> PAINTING;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> PALE_OAK_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> PALE_OAK_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.panda.Panda> PANDA;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.skeleton.Parched> PARCHED;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.parrot.Parrot> PARROT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Phantom> PHANTOM;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.pig.Pig> PIG;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.piglin.Piglin> PIGLIN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.piglin.PiglinBrute> PIGLIN_BRUTE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.illager.Pillager> PILLAGER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.polarbear.PolarBear> POLAR_BEAR;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion> SPLASH_POTION;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion> LINGERING_POTION;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.fish.Pufferfish> PUFFERFISH;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.rabbit.Rabbit> RABBIT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Ravager> RAVAGER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.fish.Salmon> SALMON;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.sheep.Sheep> SHEEP;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Shulker> SHULKER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.ShulkerBullet> SHULKER_BULLET;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Silverfish> SILVERFISH;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.skeleton.Skeleton> SKELETON;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.SkeletonHorse> SKELETON_HORSE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Slime> SLIME;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball> SMALL_FIREBALL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.sniffer.Sniffer> SNIFFER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball> SNOWBALL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.golem.SnowGolem> SNOW_GOLEM;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.MinecartSpawner> SPAWNER_MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.arrow.SpectralArrow> SPECTRAL_ARROW;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.spider.Spider> SPIDER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.Boat> SPRUCE_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.boat.ChestBoat> SPRUCE_CHEST_BOAT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.squid.Squid> SQUID;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.skeleton.Stray> STRAY;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Strider> STRIDER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.frog.Tadpole> TADPOLE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.Display$TextDisplay> TEXT_DISPLAY;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.item.PrimedTnt> TNT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.vehicle.minecart.MinecartTNT> TNT_MINECART;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.TraderLlama> TRADER_LLAMA;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.arrow.ThrownTrident> TRIDENT;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.fish.TropicalFish> TROPICAL_FISH;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.turtle.Turtle> TURTLE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Vex> VEX;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.npc.villager.Villager> VILLAGER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.illager.Vindicator> VINDICATOR;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.npc.wanderingtrader.WanderingTrader> WANDERING_TRADER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.warden.Warden> WARDEN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.WindCharge> WIND_CHARGE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Witch> WITCH;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.boss.wither.WitherBoss> WITHER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.skeleton.WitherSkeleton> WITHER_SKELETON;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull> WITHER_SKULL;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.wolf.Wolf> WOLF;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.Zoglin> ZOGLIN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.zombie.Zombie> ZOMBIE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.equine.ZombieHorse> ZOMBIE_HORSE;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.animal.nautilus.ZombieNautilus> ZOMBIE_NAUTILUS;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.zombie.ZombieVillager> ZOMBIE_VILLAGER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.monster.zombie.ZombifiedPiglin> ZOMBIFIED_PIGLIN;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.player.Player> PLAYER;
+    public static final net.minecraft.world.entity.EntityType<net.minecraft.world.entity.projectile.FishingHook> FISHING_BOBBER;
+    public static net.minecraft.resources.Identifier getKey(net.minecraft.world.entity.EntityType<?>);
+    public static java.util.Optional<net.minecraft.world.entity.EntityType<?>> byString(java.lang.String);
+    public net.minecraft.world.entity.EntityType(net.minecraft.world.entity.EntityType$EntityFactory<T>, net.minecraft.world.entity.MobCategory, boolean, boolean, boolean, boolean, com.google.common.collect.ImmutableSet<net.minecraft.world.level.block.Block>, net.minecraft.world.entity.EntityDimensions, float, int, int, java.lang.String, java.util.Optional<net.minecraft.resources.ResourceKey<net.minecraft.world.level.storage.loot.LootTable>>, net.minecraft.world.flag.FeatureFlagSet, boolean);
+    public net.minecraft.world.entity.EntityType(net.minecraft.world.entity.EntityType$EntityFactory<T>, net.minecraft.world.entity.MobCategory, boolean, boolean, boolean, boolean, com.google.common.collect.ImmutableSet<net.minecraft.world.level.block.Block>, net.minecraft.world.entity.EntityDimensions, float, int, int, java.lang.String, java.util.Optional<net.minecraft.resources.ResourceKey<net.minecraft.world.level.storage.loot.LootTable>>, net.minecraft.world.flag.FeatureFlagSet, boolean, java.util.function.Predicate<net.minecraft.world.entity.EntityType<?>>, java.util.function.ToIntFunction<net.minecraft.world.entity.EntityType<?>>, java.util.function.ToIntFunction<net.minecraft.world.entity.EntityType<?>>, boolean);
+    public T spawn(net.minecraft.server.level.ServerLevel, net.minecraft.world.item.ItemStack, net.minecraft.world.entity.LivingEntity, net.minecraft.core.BlockPos, net.minecraft.world.entity.EntitySpawnReason, boolean, boolean);
+    public static <T extends net.minecraft.world.entity.Entity> java.util.function.Consumer<T> createDefaultStackConfig(net.minecraft.world.level.Level, net.minecraft.world.item.ItemStack, net.minecraft.world.entity.LivingEntity);
+    public static <T extends net.minecraft.world.entity.Entity> java.util.function.Consumer<T> appendDefaultStackConfig(java.util.function.Consumer<T>, net.minecraft.world.level.Level, net.minecraft.world.item.ItemStack, net.minecraft.world.entity.LivingEntity);
+    public static <T extends net.minecraft.world.entity.Entity> java.util.function.Consumer<T> appendComponentsConfig(java.util.function.Consumer<T>, net.minecraft.world.item.ItemStack);
+    public static <T extends net.minecraft.world.entity.Entity> java.util.function.Consumer<T> appendCustomEntityStackConfig(java.util.function.Consumer<T>, net.minecraft.world.level.Level, net.minecraft.world.item.ItemStack, net.minecraft.world.entity.LivingEntity);
+    public T spawn(net.minecraft.server.level.ServerLevel, net.minecraft.core.BlockPos, net.minecraft.world.entity.EntitySpawnReason);
+    public T spawn(net.minecraft.server.level.ServerLevel, java.util.function.Consumer<T>, net.minecraft.core.BlockPos, net.minecraft.world.entity.EntitySpawnReason, boolean, boolean);
+    public T create(net.minecraft.server.level.ServerLevel, java.util.function.Consumer<T>, net.minecraft.core.BlockPos, net.minecraft.world.entity.EntitySpawnReason, boolean, boolean);
+    protected static double getYOffset(net.minecraft.world.level.LevelReader, net.minecraft.core.BlockPos, boolean, net.minecraft.world.phys.AABB);
+    public static void updateCustomEntityTag(net.minecraft.world.level.Level, net.minecraft.world.entity.LivingEntity, net.minecraft.world.entity.Entity, net.minecraft.world.item.component.TypedEntityData<net.minecraft.world.entity.EntityType<?>>);
+    public boolean canSerialize();
+    public boolean canSummon();
+    public boolean fireImmune();
+    public boolean canSpawnFarFromPlayer();
+    public net.minecraft.world.entity.MobCategory getCategory();
+    public java.lang.String getDescriptionId();
+    public net.minecraft.network.chat.Component getDescription();
+    public java.lang.String toString();
+    public java.lang.String toShortString();
+    public java.util.Optional<net.minecraft.resources.ResourceKey<net.minecraft.world.level.storage.loot.LootTable>> getDefaultLootTable();
+    public float getWidth();
+    public float getHeight();
+    public net.minecraft.world.flag.FeatureFlagSet requiredFeatures();
+    public T create(net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason);
+    public static java.util.Optional<net.minecraft.world.entity.Entity> create(net.minecraft.world.level.storage.ValueInput, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason);
+    public static java.util.Optional<net.minecraft.world.entity.Entity> create(net.minecraft.world.entity.EntityType<?>, net.minecraft.world.level.storage.ValueInput, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason);
+    public net.minecraft.world.phys.AABB getSpawnAABB(double, double, double);
+    public boolean isBlockDangerous(net.minecraft.world.level.block.state.BlockState);
+    public net.minecraft.world.entity.EntityDimensions getDimensions();
+    public static java.util.Optional<net.minecraft.world.entity.EntityType<?>> by(net.minecraft.world.level.storage.ValueInput);
+    public static net.minecraft.world.entity.Entity loadEntityRecursive(net.minecraft.nbt.CompoundTag, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.world.entity.EntityProcessor);
+    public static net.minecraft.world.entity.Entity loadEntityRecursive(net.minecraft.world.entity.EntityType<?>, net.minecraft.nbt.CompoundTag, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.world.entity.EntityProcessor);
+    public static net.minecraft.world.entity.Entity loadEntityRecursive(net.minecraft.world.level.storage.ValueInput, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.world.entity.EntityProcessor);
+    public static net.minecraft.world.entity.Entity loadEntityRecursive(net.minecraft.world.entity.EntityType<?>, net.minecraft.world.level.storage.ValueInput, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason, net.minecraft.world.entity.EntityProcessor);
+    public static java.util.stream.Stream<net.minecraft.world.entity.Entity> loadEntitiesRecursive(net.minecraft.world.level.storage.ValueInput$ValueInputList, net.minecraft.world.level.Level, net.minecraft.world.entity.EntitySpawnReason);
+    public int clientTrackingRange();
+    public int updateInterval();
+    public boolean trackDeltas();
+    public boolean is(net.minecraft.tags.TagKey<net.minecraft.world.entity.EntityType<?>>);
+    public boolean is(net.minecraft.core.HolderSet<net.minecraft.world.entity.EntityType<?>>);
+    public T tryCast(net.minecraft.world.entity.Entity);
+    public java.lang.Class<? extends net.minecraft.world.entity.Entity> getBaseClass();
+    public net.minecraft.core.Holder$Reference<net.minecraft.world.entity.EntityType<?>> builtInRegistryHolder();
+    public boolean isAllowedInPeaceful();
+    public boolean onlyOpCanSetNbt();
+    public java.util.stream.Stream<net.minecraft.tags.TagKey<net.minecraft.world.entity.EntityType<?>>> getTags();
+    public java.lang.Object tryCast(java.lang.Object);
+  }
