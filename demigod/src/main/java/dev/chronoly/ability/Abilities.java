@@ -14,7 +14,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Skeleton;
+import net.minecraft.world.entity.monster.skeleton.Skeleton;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -52,7 +52,7 @@ public final class Abilities {
             return Result.no("§8You are too spent. Everything is grey and far away.");
         }
 
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = ((ServerLevel) player.level());
         String name = switch (god) {
             case "poseidon" -> { earthshaker(player, level); yield "Earthshaker"; }
             case "zeus"     -> { lightning(player, level);   yield "Lightning Bolt"; }
@@ -90,7 +90,7 @@ public final class Abilities {
             e.hurt(level.damageSources().playerAttack(player), 8.0f);
             Vec3 away = e.position().subtract(c).normalize();
             e.push(away.x * 1.1, 0.75, away.z * 1.1);
-            e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 80, 2));
+            e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 80, 2));
         }
         level.sendParticles(ParticleTypes.EXPLOSION, c.x, c.y, c.z, 12, 3.0, 0.2, 3.0, 0.0);
         level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE.value(),
@@ -104,7 +104,7 @@ public final class Abilities {
         BlockPos target = lookedAtBlock(player, 48);
         Entity bolt = EntityType.LIGHTNING_BOLT.create(level, net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
         if (bolt != null) {
-            bolt.moveTo(target.getX() + 0.5, target.getY(), target.getZ() + 0.5);
+            bolt.moveTo(target.getX() + 0.5, (double) target.getY(), target.getZ() + 0.5);
             level.addFreshEntity(bolt);
         }
     }
@@ -119,7 +119,7 @@ public final class Abilities {
         player.teleportTo(dest.getX() + 0.5, dest.getY(), dest.getZ() + 0.5);
         level.sendParticles(ParticleTypes.LARGE_SMOKE, dest.getX() + 0.5, dest.getY() + 1, dest.getZ() + 0.5,
                 30, 0.3, 0.6, 0.3, 0.02);
-        player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 60, 0));
+        player.addEffect(new MobEffectInstance(MobEffects.NAUSEA, 60, 0));
         level.playSound(null, dest, SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.9f, 0.6f);
     }
 
@@ -145,10 +145,10 @@ public final class Abilities {
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(c, c).inflate(10.0),
                 e -> e instanceof net.minecraft.world.entity.monster.Monster)) {
             e.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 200, 1));
-            e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 100, 1));
+            e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 100, 1));
         }
-        player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 300, 1));
-        player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 300, 0));
+        player.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 300, 1));
+        player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 300, 0));
         level.sendParticles(ParticleTypes.ANGRY_VILLAGER, c.x, c.y + 1.5, c.z, 25, 2.0, 1.0, 2.0, 0.0);
         level.playSound(null, player.blockPosition(), SoundEvents.RAVAGER_ROAR, SoundSource.PLAYERS, 1.2f, 1.0f);
     }
@@ -159,7 +159,7 @@ public final class Abilities {
     private static void blink(ServerPlayer player, ServerLevel level) {
         BlockPos dest = lookedAtBlock(player, 20).above();
         player.teleportTo(dest.getX() + 0.5, dest.getY(), dest.getZ() + 0.5);
-        player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, 200, 1));
+        player.addEffect(new MobEffectInstance(MobEffects.SPEED, 200, 1));
         level.sendParticles(ParticleTypes.CLOUD, dest.getX() + 0.5, dest.getY() + 1, dest.getZ() + 0.5,
                 20, 0.3, 0.5, 0.3, 0.05);
         level.playSound(null, dest, SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.6f, 1.8f);

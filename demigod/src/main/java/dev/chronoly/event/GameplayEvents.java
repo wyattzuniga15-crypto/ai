@@ -55,7 +55,7 @@ public final class GameplayEvents {
             player.sendSystemMessage(Component.literal(
                     "§6Something in you settles and grows heavier. §e" + after
                     + "§6 — and whatever is out there can smell it."));
-            player.serverLevel().playSound(null, player.blockPosition(),
+            ((ServerLevel) player.level()).playSound(null, player.blockPosition(),
                     SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 1f, 0.7f);
         }
     }
@@ -69,7 +69,7 @@ public final class GameplayEvents {
     public static void claimAs(ServerPlayer player, DemigodData data, String god) {
         data.claim(god);
         data.setEnergy(data.maxEnergy());
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = ((ServerLevel) player.level());
 
         level.sendParticles(ParticleTypes.END_ROD,
                 player.getX(), player.getY() + 2.4, player.getZ(), 120, 0.6, 1.2, 0.6, 0.02);
@@ -123,7 +123,7 @@ public final class GameplayEvents {
 
     /** One sample per player per second; every predicate reads from this, never from the world. */
     private static Surroundings sample(ServerPlayer p) {
-        ServerLevel level = p.serverLevel();
+        ServerLevel level = (ServerLevel) p.level();
         var pos = p.blockPosition();
         boolean sky = level.canSeeSky(pos);
         boolean day = level.isDay();
@@ -137,10 +137,10 @@ public final class GameplayEvents {
                 desert, nether, pos.getY(), pos.getY() < 50 && !sky,
                 level.isRaining(), level.isThundering(), sky, day,
                 !day && sky, biome.is(net.minecraft.tags.BiomeTags.IS_FOREST),
-                level.getMaxLocalRawBrightness(pos),
+                level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos),
                 false, level.getBlockState(pos.below()).is(net.minecraft.tags.BlockTags.DIRT),
                 false, level.getBlockState(pos.below()).is(net.minecraft.world.level.block.Blocks.MAGMA_BLOCK),
-                false, false, false, 0, p.getLastHurtByMob() != null, 0d, false);
+                false, false, false, 0, p.getLastDamageSource() != null, 0d, false);
     }
 
     private static EnergyProfile profileFor(String god) {

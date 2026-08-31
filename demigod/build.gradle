@@ -139,3 +139,20 @@ tasks.register('geckolibPackages') {
         }
     }
 }
+
+// Discovery for the next round: KeyMapping wants a Category object in 1.21.11 rather than a
+// String, and MobEffects was renamed. Print what is actually there instead of guessing.
+tasks.register('whatIsAKeyCategory') {
+    doLast {
+        sourceSets.main.compileClasspath.files.each { f ->
+            if (!f.name.endsWith('.jar') || !f.exists()) return
+            try {
+                new java.util.zip.ZipFile(f).withCloseable { zip ->
+                    zip.entries().each { e ->
+                        if (e.name ==~ /.*KeyMapping\$Category\.class/) println "  ${e.name}"
+                    }
+                }
+            } catch (ignored) { }
+        }
+    }
+}

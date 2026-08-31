@@ -3,6 +3,7 @@ package dev.chronoly.item;
 import dev.chronoly.attachment.DemigodData;
 import dev.chronoly.registry.ChAttachments;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -70,13 +71,13 @@ public class AmbrosiaItem extends Item {
             // Golden fire. Over the line, and the line was real.
             sp.igniteForSeconds(10);
             sp.hurt(level.damageSources().onFire(), 12.0f);
-            sp.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 1));
+            sp.addEffect(new MobEffectInstance(MobEffects.NAUSEA, 200, 1));
             sp.sendSystemMessage(Component.literal(
                     "§6§lYou are burning from the inside out. §cYou had too much."));
-            sp.serverLevel().playSound(null, sp.blockPosition(), SoundEvents.BLAZE_SHOOT,
+            ((ServerLevel) sp.level()).playSound(null, sp.blockPosition(), SoundEvents.BLAZE_SHOOT,
                     SoundSource.PLAYERS, 1.4f, 0.6f);
         } else {
-            sp.serverLevel().playSound(null, sp.blockPosition(), SoundEvents.PLAYER_LEVELUP,
+            ((ServerLevel) sp.level()).playSound(null, sp.blockPosition(), SoundEvents.PLAYER_LEVELUP,
                     SoundSource.PLAYERS, 0.6f, 1.8f);
         }
 

@@ -21,6 +21,15 @@ public final class ChCommands {
 
     private ChCommands() {}
 
+    /**
+     * 1.21.11 replaced integer permission levels with PermissionChecks, so the old
+     * {@code hasPermission(int)} is gone. The op list is a stable way to ask the same question.
+     */
+    private static boolean isOperator(ServerPlayer player) {
+        return player.getServer() != null
+                && player.getServer().getPlayerList().isOp(player.getGameProfile());
+    }
+
     public static void register(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("chronoly");
 
@@ -49,20 +58,25 @@ public final class ChCommands {
             return r.cast() ? 1 : 0;
         }));
 
-        var claim = Commands.literal("claim").requires(s -> s.hasPermission(2));
+        var claim = Commands.literal("claim");
         for (String god : GODS) {
             claim.then(Commands.literal(god).executes(ctx -> {
                 ServerPlayer p = ctx.getSource().getPlayerOrException();
+                if (!isOperator(p)) {
+                    p.sendSystemMessage(Component.literal("§7Only an operator may hand out parentage."));
+                    return 0;
+                }
                 GameplayEvents.claimAs(p, p.getData(ChAttachments.DEMIGOD.get()), god);
                 return 1;
             }));
         }
         root.then(claim);
 
-        root.then(Commands.literal("favor").requires(s -> s.hasPermission(2))
+        root.then(Commands.literal("favor")
                 .then(Commands.argument("amount", com.mojang.brigadier.arguments.FloatArgumentType.floatArg())
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            if (!isOperator(p)) return 0;
                             DemigodData d = p.getData(ChAttachments.DEMIGOD.get());
                             if (!d.isClaimed()) return 0;
                             d.addFavor(d.parentage().orElseThrow(),
