@@ -11,6 +11,7 @@ import dev.chronoly.economy.IrisMessage;
 import dev.chronoly.quest.Oracle;
 import dev.chronoly.world.underworld.Judgment;
 import dev.chronoly.world.camp.CampBuilder;
+import dev.chronoly.world.olympus.ThroneRoom;
 import dev.chronoly.world.camp.CampWard;
 import dev.chronoly.world.ChDimensions;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +54,7 @@ public final class ChCommands {
         p.sendSystemMessage(Component.literal("§e/chronoly travel underworld|olympus|home"));
         p.sendSystemMessage(Component.literal("§e/chronoly charon §7— a drachma buys the crossing out"));
         p.sendSystemMessage(Component.literal("§e/chronoly iris <player> §7— a drachma into a rainbow"));
+        p.sendSystemMessage(Component.literal("§e/chronoly olympus <god> §7— petition a throne (only your parent answers)"));
         p.sendSystemMessage(Component.literal("§e/chronoly deliver <player> §7— Hermes Express, one drachma"));
         p.sendSystemMessage(Component.literal("§8Operators: /chronoly claim <god>, summon <boss>, camp build, favor <n>"));
         p.sendSystemMessage(Component.literal("§8—"));
@@ -255,6 +257,24 @@ public final class ChCommands {
                                     net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx, "player");
                             return IrisMessage.deliver(p, target) ? 1 : 0;
                         })));
+
+        var olympus = Commands.literal("olympus");
+        olympus.then(Commands.literal("build").executes(ctx -> {
+            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            if (!isOperator(ctx.getSource(), p)) return 0;
+            int thrones = ThroneRoom.build((ServerLevel) p.level(), p.blockPosition());
+            p.sendSystemMessage(Component.literal(
+                    "§6The throne room stands. §7" + thrones
+                    + " thrones and a hearth somebody is always tending."));
+            return 1;
+        }));
+        for (String god : ThroneRoom.gods()) {
+            olympus.then(Commands.literal(god).executes(ctx -> {
+                ServerPlayer p = ctx.getSource().getPlayerOrException();
+                return ThroneRoom.petition(p, god) ? 1 : 0;
+            }));
+        }
+        root.then(olympus);
 
         root.executes(ctx -> help(ctx.getSource().getPlayerOrException()));
         root.then(Commands.literal("help").executes(ctx -> help(ctx.getSource().getPlayerOrException())));
