@@ -17,6 +17,14 @@ neoForge {
         client { client() }
         server { server(); programArgument '--nogui' }
         data { clientData() }
+        // Boots a real server and runs the @GameTest methods. This is the only thing in the
+        // project that verifies behaviour rather than compilation.
+        gameTestServer { type = 'gameTestServer' }
+    }
+
+    unitTest {
+        enable()
+        testedMod = mods."${mod_id}"
     }
 
     mods {

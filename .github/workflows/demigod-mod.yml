@@ -218,3 +218,44 @@ jobs:
           grep -nE '\.java:[0-9]+: error:' /tmp/gecko.log | head -40 || true
           echo "=============== what went wrong ==============="
           sed -n '/What went wrong/,/^\* Try:/p' /tmp/gecko.log | head -30 || true
+
+  # The only job that verifies behaviour rather than compilation: boots a server, loads a world,
+  # and runs the @GameTest methods. Non-blocking while it is new — a flaky harness must not stop
+  # the jar shipping — but its result is reported plainly.
+  gametest:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: demigod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Resolve NeoForge
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/neo.xml \
+            https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml
+          NEO=$(grep -oP '(?<=<version>)21\.11\.[^<]*' /tmp/neo.xml | tail -1)
+          sed -i "s/^neo_version=.*/neo_version=$NEO/" gradle.properties
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
+
+      - name: Run GameTests
+        run: |
+          set -o pipefail
+          gradle runGameTestServer --no-daemon --console=plain 2>&1 | tee /tmp/gametest.log
+
+      - name: What the tests said
+        if: always()
+        run: |
+          echo "=============== results ==============="
+          grep -iE 'test .*(passed|failed)|All required tests passed|tests failed' /tmp/gametest.log | head -40 || true
+          echo "=============== failures ==============="
+          grep -iE 'Test .*failed|Exception|Caused by' /tmp/gametest.log | head -30 || true
