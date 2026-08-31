@@ -240,6 +240,8 @@ public final class Bosses {
             case CHARYBDIS -> {
                 // The pull is the fight. Everything within twenty blocks is dragged toward the
                 // centre, and standing in it drowns you — get to land, or get eaten.
+                // She, of course, does not drown in herself.
+                boss.setAirSupply(boss.getMaxAirSupply());
                 Vec3 centre = boss.position();
                 for (ServerPlayer p : level.players()) {
                     double dist = p.distanceTo(boss);

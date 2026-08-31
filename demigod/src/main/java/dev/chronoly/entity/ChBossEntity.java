@@ -47,6 +47,21 @@ public class ChBossEntity extends Monster {
                 .add(Attributes.KNOCKBACK_RESISTANCE, 0.8);
     }
 
+    /**
+     * Voices, chosen from constants this project has already compiled against — a growl for the
+     * dog, a roar for the bulls and cats, the conduit's hum for the thing in the water.
+     */
+    @Override
+    protected net.minecraft.sounds.SoundEvent getAmbientSound() {
+        return switch (kind) {
+            case CERBERUS -> net.minecraft.sounds.SoundEvents.ENDER_DRAGON_GROWL;
+            case CHARYBDIS -> net.minecraft.sounds.SoundEvents.CONDUIT_AMBIENT;
+            case CHIMERA -> net.minecraft.sounds.SoundEvents.BLAZE_AMBIENT;
+            case FURY, MEDUSA -> null;   // the quiet ones are worse
+            default -> net.minecraft.sounds.SoundEvents.RAVAGER_ROAR;
+        };
+    }
+
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
