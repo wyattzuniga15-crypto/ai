@@ -1,4 +1,4 @@
-[classpath: 85 jars]
+[classpath: 84 jars]
 [game jar: neoforge-21.11.45.jar]
 [game jar: mixinextras-neoforge-0.5.3.jar]
 [game jar: neoforge-21.11.45-client-extra-aka-minecraft-resources.jar]
