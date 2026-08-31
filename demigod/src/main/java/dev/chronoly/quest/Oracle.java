@@ -88,6 +88,9 @@ public final class Oracle {
             case CERBERUS -> List.of("the three-headed doorman", "what waits at the gate");
             case FURY -> List.of("the kindly one who is not", "the teacher with the wrong wings");
             case LYDIAN_DRAKON -> List.of("the armoured old thing", "what the prophecy named");
+            case MEDUSA -> List.of("the aunt with the bad temper", "the gaze that makes a garden");
+            case NEMEAN_LION -> List.of("the hide that turns everything", "what only opens once");
+            case CHIMERA -> List.of("three deaths in one body", "the thing with the wrong number of heads");
         };
     }
 }
