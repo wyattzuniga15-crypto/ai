@@ -56,7 +56,9 @@ public final class Bosses {
     }
 
     public static Mob spawn(ServerLevel level, BossKind kind, double x, double y, double z) {
-        Entity raw = kind.base.create(level, EntitySpawnReason.COMMAND);
+        // The named monsters wear their own bodies now; kind.base survives as documentation of
+        // what each fight was prototyped on, and as the fallback shape of the mechanics.
+        Entity raw = dev.chronoly.registry.ChEntities.typeFor(kind).create(level, EntitySpawnReason.COMMAND);
         if (!(raw instanceof Mob mob)) return null;
 
         mob.setPos(x, y, z);
@@ -72,7 +74,8 @@ public final class Bosses {
         setAttribute(mob, Attributes.FOLLOW_RANGE, 48.0);
 
         if (kind == BossKind.CERBERUS) {
-            setAttribute(mob, Attributes.SCALE, 3.0);
+            // Sized for the old wolf body; the custom body is already a dog the size of a truck.
+            setAttribute(mob, Attributes.SCALE, 1.4);
         }
 
         ServerBossEvent bar = new ServerBossEvent(

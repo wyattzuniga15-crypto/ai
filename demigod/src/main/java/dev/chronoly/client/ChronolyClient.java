@@ -31,7 +31,23 @@ public final class ChronolyClient {
     public ChronolyClient(IEventBus modBus) {
         modBus.addListener(this::registerKeys);
         modBus.addListener(this::registerHud);
+        modBus.addListener(this::registerLayers);
+        modBus.addListener(this::registerRenderers);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(this::onClientTick);
+    }
+
+    private void registerLayers(net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterLayerDefinitions event) {
+        for (dev.chronoly.boss.BossKind kind : dev.chronoly.boss.BossKind.values()) {
+            event.registerLayerDefinition(dev.chronoly.client.render.BossModels.layer(kind),
+                    () -> dev.chronoly.client.render.BossModels.of(kind));
+        }
+    }
+
+    private void registerRenderers(net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event) {
+        for (dev.chronoly.boss.BossKind kind : dev.chronoly.boss.BossKind.values()) {
+            event.registerEntityRenderer(dev.chronoly.registry.ChEntities.typeFor(kind),
+                    ctx -> new dev.chronoly.client.render.ChBossRenderer(ctx, kind));
+        }
     }
 
     private void registerKeys(RegisterKeyMappingsEvent event) {

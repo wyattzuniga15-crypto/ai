@@ -29,6 +29,7 @@ public final class Chronoly {
         ChAttachments.init(modBus);
 
         modBus.addListener(ChPayloads::register);
+        dev.chronoly.registry.ChEntities.init(modBus);
 
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onDeath);
