@@ -35,6 +35,9 @@ public final class Chronoly {
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onPlayerDeath);
         NeoForge.EVENT_BUS.addListener(GameplayEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(ChCommands::register);
+        NeoForge.EVENT_BUS.addListener(dev.chronoly.event.PietyEvents::onOffer);
+        NeoForge.EVENT_BUS.addListener(dev.chronoly.event.PietyEvents::onCraft);
+        NeoForge.EVENT_BUS.addListener(dev.chronoly.event.PietyEvents::onKill);
         NeoForge.EVENT_BUS.addListener(dev.chronoly.item.LoreTooltips::onTooltip);
 
         container.registerConfig(ModConfig.Type.SERVER, ChServerConfig.SPEC);

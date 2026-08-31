@@ -313,6 +313,7 @@ public final class GameplayEvents {
         data.setEnergy(0f);
         data.setOverdraw(data.maxEnergy() * 0.5f);
         player.sendSystemMessage(Component.literal("§8You do not wake up. You arrive."));
+        dev.chronoly.event.PietyEvents.onDemigodDeath(player, data);
         Judgment.judge(player, data);
         Judgment.mercy(player, data);
     }
