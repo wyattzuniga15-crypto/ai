@@ -1,0 +1,135 @@
+<title>Portal Gun Replica</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#eaedf1;--ink:#1b1e24;--muted:#5d636e;--panel:rgba(250,251,252,.9);--line:#cfd4dc;--blue:#2e9be8;--orange:#f0862a;--swatch-line:rgba(0,0,0,.18)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14161a;--ink:#e6e8ec;--muted:#9aa1ab;--panel:rgba(24,26,31,.9);--line:#2f333b;--blue:#4fb0f5;--orange:#f59a4a;--swatch-line:rgba(255,255,255,.18)}}
+:root[data-theme="dark"]{--bg:#14161a;--ink:#e6e8ec;--muted:#9aa1ab;--panel:rgba(24,26,31,.9);--line:#2f333b;--blue:#4fb0f5;--orange:#f59a4a;--swatch-line:rgba(255,255,255,.18)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Barlow,"Segoe UI",Roboto,Helvetica,sans-serif;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+#hud{position:fixed;left:16px;top:16px;width:292px;max-height:calc(100vh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px 12px;backdrop-filter:blur(10px);box-sizing:border-box}
+.eyebrow{font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);margin:0 0 6px}
+#hud h1{font:700 26px/1 "Barlow Condensed",Barlow,"Arial Narrow",sans-serif;letter-spacing:.01em;text-transform:uppercase;margin:0 0 6px;text-wrap:balance}
+#hud p{margin:0 0 10px;color:var(--muted)}
+#dims{font:500 12px/1.4 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin:0 0 8px;font-variant-numeric:tabular-nums}
+#parts{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;margin:0}
+#parts label{display:contents;cursor:pointer}
+#parts input{margin:0;accent-color:var(--blue)}
+#parts .nm{white-space:nowrap}
+#parts .sz{font:400 11px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+#parts i{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid var(--swatch-line);vertical-align:-1px;margin-right:6px}
+.row{display:flex;gap:8px;margin-top:12px}
+button{font:500 13px/1 Barlow,sans-serif;padding:7px 12px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--blue)}
+button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#tip{position:fixed;right:16px;bottom:14px;color:var(--muted);font:400 12px/1 "IBM Plex Mono",ui-monospace,monospace}
+@media (max-width:640px){#hud{width:auto;right:16px;max-height:45vh}#tip{display:none}}
+@media (prefers-reduced-motion:reduce){#hud{backdrop-filter:none}}
+</style>
+<canvas id="c"></canvas>
+<div id="hud">
+  <p class="eyebrow">Aperture Science</p>
+  <h1>Handheld Portal Device</h1>
+  <p>Print-ready replica. Each part below is a separate STL; sizes are at the exported scale.</p>
+  <div id="dims"></div>
+  <div id="parts"></div>
+  <div class="row"><button id="spin">Pause spin</button><button id="reset">Reset view</button></div>
+</div>
+<div id="tip">drag · orbit &nbsp; wheel · zoom &nbsp; shift-drag · pan</div>
+<script>
+const MODEL = /*__MODEL__*/null;
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', {antialias:true});
+if(!gl){ document.getElementById('hud').innerHTML += '<p>WebGL2 is required to view the model.</p>'; }
+function b64(s){ const bin=atob(s); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u; }
+const VS=`#version 300 es
+in vec3 p; uniform mat4 mvp, mv; out vec3 vp;
+void main(){ vp=(mv*vec4(p,1.)).xyz; gl_Position=mvp*vec4(p,1.); }`;
+const FS=`#version 300 es
+precision highp float; in vec3 vp; uniform vec3 col; uniform float gloss; uniform float glow; out vec4 o;
+void main(){
+  vec3 n=normalize(cross(dFdx(vp),dFdy(vp)));
+  vec3 v=normalize(-vp);
+  vec3 l1=normalize(vec3(.5,.8,.9)); vec3 l2=normalize(vec3(-.7,.3,.4)); vec3 l3=normalize(vec3(.2,-.6,-.5));
+  float d=max(dot(n,l1),0.)*.85+max(dot(n,l2),0.)*.35+max(dot(n,l3),0.)*.18;
+  float hemi=.5+.5*n.y;
+  vec3 c=col*(0.16+0.16*hemi+d*0.85);
+  vec3 h1=normalize(l1+v); vec3 h2=normalize(l2+v);
+  float s=pow(max(dot(n,h1),0.),gloss)*0.9+pow(max(dot(n,h2),0.),gloss*0.6)*0.35;
+  c+=vec3(s)*(0.25+0.75*min(gloss/90.,1.));
+  float fr=pow(1.-max(dot(n,v),0.),3.);
+  c+=fr*0.12;
+  c=mix(c,col*1.35+vec3(.15,.25,.35),glow);
+  o=vec4(pow(c,vec3(1./2.2)),1.);
+}`;
+function sh(t,src){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s;}
+const prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw gl.getProgramInfoLog(prog);
+gl.useProgram(prog);
+const U={mvp:gl.getUniformLocation(prog,'mvp'),mv:gl.getUniformLocation(prog,'mv'),col:gl.getUniformLocation(prog,'col'),gloss:gl.getUniformLocation(prog,'gloss'),glow:gl.getUniformLocation(prog,'glow')};
+const meshes=[];
+const half=MODEL.span/2, lo=MODEL.lo;
+let cx=0,cy=0,cz=0,cnt=0;
+for(const p of MODEL.parts){
+  const q=new Int16Array(b64(p.v).buffer);
+  const v=new Float32Array(q.length);
+  for(let i=0;i<q.length;i++){ v[i]=(q[i]/32000+1)*half+lo[i%3]; }
+  for(let i=0;i<v.length;i+=3){cx+=v[i];cy+=v[i+1];cz+=v[i+2];cnt++;}
+  const f=new Uint32Array(b64(p.f).buffer);
+  const vao=gl.createVertexArray();gl.bindVertexArray(vao);
+  const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,v,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,f,gl.STATIC_DRAW);
+  const white=p.color[0]>.8, blue=p.color[2]>.9&&p.color[0]<.5;
+  meshes.push({name:p.name,size:p.size,vao,n:f.length,color:p.color,gloss:white?120:(blue?40:28),glow:blue?0.55:0,on:true});
+}
+cx/=cnt;cy/=cnt;cz/=cnt;
+// UI
+const partsEl=document.getElementById('parts');
+for(const m of meshes){
+  const l=document.createElement('label');
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=true;cb.onchange=()=>{m.on=cb.checked;};
+  const sw=document.createElement('i');sw.style.background=`rgb(${m.color.map(c=>c*255|0).join(',')})`;
+  const nm=document.createElement('span');nm.className='nm';nm.append(sw,document.createTextNode(m.name.replace(/_/g,' ')));
+  const sz=document.createElement('span');sz.className='sz';sz.textContent=m.size.map(v=>Math.round(v*MODEL.scale)).join(' × ')+' mm';
+  l.append(cb,nm,sz);partsEl.append(l);
+}
+document.getElementById('dims').textContent=`${MODEL.extents.map(v=>Math.round(v*MODEL.scale)).join(' × ')} mm overall · scale ${MODEL.scale}`;
+let spin=!new URLSearchParams(location.hash.slice(1)).has('yaw');document.getElementById('spin').onclick=e=>{spin=!spin;e.target.textContent=spin?'Pause spin':'Resume spin';};
+// camera
+let yaw=-0.7,pitch=0.35,dist=MODEL.span*1.5,panx=0,pany=0;
+{ const h=new URLSearchParams(location.hash.slice(1));
+  if(h.has('yaw'))yaw=+h.get('yaw'); if(h.has('pitch'))pitch=+h.get('pitch'); if(h.has('dist'))dist=MODEL.span*+h.get('dist'); }
+const home={yaw,pitch,dist};document.getElementById('reset').onclick=()=>{yaw=home.yaw;pitch=home.pitch;dist=home.dist;panx=pany=0;};
+let drag=null;
+canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,shift:e.shiftKey};canvas.setPointerCapture(e.pointerId);spin=false;document.getElementById('spin').textContent='Resume spin';});
+canvas.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
+  if(drag.shift||e.buttons===4){panx+=dx*dist*0.0012;pany-=dy*dist*0.0012;}else{yaw+=dx*0.008;pitch=Math.max(-1.5,Math.min(1.5,pitch+dy*0.008));}});
+canvas.addEventListener('pointerup',()=>drag=null);
+canvas.addEventListener('wheel',e=>{e.preventDefault();dist*=Math.exp(e.deltaY*0.0012);dist=Math.max(MODEL.span*0.3,Math.min(MODEL.span*6,dist));},{passive:false});
+// math
+function persp(fov,asp,n,f){const t=1/Math.tan(fov/2);return [t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0];}
+function mul(a,b){const o=new Array(16).fill(0);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)o[j*4+i]+=a[k*4+i]*b[j*4+k];return o;}
+function rotX(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1];}
+function rotY(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1];}
+function tr(x,y,z){return [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1];}
+// model axes: +X forward, +Z up. Viewer: Y up -> rotate model so Z becomes Y.
+const toY=[1,0,0,0, 0,0,-1,0, 0,1,0,0, 0,0,0,1];
+gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);
+let last=0;
+function frame(t){
+  const dt=(t-last)/1000;last=t;if(spin)yaw+=dt*0.35;
+  const dpr=Math.min(devicePixelRatio||1,2);const w=canvas.clientWidth*dpr|0,h=canvas.clientHeight*dpr|0;
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  gl.viewport(0,0,w,h);
+  const dark=matchMedia('(prefers-color-scheme:dark)').matches&&document.documentElement.dataset.theme!=='light'||document.documentElement.dataset.theme==='dark';
+  dark?gl.clearColor(0.082,0.09,0.106,1):gl.clearColor(0.933,0.941,0.953,1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  let mv=tr(panx,pany,-dist);mv=mul(mv,rotX(pitch));mv=mul(mv,rotY(yaw));mv=mul(mv,toY);mv=mul(mv,tr(-cx,-cy,-cz));
+  const P=persp(0.7,w/h,MODEL.span*0.05,MODEL.span*12);
+  const mvp=mul(P,mv);
+  gl.uniformMatrix4fv(U.mvp,false,new Float32Array(mvp));gl.uniformMatrix4fv(U.mv,false,new Float32Array(mv));
+  for(const m of meshes){if(!m.on)continue;gl.bindVertexArray(m.vao);gl.uniform3fv(U.col,m.color);gl.uniform1f(U.gloss,m.gloss);gl.uniform1f(U.glow,m.glow);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_INT,0);}
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
