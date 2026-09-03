@@ -706,7 +706,7 @@ const BeanBaronScene = (() => {
     for (let i = 0; i < T.slots[0]; i++) { cx += 10; slots.drip.push(cx); cx += 10; }
     for (let i = 0; i < T.slots[1]; i++) { cx += 14; slots.espresso.push(cx); cx += 16; }
     for (let i = 0; i < T.slots[2]; i++) { cx += 14; slots.roaster.push(cx); cx += 16; }
-    const doorX = T.interior ? T.x0 + 10 : registerX - 18;
+    const doorX = T.interior ? T.x0 + 73.5 : registerX - 18;     // between the first two table columns, a step from the register
     const maxQueue = Math.max(2, Math.min(8, Math.floor((T.x1 - 8 - registerX) / 15)));
     return { H, T, tier, extra, wide, bgBottom, interiorTop, interiorBottom, backY, laneY, counterY, queueY, tables, slots, maxQueue,
       doorX, registerX, aisleX: doorX, bottomCorridor: interiorBottom - 12,
@@ -720,18 +720,21 @@ const BeanBaronScene = (() => {
       t: 0, scale: 1, H: 277, tier: getGame().cafe || 0, L: layout(277, getGame().cafe || 0),
       customers: [], baristas: [], vehicles: [], particles: [], log: [],
       machines: [], counts: null, spawnT: 1.5, passT: 2, tapJiggle: 0,
-      served: 0, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
+      served: 0, critters: [], birdT: 8, catT: 40, shadow: { dx: 0, alpha: 0.22 }, focus: null, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
     };
     let dpr = 1, cssW = 360, cssH = 277;
 
-    function resize() {
+    function resize(force) {
       const r = canvas.getBoundingClientRect();
       if (r.width < 10 || r.height < 10) return;
       dpr = Math.min(3, window.devicePixelRatio || 1);
       cssW = r.width; cssH = r.height;
       canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
       S.scale = cssW / W;
-      S.H = cssH / S.scale;
+      const newH = cssH / S.scale;
+      const big = force || Math.abs(newH - S.H) > 3;
+      S.H = newH;
+      if (!big) return;                   // a nudge of a few pixels: keep everyone where they are
       S.L = layout(S.H, S.tier);
       // the room changed shape: clear the floor and let it refill
       S.customers = [];
@@ -763,7 +766,7 @@ const BeanBaronScene = (() => {
       const nb = 1 + (g.owned[2] >= 1 ? 1 : 0) + (g.owned[2] >= 5 ? 1 : 0) + (g.owned[2] >= 20 ? 1 : 0) + (g.owned[2] >= 50 ? 1 : 0);
       while (S.baristas.length < nb) {
         const i = S.baristas.length;
-        S.baristas.push({ x: S.L.registerX + 12 + i * 22, y: S.L.laneY, home: { x: S.L.registerX + 12 + i * 22, y: S.L.laneY }, state: 'idle', t: 0, cup: false, skin: pick(SKIN), hair: pick(HAIR), owner: i === 0, walk: 0 });
+        S.baristas.push(person({ x: S.L.registerX + 12 + i * 22, y: S.L.laneY, home: { x: S.L.registerX + 12 + i * 22, y: S.L.laneY }, state: 'idle', cup: false, owner: i === 0, hat: null, shirt: '#F6E7CF', working: false }));
       }
       while (S.baristas.length > nb) { const b = S.baristas.pop(); if (b.customer) b.customer.state = 'queue'; if (b.machine) b.machine.busy = false; }
       S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; });
@@ -775,15 +778,19 @@ const BeanBaronScene = (() => {
     }
 
     // --- people -----------------------------------------------------------
+    const PANTS = ['#2e2e2e', '#3b4a6b', '#5a4632', '#6b6b6b', '#8b3a3a', '#1f2f3f'];
     function person(extra) {
-      return Object.assign({ name: pick(NAMES), skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), x: 0, y: 0, walk: 0, path: null, t: 0, holding: false, bubble: null, face: 1 }, extra);
+      return Object.assign({ name: pick(NAMES), skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), pants: pick(PANTS),
+        hat: Math.random() < 0.22 ? pick(SHIRT) : null, glasses: Math.random() < 0.18, seed: rnd(0, 6.28),
+        x: 0, y: 0, walk: 0, path: null, t: 0, holding: false, bubble: null, face: 1, dir: 'down', moving: false, sip: 0 }, extra);
     }
     function moveTo(e, tx, ty, speed, dt) {
       const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
       if (d < 0.6) { e.x = tx; e.y = ty; return true; }
       const step = Math.min(d, speed * dt);
       e.x += dx / d * step; e.y += dy / d * step;
-      e.walk += dt * 10; if (Math.abs(dx) > 0.2) e.face = dx > 0 ? 1 : -1;
+      e.walk += dt * 11; e.moving = true;
+      if (Math.abs(dx) > Math.abs(dy) * 1.2) { e.dir = 'side'; e.face = dx > 0 ? 1 : -1; } else e.dir = dy > 0 ? 'down' : 'up';
       return d - step < 0.6;
     }
     function followPath(e, speed, dt) {
@@ -792,17 +799,18 @@ const BeanBaronScene = (() => {
       return e.path.length === 0;
     }
     const queueSpot = i => ({ x: S.L.registerX + i * 15, y: S.L.queueY });
-    function queued() { return S.customers.filter(c => c.state === 'queue' || c.state === 'ordering').sort((a, b) => a.qi - b.qi); }
+    function queued() { return S.customers.filter(c => c.state === 'queue').sort((a, b) => a.qi - b.qi); }
+    function pickupSpot(k) { return { x: S.L.registerX - 14 - k * 11, y: S.L.queueY + 16 }; }
     function reindexQueue() { queued().forEach((c, i) => { c.qi = i; }); }
     function freeSeat() { const seats = []; for (const t of S.L.tables) for (const s of t.seats) if (!s.taken) seats.push({ t, s }); return seats.length ? pick(seats) : null; }
 
     function spawnCustomer(rush) {
       const L = S.L;
       const fromLeft = Math.random() < 0.5;
-      const q = queued().length;
+      const q = queued().length, coming = S.customers.filter(c => c.state === 'arrive').length;
       const c = person({ drink: pick(DRINKS), x: fromLeft ? -12 : W + 12, y: L.walkY + rnd(-3, 3), state: 'arrive', qi: q });
-      if (q >= L.maxQueue) { c.state = 'passby'; c.path = [{ x: fromLeft ? W + 16 : -16, y: c.y }]; S.customers.push(c); return; }
-      c.path = [{ x: L.doorX, y: L.walkY }, { x: L.doorX, y: L.queueY }, queueSpot(q)];
+      if (q + coming >= L.maxQueue) { c.state = 'passby'; c.path = [{ x: fromLeft ? W + 16 : -16, y: c.y }]; S.customers.push(c); return; }
+      c.path = [{ x: L.doorX, y: L.walkY }, { x: L.doorX, y: L.queueY }];
       c.state = 'arrive';
       S.customers.push(c);
     }
@@ -815,13 +823,17 @@ const BeanBaronScene = (() => {
 
     function updatePeople(dt, g, rush) {
       const L = S.L;
-      const speed = rush ? 44 : 30;
+      const roomy = Math.max(1, Math.pow(S.H / 277, 0.85));      // taller rooms mean longer walks
+      const speed = (rush ? 44 : 30) * roomy;
+      for (const c of S.customers) c.moving = false;
+      for (const b of S.baristas) b.moving = false;
       for (const c of S.customers) {
+        if (c.state === 'sit') { c.sip -= dt; if (c.sip <= 0) c.sip = rnd(3, 7); }
         switch (c.state) {
-          case 'passby': if (followPath(c, 26, dt)) c.dead = true; break;
-          case 'arrive': if (followPath(c, speed, dt)) { c.state = 'queue'; c.bubble = c.drink; log(`${c.name} wants ${/^[aeiou]/.test(c.drink.name) ? 'an' : 'a'} ${c.drink.name}`); } break;
-          case 'queue': { const spot = queueSpot(c.qi); moveTo(c, spot.x, spot.y, speed, dt); c.face = -1; break; }
-          case 'ordering': c.face = -1; break;
+          case 'passby': if (followPath(c, 34, dt)) c.dead = true; break;
+          case 'arrive': if (followPath(c, c.y > L.interiorBottom ? speed * 1.5 : speed, dt)) { c.state = 'queue'; c.qi = queued().length - 1; reindexQueue(); c.bubble = c.drink; log(`${c.name} wants ${/^[aeiou]/.test(c.drink.name) ? 'an' : 'a'} ${c.drink.name}`); } break;
+          case 'queue': { const spot = queueSpot(c.qi); if (moveTo(c, spot.x, spot.y, speed, dt)) c.dir = 'up'; break; }
+          case 'ordering': if (c.wait && moveTo(c, c.wait.x, c.wait.y, speed, dt)) c.dir = 'up'; break;
           case 'served': {
             const seat = Math.random() < 0.7 ? freeSeat() : null;
             if (seat) {
@@ -830,13 +842,13 @@ const BeanBaronScene = (() => {
             } else { c.state = 'leave'; c.path = null; }
             break;
           }
-          case 'toTable': if (followPath(c, speed, dt)) { c.state = 'sit'; c.t = rnd(7, 16); c.face = c.x < c.table.x ? 1 : -1; } break;
+          case 'toTable': if (followPath(c, speed, dt)) { c.state = 'sit'; c.t = rnd(7, 16); c.dir = 'side'; c.face = c.x < c.table.x ? 1 : -1; c.sip = rnd(1, 3); } break;
           case 'sit': c.t -= dt; if (c.t <= 0) { c.seat.taken = null; c.table.cup = null; c.holding = false; c.state = 'leave'; c.path = null; log(`${c.name} left happy`); } break;
           case 'leave': {
             if (!c.path) c.path = c.table
               ? [{ x: c.x, y: L.bottomCorridor }, { x: L.doorX, y: L.bottomCorridor }, { x: L.doorX, y: L.walkY }, { x: Math.random() < 0.5 ? -16 : W + 16, y: L.walkY + rnd(-3, 3) }]
               : [{ x: L.doorX, y: c.y }, { x: L.doorX, y: L.walkY }, { x: Math.random() < 0.5 ? -16 : W + 16, y: L.walkY + rnd(-3, 3) }];
-            if (followPath(c, speed, dt)) c.dead = true;
+            if (followPath(c, c.y > L.interiorBottom ? speed * 1.5 : speed, dt)) c.dead = true;
             break;
           }
         }
@@ -844,23 +856,24 @@ const BeanBaronScene = (() => {
       if (S.customers.some(c => c.dead)) { S.customers = S.customers.filter(c => !c.dead); reindexQueue(); }
 
       // baristas
-      const bspeed = rush ? 70 : 46;
+      const bspeed = (rush ? 70 : 46) * roomy;
       for (const b of S.baristas) {
         b.walk += dt * (b.state === 'toMachine' || b.state === 'back' ? 10 : 0);
         switch (b.state) {
           case 'idle': {
-            moveTo(b, b.home.x, b.home.y, bspeed, dt);
+            if (moveTo(b, b.home.x, b.home.y, bspeed, dt)) b.dir = 'down';
             const head = queued().find(c => c.state === 'queue' && c.qi === 0 && Math.abs(c.x - queueSpot(0).x) < 2);
             if (!head) break;
             let m = S.machines.filter(x => !x.busy && x.type === head.drink.kind)[0] || S.machines.filter(x => !x.busy && x.type !== 'roaster')[0] || null;
             if (!m && S.machines.some(x => x.type !== 'roaster')) break;    // all busy: wait
-            head.state = 'ordering'; b.customer = head; b.machine = m; b.state = 'toMachine';
+            head.state = 'ordering'; head.qi = 99; head.wait = pickupSpot(S.customers.filter(c => c.state === 'ordering').length); reindexQueue();
+            b.customer = head; b.machine = m; b.state = 'toMachine';
             if (m) m.busy = true;
             b.t = (m ? (m.type === 'espresso' ? 1.3 : 1.8) : 2.2) * (rush ? 0.5 : 1);
             break;
           }
           case 'toMachine': if (moveTo(b, b.machine ? b.machine.x : L.registerX + 10, L.laneY, bspeed, dt)) b.state = 'brewing'; break;
-          case 'brewing': b.t -= dt; if (b.t <= 0) { if (b.machine) { b.machine.busy = false; b.machine.anim = 0; } b.cup = true; b.state = 'back'; } break;
+          case 'brewing': b.dir = 'up'; b.working = true; b.t -= dt; if (b.t <= 0) { if (b.machine) { b.machine.busy = false; b.machine.anim = 0; } b.cup = true; b.state = 'back'; b.working = false; } break;
           case 'back': if (moveTo(b, L.registerX + 4, L.laneY, bspeed, dt)) {
             const c = b.customer; b.cup = false; b.state = 'idle'; b.machine = null; b.customer = null;
             if (c && !c.dead) { c.holding = true; c.bubble = null; c.state = 'served'; c.qi = 99; reindexQueue(); S.served++;
@@ -876,6 +889,14 @@ const BeanBaronScene = (() => {
       for (const t of L.tables) { t.cup = null; for (const s of t.seats) if (s.taken && s.taken.state === 'sit') t.cup = s.taken.drink; }
     }
 
+    // birds over the roofs, the odd cat along the sidewalk
+    function updateCritters(dt) {
+      S.birdT -= dt; S.catT -= dt;
+      if (S.birdT <= 0) { const dir = Math.random() < 0.5 ? 1 : -1; const y = 6 + Math.random() * Math.max(10, S.L.bgBottom - 40); for (let i = 0; i < 3; i++) S.critters.push({ kind: 'bird', x: dir > 0 ? -20 - i * 9 : W + 20 + i * 9, y: y + (i % 2) * 4, dir, v: 28 + Math.random() * 10, ph: Math.random() * 6 }); S.birdT = rnd(25, 60); }
+      if (S.catT <= 0) { const dir = Math.random() < 0.5 ? 1 : -1; S.critters.push({ kind: 'cat', x: dir > 0 ? -14 : W + 14, y: S.L.walkY + 6, dir, v: 16, ph: 0, color: pick(['#2e2e2e', '#d98a4a', '#9a9a9a', '#f1f1f1']) }); S.catT = rnd(50, 120); }
+      for (const c of S.critters) { c.x += c.v * c.dir * dt; c.ph += dt * (c.kind === 'bird' ? 12 : 8); }
+      S.critters = S.critters.filter(c => c.x > -30 && c.x < W + 30);
+    }
     function updateVehicles(dt) {
       for (const v of S.vehicles) {
         const dir = v.lane === 1 ? 1 : -1;
@@ -888,7 +909,7 @@ const BeanBaronScene = (() => {
     function update(dt) {
       const g = getGame();
       S.t += dt;
-      if ((g.cafe || 0) !== S.tier) { S.tier = g.cafe || 0; resize(); }
+      if ((g.cafe || 0) !== S.tier) { S.tier = g.cafe || 0; resize(true); }
       rebuildMachines(false);
       const rush = E.buffActive(g, 'rush');
       const cps = E.cupsPerSec(g);
@@ -901,6 +922,9 @@ const BeanBaronScene = (() => {
       if (S.passT <= 0) { spawnPasserby(); S.passT = rnd(4, 11); }
       updatePeople(dt, g, rush);
       updateVehicles(dt);
+      updateCritters(dt);
+      S.shadow = { dx: (0.5 - dayPhase()) * 6, alpha: 0.24 * (1 - nightAmount() * 0.6) };
+      if (S.focus && S.focus.until < S.t) S.focus = null;
       for (const m of S.machines) if (m.type === 'roaster') m.anim += dt;
       for (const p of S.particles) { p.life -= dt * 0.9; p.y += p.vy * dt; }
       S.particles = S.particles.filter(p => p.life > 0);
@@ -1016,6 +1040,12 @@ const BeanBaronScene = (() => {
         }
         ctx.fillStyle = mix(T.fancy ? '#8a5a3c' : '#6B4530', '#2b170d', dim); ctx.fillRect(x0, L.interiorTop, bw, 4);
         if (T.fancy) { ctx.fillStyle = '#F2A65A'; ctx.fillRect(x0, L.interiorTop + 3, bw, 1); ctx.fillRect(x0, L.interiorBottom - 1, bw, 1); }
+        // ambient shading against the back wall and inside the front wall
+        const ao1 = ctx.createLinearGradient(0, L.interiorTop, 0, L.interiorTop + 26); ao1.addColorStop(0, 'rgba(20,10,5,.28)'); ao1.addColorStop(1, 'rgba(20,10,5,0)');
+        ctx.fillStyle = ao1; ctx.fillRect(x0, L.interiorTop, bw, 26);
+        const ao2 = ctx.createLinearGradient(0, L.interiorBottom - 10, 0, L.interiorBottom); ao2.addColorStop(0, 'rgba(20,10,5,0)'); ao2.addColorStop(1, 'rgba(20,10,5,.18)');
+        ctx.fillStyle = ao2; ctx.fillRect(x0, L.interiorBottom - 10, bw, 10);
+        for (const sx of [x0, x1 - 8]) { const ao3 = ctx.createLinearGradient(sx, 0, sx + 8, 0); ao3.addColorStop(0, sx === x0 ? 'rgba(20,10,5,.16)' : 'rgba(20,10,5,0)'); ao3.addColorStop(1, sx === x0 ? 'rgba(20,10,5,0)' : 'rgba(20,10,5,.16)'); ctx.fillStyle = ao3; ctx.fillRect(sx, L.interiorTop, 8, L.interiorBottom - L.interiorTop); }
         // machines + badges
         for (const m of S.machines) drawMachine(m, dim, L.backY);
         drawBadges(g, L.backY - 2);
@@ -1027,8 +1057,11 @@ const BeanBaronScene = (() => {
         // chandelier for the palace
         if (T.fancy && L.tables.length) { const ly = L.tables[0].y - 30; ctx.strokeStyle = '#F2A65A'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, ly, 12, 0, Math.PI); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - 12, ly); ctx.lineTo(cx + 12, ly); ctx.stroke(); for (const dx of [-12, 0, 12]) { ctx.fillStyle = '#ffd27a'; circle(cx + dx, ly + (dx ? 0 : 12), 2.2); ctx.fill(); const gl = ctx.createRadialGradient(cx + dx, ly + (dx ? 0 : 12), 1, cx + dx, ly + (dx ? 0 : 12), 8); gl.addColorStop(0, 'rgba(255,210,122,.45)'); gl.addColorStop(1, 'rgba(255,210,122,0)'); ctx.fillStyle = gl; circle(cx + dx, ly + (dx ? 0 : 12), 8); ctx.fill(); } }
         // counter
-        ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(x0 + 52, L.counterY, bw - 56, 14, 3); ctx.fill();
-        ctx.fillStyle = mix('#a97452', '#2b170d', dim); rr(x0 + 52, L.counterY, bw - 56, 4, 2); ctx.fill();
+        ctx.fillStyle = 'rgba(20,10,5,.2)'; rr(x0 + 54, L.counterY + 13, bw - 56, 4, 3); ctx.fill();
+        ctx.fillStyle = mix('#6d4530', '#2b170d', dim); rr(x0 + 52, L.counterY, bw - 56, 14, 3); ctx.fill();
+        const cg = ctx.createLinearGradient(0, L.counterY, 0, L.counterY + 6); cg.addColorStop(0, mix('#b98058', '#3a2214', dim)); cg.addColorStop(1, mix('#a97452', '#2b170d', dim));
+        ctx.fillStyle = cg; rr(x0 + 52, L.counterY, bw - 56, 6, 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fillRect(x0 + 54, L.counterY + 0.5, bw - 60, 1);
         if (T.fancy) { ctx.fillStyle = '#F2A65A'; ctx.fillRect(x0 + 52, L.counterY + 12, bw - 56, 1.5); }
         drawRegisterAndCup(dim, L.registerX, x0 + 64);
         // pastry case
@@ -1052,7 +1085,7 @@ const BeanBaronScene = (() => {
         for (const t of L.tables) drawTable(t, dim);
         // front wall, windows and door
         ctx.fillStyle = '#4A2C1A'; ctx.fillRect(x0, L.interiorBottom, bw, 8);
-        for (let wx = x0 + 34; wx <= x1 - 40; wx += 60) { ctx.fillStyle = night > 0.4 && nightShift ? '#ffd27a' : mix('#bfe3f5', '#2a2140', night); ctx.fillRect(wx, L.interiorBottom + 1, 34, 6); }
+        for (let wx = x0 + 14; wx <= x1 - 40; wx += 56) { if (Math.abs(wx + 17 - L.doorX) < 30) continue; ctx.fillStyle = night > 0.4 && nightShift ? '#ffd27a' : mix('#bfe3f5', '#2a2140', night); ctx.fillRect(wx, L.interiorBottom + 1, 34, 6); }
         ctx.fillStyle = '#e8d3b2'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 10); ctx.fillStyle = '#8a5a3c'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 2);
         // awning + sign
         for (let x = x0; x < x1; x += 20) { ctx.fillStyle = ((x - x0) / 20) % 2 ? (T.fancy ? '#F2A65A' : '#D9642A') : '#F6E7CF'; ctx.fillRect(x, L.interiorBottom + 8, Math.min(20, x1 - x), 4); }
@@ -1111,21 +1144,25 @@ const BeanBaronScene = (() => {
       ctx.fillStyle = '#F2A65A'; ctx.fillText(label, x, y + 0.3);
     }
     function drawMachine(m, dim, y) {
+      softShadow(m.x, y + 15, m.type === 'drip' ? 8 : 13, 2.5);
       if (m.type === 'drip') {
         ctx.fillStyle = mix('#2e2e2e', '#111', dim); rr(m.x - 7, y, 14, 14, 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.14)'; rr(m.x - 7, y, 3, 14, 2); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,.7)'; rr(m.x - 5, y + 6, 10, 7, 1.5); ctx.fill();
         ctx.fillStyle = '#4a2a16'; ctx.fillRect(m.x - 4, y + 9 + (m.busy ? 0 : 1), 8, m.busy ? 4 : 3);
         ctx.fillStyle = m.busy ? '#f25d3a' : '#3a3a3a'; circle(m.x + 4, y + 3, 1.2); ctx.fill();
         if (m.busy) { ctx.fillStyle = '#6a3d22'; ctx.fillRect(m.x - 0.5, y + 4, 1, 3 + Math.sin(m.anim * 20) * 1.5); }
       } else if (m.type === 'espresso') {
-        ctx.fillStyle = mix('#c9ccd1', '#55585c', dim); rr(m.x - 12, y, 24, 13, 2.5); ctx.fill();
+        const eg = ctx.createLinearGradient(m.x - 12, 0, m.x + 12, 0); eg.addColorStop(0, mix('#e4e7eb', '#6a6d72', dim)); eg.addColorStop(0.5, mix('#c9ccd1', '#55585c', dim)); eg.addColorStop(1, mix('#9a9ea4', '#3d4045', dim));
+        ctx.fillStyle = eg; rr(m.x - 12, y, 24, 13, 2.5); ctx.fill();
         ctx.fillStyle = mix('#8d9095', '#3b3d40', dim); ctx.fillRect(m.x - 12, y + 4, 24, 2);
         ctx.fillStyle = '#2e2e2e'; ctx.fillRect(m.x - 8, y + 7, 5, 2); ctx.fillRect(m.x + 3, y + 7, 5, 2);
         ctx.strokeStyle = '#2e2e2e'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(m.x + 12, y + 3); ctx.lineTo(m.x + 15, y + 9); ctx.stroke();
         if (m.busy) { ctx.fillStyle = '#F6E7CF'; rr(m.x - 7, y + 10, 4, 3, 1); ctx.fill(); for (let k = 0; k < 2; k++) { const ph = (m.anim * 1.6 + k * 0.5) % 1; ctx.fillStyle = `rgba(255,255,255,${(1 - ph) * 0.8})`; circle(m.x + 15 + ph * 3, y + 8 - ph * 9, 1.2 + ph); ctx.fill(); } }
       } else {
         // roaster: drum with a hopper and a glow underneath
-        ctx.fillStyle = mix('#7a4a2e', '#2b170d', dim); rr(m.x - 12, y + 1, 24, 13, 3); ctx.fill();
+        const rg = ctx.createLinearGradient(m.x - 12, 0, m.x + 12, 0); rg.addColorStop(0, mix('#9a6040', '#3a2214', dim)); rg.addColorStop(1, mix('#5a3520', '#1d0f08', dim));
+        ctx.fillStyle = rg; rr(m.x - 12, y + 1, 24, 13, 3); ctx.fill();
         ctx.fillStyle = '#3a2214'; circle(m.x - 3, y + 7, 5); ctx.fill();
         ctx.strokeStyle = '#a97452'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(m.x - 3 + Math.cos(m.anim * 4) * 4, y + 7 + Math.sin(m.anim * 4) * 4); ctx.lineTo(m.x - 3 - Math.cos(m.anim * 4) * 4, y + 7 - Math.sin(m.anim * 4) * 4); ctx.stroke();
         ctx.fillStyle = '#8d9095'; ctx.fillRect(m.x + 4, y - 2, 6, 6);
@@ -1134,47 +1171,163 @@ const BeanBaronScene = (() => {
       }
     }
     function drawTable(t, dim) {
-      for (const s of t.seats) { ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(s.x - 4, s.y - 3, 8, 7, 2); ctx.fill(); }
-      ctx.fillStyle = 'rgba(0,0,0,.15)'; circle(t.x + 1, t.y + 2, 11); ctx.fill();
-      ctx.fillStyle = mix('#b07a4f', '#3a2214', dim); circle(t.x, t.y, 11); ctx.fill();
-      ctx.fillStyle = mix('#c98f60', '#4a2c1a', dim); circle(t.x, t.y, 8); ctx.fill();
+      for (const s of t.seats) {
+        softShadow(s.x, s.y + 4, 5, 2);
+        ctx.fillStyle = mix('#6d4530', '#2b170d', dim); rr(s.x - 4, s.y - 6, 8, 4, 1.5); ctx.fill();      // back rest
+        ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(s.x - 4, s.y - 3, 8, 7, 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.12)'; rr(s.x - 4, s.y - 3, 8, 2, 1); ctx.fill();
+      }
+      softShadow(t.x + 1, t.y + 4, 13, 5);
+      ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); circle(t.x, t.y + 2, 11); ctx.fill();            // table edge
+      const tg = ctx.createRadialGradient(t.x - 3, t.y - 3, 1, t.x, t.y, 11); tg.addColorStop(0, mix('#c98f60', '#4a2c1a', dim)); tg.addColorStop(1, mix('#a8704a', '#3a2214', dim));
+      ctx.fillStyle = tg; circle(t.x, t.y, 11); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(t.x, t.y, 8, Math.PI * 1.1, Math.PI * 1.7); ctx.stroke();
       if (t.cup) { ctx.fillStyle = '#F6E7CF'; rr(t.x - 3, t.y - 3, 6, 6, 1.5); ctx.fill(); ctx.fillStyle = t.cup.color; circle(t.x, t.y - 1, 2); ctx.fill(); }
     }
+    function shade(col, amt) {           // amt < 0 darkens, > 0 lightens
+      const c = col.startsWith('#') ? col : '#000000';
+      const [r, g, b] = hex(c), f = v => Math.round(Math.max(0, Math.min(255, amt < 0 ? v * (1 + amt) : v + (255 - v) * amt)));
+      return `rgb(${f(r)},${f(g)},${f(b)})`;
+    }
+    function softShadow(x, y, rx, ry, alpha) {
+      const sh = S.shadow || { dx: 0, alpha: 0.22 };
+      const gr = ctx.createRadialGradient(x + sh.dx * 0.6, y, 0, x + sh.dx * 0.6, y, rx);
+      gr.addColorStop(0, `rgba(20,10,5,${alpha != null ? alpha : sh.alpha})`); gr.addColorStop(1, 'rgba(20,10,5,0)');
+      ctx.fillStyle = gr; ctx.save(); ctx.translate(x + sh.dx * 0.6, y); ctx.scale(1, ry / rx); circle(0, 0, rx); ctx.restore(); ctx.fill();
+    }
+    function drawArm(sx, sy, ang, len, skin, sleeve) {
+      const ex = sx + Math.sin(ang) * len, ey = sy + Math.cos(ang) * len;
+      ctx.lineCap = 'round'; ctx.lineWidth = 2.6; ctx.strokeStyle = sleeve; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.fillStyle = skin; circle(ex, ey, 1.4); ctx.fill();
+      return [ex, ey];
+    }
     function drawPerson(p, apron) {
-      const bob = p.walk ? Math.sin(p.walk) * 1.2 : 0;
-      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 6, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      const walking = p.moving, sitting = p.state === 'sit';
+      const ph = p.walk;
+      const bob = walking ? Math.abs(Math.sin(ph)) * 1.5 : Math.sin(S.t * 2.2 + p.seed) * 0.35;
+      const y = p.y - bob;
+      const shirt = p.shirt || '#3b6ea5';
+      const outline = 'rgba(29,15,8,.45)';
+      const facing = p.dir === 'side' ? p.face : 0;
+      // shadow on the floor, longer when standing tall
+      softShadow(p.x, p.y + 6.5, sitting ? 5 : 6.2 - bob * 0.25, 2.4);
       // legs
-      ctx.fillStyle = '#2e2e2e'; ctx.fillRect(p.x - 3, p.y + 2 + Math.max(0, bob), 2.4, 4); ctx.fillRect(p.x + 0.6, p.y + 2 + Math.max(0, -bob), 2.4, 4);
-      // body
-      ctx.fillStyle = p.shirt || '#3b6ea5'; rr(p.x - 4.5, p.y - 5, 9, 9, 2.5); ctx.fill();
-      if (apron) { ctx.fillStyle = '#6B4530'; rr(p.x - 3, p.y - 3, 6, 7, 1.5); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(p.x - 3, p.y - 3, 6, 1.2); }
-      // head
-      ctx.fillStyle = p.skin; circle(p.x, p.y - 9, 4.4); ctx.fill();
-      ctx.fillStyle = p.hair; ctx.beginPath(); ctx.arc(p.x, p.y - 9.6, 4.4, Math.PI, 0); ctx.fill();
-      if (apron) { ctx.fillStyle = '#D9642A'; rr(p.x - 4.6, p.y - 13.5, 9.2, 3, 1.5); ctx.fill(); }
-      ctx.fillStyle = '#1d0f08'; ctx.fillRect(p.x + (p.face > 0 ? 1 : -2.2), p.y - 9.5, 1.2, 1.2);
-      // cup in hand
-      if (p.holding || p.cup) { ctx.fillStyle = '#F6E7CF'; rr(p.x + (p.face > 0 ? 4 : -8), p.y - 3, 4, 4.5, 1); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(p.x + (p.face > 0 ? 4 : -8), p.y - 1.5, 4, 1); }
+      if (!sitting) {
+        const swing = walking ? Math.sin(ph) * 2.4 : 0;
+        for (const [lx, sw] of [[-2.9, swing], [0.5, -swing]]) {
+          ctx.fillStyle = p.pants || '#2e2e2e'; rr(p.x + lx + (facing ? sw * 0.5 * facing : 0), y + 1.5 + (p.dir === 'side' ? 0 : Math.max(0, sw) * 0.4), 2.6, 4.8, 1); ctx.fill();
+          ctx.fillStyle = '#1d0f08'; rr(p.x + lx + (facing ? sw * 0.5 * facing : 0) - 0.2, y + 5.4 + (p.dir === 'side' ? 0 : Math.max(0, sw) * 0.4), 3, 1.6, 0.8); ctx.fill();
+        }
+      }
+      // body with a light-from-the-left gradient and an outline
+      const by = sitting ? y - 3 : y - 5, bh = sitting ? 8 : 9.5;
+      const bg = ctx.createLinearGradient(p.x - 5, 0, p.x + 5, 0); bg.addColorStop(0, shade(shirt, 0.22)); bg.addColorStop(0.55, shirt); bg.addColorStop(1, shade(shirt, -0.32));
+      ctx.fillStyle = bg; rr(p.x - 4.6, by, 9.2, bh, 2.8); ctx.fill(); ctx.lineWidth = 0.7; ctx.strokeStyle = outline; ctx.stroke();
+      if (apron) { ctx.fillStyle = '#6B4530'; rr(p.x - 3.2, by + 2, 6.4, bh - 2.5, 1.5); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(p.x - 3.2, by + 2, 6.4, 1.2); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(p.x - 3.2, by + 2, 2, bh - 2.5); }
+      // arms: swing while walking, reach forward while working, cradle a cup, rest on the table when seated
+      const shY = by + 2, sleeve = shade(shirt, -0.1);
+      const back = p.dir === 'up';
+      let armL = walking ? Math.sin(ph) * 0.55 : 0.12, armR = walking ? -Math.sin(ph) * 0.55 : -0.12;
+      if (p.working) { const w = Math.sin(S.t * 9) * 0.25; armL = -1.5 + w; armR = 1.5 - w; }
+      if (sitting) { armL = p.face > 0 ? 1.2 : -0.2; armR = p.face > 0 ? 0.2 : -1.2; }
+      const holding = (p.holding || p.cup) && !sitting;
+      if (holding) { if (facing >= 0) armR = 1.55; else armL = -1.55; }
+      let sipLift = 0;
+      if (sitting && p.sip < 0.9) sipLift = Math.sin(p.sip / 0.9 * Math.PI);
+      const drawBackArm = () => { if (back) { drawArm(p.x - 4.4, shY, armL, 5, p.skin, sleeve); drawArm(p.x + 4.4, shY, armR, 5, p.skin, sleeve); } };
+      // arms behind the body first when walking away
+      drawBackArm();
+      // head with a highlight and a chin shadow
+      const hy = by - 4.4;
+      ctx.fillStyle = 'rgba(20,10,5,.18)'; ctx.beginPath(); ctx.ellipse(p.x, by + 0.8, 4, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+      const hg = ctx.createRadialGradient(p.x - 1.6, hy - 1.6, 0.5, p.x, hy, 5.2); hg.addColorStop(0, shade(p.skin, 0.25)); hg.addColorStop(0.7, p.skin); hg.addColorStop(1, shade(p.skin, -0.3));
+      ctx.fillStyle = hg; circle(p.x, hy, 4.5); ctx.fill(); ctx.lineWidth = 0.7; ctx.strokeStyle = outline; ctx.stroke();
+      // hair: a cap from the front, a full head from behind
+      ctx.fillStyle = p.hair;
+      if (back) { circle(p.x, hy - 0.4, 4.5); ctx.fill(); }
+      else { ctx.beginPath(); ctx.arc(p.x, hy - 0.6, 4.5, Math.PI, 0); ctx.fill(); if (p.dir === 'side') { ctx.fillRect(p.x - (p.face > 0 ? 4.5 : 1.5), hy - 1, 3, 3); } }
+      ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.arc(p.x - 1.4, hy - 2.2, 1.6, Math.PI, Math.PI * 1.9); ctx.fill();
+      if (apron) { ctx.fillStyle = '#D9642A'; rr(p.x - 4.8, hy - 5, 9.6, 3, 1.5); ctx.fill(); ctx.fillStyle = '#F6E7CF'; circle(p.x, hy - 3.6, 0.8); ctx.fill(); }
+      else if (p.hat) { ctx.fillStyle = p.hat; rr(p.x - 5.2, hy - 5.2, 10.4, 3, 1.5); ctx.fill(); ctx.fillStyle = shade(p.hat, -0.25); ctx.fillRect(p.x - 5.2, hy - 2.6, 10.4, 0.9); }
+      // face
+      if (!back) {
+        ctx.fillStyle = '#1d0f08';
+        if (p.dir === 'down') { ctx.fillRect(p.x - 2.2, hy - 0.4, 1.2, 1.3); ctx.fillRect(p.x + 1, hy - 0.4, 1.2, 1.3); ctx.fillStyle = 'rgba(29,15,8,.5)'; ctx.fillRect(p.x - 0.8, hy + 2.2, 1.6, 0.6); }
+        else { ctx.fillRect(p.x + (p.face > 0 ? 1.4 : -2.6), hy - 0.4, 1.2, 1.3); }
+        if (p.glasses) { ctx.strokeStyle = '#1d0f08'; ctx.lineWidth = 0.6; if (p.dir === 'down') { circle(p.x - 1.6, hy + 0.2, 1.5); ctx.stroke(); circle(p.x + 1.6, hy + 0.2, 1.5); ctx.stroke(); } else { circle(p.x + (p.face > 0 ? 2 : -2), hy + 0.2, 1.5); ctx.stroke(); } }
+        ctx.fillStyle = 'rgba(217,100,42,.18)'; circle(p.x - 2.6, hy + 1.4, 1); ctx.fill(); circle(p.x + 2.6, hy + 1.4, 1); ctx.fill();
+      }
+      // arms in front of the body
+      if (!back) {
+        const [lx, ly] = drawArm(p.x - 4.4, shY, armL, 5, p.skin, sleeve);
+        const [rx, ry] = drawArm(p.x + 4.4, shY, armR, 5, p.skin, sleeve);
+        if (holding) { const hx = facing >= 0 ? rx : lx, hyy = facing >= 0 ? ry : ly; ctx.fillStyle = '#F6E7CF'; rr(hx - 2, hyy - 3.5, 4, 4.5, 1); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(hx - 2, hyy - 2, 4, 1); }
+        if (sitting && sipLift > 0) { const hx = p.face > 0 ? lx : rx; ctx.fillStyle = '#F6E7CF'; rr(hx - 2, hyy0(ly, ry, p) - 3 - sipLift * 6, 4, 4.5, 1); ctx.fill(); }
+      }
       // order bubble
       if (p.bubble) {
-        const bx = p.x, by = p.y - 22;
-        ctx.fillStyle = '#fff'; rr(bx - 7, by - 6, 14, 12, 4); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(bx - 2, by + 6); ctx.lineTo(bx + 2, by + 6); ctx.lineTo(bx, by + 9); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#F6E7CF'; rr(bx - 3.5, by - 3, 7, 7, 1.5); ctx.fill(); ctx.strokeStyle = '#8a5a3c'; ctx.lineWidth = 0.8; ctx.stroke();
-        ctx.fillStyle = p.bubble.color; ctx.fillRect(bx - 2.5, by - 2, 5, 2.5);
+        const bx = p.x, bby = hy - 13;
+        ctx.fillStyle = 'rgba(20,10,5,.15)'; rr(bx - 6, bby - 5, 14, 12, 4); ctx.fill();
+        ctx.fillStyle = '#fff'; rr(bx - 7, bby - 6, 14, 12, 4); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(bx - 2, bby + 6); ctx.lineTo(bx + 2, bby + 6); ctx.lineTo(bx, bby + 9); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#F6E7CF'; rr(bx - 3.5, bby - 3, 7, 7, 1.5); ctx.fill(); ctx.strokeStyle = '#8a5a3c'; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.fillStyle = p.bubble.color; ctx.fillRect(bx - 2.5, bby - 2, 5, 2.5);
+      }
+      // name tag when tapped
+      if (S.focus && S.focus.p === p) {
+        const label = p.name + (apron ? ' · barista' : '') + ' · ' + personMood(p);
+        ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const w = ctx.measureText(label).width + 8, ty = hy - (p.bubble ? 24 : 12);
+        ctx.fillStyle = 'rgba(29,15,8,.9)'; rr(p.x - w / 2, ty - 5, w, 10, 5); ctx.fill();
+        ctx.fillStyle = '#F2A65A'; ctx.fillText(label, p.x, ty + 0.3);
+      }
+    }
+    function hyy0(ly, ry, p) { return p.face > 0 ? ly : ry; }
+    function personMood(p) {
+      switch (p.state) {
+        case 'arrive': return 'heading in';
+        case 'queue': return 'waiting for a ' + p.drink.name;
+        case 'ordering': return 'ordering a ' + p.drink.name;
+        case 'toTable': return 'finding a seat';
+        case 'sit': return 'enjoying a ' + p.drink.name;
+        case 'leave': case 'exit': return 'heading home';
+        case 'passby': return 'just passing';
+        case 'idle': return 'ready to serve';
+        case 'toMachine': return 'grabbing a machine';
+        case 'brewing': return 'brewing';
+        case 'back': return 'bringing the cup';
+        default: return p.cup ? 'bringing the cup' : 'working';
+      }
+    }
+    function drawCritter(c, night) {
+      if (c.kind === 'bird') {
+        const f = Math.sin(c.ph) * 2.2;
+        ctx.strokeStyle = night > 0.5 ? 'rgba(200,200,220,.6)' : '#3a2a25'; ctx.lineWidth = 0.9; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(c.x - 4, c.y + f); ctx.quadraticCurveTo(c.x - 2, c.y - 1, c.x, c.y); ctx.quadraticCurveTo(c.x + 2, c.y - 1, c.x + 4, c.y + f); ctx.stroke();
+      } else {
+        softShadow(c.x, c.y + 3, 6, 2);
+        ctx.fillStyle = c.color; rr(c.x - 6, c.y - 3, 12, 5, 2.5); ctx.fill();
+        circle(c.x + c.dir * 6, c.y - 3, 2.6); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(c.x + c.dir * 4.5, c.y - 5); ctx.lineTo(c.x + c.dir * 5.5, c.y - 7.5); ctx.lineTo(c.x + c.dir * 6.5, c.y - 5); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = c.color; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(c.x - c.dir * 6, c.y - 2); ctx.quadraticCurveTo(c.x - c.dir * 9, c.y - 6 + Math.sin(c.ph) * 2, c.x - c.dir * 8, c.y - 8 + Math.sin(c.ph) * 2); ctx.stroke();
+        const leg = Math.sin(c.ph) * 1.2; ctx.fillStyle = c.color; ctx.fillRect(c.x - 4 + leg, c.y + 1.5, 1.6, 2.5); ctx.fillRect(c.x + 2.5 - leg, c.y + 1.5, 1.6, 2.5);
+        ctx.fillStyle = '#9CC98B'; ctx.fillRect(c.x + c.dir * 6.5 - 0.5, c.y - 3.6, 0.9, 0.9);
       }
     }
     function drawVehicle(v, night) {
       const y = v.lane === 1 ? S.L.lane1 : S.L.lane2, dir = v.lane === 1 ? 1 : -1;
       ctx.save(); ctx.translate(v.x, y); ctx.scale(dir, 1);
       ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0, 6, v.kind === 'van' ? 18 : 13, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+      const vg = ctx.createLinearGradient(0, -8, 0, 6); vg.addColorStop(0, shade(v.color, 0.25)); vg.addColorStop(0.5, v.color); vg.addColorStop(1, shade(v.color, -0.3));
       if (v.kind === 'van') {
-        ctx.fillStyle = v.color; rr(-18, -8, 36, 14, 3); ctx.fill();
+        ctx.fillStyle = vg; rr(-18, -8, 36, 14, 3); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.18)'; rr(-16, -7.5, 30, 2, 1); ctx.fill();
         ctx.fillStyle = '#F6E7CF'; rr(-15, -6, 20, 6, 1.5); ctx.fill();
         ctx.fillStyle = '#D9642A'; circle(-5, -3, 1.8); ctx.fill();
         ctx.fillStyle = mix('#bfe3f5', '#2a2140', night); rr(8, -6, 8, 5, 1.5); ctx.fill();
       } else {
-        ctx.fillStyle = v.color; rr(-13, -5, 26, 11, 3); ctx.fill();
+        ctx.fillStyle = vg; rr(-13, -5, 26, 11, 3); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.18)'; rr(-11, -4.5, 22, 1.6, 1); ctx.fill();
         ctx.fillStyle = mix('#bfe3f5', '#2a2140', night); rr(-7, -8, 13, 5, 2); ctx.fill();
       }
       if (night > 0.4) { ctx.fillStyle = `rgba(255,240,180,${night})`; ctx.fillRect(v.kind === 'van' ? 17 : 12, -1, 2, 2); ctx.fillStyle = `rgba(255,80,60,${night})`; ctx.fillRect(v.kind === 'van' ? -19 : -14, -1, 2, 2); }
@@ -1200,7 +1353,9 @@ const BeanBaronScene = (() => {
       drawShop(g, night, nightShift);
       // people sorted by depth, vehicles last (they are lowest on screen)
       const people = S.customers.map(c => ({ y: c.y, f: () => drawPerson(c, false) })).concat(S.baristas.map(b => ({ y: b.y, f: () => drawPerson(b, true) })));
+      for (const c of S.critters) if (c.kind === 'bird') drawCritter(c, night);
       people.sort((a, b) => a.y - b.y).forEach(p => p.f());
+      for (const c of S.critters) if (c.kind === 'cat') drawCritter(c, night);
       for (const v of S.vehicles) drawVehicle(v, night);
       // night tint over the street, keeping the café bright
       if (night > 0) {
@@ -1221,14 +1376,22 @@ const BeanBaronScene = (() => {
       if (document.hidden) return;
       update(dt); draw();
     }
-    resize();
+    resize(true);
     raf = requestAnimationFrame(frame);
     canvas.__scene = S;
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => resize(false)) : null;
     if (ro) ro.observe(canvas);
 
     return {
       resize, state: S,
+      poke(xp, yp) {
+        const x = xp / 100 * W, y = yp / 100 * S.H;
+        const all = S.customers.concat(S.baristas);
+        let best = null, bd = 14;
+        for (const p of all) { const d = Math.hypot(p.x - x, p.y - (y + 6)); if (d < bd) { bd = d; best = p; } }
+        S.focus = best ? { p: best, until: S.t + 2.5 } : null;
+        return !!best;
+      },
       cheer(text) { S.particles.push({ kind: 'text', text, x: S.L.registerX + 20, y: S.L.counterY - 8, vy: -16, life: 1.3, color: '#9CC98B' }); },
       clock() { const p = dayPhase(); const day = Math.floor(S.t / 480) + 1; const name = p < 0.2 ? 'Morning' : p < 0.45 ? 'Afternoon' : p < 0.62 ? 'Evening' : p < 0.9 ? 'Night' : 'Early morning'; return { day, name }; },
       tap() { S.tapJiggle = 1; },
@@ -1519,7 +1682,7 @@ function OrderRail({ game, onFill }) {
         <span className="flex items-center gap-2"><span className={game.streak > 0 ? 'text-amber' : ''}>streak ×{mult.toFixed(2)}{game.streak > 0 ? ` · ${game.streak} in a row` : ''}</span><Icon name={open ? 'ChevronDown' : 'ChevronUp'} size={12} /></span>
       </button>
       {open && (
-        <div className="flex gap-2 overflow-x-auto scroll-soft pb-0.5">
+        <div className="flex gap-2 overflow-x-auto scroll-soft pb-0.5 h-[108px] items-start">
           {orders.length === 0 && <div className="text-xs text-latte/50 px-1 py-3">No open tickets. Customers order every half minute or so; stock the pantry in the Shop so you can fill them fast.</div>}
           {orders.map(o => <Ticket key={o.id} game={game} o={o} onFill={onFill} />)}
         </div>
@@ -1634,7 +1797,9 @@ function App() {
     if (e.button != null && e.button !== 0) return;
     const r = heroRef.current ? heroRef.current.getBoundingClientRect() : null;
     if (!r) return onTap();
-    onTap(Math.max(6, Math.min(94, (e.clientX - r.left) / r.width * 100)), Math.max(10, Math.min(92, (e.clientY - r.top) / r.height * 100)));
+    const xp = (e.clientX - r.left) / r.width * 100, yp = (e.clientY - r.top) / r.height * 100;
+    if (sceneRef.current) sceneRef.current.poke(xp, yp);
+    onTap(Math.max(6, Math.min(94, xp)), Math.max(10, Math.min(92, yp)));
   }, [onTap]);
 
   // Space bar taps too.
