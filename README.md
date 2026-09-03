@@ -5,20 +5,29 @@ A single-file idle coffee-shop game, also in this repository: open
 icons, all pulled from jsDelivr at load, so it needs a network connection the
 first time) with the whole game in one file.
 
-- Tap the cup to brew. Buy eight tiers of generators, from Drip Machine to
-  Coffee Empire, each `1.15×` dearer per unit and doubling in output at 10, 25,
-  50 and 100 owned.
+- Tap the cup to brew (space bar works too). Buy eight tiers of generators,
+  from Drip Machine to Coffee Empire, each `1.15×` dearer per unit and
+  doubling in output at 10, 25, 50 and 100 owned.
 - Cash upgrades: a ladder of ever-better beans (`×1.5` all income), tap
   multipliers, per-machine gear, and Night Shift for better offline earnings.
+- **Golden beans** roll onto the screen every few minutes. Catch one for a
+  rush (`×5` income for 25 s), a tap frenzy (`×12` per tap for 15 s) or a
+  big tip.
+- **43 achievements**, each worth +1% income for good, from "First Drip
+  Machine" to "Money Printer".
 - **Sell the Chain** once you have earned $1T all-time for Roast Points,
   `floor(√(lifetime ÷ 1e12))` in total, each worth +2% on every cup forever.
+  Points also buy eight permanent **perks** (head starts, longer rushes,
+  extra milestones, upgrades that survive the reset) without shrinking the
+  bonus.
 - Away for more than 30 seconds (hidden tab, or a loaded save) pays out at 50%
   of your rate for up to 4 hours. Saves live in memory only; **Stats → Copy
   save code** carries a game across reloads or devices.
 
 `node tools/beanbaron_sim.js 70` plays a greedy bot against the exact economy
 block in the page and prints when each tier and upgrade is bought and when the
-first prestige unlocks (about 45 minutes for the bot, so 50–60 for a person).
+first prestige unlocks (about 39 minutes for a bot that catches most golden
+beans, 48 for one that ignores them, so 45–60 for a person).
 `node tools/beanbaron_artifact.js out.html` produces the Artifact page shape.
 
 ---

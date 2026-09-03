@@ -43,9 +43,29 @@
   @keyframes modalIn { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
   .modal-in { animation: modalIn .25s cubic-bezier(.2,.8,.3,1); }
 
+  @keyframes cupPop { 0% { transform: scale(1); } 40% { transform: scale(.92); } 100% { transform: scale(1); } }
+  .cup-pressed { animation: cupPop .16s ease-out; }
+
+  @keyframes wobble {
+    0%, 100% { transform: translate(-50%, -50%) rotate(-10deg) scale(1); }
+    50%      { transform: translate(-50%, -50%) rotate(10deg) scale(1.1); }
+  }
+  .gold-bean { animation: wobble 1.1s ease-in-out infinite; filter: drop-shadow(0 0 14px rgba(242,166,90,.85)); }
+
+  @keyframes burst {
+    0%   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.3); opacity: 0; }
+  }
+  .burst { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #F2A65A; pointer-events: none; animation: burst .7s cubic-bezier(.1,.8,.3,1) forwards; }
+
+  @keyframes toastIn { from { transform: translateY(-12px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .toast-in { animation: toastIn .22s cubic-bezier(.2,.8,.3,1); }
+
+  @keyframes glow { 0%, 100% { box-shadow: 0 8px 0 #6d2c0f, 0 0 24px 4px rgba(242,166,90,.45); } 50% { box-shadow: 0 8px 0 #6d2c0f, 0 0 44px 10px rgba(242,166,90,.75); } }
+  .cup-rush { animation: glow 1.2s ease-in-out infinite; }
 
   @media (prefers-reduced-motion: reduce) {
-    .steam, .pulse-ring, .modal-in { animation: none; }
+    .steam, .pulse-ring, .modal-in, .cup-pressed { animation: none; }
     .floater { animation-duration: .01s; }
   }
 </style>
@@ -79,28 +99,35 @@
 // tools/beanbaron_sim.js loads the very same text to balance the numbers.
 const BeanBaronEconomy = (() => {
   const GROWTH = 1.15;
+  const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
   const MILESTONES = [10, 25, 50, 100];
+  const EXTRA_MILESTONES = [150, 200, 300, 400];   // unlocked by the Overdrive perk
   const PRESTIGE_UNIT = 1e12;
   const OFFLINE_CAP = 4 * 3600;
   const OFFLINE_BASE = 0.5;
+  const RUSH_MULT = 5, RUSH_SECS = 25;
+  const FRENZY_MULT = 12, FRENZY_SECS = 15;
+  const GOLD_LIFE = 13;                             // seconds a golden bean waits to be tapped
+  const TIP_SECS = 300;                             // a big tip is worth up to this much production
+  const GOLD_GAP = [180, 360];                      // seconds between golden beans
 
   const GENS = [
-    { id: 'drip',       name: 'Drip Machine', base: 15,     rate: 0.1,   icon: 'Coffee',    blurb: 'A humble pot that never quite goes cold.' },
-    { id: 'espresso',   name: 'Espresso Bar', base: 100,    rate: 1,     icon: 'Zap',       blurb: 'Nine bars of pressure. Twenty-five seconds of hope.' },
-    { id: 'barista',    name: 'Barista',      base: 1100,   rate: 8,     icon: 'User',      blurb: 'Pours a fern into anything, including soup.' },
-    { id: 'roaster',    name: 'Roaster',      base: 12e3,   rate: 47,    icon: 'Flame',     blurb: 'Green beans in, first crack out.' },
-    { id: 'van',        name: 'Delivery Van', base: 130e3,  rate: 260,   icon: 'Truck',     blurb: 'Cold brew kegs to every office on the block.' },
-    { id: 'franchise',  name: 'Franchise',    base: 1.4e6,  rate: 1400,  icon: 'Store',     blurb: 'Same cup, new zip code.' },
-    { id: 'plantation', name: 'Plantation',   base: 20e6,   rate: 7800,  icon: 'Sprout',    blurb: 'Own the hillside the beans grow on.' },
-    { id: 'empire',     name: 'Coffee Empire', base: 330e6, rate: 44000, icon: 'Crown',     blurb: 'The sun never sets on your roast.' },
+    { id: 'drip',       name: 'Drip Machine', plural: 'Drip Machines', base: 15,     rate: 0.1,   icon: 'Coffee',  blurb: 'A humble pot that never quite goes cold.' },
+    { id: 'espresso',   name: 'Espresso Bar', plural: 'Espresso Bars', base: 100,    rate: 1,     icon: 'Zap',     blurb: 'Nine bars of pressure. Twenty-five seconds of hope.' },
+    { id: 'barista',    name: 'Barista',      plural: 'Baristas',      base: 1100,   rate: 8,     icon: 'User',    blurb: 'Pours a fern into anything, including soup.' },
+    { id: 'roaster',    name: 'Roaster',      plural: 'Roasters',      base: 12e3,   rate: 47,    icon: 'Flame',   blurb: 'Green beans in, first crack out.' },
+    { id: 'van',        name: 'Delivery Van', plural: 'Delivery Vans', base: 130e3,  rate: 260,   icon: 'Truck',   blurb: 'Cold brew kegs to every office on the block.' },
+    { id: 'franchise',  name: 'Franchise',    plural: 'Franchises',    base: 1.4e6,  rate: 1400,  icon: 'Store',   blurb: 'Same cup, new zip code.' },
+    { id: 'plantation', name: 'Plantation',   plural: 'Plantations',   base: 20e6,   rate: 7800,  icon: 'Sprout',  blurb: 'Own the hillside the beans grow on.' },
+    { id: 'empire',     name: 'Coffee Empire', plural: 'Coffee Empires', base: 330e6, rate: 44000, icon: 'Crown',  blurb: 'The sun never sets on your roast.' },
   ];
 
   // Cash upgrades. `kind` says what the multiplier applies to.
-  //   price   - every cup sells for more (the "x all" family)
-  //   tap     - value of one tap on the cup
-  //   offline - share of production earned while away
-  //   gen     - one generator tier (needs `gen`)
-  //   tapshare- each tap also brews this fraction of one second of output
+  //   price    - every cup sells for more (the "x all" family)
+  //   tap      - value of one tap on the cup
+  //   offline  - share of production earned while away
+  //   gen      - one generator tier (needs `gen`)
+  //   tapshare - each tap also brews this fraction of one second of output
   const UPGRADES = [];
   const BEANS = [
     ['Better Beans',      'Swap the bargain sack for something with a farm on the label.'],
@@ -118,7 +145,7 @@ const BeanBaronEconomy = (() => {
     ['Mythic Bean',       'Grown on a volcano no map shows.'],
     ['Stardust Roast',    'Roasted with light from a distant sun.'],
   ];
-  const BEANS_COST0 = 250, BEANS_RATIO = 9;
+  const BEANS_COST0 = 250, BEANS_RATIO = 11;
   BEANS.forEach(([name, desc], i) => UPGRADES.push({
     id: 'beans' + i, name, desc, kind: 'price', mult: 1.5, icon: 'Bean',
     cost: BEANS_COST0 * Math.pow(BEANS_RATIO, i),
@@ -166,25 +193,74 @@ const BeanBaronEconomy = (() => {
   });
   const UPG_BY_ID = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 
+  // Perks are bought with Roast Points. Spending never lowers the +2% bonus,
+  // which counts every point ever earned.
+  const PERKS = [
+    { id: 'headstart', name: 'Head Start',    cost: 1, icon: 'Rocket',   desc: 'Every new chain opens with $2,500 in the till and Better Beans already on the shelf.' },
+    { id: 'goldhour',  name: 'Golden Hour',   cost: 2, icon: 'Sun',      desc: 'Golden beans show up 40% more often and wait 5 seconds longer.' },
+    { id: 'regulars',  name: 'Regulars',      cost: 2, icon: 'Heart',    desc: 'A crowd that never leaves. +25% all income.' },
+    { id: 'deepsleep', name: 'Deep Sleep',    cost: 2, icon: 'BedDouble', desc: 'Away earnings run for 8 hours instead of 4, at +25% rate.' },
+    { id: 'memory',    name: 'Muscle Memory', cost: 3, icon: 'Brain',    desc: 'Loyalty App and Barista Training survive selling the chain.' },
+    { id: 'sharpnose', name: 'Sharp Nose',    cost: 4, icon: 'Wind',     desc: 'You can smell a good lot a mile off. Bean upgrades cost 30% less.' },
+    { id: 'overdrive', name: 'Overdrive',     cost: 5, icon: 'Gauge',    desc: 'Machines keep doubling at 150, 200, 300 and 400 owned.' },
+    { id: 'rushhour',  name: 'Rush Hour',     cost: 6, icon: 'Timer',    desc: 'Rush buffs from golden beans last twice as long.' },
+  ];
+  const PERK_BY_ID = Object.fromEntries(PERKS.map(p => [p.id, p]));
+
+  // Achievements. Each one earned adds +1% to all income (reputation).
+  const ACH = [];
+  GENS.forEach((g, gi) => {
+    ACH.push({ id: g.id + '_1',   name: 'First ' + g.name,      desc: 'Own a ' + g.name.toLowerCase() + '.',         icon: g.icon, test: s => s.owned[gi] >= 1 });
+    ACH.push({ id: g.id + '_50',  name: g.plural + ' ×50',       desc: 'Own 50 ' + g.plural.toLowerCase() + '.',      icon: g.icon, test: s => s.owned[gi] >= 50 });
+    ACH.push({ id: g.id + '_100', name: g.plural + ' ×100',      desc: 'Own 100 ' + g.plural.toLowerCase() + '.',     icon: g.icon, test: s => s.owned[gi] >= 100 });
+  });
+  [['earn3', 'Pocket Money', 1e3], ['earn6', 'Millionaire', 1e6], ['earn9', 'Billionaire', 1e9], ['earn12', 'Trillionaire', 1e12], ['earn15', 'Quadrillionaire', 1e15], ['earn18', 'Quintillionaire', 1e18]]
+    .forEach(([id, name, n]) => ACH.push({ id, name, desc: 'Earn $' + fmt(n) + ' all time.', icon: 'Wallet', test: s => s.lifetime >= n }));
+  [['taps2', 'Warm Fingers', 100], ['taps3', 'Carpal Tunnel', 1000], ['taps4', 'Tap Legend', 10000]]
+    .forEach(([id, name, n]) => ACH.push({ id, name, desc: 'Tap the cup ' + fmt(n) + ' times.', icon: 'Hand', test: s => s.taps >= n }));
+  [['gold1', 'Lucky Bean', 1], ['gold10', 'Bean Hunter', 10], ['gold50', 'Golden Touch', 50]]
+    .forEach(([id, name, n]) => ACH.push({ id, name, desc: 'Catch ' + n + ' golden bean' + (n > 1 ? 's' : '') + '.', icon: 'Star', test: s => s.goldCaught >= n }));
+  ACH.push({ id: 'sold1', name: 'Cashed Out', desc: 'Sell the chain once.', icon: 'Sparkles', test: s => s.prestiges >= 1 });
+  ACH.push({ id: 'sold3', name: 'Serial Founder', desc: 'Sell the chain three times.', icon: 'Sparkles', test: s => s.prestiges >= 3 });
+  ACH.push({ id: 'beans_all', name: 'Connoisseur', desc: 'Buy every bean upgrade in one run.', icon: 'Bean', test: s => BEANS.every((_, i) => s.upgrades['beans' + i]) });
+  ACH.push({ id: 'gear_all', name: 'Fully Kitted', desc: 'Install every piece of gear in one run.', icon: 'Wrench', test: s => GENS.every(g => s.upgrades[g.id + '_gear1'] && s.upgrades[g.id + '_gear2']) });
+  ACH.push({ id: 'allgens', name: 'Full House', desc: 'Own at least one of every tier.', icon: 'Trophy', test: s => s.owned.every(n => n >= 1) });
+  ACH.push({ id: 'rate6', name: 'Cash Machine', desc: 'Earn $1.00M per second.', icon: 'Gauge', test: s => cashPerSec(s) >= 1e6 });
+  ACH.push({ id: 'rate9', name: 'Money Printer', desc: 'Earn $1.00B per second.', icon: 'Gauge', test: s => cashPerSec(s) >= 1e9 });
+
   function newState(now) {
     return {
       v: 1,
       cash: 0,
       owned: GENS.map(() => 0),
       upgrades: {},            // id -> true
-      rp: 0,
+      perks: {},               // id -> true, bought with Roast Points
+      achievements: {},        // id -> true
+      rp: 0,                   // Roast Points ever earned (drives the +2%)
+      rpSpent: 0,
       prestiges: 0,
       lifetime: 0,             // all-time cash earned, survives prestige
       runEarned: 0,            // cash earned since last prestige
       cups: 0,                 // all-time cups brewed
       taps: 0,
+      goldCaught: 0,
+      bestRate: 0,
       playtime: 0,             // seconds of active play
+      buffs: { rush: 0, frenzy: 0 },   // playtime at which each buff ends
+      gold: null,              // { x, y, until } while a golden bean is on screen
+      nextGold: 90,            // playtime at which the next golden bean appears
+      events: [],              // one-shot notices for the UI to show, then clear
       savedAt: now,
       awayReport: null,        // { seconds, cash } shown by the "while you were away" modal
     };
   }
 
   const has = (s, id) => !!s.upgrades[id];
+  const perk = (s, id) => !!s.perks[id];
+  const rpAvailable = s => s.rp - s.rpSpent;
+  const achCount = s => Object.keys(s.achievements).length;
+  const buffActive = (s, b) => s.buffs[b] > s.playtime;
+  const buffLeft = (s, b) => Math.max(0, s.buffs[b] - s.playtime);
 
   function genCost(gi, owned, n) {
     const g = GENS[gi];
@@ -196,13 +272,14 @@ const BeanBaronEconomy = (() => {
     if (cash < unit) return 0;
     return Math.floor(Math.log(cash * (GROWTH - 1) / unit + 1) / Math.log(GROWTH));
   }
-  function milestoneMult(owned) {
+  function milestonesFor(s) { return perk(s, 'overdrive') ? MILESTONES.concat(EXTRA_MILESTONES) : MILESTONES; }
+  function milestoneMult(s, owned) {
     let m = 1;
-    for (const t of MILESTONES) if (owned >= t) m *= 2;
+    for (const t of milestonesFor(s)) if (owned >= t) m *= 2;
     return m;
   }
-  function nextMilestone(owned) {
-    for (const t of MILESTONES) if (owned < t) return t;
+  function nextMilestone(s, owned) {
+    for (const t of milestonesFor(s)) if (owned < t) return t;
     return null;
   }
   function gearMult(s, gi) {
@@ -210,19 +287,24 @@ const BeanBaronEconomy = (() => {
     for (const u of UPGRADES) if (u.kind === 'gen' && u.gen === gi && has(s, u.id)) m *= u.mult;
     return m;
   }
-  function genMult(s, gi) { return milestoneMult(s.owned[gi]) * gearMult(s, gi); }
+  function genMult(s, gi) { return milestoneMult(s, s.owned[gi]) * gearMult(s, gi); }
   function genCups(s, gi) { return GENS[gi].rate * s.owned[gi] * genMult(s, gi); }
   function cupsPerSec(s) { let t = 0; for (let i = 0; i < GENS.length; i++) t += genCups(s, i); return t; }
   function priceMult(s) {
     let m = 1;
     for (const u of UPGRADES) if (u.kind === 'price' && has(s, u.id)) m *= u.mult;
-    return m * (1 + 0.02 * s.rp);
+    m *= 1 + 0.02 * s.rp;                 // Roast Points
+    m *= 1 + 0.01 * achCount(s);          // reputation
+    if (perk(s, 'regulars')) m *= 1.25;
+    if (buffActive(s, 'rush')) m *= RUSH_MULT;
+    return m;
   }
   function cupPrice(s) { return priceMult(s); }
   function cashPerSec(s) { return cupsPerSec(s) * cupPrice(s); }
   function tapMult(s) {
     let m = 1;
     for (const u of UPGRADES) if (u.kind === 'tap' && has(s, u.id)) m *= u.mult;
+    if (buffActive(s, 'frenzy')) m *= FRENZY_MULT;
     return m;
   }
   function tapShare(s) {
@@ -234,8 +316,11 @@ const BeanBaronEconomy = (() => {
   function offlineMult(s) {
     let m = OFFLINE_BASE;
     for (const u of UPGRADES) if (u.kind === 'offline' && has(s, u.id)) m *= u.mult;
+    if (perk(s, 'deepsleep')) m *= 1.25;
     return m;
   }
+  function offlineCap(s) { return perk(s, 'deepsleep') ? OFFLINE_CAP * 2 : OFFLINE_CAP; }
+  function upgradeCost(s, u) { return u.kind === 'price' && perk(s, 'sharpnose') ? u.cost * 0.7 : u.cost; }
   function rpFor(lifetime) { return Math.floor(Math.sqrt(lifetime / PRESTIGE_UNIT)); }
   function rpGain(s) { return Math.max(0, rpFor(s.lifetime) - s.rp); }
   function prestigeUnlocked(s) { return s.lifetime >= PRESTIGE_UNIT; }
@@ -243,40 +328,91 @@ const BeanBaronEconomy = (() => {
   function upgradeAvailable(s, u) {
     if (has(s, u.id)) return false;
     if (u.kind === 'gen') return s.owned[u.gen] >= u.needs;
-    if (u.tier > 0 && u.family !== 'tap' && u.family !== 'offline') {
-      return has(s, u.family + (u.tier - 1));       // beans ladder: one rung at a time
-    }
+    if (u.family === 'beans') return u.tier === 0 || has(s, 'beans' + (u.tier - 1));   // one rung at a time
     if (u.family === 'tap' && u.tier > 0 && u.tier < 99) return has(s, 'tap' + (u.tier - 1));
     if (u.id === 'weekend') return has(s, 'nightshift');
     return true;
   }
-  function availableUpgrades(s) { return UPGRADES.filter(u => upgradeAvailable(s, u)).sort((a, b) => a.cost - b.cost); }
+  function availableUpgrades(s) { return UPGRADES.filter(u => upgradeAvailable(s, u)).sort((a, b) => upgradeCost(s, a) - upgradeCost(s, b)); }
+
+  // Time until `cost` is affordable at the current rate, in seconds (Infinity if never).
+  function timeToAfford(s, cost) {
+    if (cost <= s.cash) return 0;
+    const r = cashPerSec(s);
+    return r > 0 ? (cost - s.cash) / r : Infinity;
+  }
 
   // --- mutations: all return a NEW state object ----------------------------
+  function withEvent(s, ev) { return { ...s, events: s.events.concat([ev]) }; }
   function earn(s, amount) {
     return { ...s, cash: s.cash + amount, lifetime: s.lifetime + amount, runEarned: s.runEarned + amount };
   }
-  function step(s, dt) {
-    const cups = cupsPerSec(s) * dt;
-    const n = earn(s, cups * cupPrice(s));
-    n.cups = s.cups + cups;
-    n.playtime = s.playtime + dt;
+  function checkAchievements(s) {
+    let n = s;
+    for (const a of ACH) {
+      if (!n.achievements[a.id] && a.test(n)) {
+        n = withEvent({ ...n, achievements: { ...n.achievements, [a.id]: true } }, { type: 'achievement', id: a.id });
+      }
+    }
     return n;
   }
+  // Random draws come from `rng` so the simulator can stay deterministic.
+  function step(s, dt, rng) {
+    rng = rng || Math.random;
+    const cups = cupsPerSec(s) * dt;
+    let n = earn(s, cups * cupPrice(s));
+    n.cups = s.cups + cups;
+    n.playtime = s.playtime + dt;
+    const rate = cashPerSec(n);
+    if (rate > n.bestRate) n.bestRate = rate;
+    // golden beans
+    if (n.gold && n.gold.until <= n.playtime) { n.gold = null; }
+    if (!n.gold && n.playtime >= n.nextGold) {
+      const life = GOLD_LIFE + (perk(n, 'goldhour') ? 5 : 0);
+      n.gold = { x: 12 + rng() * 74, y: 10 + rng() * 68, until: n.playtime + life, life, kind: rng() < 0.55 ? 'rush' : rng() < 0.5 ? 'frenzy' : 'tip' };
+      n.nextGold = n.playtime + life + goldGap(n, rng);
+    }
+    return checkAchievements(n);
+  }
+  function goldGap(s, rng) {
+    const gap = GOLD_GAP[0] + rng() * (GOLD_GAP[1] - GOLD_GAP[0]);
+    return perk(s, 'goldhour') ? gap / 1.4 : gap;
+  }
+  function catchGold(s) {
+    if (!s.gold) return null;
+    const kind = s.gold.kind;
+    let n = { ...s, gold: null, goldCaught: s.goldCaught + 1, buffs: { ...s.buffs } };
+    let ev;
+    if (kind === 'rush') {
+      const secs = RUSH_SECS * (perk(s, 'rushhour') ? 2 : 1);
+      n.buffs.rush = Math.max(n.buffs.rush, n.playtime) + secs;
+      ev = { type: 'gold', kind, text: 'Rush hour! x' + RUSH_MULT + ' income for ' + secs + 's' };
+    } else if (kind === 'frenzy') {
+      n.buffs.frenzy = Math.max(n.buffs.frenzy, n.playtime) + FRENZY_SECS;
+      ev = { type: 'gold', kind, text: 'Tap frenzy! x' + FRENZY_MULT + ' tap value for ' + FRENZY_SECS + 's' };
+    } else {
+      const tip = Math.max(tapValue(s) * 25, Math.min(s.cash * 0.15, cashPerSec(s) * TIP_SECS));
+      n = earn(n, tip);
+      ev = { type: 'gold', kind, text: 'Big tip! +' + fmtCash(tip), amount: tip };
+    }
+    return checkAchievements(withEvent(n, ev));
+  }
   function applyOffline(s, seconds) {
-    const secs = Math.min(OFFLINE_CAP, Math.max(0, seconds));
-    const cups = cupsPerSec(s) * secs * offlineMult(s);
-    const cash = cups * cupPrice(s);
+    const secs = Math.min(offlineCap(s), Math.max(0, seconds));
+    const quiet = { ...s, buffs: { rush: 0, frenzy: 0 } };     // buffs do not run while away
+    const cups = cupsPerSec(quiet) * secs * offlineMult(quiet);
+    const cash = cups * cupPrice(quiet);
     const n = earn(s, cash);
     n.cups = s.cups + cups;
-    n.awayReport = { seconds, credited: secs, cash, capped: seconds > OFFLINE_CAP };
-    return n;
+    n.gold = null;
+    n.awayReport = { seconds, credited: secs, cash, capped: seconds > offlineCap(s), cap: offlineCap(s) };
+    return checkAchievements(n);
   }
   function tap(s) {
     const v = tapValue(s);
     const n = earn(s, v);
     n.cups = s.cups + 1; n.taps = s.taps + 1;
-    return [n, v];
+    return [checkAchievements(n), v];
   }
   function buyGen(s, gi, qty) {
     const owned = s.owned[gi];
@@ -285,25 +421,43 @@ const BeanBaronEconomy = (() => {
     const cost = genCost(gi, owned, n);
     if (cost > s.cash + 1e-9) return null;
     const ownedNext = s.owned.slice(); ownedNext[gi] = owned + n;
-    return { ...s, cash: s.cash - cost, owned: ownedNext };
+    let out = { ...s, cash: s.cash - cost, owned: ownedNext };
+    for (const t of milestonesFor(s)) if (owned < t && owned + n >= t) out = withEvent(out, { type: 'milestone', gen: gi, at: t });
+    return checkAchievements(out);
   }
   function buyUpgrade(s, id) {
     const u = UPG_BY_ID[id];
-    if (!u || !upgradeAvailable(s, u) || u.cost > s.cash + 1e-9) return null;
-    return { ...s, cash: s.cash - u.cost, upgrades: { ...s.upgrades, [id]: true } };
+    if (!u || !upgradeAvailable(s, u)) return null;
+    const cost = upgradeCost(s, u);
+    if (cost > s.cash + 1e-9) return null;
+    return checkAchievements({ ...s, cash: s.cash - cost, upgrades: { ...s.upgrades, [id]: true } });
+  }
+  function buyPerk(s, id) {
+    const p = PERK_BY_ID[id];
+    if (!p || s.perks[id] || p.cost > rpAvailable(s)) return null;
+    let n = { ...s, rpSpent: s.rpSpent + p.cost, perks: { ...s.perks, [id]: true } };
+    if (id === 'headstart' && n.owned.every(x => x === 0) && n.cash < 2500) n = applyHeadStart(n);
+    return n;
+  }
+  function applyHeadStart(s) {
+    return { ...s, cash: Math.max(s.cash, 2500), upgrades: { ...s.upgrades, beans0: true } };
   }
   function prestige(s, now) {
     const gain = rpGain(s);
     if (!prestigeUnlocked(s) || gain <= 0) return null;
-    const n = newState(now);
+    let n = newState(now);
     n.rp = s.rp + gain;
+    n.rpSpent = s.rpSpent; n.perks = s.perks; n.achievements = s.achievements;
     n.prestiges = s.prestiges + 1;
     n.lifetime = s.lifetime; n.cups = s.cups; n.taps = s.taps; n.playtime = s.playtime;
-    return n;
+    n.goldCaught = s.goldCaught; n.bestRate = s.bestRate;
+    n.nextGold = s.playtime + 60;
+    if (perk(s, 'memory')) { if (has(s, 'tap0')) n.upgrades.tap0 = true; if (has(s, 'training')) n.upgrades.training = true; }
+    if (perk(s, 'headstart')) n = applyHeadStart(n);
+    return checkAchievements(n);
   }
 
   // --- number formatting -------------------------------------------------
-  const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
   function fmt(n, dec) {
     if (!isFinite(n)) return '∞';
     if (n < 0) return '-' + fmt(-n, dec);
@@ -320,19 +474,22 @@ const BeanBaronEconomy = (() => {
   }
   function fmtCash(n, dec) { return '$' + fmt(n, dec); }
   function fmtTime(sec) {
+    if (!isFinite(sec)) return '∞';
     sec = Math.max(0, Math.floor(sec));
     const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
-    if (d) return d + 'd ' + h + 'h';
-    if (h) return h + 'h ' + m + 'm';
-    if (m) return m + 'm ' + s + 's';
+    if (d) return d + 'd' + (h ? ' ' + h + 'h' : '');
+    if (h) return h + 'h' + (m ? ' ' + m + 'm' : '');
+    if (m) return m + 'm' + (s ? ' ' + s + 's' : '');
     return s + 's';
   }
 
-  return { GROWTH, MILESTONES, PRESTIGE_UNIT, OFFLINE_CAP, GENS, UPGRADES, UPG_BY_ID,
-    newState, has, genCost, maxAffordable, milestoneMult, nextMilestone, gearMult, genMult, genCups,
-    cupsPerSec, priceMult, cupPrice, cashPerSec, tapMult, tapShare, tapValue, offlineMult,
-    rpFor, rpGain, prestigeUnlocked, upgradeAvailable, availableUpgrades,
-    step, applyOffline, tap, buyGen, buyUpgrade, prestige, fmt, fmtCash, fmtTime };
+  return { GROWTH, MILESTONES, PRESTIGE_UNIT, OFFLINE_CAP, RUSH_MULT, FRENZY_MULT, GOLD_LIFE,
+    GENS, UPGRADES, UPG_BY_ID, PERKS, PERK_BY_ID, ACH,
+    newState, has, perk, rpAvailable, achCount, buffActive, buffLeft,
+    genCost, maxAffordable, milestonesFor, milestoneMult, nextMilestone, gearMult, genMult, genCups,
+    cupsPerSec, priceMult, cupPrice, cashPerSec, tapMult, tapShare, tapValue, offlineMult, offlineCap, upgradeCost,
+    rpFor, rpGain, prestigeUnlocked, upgradeAvailable, availableUpgrades, timeToAfford,
+    step, catchGold, applyOffline, tap, buyGen, buyUpgrade, buyPerk, prestige, fmt, fmtCash, fmtTime };
 })();
 if (typeof module !== 'undefined') module.exports = BeanBaronEconomy;
 // ---- end economy --------------------------------------------------------
@@ -342,6 +499,7 @@ const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const E = BeanBaronEconomy;
 const L = LucideReact;
 const Icon = ({ name, ...p }) => { const C = L[name] || L.Coffee; return <C {...p} />; };
+const ACH_BY_ID = Object.fromEntries(E.ACH.map(a => [a.id, a]));
 
 // The save file. It lives in this variable for as long as the page does, so
 // a reload starts fresh; use "Copy save code" in Stats to carry a game over.
@@ -354,26 +512,56 @@ function decodeSave(str) {
   try {
     const s = JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
     if (!s || s.v !== 1 || !Array.isArray(s.owned) || s.owned.length !== E.GENS.length) return null;
-    return { ...E.newState(Date.now()), ...s, awayReport: null };
+    return s;
   } catch (e) { return null; }
 }
+// Older saves lack newer fields; defaults fill the gaps.
 function resumeFrom(save) {
+  const fresh = E.newState(Date.now());
+  const s = { ...fresh, ...save, buffs: { ...fresh.buffs, ...(save.buffs || {}) }, gold: null, events: [], awayReport: null };
   const away = (Date.now() - (save.savedAt || Date.now())) / 1000;
-  const s = { ...save, awayReport: null };
   return away > AWAY_MIN ? E.applyOffline(s, away) : s;
 }
 
+// Tiny synth so the shop makes noises without shipping any audio files.
+const Sound = (() => {
+  let ctx = null, muted = false;
+  const ensure = () => {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+  function blip(freq, dur, type, gain, slide) {
+    if (muted) return;
+    const c = ensure(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur);
+  }
+  return {
+    setMuted: m => { muted = m; if (!m) ensure(); },
+    tap: () => blip(480 + Math.random() * 90, 0.07, 'triangle', 0.045, 760),
+    buy: () => { blip(660, 0.1, 'square', 0.028, 900); setTimeout(() => blip(990, 0.14, 'square', 0.028, 1320), 60); },
+    nope: () => blip(160, 0.12, 'sawtooth', 0.02, 110),
+    gold: () => [0, 80, 160, 240].forEach((d, i) => setTimeout(() => blip(880 * Math.pow(1.2, i), 0.22, 'sine', 0.05), d)),
+    chime: () => [0, 110].forEach((d, i) => setTimeout(() => blip(i ? 1318 : 1046, 0.3, 'sine', 0.045), d)),
+  };
+})();
+
 const QTYS = [['1', 'x1'], ['10', 'x10'], ['100', 'x100'], ['max', 'MAX']];
 const TABS = [['shop', 'Shop', 'Store'], ['upgrades', 'Upgrades', 'TrendingUp'], ['prestige', 'Prestige', 'Sparkles'], ['stats', 'Stats', 'BarChart3']];
+const TOAST_ICON = { milestone: 'ArrowUpCircle', ach: 'Trophy', gold: 'Star', info: 'Info' };
 
 function rate(n) { return E.fmtCash(n, n < 100 ? 1 : undefined) + '/s'; }
 
 // ---- small building blocks ---------------------------------------------
-function FillBar({ ratio, tone }) {
+function FillBar({ ratio }) {
   const w = Math.max(0, Math.min(1, ratio)) * 100;
   return (
     <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-bean/70">
-      <div className={"h-full transition-[width] duration-150 ease-out " + (tone || (w >= 100 ? 'bg-amber' : 'bg-ember'))} style={{ width: w + '%' }} />
+      <div className={"h-full transition-[width] duration-150 ease-out " + (w >= 100 ? 'bg-amber' : 'bg-ember')} style={{ width: w + '%' }} />
     </div>
   );
 }
@@ -414,19 +602,50 @@ function BigButton({ children, onClick, tone, disabled, className }) {
   );
 }
 
+// Cash ticks toward its real value every frame instead of jumping 30 times a second.
+function SmoothCash({ value }) {
+  const [shown, setShown] = useState(value);
+  const target = useRef(value); target.current = value;
+  const cur = useRef(value);
+  useEffect(() => {
+    let raf;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      const t = target.current, c = cur.current;
+      if (c === t) return;
+      const d = t - c;
+      const next = Math.abs(d) < Math.max(0.005, Math.abs(t) * 1e-7) ? t : c + d * 0.22;
+      cur.current = next; setShown(next);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <span>{E.fmtCash(shown)}</span>;
+}
+
+function BuffChip({ icon, label, left }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-bold text-espresso bg-amber rounded-full px-2.5 py-1 tabular toast-in">
+      <Icon name={icon} size={13} /> {label} · {Math.ceil(left)}s
+    </span>
+  );
+}
+
 // ---- the game ------------------------------------------------------------
 function App() {
   const [game, setGame] = useState(() => SAVE_SLOT ? resumeFrom(SAVE_SLOT) : E.newState(Date.now()));
   const [tab, setTab] = useState('shop');
   const [qty, setQty] = useState('1');
   const [floaters, setFloaters] = useState([]);
-  const cupRef = useRef(null);
+  const [bursts, setBursts] = useState([]);
   const [pulses, setPulses] = useState({});
+  const [toasts, setToasts] = useState([]);
+  const [muted, setMuted] = useState(false);
   const [confirmPrestige, setConfirmPrestige] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [toast, setToast] = useState(null);
   const gameRef = useRef(game); gameRef.current = game;
-  const floaterId = useRef(0);
+  const cupRef = useRef(null);
+  const seq = useRef(0);
 
   // One requestAnimationFrame loop, delta-time based. Renders are committed at
   // ~30 Hz; a gap longer than AWAY_MIN means the tab was hidden, which is paid
@@ -446,18 +665,35 @@ function App() {
 
   // Autosave into the in-memory slot.
   useEffect(() => {
-    const save = () => { SAVE_SLOT = { ...gameRef.current, savedAt: Date.now(), awayReport: null }; };
+    const save = () => { SAVE_SLOT = { ...gameRef.current, savedAt: Date.now(), awayReport: null, events: [], gold: null }; };
     const id = setInterval(save, SAVE_EVERY);
     const vis = () => { if (document.hidden) save(); };
     document.addEventListener('visibilitychange', vis);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); };
   }, []);
 
+  const showToast = useCallback((text, kind) => {
+    const id = ++seq.current;
+    setToasts(t => [...t.slice(-1), { id, text, kind: kind || 'info' }]);
+    setTimeout(() => setToasts(t => t.filter(o => o.id !== id)), 2600);
+  }, []);
+
+  // Drain one-shot events the rules produced: milestones, achievements, golden beans.
+  useEffect(() => {
+    if (!game.events.length) return;
+    for (const ev of game.events) {
+      if (ev.type === 'milestone') { showToast(`${E.GENS[ev.gen].plural} doubled at ${ev.at}!`, 'milestone'); Sound.chime(); }
+      else if (ev.type === 'achievement') { showToast(`${ACH_BY_ID[ev.id].name} · +1% income`, 'ach'); Sound.chime(); }
+      else if (ev.type === 'gold') { showToast(ev.text, 'gold'); }
+    }
+    setGame(g => g.events.length ? { ...g, events: [] } : g);
+  }, [game.events, showToast]);
+
   // Pulse anything that just became affordable.
   const prevAff = useRef(null);
   useEffect(() => {
     const now = {};
-    for (const u of E.availableUpgrades(game)) now[u.id] = u.cost <= game.cash;
+    for (const u of E.availableUpgrades(game)) now[u.id] = E.upgradeCost(game, u) <= game.cash;
     E.GENS.forEach((g, i) => { now['g' + i] = E.genCost(i, game.owned[i], 1) <= game.cash; });
     if (prevAff.current) {
       let changed = null;
@@ -467,29 +703,75 @@ function App() {
     prevAff.current = now;
   }, [game]);
 
-  const showToast = useCallback(msg => { setToast(msg); setTimeout(() => setToast(null), 1800); }, []);
+  const spawnFloater = useCallback((text, x, y, big) => {
+    const id = ++seq.current;
+    setFloaters(f => [...f.slice(-14), { id, x, y, text, big }]);
+    setTimeout(() => setFloaters(f => f.filter(o => o.id !== id)), 900);
+  }, []);
 
-  const onTap = useCallback(e => {
+  const onTap = useCallback(() => {
     const v = E.tapValue(gameRef.current);
     setGame(g => E.tap(g)[0]);
-    const id = ++floaterId.current;
-    const x = 50 + (Math.random() * 2 - 1) * 22;      // percent across the cup area
-    const y = 38 + (Math.random() * 2 - 1) * 6;
-    setFloaters(f => [...f.slice(-14), { id, x, y, text: '+' + E.fmtCash(v, v < 10 ? 1 : v < 1000 ? 0 : undefined) }]);
-    setTimeout(() => setFloaters(f => f.filter(o => o.id !== id)), 900);
+    spawnFloater('+' + E.fmtCash(v, v < 10 ? 1 : v < 1000 ? 0 : undefined), 50 + (Math.random() * 2 - 1) * 22, 38 + (Math.random() * 2 - 1) * 6);
     if (cupRef.current && cupRef.current.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       cupRef.current.animate([{ transform: 'scale(1)' }, { transform: 'scale(.9)', offset: .35 }, { transform: 'scale(1)' }], { duration: 170, easing: 'ease-out' });
     }
+    Sound.tap();
     if (navigator.vibrate) navigator.vibrate(8);
+  }, [spawnFloater]);
+
+  // Space bar taps too.
+  useEffect(() => {
+    const onKey = e => {
+      if (e.code !== 'Space' || e.repeat) return;
+      const t = e.target && e.target.tagName;
+      if (t === 'TEXTAREA' || t === 'INPUT') return;
+      e.preventDefault(); onTap();      // even with a button focused: space always brews
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onTap]);
+
+  const onGold = useCallback(() => {
+    const g = gameRef.current; if (!g.gold) return;
+    const { x, y } = g.gold;
+    setGame(s => E.catchGold(s) || s);
+    const id = ++seq.current;
+    setBursts(b => [...b, { id, x, y, parts: Array.from({ length: 10 }, (_, i) => ({ dx: Math.cos(i / 10 * Math.PI * 2) * (40 + Math.random() * 40), dy: Math.sin(i / 10 * Math.PI * 2) * (40 + Math.random() * 40) })) }]);
+    setTimeout(() => setBursts(b => b.filter(o => o.id !== id)), 800);
+    Sound.gold();
+    if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
   }, []);
 
-  const buyGen = (gi) => setGame(g => E.buyGen(g, gi, qty === 'max' ? 'max' : +qty) || g);
-  const buyUpgrade = (id) => setGame(g => E.buyUpgrade(g, id) || g);
-  const doPrestige = () => { setGame(g => E.prestige(g, Date.now()) || g); setConfirmPrestige(false); setTab('shop'); showToast('Chain sold. Fresh start, stronger beans.'); };
+  const buyGen = gi => {
+    const q = qty === 'max' ? 'max' : +qty;
+    if (E.buyGen(gameRef.current, gi, q)) { setGame(g => E.buyGen(g, gi, q) || g); Sound.buy(); } else Sound.nope();
+  };
+  const buyUpgrade = id => {
+    if (E.buyUpgrade(gameRef.current, id)) { setGame(g => E.buyUpgrade(g, id) || g); Sound.buy(); } else Sound.nope();
+  };
+  const buyPerk = id => {
+    if (E.buyPerk(gameRef.current, id)) { setGame(g => E.buyPerk(g, id) || g); Sound.chime(); showToast(E.PERK_BY_ID[id].name + ' unlocked', 'ach'); }
+  };
+  const doPrestige = () => { setGame(g => E.prestige(g, Date.now()) || g); setConfirmPrestige(false); setTab('prestige'); showToast('Chain sold. Fresh start, stronger beans', 'gold'); Sound.gold(); };
   const doReset = () => { SAVE_SLOT = null; setGame(E.newState(Date.now())); setConfirmReset(false); setTab('shop'); };
+  const toggleMute = () => { setMuted(m => { Sound.setMuted(!m); return !m; }); };
 
   const cps = E.cashPerSec(game);
   const tapV = E.tapValue(game);
+  const rush = E.buffActive(game, 'rush'), frenzy = E.buffActive(game, 'frenzy');
+
+  // A hint under the cup that follows what the player should do next.
+  const hint = useMemo(() => {
+    if (game.gold) return { text: 'A golden bean! Grab it before it rolls away.', hot: true };
+    if (rush) return { text: `Rush hour: ×${E.RUSH_MULT} income for ${Math.ceil(E.buffLeft(game, 'rush'))}s`, hot: true };
+    if (frenzy) return { text: `Tap frenzy: ×${E.FRENZY_MULT} per tap for ${Math.ceil(E.buffLeft(game, 'frenzy'))}s`, hot: true };
+    if (game.owned.every(n => n === 0)) return { text: game.cash >= 15 ? 'A Drip Machine is affordable in the Shop' : 'Tap to brew · a Drip Machine costs $15' };
+    const cheapUpg = E.availableUpgrades(game).find(u => E.upgradeCost(game, u) <= game.cash);
+    if (cheapUpg && tab !== 'upgrades') return { text: `${cheapUpg.name} is affordable in Upgrades` };
+    if (E.rpGain(game) > 0 && tab !== 'prestige') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
+    return { text: 'tap to brew', idle: true };
+  }, [game, tab, rush, frenzy]);
 
   return (
     <div className="mx-auto max-w-md h-dvh flex flex-col bg-bean sm:border-x sm:border-mocha/40">
@@ -500,51 +782,83 @@ function App() {
             <Icon name="Bean" size={18} />
             <span className="font-display font-semibold tracking-wide">Bean Baron</span>
           </div>
-          {game.rp > 0 && (
-            <div className="flex items-center gap-1 text-sm text-amber bg-roast rounded-full px-3 py-1 border border-amber/40">
-              <Icon name="Sparkles" size={14} /> {game.rp} RP · +{(game.rp * 2)}%
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {game.rp > 0 && (
+              <div className="flex items-center gap-1 text-xs text-amber bg-roast rounded-full px-2.5 py-1 border border-amber/40 tabular">
+                <Icon name="Sparkles" size={13} /> {game.rp} RP · +{game.rp * 2}%
+              </div>
+            )}
+            <button onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="text-latte/60 hover:text-latte p-1 rounded-full"><Icon name={muted ? 'VolumeX' : 'Volume2'} size={18} /></button>
+          </div>
         </div>
-        <div className="font-display font-bold text-4xl tabular leading-tight mt-1 text-foam">{E.fmtCash(game.cash)}</div>
-        <div className="text-latte/80 text-sm tabular flex gap-3">
-          <span>{rate(cps)}</span>
+        <div className="font-display font-bold text-4xl tabular leading-tight mt-1 text-foam"><SmoothCash value={game.cash} /></div>
+        <div className="text-latte/80 text-sm tabular flex items-center gap-2 flex-wrap min-h-[26px]">
+          <span className={rush ? 'text-amber font-bold' : ''}>{rate(cps)}</span>
           <span className="text-latte/50">·</span>
-          <span>{E.fmtCash(tapV, tapV < 10 ? 1 : undefined)} per tap</span>
+          <span className={frenzy ? 'text-amber font-bold' : ''}>{E.fmtCash(tapV, tapV < 10 ? 1 : undefined)} per tap</span>
+          {rush && <BuffChip icon="Flame" label={'×' + E.RUSH_MULT} left={E.buffLeft(game, 'rush')} />}
+          {frenzy && <BuffChip icon="Zap" label={'×' + E.FRENZY_MULT + ' taps'} left={E.buffLeft(game, 'frenzy')} />}
         </div>
       </header>
 
-      {/* the cup */}
-      <section className="relative h-44 shrink-0 flex items-center justify-center overflow-hidden"
-        style={{ background: 'radial-gradient(ellipse at 50% 120%, #4A2C1A 0%, #2B170D 55%, #1d0f08 100%)' }}>
-        {floaters.map(f => (
-          <span key={f.id} className="floater font-display font-bold text-amber text-2xl" style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
-        ))}
-        <button aria-label="Brew a coffee" onPointerDown={onTap} ref={cupRef}
-          className="relative w-32 h-32 rounded-full bg-gradient-to-b from-ember to-[#a8431a] text-foam shadow-[0_8px_0_#6d2c0f,0_16px_28px_rgba(0,0,0,.45)] active:shadow-[0_2px_0_#6d2c0f] flex items-center justify-center">
-          <span className="absolute -top-2 left-0 right-0 h-16 pointer-events-none">
-            <span className="steam" style={{ '--sx': '-16px', '--sd': '0s' }} />
-            <span className="steam" style={{ '--sx': '2px', '--sd': '.9s' }} />
-            <span className="steam" style={{ '--sx': '18px', '--sd': '1.7s' }} />
-          </span>
-          <Icon name="Coffee" size={64} strokeWidth={2.2} />
-        </button>
-        <div className="absolute bottom-2 left-0 right-0 text-center text-xs text-latte/60 tracking-wide uppercase">tap to brew</div>
-      </section>
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* toasts */}
+        <div className="absolute bottom-2 left-3 right-3 z-30 flex flex-col gap-1.5 pointer-events-none">
+          {toasts.map(t => (
+            <div key={t.id} className={"toast-in flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold shadow-xl leading-tight " + (t.kind === 'gold' ? 'bg-amber text-espresso' : 'bg-foam text-espresso')}>
+              <Icon name={TOAST_ICON[t.kind]} size={15} className={"shrink-0 " + (t.kind === 'gold' ? '' : 'text-ember')} /> <span>{t.text}</span>
+            </div>
+          ))}
+        </div>
 
-      {/* tab panel */}
-      <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
-        {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} />}
-        {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
-        {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} />}
-        {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
-      </main>
+        {/* the cup */}
+        <section className="relative h-44 shrink-0 flex items-center justify-center overflow-hidden"
+          style={{ background: rush ? 'radial-gradient(ellipse at 50% 120%, #7a4520 0%, #3a1e10 55%, #1d0f08 100%)' : 'radial-gradient(ellipse at 50% 120%, #4A2C1A 0%, #2B170D 55%, #1d0f08 100%)' }}>
+          {floaters.map(f => (
+            <span key={f.id} className={"floater font-display font-bold text-amber " + (frenzy ? 'text-3xl' : 'text-2xl')} style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
+          ))}
+          <button aria-label="Brew a coffee" onPointerDown={onTap} ref={cupRef}
+            className={"relative w-32 h-32 rounded-full bg-gradient-to-b from-ember to-[#a8431a] text-foam shadow-[0_8px_0_#6d2c0f,0_16px_28px_rgba(0,0,0,.45)] active:shadow-[0_2px_0_#6d2c0f] flex items-center justify-center " + (rush ? 'cup-rush' : '')}>
+            <span className="absolute -top-2 left-0 right-0 h-16 pointer-events-none">
+              <span className="steam" style={{ '--sx': '-16px', '--sd': '0s' }} />
+              <span className="steam" style={{ '--sx': '2px', '--sd': '.9s' }} />
+              <span className="steam" style={{ '--sx': '18px', '--sd': '1.7s' }} />
+            </span>
+            <Icon name="Coffee" size={64} strokeWidth={2.2} />
+          </button>
+          <div className={"absolute bottom-2 left-3 right-3 text-center text-xs tracking-wide truncate " + (hint.hot ? 'text-amber font-bold' : hint.idle ? 'text-latte/60 uppercase' : 'text-latte/70')}>{hint.text}</div>
+        </section>
+
+        {/* tab panel */}
+        <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
+          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} />}
+          {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
+          {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
+          {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
+        </main>
+
+        {/* golden bean */}
+        {game.gold && (
+          <button aria-label="Golden bean" onPointerDown={onGold}
+            className="gold-bean absolute z-30 w-16 h-16 rounded-full flex items-center justify-center"
+            style={{ left: game.gold.x + '%', top: game.gold.y + '%',
+              background: `conic-gradient(#F2A65A ${Math.max(0, (game.gold.until - game.playtime) / game.gold.life) * 360}deg, rgba(43,23,13,.6) 0)` }}>
+            <span className="w-[52px] h-[52px] rounded-full bg-gradient-to-b from-[#ffd27a] to-[#e08a2a] text-espresso flex items-center justify-center shadow-inner">
+              <Icon name="Bean" size={30} strokeWidth={2.4} />
+            </span>
+          </button>
+        )}
+        {bursts.map(b => b.parts.map((p, i) => (
+          <span key={b.id + '-' + i} className="burst z-30" style={{ left: b.x + '%', top: b.y + '%', '--dx': p.dx + 'px', '--dy': p.dy + 'px' }} />
+        )))}
+      </div>
 
       {/* bottom tabs */}
       <nav className="shrink-0 bg-espresso border-t border-mocha/60 pb-[env(safe-area-inset-bottom)] grid grid-cols-4">
         {TABS.map(([id, label, icon]) => {
           const on = tab === id;
-          const badge = id === 'prestige' && E.rpGain(game) > 0;
+          const badge = (id === 'prestige' && (E.rpGain(game) > 0 || E.PERKS.some(p => !game.perks[p.id] && p.cost <= E.rpAvailable(game))))
+            || (id === 'upgrades' && tab !== 'upgrades' && E.availableUpgrades(game).some(u => E.upgradeCost(game, u) <= game.cash));
           return (
             <button key={id} onClick={() => setTab(id)} aria-current={on ? 'page' : undefined}
               className={"relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold uppercase tracking-wider transition-colors " + (on ? "text-amber" : "text-latte/60")}>
@@ -556,13 +870,11 @@ function App() {
         })}
       </nav>
 
-      {toast && <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 bg-foam text-espresso font-bold px-4 py-2 rounded-full shadow-xl modal-in">{toast}</div>}
-
       {game.awayReport && game.awayReport.cash > 0 && (
         <Modal onClose={() => setGame(g => ({ ...g, awayReport: null }))}>
           <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Moon" size={20} /><span className="text-xs font-bold uppercase tracking-widest">While you were away</span></div>
           <h2 className="font-display font-bold text-2xl text-foam mb-1">The shop kept brewing.</h2>
-          <p className="text-latte/85">You were gone {E.fmtTime(game.awayReport.seconds)}{game.awayReport.capped ? ' (credited for the first 4 hours)' : ''}. Your chain sold at {Math.round(E.offlineMult(game) * 100)}% speed and earned</p>
+          <p className="text-latte/85">You were gone {E.fmtTime(game.awayReport.seconds)}{game.awayReport.capped ? ` (credited for the first ${E.fmtTime(game.awayReport.cap)})` : ''}. Your chain sold at {Math.round(E.offlineMult(game) * 100)}% speed and earned</p>
           <div className="font-display font-bold text-4xl text-amber tabular my-3">{E.fmtCash(game.awayReport.cash)}</div>
           <BigButton onClick={() => setGame(g => ({ ...g, awayReport: null }))} className="w-full">Collect</BigButton>
         </Modal>
@@ -572,7 +884,7 @@ function App() {
         <Modal onClose={() => setConfirmPrestige(false)}>
           <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Sparkles" size={20} /><span className="text-xs font-bold uppercase tracking-widest">Sell the chain</span></div>
           <h2 className="font-display font-bold text-2xl text-foam mb-2">Walk away with {E.rpGain(game)} Roast Point{E.rpGain(game) === 1 ? '' : 's'}?</h2>
-          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade. You keep your Roast Points, and every point makes every cup worth 2% more, forever.</p>
+          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade{E.perk(game, 'memory') ? ' except the ones Muscle Memory keeps' : ''}. You keep Roast Points, perks and achievements, and every point makes every cup worth 2% more, forever.</p>
           <div className="grid grid-cols-2 gap-2 text-sm mb-4">
             <div className="bg-espresso rounded-xl p-3"><div className="text-latte/60 text-xs uppercase tracking-wider">Now</div><div className="font-display text-xl text-foam">{game.rp} RP · +{game.rp * 2}%</div></div>
             <div className="bg-espresso rounded-xl p-3 border border-amber/50"><div className="text-amber text-xs uppercase tracking-wider">After</div><div className="font-display text-xl text-amber">{game.rp + E.rpGain(game)} RP · +{(game.rp + E.rpGain(game)) * 2}%</div></div>
@@ -587,7 +899,7 @@ function App() {
       {confirmReset && (
         <Modal onClose={() => setConfirmReset(false)}>
           <h2 className="font-display font-bold text-2xl text-foam mb-2">Start over from nothing?</h2>
-          <p className="text-latte/85 mb-4">This wipes the whole game, Roast Points included. Copy your save code first if you might want it back.</p>
+          <p className="text-latte/85 mb-4">This wipes the whole game, Roast Points and achievements included. Copy your save code first if you might want it back.</p>
           <div className="flex gap-2">
             <BigButton tone="ghost" onClick={() => setConfirmReset(false)} className="flex-1">Cancel</BigButton>
             <BigButton onClick={doReset} className="flex-1">Wipe it</BigButton>
@@ -599,6 +911,12 @@ function App() {
 }
 
 // ---- Shop ----------------------------------------------------------------
+function Eta({ game, cost }) {
+  const t = E.timeToAfford(game, cost);
+  if (t <= 0 || !isFinite(t) || t > 30 * 86400) return null;
+  return <div className="text-[10px] text-latte/50 tabular">in {E.fmtTime(t)}</div>;
+}
+
 function Shop({ game, qty, setQty, buy, pulses }) {
   const firstUnowned = game.owned.findIndex(n => n === 0);
   const visible = firstUnowned < 0 ? E.GENS.length : Math.min(E.GENS.length, firstUnowned + 2);
@@ -622,7 +940,7 @@ function Shop({ game, qty, setQty, buy, pulses }) {
         const affordable = cost <= game.cash;
         const mult = E.genMult(game, gi);
         const each = g.rate * mult * price;
-        const next = E.nextMilestone(owned);
+        const next = E.nextMilestone(game, owned);
         if (locked) {
           return (
             <div key={g.id} className="relative rounded-2xl border border-dashed border-mocha/50 bg-espresso/50 px-4 py-3 flex items-center gap-3 text-latte/50">
@@ -653,7 +971,7 @@ function Shop({ game, qty, setQty, buy, pulses }) {
               <div className="text-right shrink-0">
                 <div className="font-display font-bold text-3xl tabular leading-none text-foam">{owned}</div>
                 <div className={"text-sm font-bold tabular mt-1 " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(cost)}</div>
-                <div className="text-[10px] text-latte/50 uppercase tracking-wider">buy {n}</div>
+                {affordable ? <div className="text-[10px] text-latte/50 uppercase tracking-wider">buy {n}</div> : <Eta game={game} cost={cost} />}
               </div>
             </div>
             <FillBar ratio={game.cash / cost} />
@@ -677,7 +995,8 @@ function Upgrades({ game, buy, pulses }) {
       </div>
       {list.length === 0 && <div className="text-center text-latte/50 py-8">Nothing on the shelf right now. Own more machines to unlock their gear.</div>}
       {list.map(u => {
-        const affordable = u.cost <= game.cash;
+        const cost = E.upgradeCost(game, u);
+        const affordable = cost <= game.cash;
         return (
           <Card key={u.id} onClick={() => buy(u.id)} affordable={affordable} pulseKey={pulses[u.id]}>
             <div className="flex items-center gap-3 px-3 py-3 pb-4">
@@ -687,9 +1006,12 @@ function Upgrades({ game, buy, pulses }) {
                 <div className="text-xs font-bold text-mint">{u.effect}</div>
                 <div className="text-xs text-latte/60 leading-snug mt-0.5">{u.desc}</div>
               </div>
-              <div className={"text-right shrink-0 font-bold tabular " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(u.cost)}</div>
+              <div className="text-right shrink-0">
+                <div className={"font-bold tabular " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(cost)}</div>
+                {!affordable && <Eta game={game} cost={cost} />}
+              </div>
             </div>
-            <FillBar ratio={game.cash / u.cost} />
+            <FillBar ratio={game.cash / cost} />
           </Card>
         );
       })}
@@ -706,18 +1028,20 @@ function Upgrades({ game, buy, pulses }) {
 }
 
 // ---- Prestige ------------------------------------------------------------
-function Prestige({ game, onSell }) {
+function Prestige({ game, onSell, buyPerk }) {
   const unlocked = E.prestigeUnlocked(game);
   const gain = E.rpGain(game);
   const total = E.rpFor(game.lifetime);
   const nextAt = Math.pow(total + 1, 2) * E.PRESTIGE_UNIT;
   const prog = unlocked ? (game.lifetime - Math.pow(total, 2) * E.PRESTIGE_UNIT) / (nextAt - Math.pow(total, 2) * E.PRESTIGE_UNIT) : game.lifetime / E.PRESTIGE_UNIT;
+  const avail = E.rpAvailable(game);
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-3xl bg-gradient-to-b from-roast to-espresso border border-mocha/60 p-5 text-center">
         <div className="text-xs font-bold uppercase tracking-widest text-amber flex items-center justify-center gap-1"><Icon name="Sparkles" size={14} /> Roast Points</div>
         <div className="font-display font-bold text-6xl text-foam tabular mt-1">{game.rp}</div>
         <div className="text-latte/80">+{game.rp * 2}% on every cup, forever</div>
+        {game.rp > 0 && <div className="text-xs text-latte/50 tabular mt-1">{avail} unspent · {game.rpSpent} in perks</div>}
       </div>
 
       <div className="rounded-2xl bg-espresso border border-mocha/50 p-4">
@@ -730,11 +1054,8 @@ function Prestige({ game, onSell }) {
         </div>
         <div className="text-xs text-latte/60 mt-1.5 tabular">
           {unlocked ? `Next point at ${E.fmtCash(nextAt)}` : `Sell unlocks at ${E.fmtCash(E.PRESTIGE_UNIT)} lifetime earnings`}
+          {!unlocked && isFinite(E.timeToAfford(game, E.PRESTIGE_UNIT - game.lifetime + game.cash)) && ` · about ${E.fmtTime(E.timeToAfford(game, E.PRESTIGE_UNIT - game.lifetime + game.cash))} at this rate`}
         </div>
-      </div>
-
-      <div className="rounded-2xl bg-espresso border border-mocha/50 p-4 text-sm text-latte/85 leading-relaxed">
-        <p><strong className="text-foam">Sell the Chain</strong> resets cash, machines and upgrades. In return you bank <strong className="text-amber">√(lifetime ÷ $1T)</strong> Roast Points in total, and each one adds 2% to every cup you ever sell again.</p>
       </div>
 
       <div className="rounded-2xl bg-roast border border-amber/40 p-4 flex items-center justify-between">
@@ -751,7 +1072,31 @@ function Prestige({ game, onSell }) {
       <BigButton onClick={onSell} disabled={!unlocked || gain <= 0} className="w-full flex items-center justify-center gap-2">
         {unlocked ? (gain > 0 ? <>Sell the Chain</> : <>Earn more before selling</>) : <><Icon name="Lock" size={18} /> Locked until $1.00T earned</>}
       </BigButton>
-      <div className="text-center text-xs text-latte/50">Sold {game.prestiges} time{game.prestiges === 1 ? '' : 's'} so far.</div>
+      <div className="text-center text-xs text-latte/50">
+        Selling resets cash, machines and upgrades. Points banked: √(lifetime ÷ $1T). Sold {game.prestiges} time{game.prestiges === 1 ? '' : 's'} so far.
+      </div>
+
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Perks</span>
+        <span className="text-xs text-amber tabular font-bold">{avail} RP to spend</span>
+      </div>
+      <p className="text-xs text-latte/60 -mt-1">Spend Roast Points on permanent perks. Spending never shrinks your +2% bonus.</p>
+      {E.PERKS.map(p => {
+        const owned = !!game.perks[p.id];
+        const can = !owned && p.cost <= avail;
+        return (
+          <Card key={p.id} onClick={() => !owned && buyPerk(p.id)} affordable={can} disabled={owned} className={owned ? 'opacity-100' : ''}>
+            <div className="flex items-center gap-3 px-3 py-3">
+              <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (owned ? "bg-mint text-espresso" : can ? "bg-amber text-espresso" : "bg-bean text-latte/70")}><Icon name={owned ? 'Check' : p.icon} size={24} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="font-display font-semibold text-lg text-foam leading-tight">{p.name}</div>
+                <div className="text-xs text-latte/70 leading-snug mt-0.5">{p.desc}</div>
+              </div>
+              <div className={"text-right shrink-0 font-bold tabular " + (owned ? "text-mint text-xs uppercase" : can ? "text-amber" : "text-latte/50")}>{owned ? 'owned' : p.cost + ' RP'}</div>
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -761,24 +1106,29 @@ function Stats({ game, setGame, showToast, onReset }) {
   const [showImport, setShowImport] = useState(false);
   const [code, setCode] = useState('');
   const [exported, setExported] = useState(null);
+  const [showAch, setShowAch] = useState(true);
   const cps = E.cashPerSec(game);
+  const achN = E.achCount(game);
   const rows = [
     ['Cash on hand', E.fmtCash(game.cash)],
     ['Income', rate(cps)],
+    ['Best income', rate(game.bestRate)],
     ['Cups per second', E.fmt(E.cupsPerSec(game), 1)],
     ['Price per cup', E.fmtCash(E.cupPrice(game), 2)],
     ['Tap value', E.fmtCash(E.tapValue(game), 2)],
     ['Cups brewed', E.fmt(game.cups)],
     ['Taps', E.fmt(game.taps)],
+    ['Golden beans caught', game.goldCaught],
     ['Earned this run', E.fmtCash(game.runEarned)],
     ['Earned all time', E.fmtCash(game.lifetime)],
     ['Time played', E.fmtTime(game.playtime)],
-    ['Offline rate', Math.round(E.offlineMult(game) * 100) + '% for up to 4h'],
+    ['Offline rate', Math.round(E.offlineMult(game) * 100) + '% for up to ' + E.fmtTime(E.offlineCap(game))],
+    ['Reputation', '+' + achN + '% from achievements'],
     ['Roast Points', game.rp + ' (+' + game.rp * 2 + '%)'],
     ['Chains sold', game.prestiges],
   ];
   const copySave = async () => {
-    const s = encodeSave({ ...game, savedAt: Date.now(), awayReport: null });
+    const s = encodeSave({ ...game, savedAt: Date.now(), awayReport: null, events: [], gold: null });
     try { await navigator.clipboard.writeText(s); showToast('Save code copied'); }
     catch (e) { setExported(s); }
   };
@@ -794,6 +1144,27 @@ function Stats({ game, setGame, showToast, onReset }) {
           <div key={k} className="flex justify-between px-4 py-2 text-sm"><span className="text-latte/70">{k}</span><span className="font-bold tabular text-foam">{v}</span></div>
         ))}
       </div>
+
+      <button onClick={() => setShowAch(v => !v)} className="flex items-center justify-between mt-1">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Achievements · {achN}/{E.ACH.length}</span>
+        <Icon name={showAch ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-latte/60" />
+      </button>
+      {showAch && (
+        <div className="grid grid-cols-2 gap-2">
+          {E.ACH.map(a => {
+            const on = !!game.achievements[a.id];
+            return (
+              <div key={a.id} className={"rounded-xl border px-3 py-2 flex items-center gap-2 " + (on ? "bg-roast border-amber/50" : "bg-espresso/60 border-mocha/30 opacity-50")}>
+                <span className={"w-8 h-8 shrink-0 rounded-lg flex items-center justify-center " + (on ? "bg-amber text-espresso" : "bg-bean text-latte/60")}><Icon name={a.icon} size={16} /></span>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-foam leading-tight">{a.name}</div>
+                  <div className="text-[11px] text-latte/60 leading-tight">{a.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="text-xs font-bold uppercase tracking-widest text-latte/60 mt-1">The chain</div>
       <div className="rounded-2xl bg-espresso border border-mocha/50 divide-y divide-mocha/30">
