@@ -1414,7 +1414,7 @@ function Ticket({ game, o, onFill }) {
   const payout = o.reward * E.streakMult(game);
   return (
     <button onClick={() => onFill(o.id, !fillable)} disabled={!fillable && !canBuy}
-      className={"relative shrink-0 w-[156px] text-left rounded-xl border px-2.5 pt-2 pb-3 overflow-hidden transition-transform active:scale-[.97] disabled:active:scale-100 "
+      className={"relative shrink-0 w-[168px] text-left rounded-xl border px-2.5 pt-2 pb-3 overflow-hidden transition-transform active:scale-[.97] disabled:active:scale-100 "
         + (fillable ? "bg-roast border-mint/70" : canBuy ? "bg-roast border-amber/60" : "bg-espresso border-mocha/50")}>
       <div className="flex justify-between items-baseline text-[11px]"><span className="font-bold text-foam truncate">{o.name}</span><span className={"tabular " + (left < 15 ? 'text-ember font-bold' : 'text-latte/60')}>{Math.ceil(left)}s</span></div>
       <div className="mt-1 flex flex-col gap-0.5">
@@ -1423,10 +1423,11 @@ function Ticket({ game, o, onFill }) {
         ); })}
       </div>
       {!fillable && <div className="text-[10px] text-amber mt-1 leading-tight">need {missKeys.map(k => `${missing[k]} ${E.ING_BY_ID[k].name.toLowerCase()}`).join(', ')}</div>}
-      <div className="flex justify-between items-baseline mt-1.5">
+      <div className="mt-1.5 flex items-baseline justify-between gap-1">
         <span className="font-display font-bold text-sm tabular text-foam">{E.fmtCash(payout, payout < 100 ? 2 : undefined)}</span>
-        <span className={"text-[10px] font-bold uppercase tracking-wider " + (fillable ? 'text-mint' : canBuy ? 'text-amber' : 'text-latte/40')}>{fillable ? 'fill' : canBuy ? `buy ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)} & fill` : `need ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)}`}</span>
+        <span className="text-[9px] text-latte/50 uppercase tracking-wider">payout</span>
       </div>
+      <div className={"text-[10px] font-bold uppercase tracking-wider truncate " + (fillable ? 'text-mint' : canBuy ? 'text-amber' : 'text-latte/40')}>{fillable ? 'tap to fill' : canBuy ? `buy ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)} & fill` : `need ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)} more`}</div>
       <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-bean/70"><div className={"h-full " + (left < 15 ? 'bg-ember' : 'bg-amber/80')} style={{ width: frac * 100 + '%' }} /></div>
     </button>
   );
@@ -1826,7 +1827,7 @@ function Shop({ game, qty, setQty, buy, buyStock, pulses, onMove }) {
           const wanted = (game.orders || []).some(o => E.orderMissing(game, o)[ing.id]);
           return (
             <button key={ing.id} onClick={() => buyStock(ing.id)}
-              className={"relative overflow-hidden rounded-xl border px-1 pt-2 pb-3 flex flex-col items-center gap-0.5 active:scale-[.97] transition-transform " + (affordable ? "bg-roast border-amber/60" : "bg-espresso border-mocha/50") + (wanted ? " ring-2 ring-amber/60" : "")}>
+              className={"relative overflow-hidden rounded-xl border px-1 pt-2 pb-4 flex flex-col items-center gap-0.5 active:scale-[.97] transition-transform " + (affordable ? "bg-roast border-amber/60" : "bg-espresso border-mocha/50") + (wanted ? " ring-2 ring-amber/60" : "")}>
               <Icon name={ing.icon} size={18} className={affordable ? 'text-amber' : 'text-latte/60'} />
               <div className="font-display font-bold text-xl tabular text-foam leading-none">{E.stockOf(game, ing.id)}</div>
               <div className="text-[10px] text-latte/60">{ing.name}</div>
