@@ -790,7 +790,7 @@ const BeanBaronScene = (() => {
       ctx.restore();
       // what the far side of town says about the chain
       let ly = L.bgBottom - 7;
-      for (const [gi, word] of [[6, 'plantations'], [5, 'franchises'], [7, 'empires']]) if (g.owned[gi] > 0) { labelAt(W - 4, ly, word, g.owned[gi]); ly -= 10; }
+      for (const [gi, word] of [[6, 'plantations'], [5, 'franchises'], [7, 'empires']]) if (g.owned[gi] > 0) { labelAt(L.extra < 40 ? W - 38 : W - 4, ly, word, g.owned[gi]); ly -= 10; }
     }
     function labelAt(right, y, word, count) {
       ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
