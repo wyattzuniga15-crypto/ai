@@ -24,6 +24,12 @@ first time) with the whole game in one file.
   plus six seconds of your income; a ticket can also buy its missing stock
   in one tap. Filling tickets in a row builds a streak up to ×2; a missed
   ticket resets it.
+- **Staff.** Hire and promote five roles in the Shop: a Tapper who taps for
+  you, an Order Runner who hands over any ticket the pantry covers, a Stock
+  Clerk who keeps the pantry topped up, a Greeter who catches golden beans,
+  and a Shift Manager who adds income. Each one gets a figure with a job in
+  the café. Food critics drop in with tickets that pay triple and, if served
+  in time, a rave review that doubles income for 45 seconds.
 - **Premises.** You start on a coffee cart. Each size caps how many of each
   machine fit and which tiers exist; moving up costs money, keeps your
   money, and resets machines, pantry and upgrades.

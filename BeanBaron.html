@@ -240,6 +240,25 @@ const BeanBaronEconomy = (() => {
   const ORDER_NAMES = ['Maya', 'Theo', 'Priya', 'Jonas', 'Amara', 'Kai', 'Lena', 'Diego', 'Noor', 'Felix', 'Sana', 'Milo', 'Ada', 'Ravi', 'June', 'Omar', 'Ivy', 'Luca', 'Zoe', 'Nico', 'Hana', 'Sam', 'Rosa', 'Eli'];
   const ORDER_MAX = 3, ORDER_LIFE = 90, ORDER_GAP = [25, 45], ORDER_FIRST = 20;
   const ORDER_MARKUP = 3, ORDER_SECONDS = 6;      // payout = ingredients x markup + this many seconds of income
+  const VIP_CHANCE = 0.12, VIP_MULT = 3, REVIEW_MULT = 2, REVIEW_SECS = 45;   // food critics
+
+  // Staff. Each role automates a bit of the busywork; promotions make them faster.
+  const STAFF = [
+    { id: 'tapper',  name: 'Tapper',        icon: 'Hand',           blurb: 'Keeps the cup warm so you do not have to.',
+      levels: [{ cost: 500, rate: 1 }, { cost: 25e3, rate: 3 }, { cost: 2e6, rate: 6 }], effect: l => `${l.rate} tap${l.rate > 1 ? 's' : ''} a second` },
+    { id: 'runner',  name: 'Order Runner',  icon: 'Bike',           blurb: 'Hands over any ticket the pantry can cover.',
+      levels: [{ cost: 2e3, every: 15 }, { cost: 100e3, every: 5 }, { cost: 10e6, every: 1 }], effect: l => `gives a ready ticket every ${l.every}s` },
+    { id: 'clerk',   name: 'Stock Clerk',   icon: 'ShoppingBasket', blurb: 'Tops up the pantry from the till.',
+      levels: [{ cost: 3e3, keep: 5 }, { cost: 200e3, keep: 25 }, { cost: 20e6, keep: 100 }], effect: l => `keeps ${l.keep} of each ingredient stocked` },
+    { id: 'greeter', name: 'Greeter',       icon: 'Smile',          blurb: 'Has an eye for golden beans.',
+      levels: [{ cost: 50e3, chance: 0.5 }, { cost: 5e6, chance: 1 }], effect: l => `catches golden beans ${Math.round(l.chance * 100)}% of the time` },
+    { id: 'manager', name: 'Shift Manager', icon: 'ClipboardList',  blurb: 'Runs a tighter shop every promotion.',
+      levels: [{ cost: 10e3, bonus: 0.05 }, { cost: 1e6, bonus: 0.1 }, { cost: 100e6, bonus: 0.15 }, { cost: 10e9, bonus: 0.2 }, { cost: 1e12, bonus: 0.25 }], effect: l => `+${Math.round(l.bonus * 100)}% all income` },
+  ];
+  const STAFF_BY_ID = Object.fromEntries(STAFF.map(r => [r.id, r]));
+  const staffLevel = (s, id) => (s.staff && s.staff[id]) || 0;
+  const staffCfg = (s, id) => { const lv = staffLevel(s, id); return lv ? STAFF_BY_ID[id].levels[lv - 1] : null; };
+  const staffNext = (s, id) => STAFF_BY_ID[id].levels[staffLevel(s, id)] || null;
 
   // Perks are bought with Roast Points. Spending never lowers the +2% bonus,
   // which counts every point ever earned.
@@ -254,6 +273,7 @@ const BeanBaronEconomy = (() => {
     { id: 'rushhour',  name: 'Rush Hour',     cost: 6, icon: 'Timer',    desc: 'Rush buffs from golden beans last twice as long.' },
     { id: 'landlord',  name: 'Landlord',      cost: 3, icon: 'Building2', desc: 'You own the building. Selling the chain keeps your café.' },
     { id: 'patience',  name: 'Patient Regulars', cost: 2, icon: 'ClipboardList', desc: 'Order tickets wait 50% longer before the customer gives up.' },
+    { id: 'crew',      name: 'Loyal Crew',    cost: 3, icon: 'Users',     desc: 'Your staff follow you when you sell the chain.' },
   ];
   const PERK_BY_ID = Object.fromEntries(PERKS.map(p => [p.id, p]));
 
@@ -281,6 +301,9 @@ const BeanBaronEconomy = (() => {
   ACH.push({ id: 'orders50', name: 'Regular Service', desc: 'Fill 50 orders.', icon: 'Receipt', test: s => (s.ordersFilled || 0) >= 50 });
   ACH.push({ id: 'orders250', name: 'Order Machine', desc: 'Fill 250 orders.', icon: 'Receipt', test: s => (s.ordersFilled || 0) >= 250 });
   ACH.push({ id: 'streak8', name: 'On a Roll', desc: 'Fill 8 orders in a row without missing one.', icon: 'Flame', test: s => (s.bestStreak || 0) >= 8 });
+  ACH.push({ id: 'staff1', name: 'First Hire', desc: 'Hire a member of staff.', icon: 'UserPlus', test: s => STAFF.some(r => staffLevel(s, r.id) > 0) });
+  ACH.push({ id: 'staff_all', name: 'Full Roster', desc: 'Have every role on the payroll.', icon: 'Users', test: s => STAFF.every(r => staffLevel(s, r.id) > 0) });
+  ACH.push({ id: 'critic5', name: 'Five Stars', desc: 'Earn five rave reviews from food critics.', icon: 'Newspaper', test: s => (s.reviews || 0) >= 5 });
   ACH.push({ id: 'cafe2', name: 'Proper Address', desc: 'Move into a Neighborhood Café.', icon: 'Store', test: s => (s.cafe || 0) >= 2 });
   ACH.push({ id: 'cafe3', name: 'Grand Opening', desc: 'Move into a Grand Café.', icon: 'Building2', test: s => (s.cafe || 0) >= 3 });
   ACH.push({ id: 'cafe4', name: 'Palace Intrigue', desc: 'Move into the Coffee Palace.', icon: 'Crown', test: s => (s.cafe || 0) >= 4 });
@@ -297,6 +320,9 @@ const BeanBaronEconomy = (() => {
       nextOrder: ORDER_FIRST,  // playtime at which the next ticket arrives
       orderSeq: 0,
       streak: 0, bestStreak: 0, ordersFilled: 0, ordersMissed: 0,
+      staff: {},               // role id -> level
+      reviews: 0,              // rave reviews earned from critics
+      tapAcc: 0, runnerT: 0, clerkT: 0,
       upgrades: {},            // id -> true
       perks: {},               // id -> true, bought with Roast Points
       achievements: {},        // id -> true
@@ -310,7 +336,7 @@ const BeanBaronEconomy = (() => {
       goldCaught: 0,
       bestRate: 0,
       playtime: 0,             // seconds of active play
-      buffs: { rush: 0, frenzy: 0 },   // playtime at which each buff ends
+      buffs: { rush: 0, frenzy: 0, review: 0 },   // playtime at which each buff ends
       gold: null,              // { x, y, until } while a golden bean is on screen
       nextGold: 90,            // playtime at which the next golden bean appears
       events: [],              // one-shot notices for the UI to show, then clear
@@ -369,7 +395,9 @@ const BeanBaronEconomy = (() => {
     m *= 1 + 0.02 * s.rp;                 // Roast Points
     m *= 1 + 0.01 * achCount(s);          // reputation
     if (perk(s, 'regulars')) m *= 1.25;
+    const mgr = staffCfg(s, 'manager'); if (mgr) m *= 1 + mgr.bonus;
     if (!calm && buffActive(s, 'rush')) m *= RUSH_MULT;
+    if (!calm && buffActive(s, 'review')) m *= REVIEW_MULT;
     return m;
   }
   function cupPrice(s) { return priceMult(s); }
@@ -401,8 +429,8 @@ const BeanBaronEconomy = (() => {
       const ex = items.find(x => x.recipe === r.id);
       if (ex) ex.n += 1; else items.push({ recipe: r.id, n: 1 + (rng() < 0.4 ? 1 : 0) + (rng() < 0.15 ? 1 : 0) });
     }
-    const o = { id: (s.orderSeq || 0) + 1, name: ORDER_NAMES[Math.floor(rng() * ORDER_NAMES.length)], items, created: s.playtime, expires: s.playtime + orderLife(s), reward: 0 };
-    o.reward = orderValue(s, o) * ORDER_MARKUP + calmCashPerSec(s) * ORDER_SECONDS;
+    const o = { id: (s.orderSeq || 0) + 1, name: ORDER_NAMES[Math.floor(rng() * ORDER_NAMES.length)], items, created: s.playtime, expires: s.playtime + orderLife(s), reward: 0, vip: rng() < VIP_CHANCE };
+    o.reward = (orderValue(s, o) * ORDER_MARKUP + calmCashPerSec(s) * ORDER_SECONDS) * (o.vip ? VIP_MULT : 1);
     return o;
   }
   function stepOrders(n, rng) {
@@ -444,7 +472,9 @@ const BeanBaronEconomy = (() => {
     const payout = o.reward * streakMult(n);
     n = earn({ ...n, stock, orders: n.orders.filter(x => x.id !== id), streak: (n.streak || 0) + 1, ordersFilled: (n.ordersFilled || 0) + 1 }, payout);
     n.bestStreak = Math.max(n.bestStreak || 0, n.streak);
-    return checkAchievements(withEvent(n, { type: 'order-filled', name: o.name, payout }));
+    n = withEvent(n, { type: 'order-filled', name: o.name, payout, vip: !!o.vip });
+    if (o.vip) { n.buffs = { ...n.buffs, review: Math.max(n.buffs.review || 0, n.playtime) + REVIEW_SECS }; n.reviews = (n.reviews || 0) + 1; n = withEvent(n, { type: 'review', text: 'Rave review! x' + REVIEW_MULT + ' income for ' + REVIEW_SECS + 's' }); }
+    return checkAchievements(n);
   }
   function cashPerSec(s) { return cupsPerSec(s) * cupPrice(s); }
   function tapMult(s) {
@@ -518,7 +548,45 @@ const BeanBaronEconomy = (() => {
       n.gold = { x: 12 + rng() * 74, y: 10 + rng() * 68, until: n.playtime + life, life, kind: rng() < 0.55 ? 'rush' : rng() < 0.5 ? 'frenzy' : 'tip' };
       n.nextGold = n.playtime + life + goldGap(n, rng);
     }
-    return checkAchievements(stepOrders(n, rng));
+    n = stepOrders(n, rng);
+    n = stepStaff(n, dt, rng);
+    return checkAchievements(n);
+  }
+  function stepStaff(n, dt, rng) {
+    const tap = staffCfg(n, 'tapper');
+    if (tap) {
+      let acc = (n.tapAcc || 0) + tap.rate * dt, k = 0;
+      while (acc >= 1 && k < 60) { acc -= 1; k++; }
+      if (k) { const v = tapValue(n) * k; n = earn({ ...n }, v); n.cups = n.cups + k; n.taps = n.taps + k; }
+      n = { ...n, tapAcc: acc };
+    }
+    const run = staffCfg(n, 'runner');
+    if (run) {
+      let t = (n.runnerT || 0) - dt;
+      if (t <= 0) { const ready = (n.orders || []).find(o => canFill(n, o)); if (ready) { n = fillOrder(n, ready.id, false) || n; t = run.every; } else t = 0.5; }
+      n = { ...n, runnerT: t };
+    }
+    const clerk = staffCfg(n, 'clerk');
+    if (clerk) {
+      let t = (n.clerkT || 0) - dt;
+      if (t <= 0) {
+        t = 2;
+        for (const ing of INGREDIENTS) { const short = clerk.keep - stockOf(n, ing.id); if (short > 0) { const b = buyStock(n, ing.id, Math.min(short, maxStock(n, ing.id))); if (b) n = b; } }
+      }
+      n = { ...n, clerkT: t };
+    }
+    const greet = staffCfg(n, 'greeter');
+    if (greet && n.gold && !n.gold.seen && n.gold.until - n.playtime < n.gold.life - 2.5) {
+      n = { ...n, gold: { ...n.gold, seen: true } };
+      if (rng() < greet.chance) n = catchGold(n) || n;
+    }
+    return n;
+  }
+  function hireStaff(s, id) {
+    const nx = staffNext(s, id);
+    if (!nx || nx.cost > s.cash + 1e-9) return null;
+    const lv = staffLevel(s, id) + 1;
+    return checkAchievements(withEvent({ ...s, cash: s.cash - nx.cost, staff: { ...(s.staff || {}), [id]: lv } }, { type: 'staff', id, level: lv }));
   }
   function goldGap(s, rng) {
     const gap = GOLD_GAP[0] + rng() * (GOLD_GAP[1] - GOLD_GAP[0]);
@@ -545,7 +613,7 @@ const BeanBaronEconomy = (() => {
   }
   function applyOffline(s, seconds) {
     const secs = Math.min(offlineCap(s), Math.max(0, seconds));
-    const quiet = { ...s, buffs: { rush: 0, frenzy: 0 } };     // buffs do not run while away
+    const quiet = { ...s, buffs: { rush: 0, frenzy: 0, review: 0 } };     // buffs do not run while away
     const cups = cupsPerSec(quiet) * secs * offlineMult(quiet);
     const cash = cups * cupPrice(quiet);
     const n = earn(s, cash);
@@ -614,6 +682,8 @@ const BeanBaronEconomy = (() => {
     n.lifetime = s.lifetime; n.cups = s.cups; n.taps = s.taps; n.playtime = s.playtime;
     n.goldCaught = s.goldCaught; n.bestRate = s.bestRate;
     n.ordersFilled = s.ordersFilled || 0; n.ordersMissed = s.ordersMissed || 0; n.bestStreak = s.bestStreak || 0; n.orderSeq = s.orderSeq || 0;
+    n.reviews = s.reviews || 0;
+    if (perk(s, 'crew')) n.staff = s.staff || {};
     n.nextOrder = s.playtime + 20;
     n.nextGold = s.playtime + 60;
     if (perk(s, 'memory')) { if (has(s, 'tap0')) n.upgrades.tap0 = true; if (has(s, 'training')) n.upgrades.training = true; }
@@ -649,6 +719,7 @@ const BeanBaronEconomy = (() => {
 
   return { GROWTH, MILESTONES, PRESTIGE_UNIT, OFFLINE_CAP, RUSH_MULT, FRENZY_MULT, GOLD_LIFE,
     GENS, UPGRADES, UPG_BY_ID, PERKS, PERK_BY_ID, ACH, CAFES, cafeOf, nextCafe, cafeCap, cafeFor, cafeFull, buyCount, expandCafe, fitCafe,
+    STAFF, STAFF_BY_ID, staffLevel, staffCfg, staffNext, hireStaff, REVIEW_MULT,
     INGREDIENTS, ING_BY_ID, RECIPES, RECIPE_BY_ID, ORDER_MAX, ingredientPrice, stockOf, maxStock, orderNeeds, orderMissing, orderMissingCost, canFill, streakMult, orderLife, buyStock, fillOrder, calmCashPerSec,
     newState, has, perk, rpAvailable, achCount, buffActive, buffLeft,
     genCost, maxAffordable, milestonesFor, milestoneMult, nextMilestone, gearMult, genMult, genCups,
@@ -729,7 +800,7 @@ const BeanBaronScene = (() => {
       t: 0, scale: 1, H: 277, tier: getGame().cafe || 0, L: layout(277, getGame().cafe || 0),
       customers: [], baristas: [], vehicles: [], particles: [], log: [],
       machines: [], counts: null, spawnT: 1.5, passT: 2, tapJiggle: 0,
-      served: 0, critters: [], birdT: 8, catT: 40, shadow: { dx: 0, alpha: 0.22 }, focus: null, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
+      served: 0, staffFigs: [], critters: [], birdT: 8, catT: 40, shadow: { dx: 0, alpha: 0.22 }, focus: null, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
     };
     let dpr = 1, cssW = 360, cssH = 277;
 
@@ -763,6 +834,7 @@ const BeanBaronScene = (() => {
       for (const t of S.L.tables) for (const s of t.seats) s.taken = null;
       for (const b of S.baristas) { b.state = 'idle'; b.customer = null; b.machine = null; b.cup = false; b.y = S.L.laneY; b.home.y = S.L.laneY; }
       S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; b.x = b.home.x; });
+      for (const f of S.staffFigs) { f.waypoint = null; f.x = S.L.registerX; f.y = S.L.laneY; }
       for (const m of S.machines) if (m.type !== 'roaster') m.busy = false;
       S.spawnT = Math.min(S.spawnT, 0.5);
       rebuildMachines(true);
@@ -792,6 +864,10 @@ const BeanBaronScene = (() => {
       }
       while (S.baristas.length > nb) { const b = S.baristas.pop(); if (b.customer) b.customer.state = 'queue'; if (b.machine) b.machine.busy = false; }
       S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; });
+      // hired staff each get a figure with a job to do
+      const roles = STAFF_ROLES.filter(r => g.staff && g.staff[r.id]);
+      S.staffFigs = S.staffFigs.filter(f => roles.some(r => r.id === f.role));
+      for (const r of roles) if (!S.staffFigs.some(f => f.role === r.id)) S.staffFigs.push(person({ role: r.id, apron: r.apron, shirt: '#F6E7CF', hat: null, x: S.L.registerX, y: S.L.laneY, state: 'staff', t: 0, waypoint: null, name: r.name }));
       const nv = g.owned[4] >= 30 ? 3 : g.owned[4] >= 10 ? 2 : g.owned[4] >= 1 ? 1 : 0;
       const vans = S.vehicles.filter(v => v.kind === 'van');
       while (vans.length < nv) { const v = { kind: 'van', x: rnd(-60, W + 60), lane: 1, speed: rnd(34, 44), color: '#D9642A', wheel: 0 }; S.vehicles.push(v); vans.push(v); }
@@ -801,6 +877,10 @@ const BeanBaronScene = (() => {
 
     // --- people -----------------------------------------------------------
     const PANTS = ['#2e2e2e', '#3b4a6b', '#5a4632', '#6b6b6b', '#8b3a3a', '#1f2f3f'];
+    const STAFF_ROLES = [
+      { id: 'tapper', name: 'Tapper', apron: '#D9642A' }, { id: 'runner', name: 'Order Runner', apron: '#9CC98B' },
+      { id: 'clerk', name: 'Stock Clerk', apron: '#3e78c2' }, { id: 'greeter', name: 'Greeter', apron: '#d94f7a' }, { id: 'manager', name: 'Shift Manager', apron: '#F2A65A' },
+    ];
     function person(extra) {
       return Object.assign({ name: pick(NAMES), skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), pants: pick(PANTS),
         hat: Math.random() < 0.22 ? pick(SHIRT) : null, glasses: Math.random() < 0.18, seed: rnd(0, 6.28),
@@ -906,6 +986,30 @@ const BeanBaronScene = (() => {
           }
         }
         if (b.state === 'brewing' && b.machine) b.machine.anim += dt;
+      }
+      // staff loops
+      for (const f of S.staffFigs) {
+        f.moving = false; f.t -= dt;
+        const L2 = S.L, cupX = L2.T.interior ? L2.T.x0 + 64 : L2.T.x0 + 104;
+        switch (f.role) {
+          case 'tapper': moveTo(f, cupX - 12, L2.laneY, bspeed, dt); f.dir = 'down'; f.working = true; break;
+          case 'greeter': moveTo(f, L2.doorX + 14, L2.T.interior ? L2.bottomCorridor : L2.queueY + 30, bspeed, dt); f.dir = 'down'; f.wave = true; break;
+          case 'clerk': {
+            if (!f.waypoint) f.waypoint = { x: L2.T.x1 - 40, y: L2.laneY };
+            if (moveTo(f, f.waypoint.x, f.waypoint.y, bspeed * 0.8, dt)) { if (f.t <= 0) { f.t = rnd(2, 4); f.waypoint = f.waypoint.x > L2.registerX + 40 ? { x: L2.T.interior ? L2.T.x0 + 76 : L2.registerX + 30, y: L2.laneY } : { x: L2.T.x1 - 40, y: L2.laneY }; f.cup = !f.cup; } else f.working = true; }
+            else f.working = false;
+            break;
+          }
+          case 'runner': {
+            if (!f.waypoint) f.waypoint = { x: L2.registerX + 8, y: L2.queueY + 14 };
+            if (moveTo(f, f.waypoint.x, f.waypoint.y, bspeed, dt)) { if (f.t <= 0) { f.t = rnd(1, 2.5); const tbl = L2.tables.length ? pick(L2.tables) : null; f.waypoint = f.waypoint.y <= L2.queueY + 14 && tbl ? { x: tbl.x, y: tbl.y + 20 } : { x: L2.registerX + 8, y: L2.queueY + 14 }; f.cup = f.waypoint.y > L2.queueY + 14; } }
+            break;
+          }
+          case 'manager': {
+            if (!f.waypoint || moveTo(f, f.waypoint.x, f.waypoint.y, bspeed * 0.45, dt)) { if (f.t <= 0) { f.t = rnd(2, 5); f.waypoint = { x: rnd(L2.T.x0 + 30, L2.T.x1 - 30), y: L2.T.interior ? L2.bottomCorridor - 8 : L2.queueY + 24 }; } }
+            break;
+          }
+        }
       }
       // cups appear on tables when someone sits
       for (const t of L.tables) { t.cup = null; for (const s of t.seats) if (s.taken && s.taken.state === 'sit') t.cup = s.taken.drink; }
@@ -1245,12 +1349,13 @@ const BeanBaronScene = (() => {
       const by = sitting ? y - 3 : y - 5, bh = sitting ? 8 : 9.5;
       const bg = ctx.createLinearGradient(p.x - 5, 0, p.x + 5, 0); bg.addColorStop(0, shade(shirt, 0.22)); bg.addColorStop(0.55, shirt); bg.addColorStop(1, shade(shirt, -0.32));
       ctx.fillStyle = bg; rr(p.x - 4.6, by, 9.2, bh, 2.8); ctx.fill(); ctx.lineWidth = 0.7; ctx.strokeStyle = outline; ctx.stroke();
-      if (apron) { ctx.fillStyle = '#6B4530'; rr(p.x - 3.2, by + 2, 6.4, bh - 2.5, 1.5); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(p.x - 3.2, by + 2, 6.4, 1.2); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(p.x - 3.2, by + 2, 2, bh - 2.5); }
+      if (apron) { const ac = typeof apron === 'string' ? apron : '#D9642A'; ctx.fillStyle = '#6B4530'; rr(p.x - 3.2, by + 2, 6.4, bh - 2.5, 1.5); ctx.fill(); ctx.fillStyle = ac; ctx.fillRect(p.x - 3.2, by + 2, 6.4, 1.2); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(p.x - 3.2, by + 2, 2, bh - 2.5); }
       // arms: swing while walking, reach forward while working, cradle a cup, rest on the table when seated
       const shY = by + 2, sleeve = shade(shirt, -0.1);
       const back = p.dir === 'up';
       let armL = walking ? Math.sin(ph) * 0.55 : 0.12, armR = walking ? -Math.sin(ph) * 0.55 : -0.12;
       if (p.working) { const w = Math.sin(S.t * 9) * 0.25; armL = -1.5 + w; armR = 1.5 - w; }
+      if (p.wave) { armR = -2.6 + Math.sin(S.t * 6) * 0.5; }
       if (sitting) { armL = p.face > 0 ? 1.2 : -0.2; armR = p.face > 0 ? 0.2 : -1.2; }
       const holding = (p.holding || p.cup) && !sitting;
       if (holding) { if (facing >= 0) armR = 1.55; else armL = -1.55; }
@@ -1269,7 +1374,7 @@ const BeanBaronScene = (() => {
       if (back) { circle(p.x, hy - 0.4, 4.5); ctx.fill(); }
       else { ctx.beginPath(); ctx.arc(p.x, hy - 0.6, 4.5, Math.PI, 0); ctx.fill(); if (p.dir === 'side') { ctx.fillRect(p.x - (p.face > 0 ? 4.5 : 1.5), hy - 1, 3, 3); } }
       ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.arc(p.x - 1.4, hy - 2.2, 1.6, Math.PI, Math.PI * 1.9); ctx.fill();
-      if (apron) { ctx.fillStyle = '#D9642A'; rr(p.x - 4.8, hy - 5, 9.6, 3, 1.5); ctx.fill(); ctx.fillStyle = '#F6E7CF'; circle(p.x, hy - 3.6, 0.8); ctx.fill(); }
+      if (apron) { ctx.fillStyle = typeof apron === 'string' ? apron : '#D9642A'; rr(p.x - 4.8, hy - 5, 9.6, 3, 1.5); ctx.fill(); ctx.fillStyle = '#F6E7CF'; circle(p.x, hy - 3.6, 0.8); ctx.fill(); }
       else if (p.hat) { ctx.fillStyle = p.hat; rr(p.x - 5.2, hy - 5.2, 10.4, 3, 1.5); ctx.fill(); ctx.fillStyle = shade(p.hat, -0.25); ctx.fillRect(p.x - 5.2, hy - 2.6, 10.4, 0.9); }
       // face
       if (!back) {
@@ -1297,7 +1402,7 @@ const BeanBaronScene = (() => {
       }
       // name tag when tapped
       if (S.focus && S.focus.p === p) {
-        const label = p.name + (apron ? ' · barista' : '') + ' · ' + personMood(p);
+        const label = p.name + (p.role ? '' : apron ? ' · barista' : '') + ' · ' + personMood(p);
         ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         const w = ctx.measureText(label).width + 8, ty = hy - (p.bubble ? 24 : 12);
         ctx.fillStyle = 'rgba(29,15,8,.9)'; rr(p.x - w / 2, ty - 5, w, 10, 5); ctx.fill();
@@ -1306,6 +1411,7 @@ const BeanBaronScene = (() => {
     }
     function hyy0(ly, ry, p) { return p.face > 0 ? ly : ry; }
     function personMood(p) {
+      if (p.role) return { tapper: 'tapping away', runner: 'running orders', clerk: 'restocking the shelves', greeter: 'welcoming everyone', manager: 'keeping an eye on things' }[p.role];
       switch (p.state) {
         case 'arrive': return 'heading in';
         case 'queue': return 'waiting for a ' + p.drink.name;
@@ -1377,7 +1483,7 @@ const BeanBaronScene = (() => {
       drawBackground(g, night);
       drawShop(g, night, nightShift);
       // people sorted by depth, vehicles last (they are lowest on screen)
-      const people = S.customers.map(c => ({ y: c.y, f: () => drawPerson(c, false) })).concat(S.baristas.map(b => ({ y: b.y, f: () => drawPerson(b, true) })));
+      const people = S.customers.map(c => ({ y: c.y, f: () => drawPerson(c, false) })).concat(S.baristas.map(b => ({ y: b.y, f: () => drawPerson(b, true) }))).concat(S.staffFigs.map(b => ({ y: b.y, f: () => drawPerson(b, b.apron) })));
       for (const c of S.critters) if (c.kind === 'bird') drawCritter(c, night);
       people.sort((a, b) => a.y - b.y).forEach(p => p.f());
       for (const c of S.critters) if (c.kind === 'cat') drawCritter(c, night);
@@ -1411,7 +1517,7 @@ const BeanBaronScene = (() => {
       resize, state: S,
       poke(xp, yp) {
         const x = xp / 100 * W, y = yp / 100 * (S.visH || S.H) + (S.viewY || 0);
-        const all = S.customers.concat(S.baristas);
+        const all = S.customers.concat(S.baristas, S.staffFigs);
         let best = null, bd = 14;
         for (const p of all) { const d = Math.hypot(p.x - x, p.y - (y + 6)); if (d < bd) { bd = d; best = p; } }
         S.focus = best ? { p: best, until: S.t + 2.5 } : null;
@@ -1455,7 +1561,7 @@ function decodeSave(str) {
 // Older saves lack newer fields; defaults fill the gaps.
 function resumeFrom(save) {
   const fresh = E.newState(Date.now());
-  const s = E.fitCafe({ ...fresh, ...save, buffs: { ...fresh.buffs, ...(save.buffs || {}) }, gold: null, events: [], awayReport: null });
+  const s = E.fitCafe({ ...fresh, ...save, buffs: { ...fresh.buffs, ...(save.buffs || {}) }, staff: save.staff || {}, gold: null, events: [], awayReport: null });
   const away = (Date.now() - (save.savedAt || Date.now())) / 1000;
   return away > AWAY_MIN ? E.applyOffline(s, away) : s;
 }
@@ -1725,8 +1831,8 @@ function OrderCard({ game, o, onFill }) {
         <div className="flex items-center gap-3">
           <span className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center font-display font-bold text-lg text-espresso" style={{ background: `hsl(${hue} 55% 70%)` }}>{o.name[0]}</span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between"><span className="font-display font-semibold text-lg text-foam truncate">{o.name}</span><span className={"text-xs tabular " + (left < 15 ? 'text-ember font-bold' : 'text-latte/60')}>{Math.ceil(left)}s left</span></div>
-            <div className="text-xs text-latte/60">{fillable ? 'Everything is in the pantry.' : canBuy ? 'Short on stock, but you can buy the rest.' : 'Short on stock and cash.'}</div>
+            <div className="flex items-baseline justify-between"><span className="font-display font-semibold text-lg text-foam truncate">{o.name}{o.vip && <span className="ml-2 text-[10px] uppercase tracking-wider text-amber align-middle">★ food critic</span>}</span><span className={"text-xs tabular " + (left < 15 ? 'text-ember font-bold' : 'text-latte/60')}>{Math.ceil(left)}s left</span></div>
+            <div className="text-xs text-latte/60">{o.vip ? `Pays ×${3} and a rave review doubles income for a while. ` : ''}{fillable ? 'Everything is in the pantry.' : canBuy ? 'Short on stock, but you can buy the rest.' : 'Short on stock and cash.'}</div>
           </div>
         </div>
         <div className="mt-2.5 flex flex-col gap-1.5">
@@ -1807,7 +1913,7 @@ function Ticket({ game, o, onFill }) {
     <button onClick={() => onFill(o.id, !fillable)} disabled={!fillable && !canBuy}
       className={"relative shrink-0 w-[168px] text-left rounded-xl border px-2.5 pt-2 pb-3 overflow-hidden transition-transform active:scale-[.97] disabled:active:scale-100 "
         + (fillable ? "bg-roast border-mint/70" : canBuy ? "bg-roast border-amber/60" : "bg-espresso border-mocha/50")}>
-      <div className="flex justify-between items-baseline text-[11px]"><span className="font-bold text-foam truncate">{o.name}</span><span className={"tabular " + (left < 15 ? 'text-ember font-bold' : 'text-latte/60')}>{Math.ceil(left)}s</span></div>
+      <div className="flex justify-between items-baseline text-[11px]"><span className="font-bold text-foam truncate">{o.vip && <Icon name="Star" size={10} className="inline text-amber -mt-0.5 mr-0.5" />}{o.name}{o.vip ? ' · critic' : ''}</span><span className={"tabular " + (left < 15 ? 'text-ember font-bold' : 'text-latte/60')}>{Math.ceil(left)}s</span></div>
       <div className="mt-1 flex flex-col gap-0.5">
         {o.items.map(it => { const r = E.RECIPE_BY_ID[it.recipe]; return (
           <div key={it.recipe} className="flex items-center gap-1 text-xs text-latte/90"><Icon name={r.icon} size={12} className="text-amber shrink-0" /><span className="tabular">{it.n}×</span><span className="truncate">{r.name}</span></div>
@@ -1919,7 +2025,9 @@ function App() {
       else if (ev.type === 'gold') { showToast(ev.text, 'gold'); }
       else if (ev.type === 'cafe') { showToast(`Welcome to your ${E.CAFES[ev.tier].name}`, 'gold'); Sound.gold(); confetti(50, 45, 24); }
       else if (ev.type === 'order-new') { showToast(`New ticket from ${ev.name}`, 'order'); Sound.bell(); }
-      else if (ev.type === 'order-filled') { showToast(`${ev.name} paid ${E.fmtCash(ev.payout)}`, 'gold'); Sound.chime(); if (sceneRef.current) sceneRef.current.cheer('+' + E.fmtCash(ev.payout)); }
+      else if (ev.type === 'order-filled') { showToast(`${ev.vip ? 'The critic ' : ''}${ev.name} paid ${E.fmtCash(ev.payout)}`, 'gold'); Sound.chime(); if (sceneRef.current) sceneRef.current.cheer('+' + E.fmtCash(ev.payout)); }
+      else if (ev.type === 'review') { showToast(ev.text, 'gold'); Sound.gold(); confetti(50, 40, 20); }
+      else if (ev.type === 'staff') { const r = E.STAFF_BY_ID[ev.id]; showToast(ev.level > 1 ? `${r.name} promoted to level ${ev.level}` : `${r.name} hired`, 'ach'); Sound.chime(); }
       else if (ev.type === 'order-missed') { showToast(`${ev.name} gave up waiting. Streak reset.`, 'miss'); Sound.nope(); }
     }
     setGame(g => g.events.length ? { ...g, events: [] } : g);
@@ -1932,6 +2040,7 @@ function App() {
     for (const u of E.availableUpgrades(game)) now[u.id] = E.upgradeCost(game, u) <= game.cash;
     E.GENS.forEach((g, i) => { now['g' + i] = !E.cafeFull(game, i) && E.genCost(i, game.owned[i], 1) <= game.cash; });
     const nx = E.nextCafe(game); now.cafe = !!nx && nx.cost <= game.cash;
+    for (const r of E.STAFF) { const sn = E.staffNext(game, r.id); now['staff_' + r.id] = !!sn && sn.cost <= game.cash; }
     if (prevAff.current) {
       let changed = null;
       for (const id in now) if (now[id] && !prevAff.current[id]) (changed ||= {})[id] = Date.now();
@@ -2002,6 +2111,9 @@ function App() {
   const fillOrder = (id, buyMissing) => {
     if (E.fillOrder(gameRef.current, id, buyMissing)) setGame(g => E.fillOrder(g, id, buyMissing) || g); else Sound.nope();
   };
+  const hire = id => {
+    if (E.hireStaff(gameRef.current, id)) { setGame(g => E.hireStaff(g, id) || g); Sound.buy(); } else Sound.nope();
+  };
   const buyPerk = id => {
     if (E.buyPerk(gameRef.current, id)) { setGame(g => E.buyPerk(g, id) || g); Sound.chime(); showToast(E.PERK_BY_ID[id].name + ' unlocked', 'ach'); }
   };
@@ -2019,7 +2131,7 @@ function App() {
 
   const cps = E.cashPerSec(game);
   const tapV = E.tapValue(game);
-  const rush = E.buffActive(game, 'rush'), frenzy = E.buffActive(game, 'frenzy');
+  const rush = E.buffActive(game, 'rush'), frenzy = E.buffActive(game, 'frenzy'), review = E.buffActive(game, 'review');
   useEffect(() => { Music.setTempo(rush ? 108 : 84); }, [rush]);
 
   // A hint under the cup that follows what the player should do next.
@@ -2034,6 +2146,8 @@ function App() {
     if (nx && nx.cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)) && tab !== 'shop') return { text: `Your ${E.cafeOf(game).name} is full · move up in the Shop` };
     if ((game.orders || []).length && tab !== 'shop' && tab !== 'orders') return { text: `${game.orders[0].name} is waiting · open Orders to give it` };
     if ((game.orders || []).length && tab === 'orders') return { text: `Stock the pantry below to give ${game.orders[0].name}'s order` };
+    const hireable = E.STAFF.find(r => !E.staffLevel(game, r.id) && E.staffNext(game, r.id).cost <= game.cash);
+    if (hireable && tab !== 'shop') return { text: `You can hire a ${hireable.name} in the Shop` };
     const cheapUpg = E.availableUpgrades(game).find(u => E.upgradeCost(game, u) <= game.cash);
     if (cheapUpg && tab !== 'upgrades' && tab !== 'cafe') return { text: `${cheapUpg.name} is affordable in Upgrades` };
     if (E.rpGain(game) > 0 && tab !== 'prestige' && tab !== 'cafe') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
@@ -2066,6 +2180,7 @@ function App() {
           <span className={frenzy ? 'text-amber font-bold' : ''}>{E.fmtCash(tapV, tapV < 10 ? 1 : undefined)} per tap</span>
           {rush && <BuffChip icon="Flame" label={'×' + E.RUSH_MULT} left={E.buffLeft(game, 'rush')} />}
           {frenzy && <BuffChip icon="Zap" label={'×' + E.FRENZY_MULT + ' taps'} left={E.buffLeft(game, 'frenzy')} />}
+          {review && <BuffChip icon="Newspaper" label={'×' + E.REVIEW_MULT + ' review'} left={E.buffLeft(game, 'review')} />}
         </div>
       </header>
 
@@ -2105,7 +2220,7 @@ function App() {
 
         {/* tab panel */}
         {tab !== 'cafe' && <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
-          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} buyStock={buyStock} pulses={pulses} onMove={() => setConfirmMove(true)} />}
+          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} buyStock={buyStock} hire={hire} pulses={pulses} onMove={() => setConfirmMove(true)} />}
           {tab === 'orders' && <Orders game={game} qty={qty} setQty={setQty} buyStock={buyStock} onFill={fillOrder} />}
           {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
           {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
@@ -2178,7 +2293,7 @@ function App() {
         <Modal onClose={() => setConfirmPrestige(false)}>
           <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Sparkles" size={20} /><span className="text-xs font-bold uppercase tracking-widest">Sell the chain</span></div>
           <h2 className="font-display font-bold text-2xl text-foam mb-2">Walk away with {E.rpGain(game)} Roast Point{E.rpGain(game) === 1 ? '' : 's'}?</h2>
-          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade{E.perk(game, 'memory') ? ' except the ones Muscle Memory keeps' : ''}{E.perk(game, 'landlord') ? '' : ', and you are back to a coffee cart'}. You keep Roast Points, perks and achievements, and every point makes every cup worth 2% more, forever.</p>
+          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade{E.perk(game, 'memory') ? ' except the ones Muscle Memory keeps' : ''}{E.perk(game, 'landlord') ? '' : ', and you are back to a coffee cart'}{E.perk(game, 'crew') ? '' : '; the staff move on'}. You keep Roast Points, perks and achievements, and every point makes every cup worth 2% more, forever.</p>
           <div className="grid grid-cols-2 gap-2 text-sm mb-4">
             <div className="bg-espresso rounded-xl p-3"><div className="text-latte/60 text-xs uppercase tracking-wider">Now</div><div className="font-display text-xl text-foam">{game.rp} RP · +{game.rp * 2}%</div></div>
             <div className="bg-espresso rounded-xl p-3 border border-amber/50"><div className="text-amber text-xs uppercase tracking-wider">After</div><div className="font-display text-xl text-amber">{game.rp + E.rpGain(game)} RP · +{(game.rp + E.rpGain(game)) * 2}%</div></div>
@@ -2211,7 +2326,7 @@ function Eta({ game, cost }) {
   return <div className="text-[10px] text-latte/50 tabular">in {E.fmtTime(t)}</div>;
 }
 
-function Shop({ game, qty, setQty, buy, buyStock, pulses, onMove }) {
+function Shop({ game, qty, setQty, buy, buyStock, hire, pulses, onMove }) {
   const firstUnowned = game.owned.findIndex(n => n === 0);
   const visible = firstUnowned < 0 ? E.GENS.length : Math.min(E.GENS.length, firstUnowned + 2);
   const price = E.cupPrice(game);
@@ -2295,6 +2410,31 @@ function Shop({ game, qty, setQty, buy, buyStock, pulses, onMove }) {
               </div>
             </div>
             <FillBar ratio={full ? 1 : game.cash / cost} />
+          </Card>
+        );
+      })}
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Staff</span>
+        <span className="text-[11px] text-latte/50">they do the busywork</span>
+      </div>
+      {E.STAFF.map(r => {
+        const lv = E.staffLevel(game, r.id), cur = E.staffCfg(game, r.id), nx = E.staffNext(game, r.id);
+        const affordable = !!nx && nx.cost <= game.cash;
+        return (
+          <Card key={r.id} onClick={() => nx && hire(r.id)} affordable={affordable} disabled={!nx} pulseKey={pulses['staff_' + r.id]} className={!nx ? 'opacity-100' : ''}>
+            <div className="flex items-center gap-3 px-3 py-3 pb-4">
+              <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (lv ? "bg-mint text-espresso" : affordable ? "bg-amber text-espresso" : "bg-bean text-latte/70")}><Icon name={r.icon} size={24} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2"><span className="font-display font-semibold text-lg text-foam truncate">{r.name}</span><span className="text-xs text-latte/60 tabular">{lv ? `Lv ${lv}/${r.levels.length}` : 'not hired'}</span></div>
+                <div className="text-xs font-bold text-mint">{cur ? r.effect(cur) : r.blurb}</div>
+                <div className="text-xs text-latte/60 leading-snug mt-0.5">{nx ? (lv ? `Promote: ${r.effect(nx)}` : r.blurb) : 'Fully trained.'}</div>
+              </div>
+              {nx && <div className="text-right shrink-0">
+                <div className={"font-bold tabular " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(nx.cost)}</div>
+                <div className="text-[10px] text-latte/50 uppercase tracking-wider">{lv ? 'promote' : 'hire'}</div>
+              </div>}
+            </div>
+            {nx && <FillBar ratio={game.cash / nx.cost} />}
           </Card>
         );
       })}
@@ -2444,6 +2584,8 @@ function Stats({ game, setGame, showToast, onReset }) {
     ['Orders filled', game.ordersFilled || 0],
     ['Orders missed', game.ordersMissed || 0],
     ['Best order streak', game.bestStreak || 0],
+    ['Rave reviews', game.reviews || 0],
+    ['Staff', E.STAFF.filter(r => E.staffLevel(game, r.id)).map(r => `${r.name} ${E.staffLevel(game, r.id)}`).join(', ') || 'none yet'],
     ['Earned this run', E.fmtCash(game.runEarned)],
     ['Earned all time', E.fmtCash(game.lifetime)],
     ['Time played', E.fmtTime(game.playtime)],
