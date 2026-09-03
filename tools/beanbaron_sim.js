@@ -22,7 +22,7 @@ let seed = 12345; const rng = () => (seed = (seed * 1664525 + 1013904223) >>> 0)
 
 let s = E.newState(0);
 let t = 0; const DT = 0.5;
-const firstBuy = {}; const upgAt = []; let golds = 0;
+const firstBuy = {}; const upgAt = []; const moves = []; let golds = 0;
 let nextLog = 0, hit = null;
 // taps per second: eager at first, then the occasional poke
 const tps = t => t < 180 ? 5 : t < 900 ? 3 : t < 1800 ? 1.5 : 0.8;
@@ -35,7 +35,9 @@ while (t < MIN * 60) {
   let best = null;
   for (let gi = 0; gi < E.GENS.length; gi++) {
     const owned = calm.owned[gi];
-    for (const n of [1, Math.max(1, (E.nextMilestone(calm, owned) || owned + 1) - owned)]) {
+    const room = E.cafeCap(calm, gi) - owned;
+    if (room <= 0) continue;
+    for (const n of [1, Math.min(room, Math.max(1, (E.nextMilestone(calm, owned) || owned + 1) - owned))]) {
       const cost = E.genCost(gi, owned, n);
       const s2 = { ...calm, owned: calm.owned.slice() }; s2.owned[gi] += n;
       const d = value(s2, calm); if (d <= 0) continue;
@@ -50,6 +52,9 @@ while (t < MIN * 60) {
     const score = Math.max(0, (cost - s.cash) / income) + cost / d;
     if (!best || score < best.score) best = { score, type: 'upg', id: u.id, cost, name: u.name };
   }
+  // move up once the next place is affordable with money to spare for refitting
+  const nx = E.nextCafe(s);
+  if (nx && s.cash >= nx.cost * 1.5) { s = E.expandCafe(s); s.events = []; moves.push(nx.name + '@' + Math.round(t / 60)); continue; }
   if (best && best.cost <= s.cash) {
     if (best.type === 'gen') {
       if (s.owned[best.gi] === 0) firstBuy[E.GENS[best.gi].name] = t;
@@ -71,5 +76,6 @@ while (t < MIN * 60) {
 }
 console.log('\nfirst of each tier (min):', Object.entries(firstBuy).map(([k, v]) => `${k} ${(v / 60).toFixed(1)}`).join(', '));
 console.log('upgrades (min):', upgAt.join(', '));
+console.log('moves:', moves.join(', '));
 console.log('golden beans caught:', golds, '| achievements:', E.achCount(s) + '/' + E.ACH.length);
 console.log('\n$1T lifetime reached at', hit ? (hit / 60).toFixed(1) + ' min' : 'never', '| Roast Points banked by the end:', E.rpFor(s.lifetime));

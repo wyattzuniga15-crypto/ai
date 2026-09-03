@@ -12,6 +12,12 @@ first time) with the whole game in one file.
   up across town, plantations fill the hills, and the empire grows a skyline.
   A day-night cycle runs every eight minutes. Tap anywhere on it to brew, or
   open the **Café** tab for the full-size view with a live order ticker.
+- **Start on a coffee cart and move up.** Each premises caps how many of
+  each machine fit and which tiers exist at all: cart → Corner Kiosk →
+  Neighborhood Café → Grand Café → Coffee Palace, at $8K, $1M, $100M and
+  $10B. Moving keeps your cash and resets everything else, and every bigger
+  place sells each cup for more (×1.2 up to ×2.5). The scene redraws the
+  actual building each time, "for lease" neighbours included.
 - Tap the café to brew (space bar works too). Buy eight tiers of generators,
   from Drip Machine to Coffee Empire, each `1.15×` dearer per unit and
   doubling in output at 10, 25, 50 and 100 owned.

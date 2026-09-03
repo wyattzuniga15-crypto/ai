@@ -193,6 +193,22 @@ const BeanBaronEconomy = (() => {
   });
   const UPG_BY_ID = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 
+  // The premises. Each size caps how many of each generator fit (0 = that
+  // tier does not exist here yet) and sells every cup for more. Moving up
+  // keeps your cash and resets everything else.
+  const CAFES = [
+    { id: 'cart',   name: 'Coffee Cart',       cost: 0,     mult: 1,   caps: [10, 5, 2, 0, 0, 0, 0, 0],        blurb: 'A cart, an umbrella and a dream.' },
+    { id: 'kiosk',  name: 'Corner Kiosk',      cost: 8e3,   mult: 1.2, caps: [25, 15, 10, 3, 0, 0, 0, 0],      blurb: 'Four walls, two tables and one very loud grinder.' },
+    { id: 'cafe',   name: 'Neighborhood Café', cost: 1e6,   mult: 1.5, caps: [50, 50, 30, 25, 10, 0, 0, 0],    blurb: 'Regulars, a rug and a roaster out back.' },
+    { id: 'grand',  name: 'Grand Café',        cost: 100e6, mult: 2,   caps: [100, 100, 100, 50, 50, 25, 10, 0], blurb: 'Three rows of tables and a fleet outside.' },
+    { id: 'palace', name: 'Coffee Palace',     cost: 10e9,  mult: 2.5,   caps: null,                             blurb: 'No limits. Gold trim. A chandelier nobody asked for.' },
+  ];
+  const cafeOf = s => CAFES[Math.min(s.cafe || 0, CAFES.length - 1)];
+  const nextCafe = s => CAFES[(s.cafe || 0) + 1] || null;
+  const cafeCap = (s, gi) => { const c = cafeOf(s); return c.caps ? c.caps[gi] : Infinity; };
+  const cafeFor = gi => CAFES.find(c => !c.caps || c.caps[gi] > 0);
+  const cafeFull = (s, gi) => { const c = cafeCap(s, gi); return c > 0 && isFinite(c) && s.owned[gi] >= c; };
+
   // Perks are bought with Roast Points. Spending never lowers the +2% bonus,
   // which counts every point ever earned.
   const PERKS = [
@@ -204,6 +220,7 @@ const BeanBaronEconomy = (() => {
     { id: 'sharpnose', name: 'Sharp Nose',    cost: 4, icon: 'Wind',     desc: 'You can smell a good lot a mile off. Bean upgrades cost 30% less.' },
     { id: 'overdrive', name: 'Overdrive',     cost: 5, icon: 'Gauge',    desc: 'Machines keep doubling at 150, 200, 300 and 400 owned.' },
     { id: 'rushhour',  name: 'Rush Hour',     cost: 6, icon: 'Timer',    desc: 'Rush buffs from golden beans last twice as long.' },
+    { id: 'landlord',  name: 'Landlord',      cost: 3, icon: 'Building2', desc: 'You own the building. Selling the chain keeps your café.' },
   ];
   const PERK_BY_ID = Object.fromEntries(PERKS.map(p => [p.id, p]));
 
@@ -227,11 +244,16 @@ const BeanBaronEconomy = (() => {
   ACH.push({ id: 'allgens', name: 'Full House', desc: 'Own at least one of every tier.', icon: 'Trophy', test: s => s.owned.every(n => n >= 1) });
   ACH.push({ id: 'rate6', name: 'Cash Machine', desc: 'Earn $1.00M per second.', icon: 'Gauge', test: s => cashPerSec(s) >= 1e6 });
   ACH.push({ id: 'rate9', name: 'Money Printer', desc: 'Earn $1.00B per second.', icon: 'Gauge', test: s => cashPerSec(s) >= 1e9 });
+  ACH.push({ id: 'cafe2', name: 'Proper Address', desc: 'Move into a Neighborhood Café.', icon: 'Store', test: s => (s.cafe || 0) >= 2 });
+  ACH.push({ id: 'cafe3', name: 'Grand Opening', desc: 'Move into a Grand Café.', icon: 'Building2', test: s => (s.cafe || 0) >= 3 });
+  ACH.push({ id: 'cafe4', name: 'Palace Intrigue', desc: 'Move into the Coffee Palace.', icon: 'Crown', test: s => (s.cafe || 0) >= 4 });
 
   function newState(now) {
     return {
       v: 1,
       cash: 0,
+      cafe: 0,                 // index into CAFES
+      moves: 0,                // how many times the chain moved premises
       owned: GENS.map(() => 0),
       upgrades: {},            // id -> true
       perks: {},               // id -> true, bought with Roast Points
@@ -272,6 +294,14 @@ const BeanBaronEconomy = (() => {
     if (cash < unit) return 0;
     return Math.floor(Math.log(cash * (GROWTH - 1) / unit + 1) / Math.log(GROWTH));
   }
+  // How many of a tier a purchase would actually add: the quantity asked for,
+  // trimmed to what the premises still have room for.
+  function buyCount(s, gi, qty) {
+    const room = Math.max(0, cafeCap(s, gi) - s.owned[gi]);
+    if (room === 0) return 0;
+    const n = qty === 'max' ? maxAffordable(gi, s.owned[gi], s.cash) : qty;
+    return Math.min(n, room);
+  }
   function milestonesFor(s) { return perk(s, 'overdrive') ? MILESTONES.concat(EXTRA_MILESTONES) : MILESTONES; }
   function milestoneMult(s, owned) {
     let m = 1;
@@ -293,6 +323,7 @@ const BeanBaronEconomy = (() => {
   function priceMult(s) {
     let m = 1;
     for (const u of UPGRADES) if (u.kind === 'price' && has(s, u.id)) m *= u.mult;
+    m *= cafeOf(s).mult;                  // the premises
     m *= 1 + 0.02 * s.rp;                 // Roast Points
     m *= 1 + 0.01 * achCount(s);          // reputation
     if (perk(s, 'regulars')) m *= 1.25;
@@ -416,7 +447,7 @@ const BeanBaronEconomy = (() => {
   }
   function buyGen(s, gi, qty) {
     const owned = s.owned[gi];
-    const n = qty === 'max' ? maxAffordable(gi, owned, s.cash) : qty;
+    const n = buyCount(s, gi, qty);
     if (n <= 0) return null;
     const cost = genCost(gi, owned, n);
     if (cost > s.cash + 1e-9) return null;
@@ -442,11 +473,27 @@ const BeanBaronEconomy = (() => {
   function applyHeadStart(s) {
     return { ...s, cash: Math.max(s.cash, 2500), upgrades: { ...s.upgrades, beans0: true } };
   }
+  // Moving to bigger premises: the money comes along, nothing else does.
+  function expandCafe(s) {
+    const nx = nextCafe(s);
+    if (!nx || nx.cost > s.cash + 1e-9) return null;
+    let n = { ...s, cash: s.cash - nx.cost, cafe: s.cafe + 1, moves: (s.moves || 0) + 1, owned: GENS.map(() => 0), upgrades: {} };
+    if (perk(s, 'memory')) { if (has(s, 'tap0')) n.upgrades.tap0 = true; if (has(s, 'training')) n.upgrades.training = true; }
+    return checkAchievements(withEvent(n, { type: 'cafe', tier: n.cafe }));
+  }
+  // Older saves may hold more than their premises allow; grow the premises to fit.
+  function fitCafe(s) {
+    let c = s.cafe || 0;
+    while (CAFES[c].caps && s.owned.some((n, i) => n > CAFES[c].caps[i])) c++;
+    return c === (s.cafe || 0) ? s : { ...s, cafe: c };
+  }
   function prestige(s, now) {
     const gain = rpGain(s);
     if (!prestigeUnlocked(s) || gain <= 0) return null;
     let n = newState(now);
     n.rp = s.rp + gain;
+    n.cafe = perk(s, 'landlord') ? s.cafe : 0;
+    n.moves = s.moves || 0;
     n.rpSpent = s.rpSpent; n.perks = s.perks; n.achievements = s.achievements;
     n.prestiges = s.prestiges + 1;
     n.lifetime = s.lifetime; n.cups = s.cups; n.taps = s.taps; n.playtime = s.playtime;
@@ -484,7 +531,7 @@ const BeanBaronEconomy = (() => {
   }
 
   return { GROWTH, MILESTONES, PRESTIGE_UNIT, OFFLINE_CAP, RUSH_MULT, FRENZY_MULT, GOLD_LIFE,
-    GENS, UPGRADES, UPG_BY_ID, PERKS, PERK_BY_ID, ACH,
+    GENS, UPGRADES, UPG_BY_ID, PERKS, PERK_BY_ID, ACH, CAFES, cafeOf, nextCafe, cafeCap, cafeFor, cafeFull, buyCount, expandCafe, fitCafe,
     newState, has, perk, rpAvailable, achCount, buffActive, buffLeft,
     genCost, maxAffordable, milestonesFor, milestoneMult, nextMilestone, gearMult, genMult, genCups,
     cupsPerSec, priceMult, cupPrice, cashPerSec, tapMult, tapShare, tapValue, offlineMult, offlineCap, upgradeCost,
@@ -517,9 +564,18 @@ const BeanBaronScene = (() => {
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
-  const TABLE_X = [45, 112, 180, 248, 316];
+  // What each premises size looks like: building extents, table rows, how
+  // many machines of each kind fit on the back wall.
+  const TIERS = [
+    { x0: 0,  x1: 360, interior: false, rows: 0, slots: [1, 1, 0], registerX: 124 },
+    { x0: 40, x1: 220, interior: true,  rows: 1, slots: [2, 1, 1] },
+    { x0: 20, x1: 300, interior: true,  rows: 2, slots: [3, 2, 1] },
+    { x0: 0,  x1: 360, interior: true,  rows: 3, slots: [4, 3, 2] },
+    { x0: 0,  x1: 360, interior: true,  rows: 3, slots: [4, 3, 2], fancy: true },
+  ];
 
-  function layout(H) {
+  function layout(H, tier) {
+    const T = TIERS[Math.max(0, Math.min(tier || 0, TIERS.length - 1))];
     const extra = Math.max(0, H - 300);
     const bgBottom = Math.round(62 + extra * 0.5);
     const interiorTop = bgBottom + 4;
@@ -530,11 +586,20 @@ const BeanBaronScene = (() => {
     const counterY = interiorTop + 32;      // counter top edge (14 tall)
     const queueY = counterY + 24;
     const tables = [];
-    for (let y = queueY + 30, r = 0; y <= interiorBottom - 26 && r < 3; y += 44, r++) {
-      TABLE_X.forEach(x => tables.push({ x, y, seats: [{ x: x - 14, y: y + 1, taken: null }, { x: x + 14, y: y + 1, taken: null }] }));
+    for (let y = queueY + 30, r = 0; y <= interiorBottom - 26 && r < T.rows; y += 44, r++) {
+      for (let x = T.x0 + 40; x <= T.x1 - 26; x += 67) tables.push({ x, y, seats: [{ x: x - 14, y: y + 1, taken: null }, { x: x + 14, y: y + 1, taken: null }] });
     }
-    return { H, extra, bgBottom, interiorTop, interiorBottom, backY, laneY, counterY, queueY, tables,
-      doorX: 60, registerX: 128, aisleX: 79, bottomCorridor: interiorBottom - 12,
+    const registerX = T.registerX != null ? T.registerX : T.x0 + 84;
+    const wide = T.x1 - T.x0 >= 300;
+    let cx = T.interior ? T.x0 + (wide ? 100 : 60) : registerX + 4;
+    const slots = { drip: [], espresso: [], roaster: [] };
+    for (let i = 0; i < T.slots[0]; i++) { cx += 10; slots.drip.push(cx); cx += 10; }
+    for (let i = 0; i < T.slots[1]; i++) { cx += 14; slots.espresso.push(cx); cx += 16; }
+    for (let i = 0; i < T.slots[2]; i++) { cx += 14; slots.roaster.push(cx); cx += 16; }
+    const doorX = T.interior ? T.x0 + 10 : registerX - 18;
+    const maxQueue = Math.max(2, Math.min(8, Math.floor((T.x1 - 8 - registerX) / 15)));
+    return { H, T, tier, extra, wide, bgBottom, interiorTop, interiorBottom, backY, laneY, counterY, queueY, tables, slots, maxQueue,
+      doorX, registerX, aisleX: doorX, bottomCorridor: interiorBottom - 12,
       walkY: interiorBottom + wallH + walkH / 2, roadTop: interiorBottom + wallH + walkH,
       lane1: H - roadH + 9 + (roadH - 34) * 0.3, lane2: H - roadH + 24 + (roadH - 34) * 0.7 };
   }
@@ -542,7 +607,7 @@ const BeanBaronScene = (() => {
   function create(canvas, getGame, E) {
     const ctx = canvas.getContext('2d');
     const S = {
-      t: 0, scale: 1, H: 277, L: layout(277),
+      t: 0, scale: 1, H: 277, tier: getGame().cafe || 0, L: layout(277, getGame().cafe || 0),
       customers: [], baristas: [], vehicles: [], particles: [], log: [],
       machines: [], counts: null, spawnT: 1.5, passT: 2, tapJiggle: 0,
       served: 0, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
@@ -557,11 +622,12 @@ const BeanBaronScene = (() => {
       canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
       S.scale = cssW / W;
       S.H = cssH / S.scale;
-      S.L = layout(S.H);
+      S.L = layout(S.H, S.tier);
       // the room changed shape: clear the floor and let it refill
       S.customers = [];
       for (const t of S.L.tables) for (const s of t.seats) s.taken = null;
       for (const b of S.baristas) { b.state = 'idle'; b.customer = null; b.machine = null; b.cup = false; b.y = S.L.laneY; b.home.y = S.L.laneY; }
+      S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; b.x = b.home.x; });
       for (const m of S.machines) if (m.type !== 'roaster') m.busy = false;
       S.spawnT = Math.min(S.spawnT, 0.5);
       rebuildMachines(true);
@@ -575,11 +641,12 @@ const BeanBaronScene = (() => {
       const key = g.owned.join(',');
       if (!force && S.counts === key) return;
       S.counts = key;
-      const drips = Math.min(4, g.owned[0]), esp = Math.min(3, g.owned[1]), roast = Math.min(2, g.owned[3]);
+      const sl = S.L.slots;
+      const drips = Math.min(sl.drip.length, g.owned[0]), esp = Math.min(sl.espresso.length, g.owned[1]), roast = Math.min(sl.roaster.length, g.owned[3]);
       const m = [];
-      for (let i = 0; i < drips; i++) m.push({ type: 'drip', x: 112 + i * 20, busy: false, anim: 0 });
-      for (let i = 0; i < esp; i++) m.push({ type: 'espresso', x: 202 + i * 30, busy: false, anim: 0 });
-      for (let i = 0; i < roast; i++) m.push({ type: 'roaster', x: 306 + i * 30, busy: true, anim: rnd(0, 6) });
+      for (let i = 0; i < drips; i++) m.push({ type: 'drip', x: sl.drip[i], busy: false, anim: 0 });
+      for (let i = 0; i < esp; i++) m.push({ type: 'espresso', x: sl.espresso[i], busy: false, anim: 0 });
+      for (let i = 0; i < roast; i++) m.push({ type: 'roaster', x: sl.roaster[i], busy: true, anim: rnd(0, 6) });
       // keep animation phases of survivors
       for (const n of m) { const o = S.machines.find(o => o.type === n.type && o.x === n.x); if (o) { n.anim = o.anim; n.busy = o.busy; } }
       S.machines = m;
@@ -589,6 +656,7 @@ const BeanBaronScene = (() => {
         S.baristas.push({ x: S.L.registerX + 12 + i * 22, y: S.L.laneY, home: { x: S.L.registerX + 12 + i * 22, y: S.L.laneY }, state: 'idle', t: 0, cup: false, skin: pick(SKIN), hair: pick(HAIR), owner: i === 0, walk: 0 });
       }
       while (S.baristas.length > nb) { const b = S.baristas.pop(); if (b.customer) b.customer.state = 'queue'; if (b.machine) b.machine.busy = false; }
+      S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; });
       const nv = g.owned[4] >= 30 ? 3 : g.owned[4] >= 10 ? 2 : g.owned[4] >= 1 ? 1 : 0;
       const vans = S.vehicles.filter(v => v.kind === 'van');
       while (vans.length < nv) { const v = { kind: 'van', x: rnd(-60, W + 60), lane: 1, speed: rnd(34, 44), color: '#D9642A', wheel: 0 }; S.vehicles.push(v); vans.push(v); }
@@ -623,8 +691,8 @@ const BeanBaronScene = (() => {
       const fromLeft = Math.random() < 0.5;
       const q = queued().length;
       const c = person({ drink: pick(DRINKS), x: fromLeft ? -12 : W + 12, y: L.walkY + rnd(-3, 3), state: 'arrive', qi: q });
-      if (q >= 8) { c.state = 'passby'; c.path = [{ x: fromLeft ? W + 16 : -16, y: c.y }]; S.customers.push(c); return; }
-      c.path = [{ x: L.doorX, y: L.walkY }, { x: L.doorX, y: L.bottomCorridor }, { x: L.aisleX, y: L.bottomCorridor }, { x: L.aisleX, y: L.queueY }, queueSpot(q)];
+      if (q >= L.maxQueue) { c.state = 'passby'; c.path = [{ x: fromLeft ? W + 16 : -16, y: c.y }]; S.customers.push(c); return; }
+      c.path = [{ x: L.doorX, y: L.walkY }, { x: L.doorX, y: L.queueY }, queueSpot(q)];
       c.state = 'arrive';
       S.customers.push(c);
     }
@@ -655,7 +723,9 @@ const BeanBaronScene = (() => {
           case 'toTable': if (followPath(c, speed, dt)) { c.state = 'sit'; c.t = rnd(7, 16); c.face = c.x < c.table.x ? 1 : -1; } break;
           case 'sit': c.t -= dt; if (c.t <= 0) { c.seat.taken = null; c.table.cup = null; c.holding = false; c.state = 'leave'; c.path = null; log(`${c.name} left happy`); } break;
           case 'leave': {
-            if (!c.path) c.path = [{ x: c.x, y: L.bottomCorridor }, { x: L.doorX, y: L.bottomCorridor }, { x: L.doorX, y: L.walkY }, { x: Math.random() < 0.5 ? -16 : W + 16, y: L.walkY + rnd(-3, 3) }];
+            if (!c.path) c.path = c.table
+              ? [{ x: c.x, y: L.bottomCorridor }, { x: L.doorX, y: L.bottomCorridor }, { x: L.doorX, y: L.walkY }, { x: Math.random() < 0.5 ? -16 : W + 16, y: L.walkY + rnd(-3, 3) }]
+              : [{ x: L.doorX, y: c.y }, { x: L.doorX, y: L.walkY }, { x: Math.random() < 0.5 ? -16 : W + 16, y: L.walkY + rnd(-3, 3) }];
             if (followPath(c, speed, dt)) c.dead = true;
             break;
           }
@@ -708,6 +778,7 @@ const BeanBaronScene = (() => {
     function update(dt) {
       const g = getGame();
       S.t += dt;
+      if ((g.cafe || 0) !== S.tier) { S.tier = g.cafe || 0; resize(); }
       rebuildMachines(false);
       const rush = E.buffActive(g, 'rush');
       const cps = E.cupsPerSec(g);
@@ -800,70 +871,85 @@ const BeanBaronScene = (() => {
     }
 
     function drawShop(g, night, nightShift) {
-      const L = S.L;
-      // building body
-      ctx.fillStyle = '#4A2C1A'; ctx.fillRect(0, L.bgBottom, W, L.interiorBottom + 8 - L.bgBottom);
-      // floor tiles
+      const L = S.L, T = L.T, x0 = T.x0, x1 = T.x1, bw = x1 - x0;
       const dim = night * (nightShift ? 0.12 : 0.35);
-      for (let y = L.interiorTop; y < L.interiorBottom; y += 12) for (let x = 0; x < W; x += 12) {
-        ctx.fillStyle = mix(((x + y) / 12) % 2 ? '#e8d3b2' : '#dcc39e', '#2b170d', dim); ctx.fillRect(x, y, 12, Math.min(12, L.interiorBottom - y));
+      const cx = (x0 + x1) / 2;
+      if (!T.interior) {
+        // a plaza with a coffee cart on it
+        ctx.fillStyle = mix('#d9d0c0', '#3a3646', night * 0.7); ctx.fillRect(0, L.bgBottom, W, L.interiorBottom + 8 - L.bgBottom);
+        ctx.strokeStyle = 'rgba(0,0,0,.06)'; ctx.lineWidth = 1;
+        for (let y = L.bgBottom + 10; y < L.interiorBottom + 8; y += 14) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+        for (let x = 10; x < W; x += 28) { ctx.beginPath(); ctx.moveTo(x, L.bgBottom); ctx.lineTo(x, L.interiorBottom + 8); ctx.stroke(); }
+        for (const tx of [40, 320]) { ctx.fillStyle = '#6b4530'; ctx.fillRect(tx - 2, L.interiorTop + 18, 4, 16); ctx.fillStyle = mix('#4f8a45', '#1b3323', night * 0.7); circle(tx, L.interiorTop + 12, 12); ctx.fill(); circle(tx - 8, L.interiorTop + 18, 8); ctx.fill(); circle(tx + 8, L.interiorTop + 18, 8); ctx.fill(); }
+        for (const bx of [250, 300]) { ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(bx, L.queueY + 26, 30, 6, 2); ctx.fill(); ctx.fillRect(bx + 3, L.queueY + 32, 3, 5); ctx.fillRect(bx + 24, L.queueY + 32, 3, 5); }
+        // the cart: body, wheels, umbrella, sign
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(150, L.counterY + 18, 54, 4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(100, L.counterY - 2, 100, 18, 4); ctx.fill();
+        ctx.fillStyle = mix('#a97452', '#2b170d', dim); rr(100, L.counterY - 2, 100, 5, 3); ctx.fill();
+        ctx.fillStyle = '#D9642A'; for (let k = 0; k < 5; k++) ctx.fillRect(104 + k * 20, L.counterY + 6, 10, 8);
+        ctx.fillStyle = '#1d1d1d'; circle(112, L.counterY + 17, 4); ctx.fill(); circle(188, L.counterY + 17, 4); ctx.fill();
+        ctx.fillStyle = '#2e2e2e'; ctx.fillRect(149, L.backY - 12, 2, 46);
+        ctx.fillStyle = '#D9642A'; ctx.beginPath(); ctx.arc(150, L.backY - 10, 46, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#F6E7CF'; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(150, L.backY - 10, 46, Math.PI + k * Math.PI / 4 + Math.PI / 8, Math.PI + k * Math.PI / 4 + Math.PI / 4); ctx.lineTo(150, L.backY - 10); ctx.closePath(); ctx.fill(); }
+        ctx.fillStyle = '#1d0f08'; rr(118, L.backY - 8, 64, 9, 2); ctx.fill();
+        ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('BEAN BARON', 150, L.backY - 3.4);
+        for (const m of S.machines) drawMachine(m, dim, L.counterY - 14);
+        drawBadges(g, L.counterY - 16);
+        drawRegisterAndCup(dim, L.registerX, x0 + 104);
+      } else {
+        // neighbours first, then the building on top
+        drawNeighbours(night);
+        ctx.fillStyle = '#4A2C1A'; ctx.fillRect(x0, L.bgBottom, bw, L.interiorBottom + 8 - L.bgBottom);
+        const tileA = T.fancy ? '#f1e6d2' : '#e8d3b2', tileB = T.fancy ? '#e2d3ba' : '#dcc39e';
+        for (let y = L.interiorTop; y < L.interiorBottom; y += 12) for (let x = x0; x < x1; x += 12) {
+          ctx.fillStyle = mix(((x - x0 + y) / 12) % 2 ? tileA : tileB, '#2b170d', dim); ctx.fillRect(x, y, Math.min(12, x1 - x), Math.min(12, L.interiorBottom - y));
+        }
+        ctx.fillStyle = mix(T.fancy ? '#8a5a3c' : '#6B4530', '#2b170d', dim); ctx.fillRect(x0, L.interiorTop, bw, 4);
+        if (T.fancy) { ctx.fillStyle = '#F2A65A'; ctx.fillRect(x0, L.interiorTop + 3, bw, 1); ctx.fillRect(x0, L.interiorBottom - 1, bw, 1); }
+        // machines + badges
+        for (const m of S.machines) drawMachine(m, dim, L.backY);
+        drawBadges(g, L.backY - 2);
+        // chalkboard, shelf of bean bags when there is room
+        ctx.fillStyle = '#1f2a24'; rr(x0 + 14, L.backY - 1, 40, 15, 2); ctx.fill(); ctx.strokeStyle = '#8a5a3c'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 4px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('MENU', x0 + 17, L.backY + 2.5);
+        ctx.fillStyle = 'rgba(246,231,207,.8)'; for (let k = 0; k < 3; k++) { ctx.fillRect(x0 + 17, L.backY + 6 + k * 2.6, 22 + (k % 2) * 8, 1); ctx.fillRect(x0 + 46, L.backY + 6 + k * 2.6, 5, 1); }
+        if (L.wide) for (let k = 0; k < 3; k++) { ctx.fillStyle = k === 1 ? '#a97452' : '#8a5a3c'; rr(x0 + 60 + k * 12, L.backY + 4, 9, 10, 2); ctx.fill(); ctx.fillStyle = '#F6E7CF'; ctx.fillRect(x0 + 62 + k * 12, L.backY + 7, 5, 3); }
+        // chandelier for the palace
+        if (T.fancy && L.tables.length) { const ly = L.tables[0].y - 30; ctx.strokeStyle = '#F2A65A'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, ly, 12, 0, Math.PI); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - 12, ly); ctx.lineTo(cx + 12, ly); ctx.stroke(); for (const dx of [-12, 0, 12]) { ctx.fillStyle = '#ffd27a'; circle(cx + dx, ly + (dx ? 0 : 12), 2.2); ctx.fill(); const gl = ctx.createRadialGradient(cx + dx, ly + (dx ? 0 : 12), 1, cx + dx, ly + (dx ? 0 : 12), 8); gl.addColorStop(0, 'rgba(255,210,122,.45)'); gl.addColorStop(1, 'rgba(255,210,122,0)'); ctx.fillStyle = gl; circle(cx + dx, ly + (dx ? 0 : 12), 8); ctx.fill(); } }
+        // counter
+        ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(x0 + 52, L.counterY, bw - 56, 14, 3); ctx.fill();
+        ctx.fillStyle = mix('#a97452', '#2b170d', dim); rr(x0 + 52, L.counterY, bw - 56, 4, 2); ctx.fill();
+        if (T.fancy) { ctx.fillStyle = '#F2A65A'; ctx.fillRect(x0 + 52, L.counterY + 12, bw - 56, 1.5); }
+        drawRegisterAndCup(dim, L.registerX, x0 + 64);
+        // pastry case
+        if (bw >= 170) { ctx.fillStyle = 'rgba(255,255,255,.55)'; rr(x1 - 60, L.counterY - 7, 42, 9, 2); ctx.fill(); ctx.fillStyle = '#d98a4a'; circle(x1 - 50, L.counterY - 2, 2.2); ctx.fill(); ctx.fillStyle = '#c94c6d'; circle(x1 - 40, L.counterY - 2, 2.2); ctx.fill(); ctx.fillStyle = '#e2b53d'; circle(x1 - 30, L.counterY - 2, 2.2); ctx.fill(); }
+        // rug, plants, sofa corner
+        if (L.tables.length) {
+          const top = L.tables[0].y - 18, bottom = L.tables[L.tables.length - 1].y + 18;
+          ctx.fillStyle = T.fancy ? 'rgba(201,76,61,.25)' : 'rgba(217,100,42,.16)'; rr(x0 + 18, top, bw - 36, bottom - top, 6); ctx.fill();
+          ctx.strokeStyle = T.fancy ? 'rgba(242,166,90,.7)' : 'rgba(138,90,60,.45)'; ctx.lineWidth = 1.2; rr(x0 + 23, top + 5, bw - 46, bottom - top - 10, 4); ctx.stroke();
+        }
+        for (const px of [x1 - 10].concat(bw >= 200 ? [x0 + 28] : [])) { ctx.fillStyle = '#b5563a'; rr(px - 5, L.interiorBottom - 12, 10, 8, 2); ctx.fill(); ctx.fillStyle = mix('#3f7a3a', '#173020', dim); circle(px - 3, L.interiorBottom - 15, 4); ctx.fill(); circle(px + 3, L.interiorBottom - 16, 4.5); ctx.fill(); circle(px, L.interiorBottom - 20, 4); ctx.fill(); }
+        if (bw >= 300 && L.interiorBottom - (L.tables.length ? L.tables[L.tables.length - 1].y : L.queueY) > 60) {
+          const sy = L.interiorBottom - 34;
+          ctx.fillStyle = mix('#7a4a2e', '#2b170d', dim); rr(x0 + 200, sy, 60, 16, 4); ctx.fill();
+          ctx.fillStyle = mix('#d95d39', '#4a2c1a', dim); rr(x0 + 204, sy + 3, 52, 11, 3); ctx.fill();
+          ctx.fillStyle = mix('#F2A65A', '#4a2c1a', dim); rr(x0 + 208, sy + 5, 10, 7, 2); ctx.fill(); rr(x0 + 242, sy + 5, 10, 7, 2); ctx.fill();
+          ctx.fillStyle = mix('#6B4530', '#2b170d', dim); rr(x0 + 270, sy + 2, 22, 12, 3); ctx.fill();
+          ctx.fillStyle = 'rgba(246,231,207,.9)'; for (let k = 0; k < 4; k++) ctx.fillRect(x0 + 273 + k * 5, sy + 4, 3, 8);
+        }
+        if (T.fancy) { ctx.fillStyle = 'rgba(201,76,61,.55)'; ctx.fillRect(L.doorX - 7, L.queueY + 8, 14, L.interiorBottom - L.queueY - 8); }
+        for (const t of L.tables) drawTable(t, dim);
+        // front wall, windows and door
+        ctx.fillStyle = '#4A2C1A'; ctx.fillRect(x0, L.interiorBottom, bw, 8);
+        for (let wx = x0 + 34; wx <= x1 - 40; wx += 60) { ctx.fillStyle = night > 0.4 && nightShift ? '#ffd27a' : mix('#bfe3f5', '#2a2140', night); ctx.fillRect(wx, L.interiorBottom + 1, 34, 6); }
+        ctx.fillStyle = '#e8d3b2'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 10); ctx.fillStyle = '#8a5a3c'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 2);
+        // awning + sign
+        for (let x = x0; x < x1; x += 20) { ctx.fillStyle = ((x - x0) / 20) % 2 ? (T.fancy ? '#F2A65A' : '#D9642A') : '#F6E7CF'; ctx.fillRect(x, L.interiorBottom + 8, Math.min(20, x1 - x), 4); }
+        const sw = Math.min(96, bw - 20);
+        ctx.fillStyle = '#1d0f08'; rr(cx - sw / 2, L.interiorBottom + 6, sw, 9, 2.5); ctx.fill();
+        ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 7px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(T.fancy ? 'BEAN BARON PALACE' : 'BEAN BARON', cx, L.interiorBottom + 10.8);
       }
-      // back wall shelf with beans and bags
-      ctx.fillStyle = mix('#6B4530', '#2b170d', dim); ctx.fillRect(0, L.interiorTop, W, 4);
-      // machines
-      for (const m of S.machines) drawMachine(m, dim);
-      // machine group badges
-      badgeIf(g.owned[0], 112 + Math.min(4, g.owned[0]) * 10 - 10, L.backY - 2, g.owned[0]);
-      badgeIf(g.owned[1], 202 + Math.min(3, g.owned[1]) * 15 - 15, L.backY - 2, g.owned[1]);
-      badgeIf(g.owned[3], 306 + Math.min(2, g.owned[3]) * 15 - 15, L.backY - 2, g.owned[3]);
-      // counter
-      ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(56, L.counterY, W - 60, 14, 3); ctx.fill();
-      ctx.fillStyle = mix('#a97452', '#2b170d', dim); rr(56, L.counterY, W - 60, 4, 2); ctx.fill();
-      // register
-      ctx.fillStyle = '#2e2e2e'; rr(L.registerX - 5, L.counterY - 6, 10, 8, 1.5); ctx.fill();
-      ctx.fillStyle = '#9CC98B'; ctx.fillRect(L.registerX - 3, L.counterY - 4, 6, 2);
-      // pastry case
-      ctx.fillStyle = 'rgba(255,255,255,.55)'; rr(W - 60, L.counterY - 7, 42, 9, 2); ctx.fill();
-      ctx.fillStyle = '#d98a4a'; circle(W - 50, L.counterY - 2, 2.2); ctx.fill(); ctx.fillStyle = '#c94c6d'; circle(W - 40, L.counterY - 2, 2.2); ctx.fill(); ctx.fillStyle = '#e2b53d'; circle(W - 30, L.counterY - 2, 2.2); ctx.fill();
-      // the big self-serve cup (the tap target) at the left end of the counter
-      const j = Math.sin(S.tapJiggle * 12) * S.tapJiggle * 2;
-      ctx.save(); ctx.translate(80, L.counterY + 1); ctx.scale(1 + S.tapJiggle * 0.15, 1 - S.tapJiggle * 0.1); ctx.rotate(j * 0.1);
-      ctx.fillStyle = '#F6E7CF'; rr(-9, -8, 18, 16, 3); ctx.fill(); ctx.strokeStyle = '#D9642A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(11, 0, 4, -Math.PI / 2, Math.PI / 2); ctx.stroke();
-      ctx.fillStyle = '#D9642A'; ctx.fillRect(-9, -2, 18, 3);
-      for (let k = 0; k < 3; k++) { const ph = (S.t * 0.8 + k * 0.33) % 1; ctx.fillStyle = `rgba(246,231,207,${(1 - ph) * 0.7})`; circle(-4 + k * 4 + Math.sin(ph * 6) * 1.5, -10 - ph * 12, 1.6 + ph * 1.2); ctx.fill(); }
-      ctx.restore();
-      // menu chalkboard on the back wall, left of the machines
-      ctx.fillStyle = '#1f2a24'; rr(14, L.backY - 1, 40, 15, 2); ctx.fill(); ctx.strokeStyle = '#8a5a3c'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 4px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('MENU', 17, L.backY + 2.5);
-      ctx.fillStyle = 'rgba(246,231,207,.8)'; for (let k = 0; k < 3; k++) { ctx.fillRect(17, L.backY + 6 + k * 2.6, 22 + (k % 2) * 8, 1); ctx.fillRect(46, L.backY + 6 + k * 2.6, 5, 1); }
-      // shelf of bean bags and cups, right of the chalkboard
-      for (let k = 0; k < 3; k++) { ctx.fillStyle = k === 1 ? '#a97452' : '#8a5a3c'; rr(60 + k * 12, L.backY + 4, 9, 10, 2); ctx.fill(); ctx.fillStyle = '#F6E7CF'; ctx.fillRect(62 + k * 12, L.backY + 7, 5, 3); }
-      // rug under the tables
-      if (L.tables.length) {
-        const top = L.tables[0].y - 18, bottom = L.tables[L.tables.length - 1].y + 18;
-        ctx.fillStyle = 'rgba(217,100,42,.16)'; rr(18, top, W - 36, bottom - top, 6); ctx.fill();
-        ctx.strokeStyle = 'rgba(138,90,60,.45)'; ctx.lineWidth = 1.2; rr(23, top + 5, W - 46, bottom - top - 10, 4); ctx.stroke();
-      }
-      // potted plants in the front corners, a sofa corner when there is room
-      for (const px of [10, W - 10]) { ctx.fillStyle = '#b5563a'; rr(px - 5, L.interiorBottom - 12, 10, 8, 2); ctx.fill(); ctx.fillStyle = mix('#3f7a3a', '#173020', dim); circle(px - 3, L.interiorBottom - 15, 4); ctx.fill(); circle(px + 3, L.interiorBottom - 16, 4.5); ctx.fill(); circle(px, L.interiorBottom - 20, 4); ctx.fill(); }
-      if (L.interiorBottom - (L.tables.length ? L.tables[L.tables.length - 1].y : L.queueY) > 60) {
-        const sy = L.interiorBottom - 34;
-        ctx.fillStyle = mix('#7a4a2e', '#2b170d', dim); rr(200, sy, 60, 16, 4); ctx.fill();
-        ctx.fillStyle = mix('#d95d39', '#4a2c1a', dim); rr(204, sy + 3, 52, 11, 3); ctx.fill();
-        ctx.fillStyle = mix('#F2A65A', '#4a2c1a', dim); rr(208, sy + 5, 10, 7, 2); ctx.fill(); rr(242, sy + 5, 10, 7, 2); ctx.fill();
-        ctx.fillStyle = mix('#6B4530', '#2b170d', dim); rr(270, sy + 2, 22, 12, 3); ctx.fill();
-        ctx.fillStyle = 'rgba(246,231,207,.9)'; for (let k = 0; k < 4; k++) ctx.fillRect(273 + k * 5, sy + 4, 3, 8);
-      }
-      // tables
-      for (const t of L.tables) drawTable(t, dim);
-      // front wall, windows and door
-      ctx.fillStyle = '#4A2C1A'; ctx.fillRect(0, L.interiorBottom, W, 8);
-      for (const wx of [110, 170, 230, 290]) { ctx.fillStyle = night > 0.4 && nightShift ? '#ffd27a' : mix('#bfe3f5', '#2a2140', night); ctx.fillRect(wx, L.interiorBottom + 1, 34, 6); }
-      ctx.fillStyle = '#e8d3b2'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 10); ctx.fillStyle = '#8a5a3c'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 2);
-      // awning + sign
-      ctx.fillStyle = '#D9642A'; for (let x = 0; x < W; x += 20) { ctx.fillStyle = (x / 20) % 2 ? '#D9642A' : '#F6E7CF'; ctx.fillRect(x, L.interiorBottom + 8, 20, 4); }
-      ctx.fillStyle = '#1d0f08'; rr(132, L.interiorBottom + 6, 96, 9, 2.5); ctx.fill();
-      ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 7px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('BEAN BARON', 180, L.interiorBottom + 10.8);
       // sidewalk + road
       ctx.fillStyle = mix('#cfc6b8', '#4a4652', night * 0.7); ctx.fillRect(0, L.interiorBottom + 12, W, L.roadTop - L.interiorBottom - 12);
       ctx.fillStyle = mix('#5a5a60', '#1f1f28', night * 0.7); ctx.fillRect(0, L.roadTop, W, S.H - L.roadTop);
@@ -875,6 +961,37 @@ const BeanBaronScene = (() => {
         ctx.fillStyle = night > 0.4 ? '#ffd27a' : '#c9c9c9'; circle(lx, L.roadTop - 14, 2); ctx.fill();
       }
     }
+    // Plain buildings either side of a small café, one of them for lease.
+    function drawNeighbours(night) {
+      const L = S.L, T = L.T;
+      const gaps = []; if (T.x0 > 0) gaps.push([0, T.x0, 'left']); if (T.x1 < W) gaps.push([T.x1, W, 'right']);
+      for (const [a, b, side] of gaps) {
+        ctx.fillStyle = mix('#a9aeb6', '#2f3140', night * 0.7); ctx.fillRect(a, L.bgBottom, b - a, L.interiorBottom + 12 - L.bgBottom);
+        ctx.fillStyle = mix('#8f949c', '#262838', night * 0.7); ctx.fillRect(a, L.bgBottom, b - a, 6);
+        for (let y = L.bgBottom + 14; y < L.interiorBottom - 10; y += 22) for (let x = a + 8; x < b - 10; x += 18) { ctx.fillStyle = night > 0.4 && Math.random() < 0.02 ? '#ffd27a' : mix('#6d7f90', '#161a2a', night); ctx.fillRect(x, y, 10, 12); }
+        if (side === 'right') { ctx.fillStyle = '#F6E7CF'; rr(a + 8, L.interiorBottom - 26, Math.min(48, b - a - 16), 16, 2); ctx.fill(); ctx.fillStyle = '#c94c3a'; ctx.font = 'bold 5px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('FOR', a + 8 + Math.min(48, b - a - 16) / 2, L.interiorBottom - 21); ctx.fillText('LEASE', a + 8 + Math.min(48, b - a - 16) / 2, L.interiorBottom - 14); }
+        else { for (let x = a; x < b; x += 10) { ctx.fillStyle = (x / 10) % 2 ? '#3e78c2' : '#F6E7CF'; ctx.fillRect(x, L.interiorBottom + 8, Math.min(10, b - x), 4); } }
+        ctx.fillStyle = mix('#5b4a3c', '#1a1420', night * 0.6); ctx.fillRect(side === 'right' ? b - 22 : a + 10, L.interiorBottom - 2, 12, 12);
+      }
+    }
+    function drawBadges(g, y) {
+      for (const [type, gi] of [['drip', 0], ['espresso', 1], ['roaster', 3]]) {
+        const ms = S.machines.filter(m => m.type === type);
+        if (!ms.length) continue;
+        badgeIf(g.owned[gi], (ms[0].x + ms[ms.length - 1].x) / 2, y, g.owned[gi]);
+      }
+    }
+    function drawRegisterAndCup(dim, registerX, cupX) {
+      const L = S.L;
+      ctx.fillStyle = '#2e2e2e'; rr(registerX - 5, L.counterY - 6, 10, 8, 1.5); ctx.fill();
+      ctx.fillStyle = '#9CC98B'; ctx.fillRect(registerX - 3, L.counterY - 4, 6, 2);
+      const j = Math.sin(S.tapJiggle * 12) * S.tapJiggle * 2;
+      ctx.save(); ctx.translate(cupX, L.counterY + 1); ctx.scale(1 + S.tapJiggle * 0.15, 1 - S.tapJiggle * 0.1); ctx.rotate(j * 0.1);
+      ctx.fillStyle = '#F6E7CF'; rr(-9, -8, 18, 16, 3); ctx.fill(); ctx.strokeStyle = '#D9642A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(11, 0, 4, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      ctx.fillStyle = '#D9642A'; ctx.fillRect(-9, -2, 18, 3);
+      for (let k = 0; k < 3; k++) { const ph = (S.t * 0.8 + k * 0.33) % 1; ctx.fillStyle = `rgba(246,231,207,${(1 - ph) * 0.7})`; circle(-4 + k * 4 + Math.sin(ph * 6) * 1.5, -10 - ph * 12, 1.6 + ph * 1.2); ctx.fill(); }
+      ctx.restore();
+    }
 
     function badgeIf(n, x, y, count) {
       if (n <= 0) return;
@@ -883,8 +1000,7 @@ const BeanBaronScene = (() => {
       ctx.fillStyle = 'rgba(29,15,8,.85)'; rr(x - w / 2, y - 4, w, 8, 4); ctx.fill();
       ctx.fillStyle = '#F2A65A'; ctx.fillText(label, x, y + 0.3);
     }
-    function drawMachine(m, dim) {
-      const y = S.L.backY;
+    function drawMachine(m, dim, y) {
       if (m.type === 'drip') {
         ctx.fillStyle = mix('#2e2e2e', '#111', dim); rr(m.x - 7, y, 14, 14, 2); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,.7)'; rr(m.x - 5, y + 6, 10, 7, 1.5); ctx.fill();
@@ -1038,7 +1154,7 @@ function decodeSave(str) {
 // Older saves lack newer fields; defaults fill the gaps.
 function resumeFrom(save) {
   const fresh = E.newState(Date.now());
-  const s = { ...fresh, ...save, buffs: { ...fresh.buffs, ...(save.buffs || {}) }, gold: null, events: [], awayReport: null };
+  const s = E.fitCafe({ ...fresh, ...save, buffs: { ...fresh.buffs, ...(save.buffs || {}) }, gold: null, events: [], awayReport: null });
   const away = (Date.now() - (save.savedAt || Date.now())) / 1000;
   return away > AWAY_MIN ? E.applyOffline(s, away) : s;
 }
@@ -1162,7 +1278,7 @@ function Cafe({ gameRef, sceneRef }) {
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" aria-label="Your café" />;
 }
 
-function Ticker({ sceneRef }) {
+function Ticker({ sceneRef, game }) {
   const [, force] = useState(0);
   useEffect(() => { const id = setInterval(() => force(n => n + 1), 700); return () => clearInterval(id); }, []);
   const log = sceneRef.current ? sceneRef.current.log : [];
@@ -1170,7 +1286,7 @@ function Ticker({ sceneRef }) {
   const clock = sceneRef.current ? sceneRef.current.clock() : { day: 1, name: 'Morning' };
   return (
     <div className="shrink-0 h-20 bg-espresso border-t border-mocha/50 px-3 py-2 text-xs leading-4 text-latte/80 flex flex-col justify-start gap-0.5 overflow-hidden">
-      <div className="flex justify-between text-[10px] uppercase tracking-widest text-latte/50"><span>{clock.name} · day {clock.day}</span>{served > 0 && <span className="text-amber tabular normal-case tracking-normal">{served} order{served === 1 ? '' : 's'} served</span>}</div>
+      <div className="flex justify-between text-[10px] uppercase tracking-widest text-latte/50"><span>{E.cafeOf(game).name} · {clock.name} · day {clock.day}</span>{served > 0 && <span className="text-amber tabular normal-case tracking-normal">{served} order{served === 1 ? '' : 's'} served</span>}</div>
       {log.length === 0 && <div className="text-latte/50">The doors are open. Customers wander in as the chain grows.</div>}
       {log.slice(0, 3).map((l, i) => <div key={l.t + l.text} className={"truncate " + (i === 0 ? 'text-foam' : i === 1 ? 'text-latte/70' : 'text-latte/45')}>{l.text}</div>)}
     </div>
@@ -1189,6 +1305,7 @@ function App() {
   const [muted, setMuted] = useState(false);
   const [confirmPrestige, setConfirmPrestige] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmMove, setConfirmMove] = useState(false);
   const gameRef = useRef(game); gameRef.current = game;
   const sceneRef = useRef(null);
   const heroRef = useRef(null);
@@ -1232,6 +1349,7 @@ function App() {
       if (ev.type === 'milestone') { showToast(`${E.GENS[ev.gen].plural} doubled at ${ev.at}!`, 'milestone'); Sound.chime(); }
       else if (ev.type === 'achievement') { showToast(`${ACH_BY_ID[ev.id].name} · +1% income`, 'ach'); Sound.chime(); }
       else if (ev.type === 'gold') { showToast(ev.text, 'gold'); }
+      else if (ev.type === 'cafe') { showToast(`Welcome to your ${E.CAFES[ev.tier].name}`, 'gold'); Sound.gold(); }
     }
     setGame(g => g.events.length ? { ...g, events: [] } : g);
   }, [game.events, showToast]);
@@ -1241,7 +1359,8 @@ function App() {
   useEffect(() => {
     const now = {};
     for (const u of E.availableUpgrades(game)) now[u.id] = E.upgradeCost(game, u) <= game.cash;
-    E.GENS.forEach((g, i) => { now['g' + i] = E.genCost(i, game.owned[i], 1) <= game.cash; });
+    E.GENS.forEach((g, i) => { now['g' + i] = !E.cafeFull(game, i) && E.genCost(i, game.owned[i], 1) <= game.cash; });
+    const nx = E.nextCafe(game); now.cafe = !!nx && nx.cost <= game.cash;
     if (prevAff.current) {
       let changed = null;
       for (const id in now) if (now[id] && !prevAff.current[id]) (changed ||= {})[id] = Date.now();
@@ -1306,6 +1425,7 @@ function App() {
   const buyPerk = id => {
     if (E.buyPerk(gameRef.current, id)) { setGame(g => E.buyPerk(g, id) || g); Sound.chime(); showToast(E.PERK_BY_ID[id].name + ' unlocked', 'ach'); }
   };
+  const doMove = () => { setGame(g => E.expandCafe(g) || g); setConfirmMove(false); setTab('cafe'); };
   const doPrestige = () => { setGame(g => E.prestige(g, Date.now()) || g); setConfirmPrestige(false); setTab('prestige'); showToast('Chain sold. Fresh start, stronger beans', 'gold'); Sound.gold(); };
   const doReset = () => { SAVE_SLOT = null; setGame(E.newState(Date.now())); setConfirmReset(false); setTab('shop'); };
   const toggleMute = () => { setMuted(m => { Sound.setMuted(!m); return !m; }); };
@@ -1320,6 +1440,8 @@ function App() {
     if (rush) return { text: `Rush hour: ×${E.RUSH_MULT} income for ${Math.ceil(E.buffLeft(game, 'rush'))}s`, hot: true };
     if (frenzy) return { text: `Tap frenzy: ×${E.FRENZY_MULT} per tap for ${Math.ceil(E.buffLeft(game, 'frenzy'))}s`, hot: true };
     if (game.owned.every(n => n === 0)) return { text: game.cash >= 15 ? 'A Drip Machine is affordable in the Shop' : 'Tap to brew · a Drip Machine costs $15' };
+    const nx = E.nextCafe(game);
+    if (nx && nx.cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)) && tab !== 'shop') return { text: `Your ${E.cafeOf(game).name} is full · move up in the Shop` };
     const cheapUpg = E.availableUpgrades(game).find(u => E.upgradeCost(game, u) <= game.cash);
     if (cheapUpg && tab !== 'upgrades' && tab !== 'cafe') return { text: `${cheapUpg.name} is affordable in Upgrades` };
     if (E.rpGain(game) > 0 && tab !== 'prestige' && tab !== 'cafe') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
@@ -1377,12 +1499,12 @@ function App() {
               <Icon name={tab === 'cafe' ? 'Minimize2' : 'Maximize2'} size={16} />
             </button>
           </div>
-          {tab === 'cafe' && <Ticker sceneRef={sceneRef} />}
+          {tab === 'cafe' && <Ticker sceneRef={sceneRef} game={game} />}
         </section>
 
         {/* tab panel */}
         {tab !== 'cafe' && <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
-          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} />}
+          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} onMove={() => setConfirmMove(true)} />}
           {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
           {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
           {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
@@ -1409,7 +1531,8 @@ function App() {
         {TABS.map(([id, label, icon]) => {
           const on = tab === id;
           const badge = (id === 'prestige' && (E.rpGain(game) > 0 || E.PERKS.some(p => !game.perks[p.id] && p.cost <= E.rpAvailable(game))))
-            || (id === 'upgrades' && tab !== 'upgrades' && E.availableUpgrades(game).some(u => E.upgradeCost(game, u) <= game.cash));
+            || (id === 'upgrades' && tab !== 'upgrades' && E.availableUpgrades(game).some(u => E.upgradeCost(game, u) <= game.cash))
+            || (id === 'shop' && tab !== 'shop' && E.nextCafe(game) && E.nextCafe(game).cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)));
           return (
             <button key={id} onClick={() => setTab(id)} aria-current={on ? 'page' : undefined}
               className={"relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold uppercase tracking-wider transition-colors " + (on ? "text-amber" : "text-latte/60")}>
@@ -1431,11 +1554,28 @@ function App() {
         </Modal>
       )}
 
+      {confirmMove && E.nextCafe(game) && (() => { const nx = E.nextCafe(game), cur = E.cafeOf(game); return (
+        <Modal onClose={() => setConfirmMove(false)}>
+          <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Building2" size={20} /><span className="text-xs font-bold uppercase tracking-widest">Bigger premises</span></div>
+          <h2 className="font-display font-bold text-2xl text-foam mb-2">Move into a {nx.name}?</h2>
+          <p className="text-latte/85 mb-3">Your money comes with you: <strong className="text-foam tabular">{E.fmtCash(game.cash - nx.cost)}</strong> after the {E.fmtCash(nx.cost)} move. Everything else starts fresh: machines, staff and upgrades{E.perk(game, 'memory') ? ' except what Muscle Memory keeps' : ''}. Roast Points, perks and achievements stay.</p>
+          <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+            <div className="bg-espresso rounded-xl p-3"><div className="text-latte/60 text-xs uppercase tracking-wider">{cur.name}</div><div className="font-display text-xl text-foam">×{cur.mult} per cup</div></div>
+            <div className="bg-espresso rounded-xl p-3 border border-amber/50"><div className="text-amber text-xs uppercase tracking-wider">{nx.name}</div><div className="font-display text-xl text-amber">×{nx.mult} per cup</div></div>
+          </div>
+          <div className="text-xs text-latte/70 mb-4 leading-relaxed">Room for {nx.caps ? E.GENS.map((g, i) => nx.caps[i] > 0 ? `${nx.caps[i]} ${nx.caps[i] === 1 ? g.name : g.plural}` : null).filter(Boolean).join(', ') : 'everything, with no limits'}.</div>
+          <div className="flex gap-2">
+            <BigButton tone="ghost" onClick={() => setConfirmMove(false)} className="flex-1">Stay put</BigButton>
+            <BigButton onClick={doMove} className="flex-1">Move in</BigButton>
+          </div>
+        </Modal>
+      ); })()}
+
       {confirmPrestige && (
         <Modal onClose={() => setConfirmPrestige(false)}>
           <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Sparkles" size={20} /><span className="text-xs font-bold uppercase tracking-widest">Sell the chain</span></div>
           <h2 className="font-display font-bold text-2xl text-foam mb-2">Walk away with {E.rpGain(game)} Roast Point{E.rpGain(game) === 1 ? '' : 's'}?</h2>
-          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade{E.perk(game, 'memory') ? ' except the ones Muscle Memory keeps' : ''}. You keep Roast Points, perks and achievements, and every point makes every cup worth 2% more, forever.</p>
+          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade{E.perk(game, 'memory') ? ' except the ones Muscle Memory keeps' : ''}{E.perk(game, 'landlord') ? '' : ', and you are back to a coffee cart'}. You keep Roast Points, perks and achievements, and every point makes every cup worth 2% more, forever.</p>
           <div className="grid grid-cols-2 gap-2 text-sm mb-4">
             <div className="bg-espresso rounded-xl p-3"><div className="text-latte/60 text-xs uppercase tracking-wider">Now</div><div className="font-display text-xl text-foam">{game.rp} RP · +{game.rp * 2}%</div></div>
             <div className="bg-espresso rounded-xl p-3 border border-amber/50"><div className="text-amber text-xs uppercase tracking-wider">After</div><div className="font-display text-xl text-amber">{game.rp + E.rpGain(game)} RP · +{(game.rp + E.rpGain(game)) * 2}%</div></div>
@@ -1468,12 +1608,30 @@ function Eta({ game, cost }) {
   return <div className="text-[10px] text-latte/50 tabular">in {E.fmtTime(t)}</div>;
 }
 
-function Shop({ game, qty, setQty, buy, pulses }) {
+function Shop({ game, qty, setQty, buy, pulses, onMove }) {
   const firstUnowned = game.owned.findIndex(n => n === 0);
   const visible = firstUnowned < 0 ? E.GENS.length : Math.min(E.GENS.length, firstUnowned + 2);
   const price = E.cupPrice(game);
+  const cur = E.cafeOf(game), nx = E.nextCafe(game);
+  const anyFull = E.GENS.some((g, i) => E.cafeFull(game, i));
+  const canMove = !!nx && nx.cost <= game.cash;
   return (
     <div className="flex flex-col gap-2.5">
+      <Card onClick={() => nx && onMove()} affordable={canMove} disabled={!nx} pulseKey={pulses.cafe} className={!nx ? 'opacity-100' : ''}>
+        <div className="flex items-center gap-3 px-3 py-3 pb-4">
+          <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (canMove ? "bg-amber text-espresso" : "bg-bean text-latte/70")}><Icon name={['ShoppingCart', 'Store', 'Coffee', 'Building2', 'Crown'][game.cafe]} size={24} /></span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2"><span className="font-display font-semibold text-lg text-foam truncate">{cur.name}</span><span className="text-xs text-mint font-bold">×{cur.mult} per cup</span></div>
+            {nx ? <div className="text-xs text-latte/70 leading-snug">{anyFull ? <span className="text-amber font-bold">Full up. </span> : null}Move to a {nx.name} for ×{nx.mult} per cup. You keep your money; machines and upgrades start over.</div>
+                : <div className="text-xs text-latte/70">{cur.blurb}</div>}
+          </div>
+          {nx && <div className="text-right shrink-0">
+            <div className={"font-bold tabular " + (canMove ? "text-amber" : "text-latte/60")}>{E.fmtCash(nx.cost)}</div>
+            <div className="text-[10px] text-latte/50 uppercase tracking-wider">{canMove ? 'move up' : 'to move'}</div>
+          </div>}
+        </div>
+        {nx && <FillBar ratio={game.cash / nx.cost} />}
+      </Card>
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Buy</span>
         <div className="flex bg-espresso rounded-full p-1 border border-mocha/50">
@@ -1485,10 +1643,13 @@ function Shop({ game, qty, setQty, buy, pulses }) {
       </div>
       {E.GENS.slice(0, visible).map((g, gi) => {
         const owned = game.owned[gi];
-        const locked = firstUnowned >= 0 && gi === firstUnowned + 1;
-        const n = qty === 'max' ? Math.max(1, E.maxAffordable(gi, owned, game.cash)) : +qty;
+        const cap = E.cafeCap(game, gi);
+        const needs = cap === 0 ? E.cafeFor(gi) : null;
+        const locked = needs || (firstUnowned >= 0 && gi === firstUnowned + 1);
+        const full = !needs && owned >= cap;
+        const n = full ? 0 : Math.max(1, E.buyCount(game, gi, qty === 'max' ? 'max' : +qty));
         const cost = E.genCost(gi, owned, n);
-        const affordable = cost <= game.cash;
+        const affordable = !full && cost <= game.cash;
         const mult = E.genMult(game, gi);
         const each = g.rate * mult * price;
         const next = E.nextMilestone(game, owned);
@@ -1498,13 +1659,13 @@ function Shop({ game, qty, setQty, buy, pulses }) {
               <span className="w-11 h-11 rounded-xl bg-bean flex items-center justify-center"><Icon name="Lock" size={20} /></span>
               <div>
                 <div className="font-display font-semibold text-latte/70">{g.name}</div>
-                <div className="text-xs">Opens once you own a {E.GENS[gi - 1].name.toLowerCase()}.</div>
+                <div className="text-xs">{needs ? `Needs a ${needs.name}.` : `Opens once you own a ${E.GENS[gi - 1].name.toLowerCase()}.`}</div>
               </div>
             </div>
           );
         }
         return (
-          <Card key={g.id} onClick={() => buy(gi)} affordable={affordable} pulseKey={pulses['g' + gi]}>
+          <Card key={g.id} onClick={() => !full && buy(gi)} affordable={affordable} pulseKey={pulses['g' + gi]} className={full ? 'opacity-80' : ''}>
             <div className="flex items-center gap-3 px-3 py-3 pb-4">
               <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (affordable ? "bg-ember text-foam" : "bg-bean text-latte/70")}><Icon name={g.icon} size={26} /></span>
               <div className="min-w-0 flex-1">
@@ -1516,16 +1677,16 @@ function Shop({ game, qty, setQty, buy, pulses }) {
                   {rate(each)} each{owned > 0 && <span> · {rate(each * owned)} total</span>}
                 </div>
                 <div className="text-[11px] text-latte/50 tabular mt-0.5">
-                  {next ? `${owned}/${next} → ×2 at ${next}` : 'All milestones reached'}
+                  {isFinite(cap) ? `${owned}/${cap} fit here · ` : ''}{next ? `×2 at ${next}` : 'all milestones reached'}
                 </div>
               </div>
               <div className="text-right shrink-0">
                 <div className="font-display font-bold text-3xl tabular leading-none text-foam">{owned}</div>
-                <div className={"text-sm font-bold tabular mt-1 " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(cost)}</div>
-                {affordable ? <div className="text-[10px] text-latte/50 uppercase tracking-wider">buy {n}</div> : <Eta game={game} cost={cost} />}
+                {full ? <div className="text-xs font-bold text-amber mt-1">Full</div> : <div className={"text-sm font-bold tabular mt-1 " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(cost)}</div>}
+                {full ? <div className="text-[10px] text-latte/50 uppercase tracking-wider">bigger café</div> : affordable ? <div className="text-[10px] text-latte/50 uppercase tracking-wider">buy {n}</div> : <Eta game={game} cost={cost} />}
               </div>
             </div>
-            <FillBar ratio={game.cash / cost} />
+            <FillBar ratio={full ? 1 : game.cash / cost} />
           </Card>
         );
       })}
@@ -1661,6 +1822,8 @@ function Stats({ game, setGame, showToast, onReset }) {
   const cps = E.cashPerSec(game);
   const achN = E.achCount(game);
   const rows = [
+    ['Premises', E.cafeOf(game).name + ' (×' + E.cafeOf(game).mult + ')'],
+    ['Moves', game.moves || 0],
     ['Cash on hand', E.fmtCash(game.cash)],
     ['Income', rate(cps)],
     ['Best income', rate(game.bestRate)],
