@@ -641,7 +641,7 @@ const BeanBaronScene = (() => {
       for (const c of S.customers) {
         switch (c.state) {
           case 'passby': if (followPath(c, 26, dt)) c.dead = true; break;
-          case 'arrive': if (followPath(c, speed, dt)) { c.state = 'queue'; c.bubble = c.drink; log(`${c.name} wants a ${c.drink.name}`); } break;
+          case 'arrive': if (followPath(c, speed, dt)) { c.state = 'queue'; c.bubble = c.drink; log(`${c.name} wants ${/^[aeiou]/.test(c.drink.name) ? 'an' : 'a'} ${c.drink.name}`); } break;
           case 'queue': { const spot = queueSpot(c.qi); moveTo(c, spot.x, spot.y, speed, dt); c.face = -1; break; }
           case 'ordering': c.face = -1; break;
           case 'served': {
@@ -786,19 +786,17 @@ const BeanBaronScene = (() => {
         ctx.fillStyle = mix('#3f7a3a', '#173020', night * 0.7); circle(x, y, 3.2); ctx.fill();
         ctx.fillStyle = '#d33'; circle(x - 1.2, y - 0.8, 0.7); ctx.fill(); circle(x + 1.4, y + 0.6, 0.7); ctx.fill();
       }
-      if (g.owned[6] > 0) { ctx.fillStyle = '#c94c3a'; ctx.fillRect(338, 44, 10, 7); ctx.fillStyle = '#7a3a2a'; ctx.beginPath(); ctx.moveTo(336, 44); ctx.lineTo(343, 39); ctx.lineTo(350, 44); ctx.closePath(); ctx.fill(); }
+      if (g.owned[6] > 0) { ctx.fillStyle = '#c94c3a'; ctx.fillRect(178, 44, 10, 7); ctx.fillStyle = '#7a3a2a'; ctx.beginPath(); ctx.moveTo(176, 44); ctx.lineTo(183, 39); ctx.lineTo(190, 44); ctx.closePath(); ctx.fill(); }
       ctx.restore();
       // what the far side of town says about the chain
-      labelIf(g.owned[7], 6, L.bgBottom - 60, 'empires', g.owned[7]);
-      labelIf(g.owned[5], 6, L.bgBottom - 34, 'franchises', g.owned[5]);
-      labelIf(g.owned[6], 6, L.bgBottom - 8, 'plantations', g.owned[6]);
+      let ly = L.bgBottom - 7;
+      for (const [gi, word] of [[6, 'plantations'], [5, 'franchises'], [7, 'empires']]) if (g.owned[gi] > 0) { labelAt(W - 4, ly, word, g.owned[gi]); ly -= 10; }
     }
-    function labelIf(n, x, y, word, count) {
-      if (n <= 0) return;
-      ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    function labelAt(right, y, word, count) {
+      ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
       const label = '×' + (count >= 1000 ? E.fmt(count) : count) + ' ' + word; const w = ctx.measureText(label).width + 6;
-      ctx.fillStyle = 'rgba(29,15,8,.7)'; rr(x, y - 4, w, 8, 4); ctx.fill();
-      ctx.fillStyle = '#F2A65A'; ctx.fillText(label, x + 3, y + 0.3);
+      ctx.fillStyle = 'rgba(29,15,8,.7)'; rr(right - w, y - 4, w, 8, 4); ctx.fill();
+      ctx.fillStyle = '#F2A65A'; ctx.fillText(label, right - 3, y + 0.3);
     }
 
     function drawShop(g, night, nightShift) {
@@ -834,6 +832,28 @@ const BeanBaronScene = (() => {
       ctx.fillStyle = '#D9642A'; ctx.fillRect(-9, -2, 18, 3);
       for (let k = 0; k < 3; k++) { const ph = (S.t * 0.8 + k * 0.33) % 1; ctx.fillStyle = `rgba(246,231,207,${(1 - ph) * 0.7})`; circle(-4 + k * 4 + Math.sin(ph * 6) * 1.5, -10 - ph * 12, 1.6 + ph * 1.2); ctx.fill(); }
       ctx.restore();
+      // menu chalkboard on the back wall, left of the machines
+      ctx.fillStyle = '#1f2a24'; rr(14, L.backY - 1, 40, 15, 2); ctx.fill(); ctx.strokeStyle = '#8a5a3c'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 4px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('MENU', 17, L.backY + 2.5);
+      ctx.fillStyle = 'rgba(246,231,207,.8)'; for (let k = 0; k < 3; k++) { ctx.fillRect(17, L.backY + 6 + k * 2.6, 22 + (k % 2) * 8, 1); ctx.fillRect(46, L.backY + 6 + k * 2.6, 5, 1); }
+      // shelf of bean bags and cups, right of the chalkboard
+      for (let k = 0; k < 3; k++) { ctx.fillStyle = k === 1 ? '#a97452' : '#8a5a3c'; rr(60 + k * 12, L.backY + 4, 9, 10, 2); ctx.fill(); ctx.fillStyle = '#F6E7CF'; ctx.fillRect(62 + k * 12, L.backY + 7, 5, 3); }
+      // rug under the tables
+      if (L.tables.length) {
+        const top = L.tables[0].y - 18, bottom = L.tables[L.tables.length - 1].y + 18;
+        ctx.fillStyle = 'rgba(217,100,42,.16)'; rr(18, top, W - 36, bottom - top, 6); ctx.fill();
+        ctx.strokeStyle = 'rgba(138,90,60,.45)'; ctx.lineWidth = 1.2; rr(23, top + 5, W - 46, bottom - top - 10, 4); ctx.stroke();
+      }
+      // potted plants in the front corners, a sofa corner when there is room
+      for (const px of [10, W - 10]) { ctx.fillStyle = '#b5563a'; rr(px - 5, L.interiorBottom - 12, 10, 8, 2); ctx.fill(); ctx.fillStyle = mix('#3f7a3a', '#173020', dim); circle(px - 3, L.interiorBottom - 15, 4); ctx.fill(); circle(px + 3, L.interiorBottom - 16, 4.5); ctx.fill(); circle(px, L.interiorBottom - 20, 4); ctx.fill(); }
+      if (L.interiorBottom - (L.tables.length ? L.tables[L.tables.length - 1].y : L.queueY) > 60) {
+        const sy = L.interiorBottom - 34;
+        ctx.fillStyle = mix('#7a4a2e', '#2b170d', dim); rr(200, sy, 60, 16, 4); ctx.fill();
+        ctx.fillStyle = mix('#d95d39', '#4a2c1a', dim); rr(204, sy + 3, 52, 11, 3); ctx.fill();
+        ctx.fillStyle = mix('#F2A65A', '#4a2c1a', dim); rr(208, sy + 5, 10, 7, 2); ctx.fill(); rr(242, sy + 5, 10, 7, 2); ctx.fill();
+        ctx.fillStyle = mix('#6B4530', '#2b170d', dim); rr(270, sy + 2, 22, 12, 3); ctx.fill();
+        ctx.fillStyle = 'rgba(246,231,207,.9)'; for (let k = 0; k < 4; k++) ctx.fillRect(273 + k * 5, sy + 4, 3, 8);
+      }
       // tables
       for (const t of L.tables) drawTable(t, dim);
       // front wall, windows and door
@@ -983,6 +1003,7 @@ const BeanBaronScene = (() => {
 
     return {
       resize, state: S,
+      clock() { const p = dayPhase(); const day = Math.floor(S.t / 480) + 1; const name = p < 0.2 ? 'Morning' : p < 0.45 ? 'Afternoon' : p < 0.62 ? 'Evening' : p < 0.9 ? 'Night' : 'Early morning'; return { day, name }; },
       tap() { S.tapJiggle = 1; },
       log: S.log,
       served: () => S.served,
@@ -1146,9 +1167,10 @@ function Ticker({ sceneRef }) {
   useEffect(() => { const id = setInterval(() => force(n => n + 1), 700); return () => clearInterval(id); }, []);
   const log = sceneRef.current ? sceneRef.current.log : [];
   const served = sceneRef.current ? sceneRef.current.served() : 0;
+  const clock = sceneRef.current ? sceneRef.current.clock() : { day: 1, name: 'Morning' };
   return (
     <div className="shrink-0 h-20 bg-espresso border-t border-mocha/50 px-3 py-2 text-xs leading-4 text-latte/80 flex flex-col justify-start gap-0.5 overflow-hidden">
-      <div className="flex justify-between text-[10px] uppercase tracking-widest text-latte/50"><span>On the floor</span>{served > 0 && <span className="text-amber tabular normal-case tracking-normal">{served} order{served === 1 ? '' : 's'} served</span>}</div>
+      <div className="flex justify-between text-[10px] uppercase tracking-widest text-latte/50"><span>{clock.name} · day {clock.day}</span>{served > 0 && <span className="text-amber tabular normal-case tracking-normal">{served} order{served === 1 ? '' : 's'} served</span>}</div>
       {log.length === 0 && <div className="text-latte/50">The doors are open. Customers wander in as the chain grows.</div>}
       {log.slice(0, 3).map((l, i) => <div key={l.t + l.text} className={"truncate " + (i === 0 ? 'text-foam' : i === 1 ? 'text-latte/70' : 'text-latte/45')}>{l.text}</div>)}
     </div>
