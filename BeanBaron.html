@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1d0f08">
+<title>Bean Baron</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+  /* Bean Baron commits to one look: a dark espresso counter with cream type
+     and a burnt-orange accent. Every colour is painted explicitly so the page
+     holds up on any host ground. */
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #1d0f08; color: #F6E7CF; }
+  body { font-family: Nunito, "Segoe UI", system-ui, -apple-system, sans-serif; font-weight: 500; overscroll-behavior: none; }
+  .font-display { font-family: Fredoka, Nunito, "Segoe UI", system-ui, sans-serif; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .noselect { user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .scroll-soft { scrollbar-width: thin; scrollbar-color: #5a3a26 transparent; }
+  button:focus-visible { outline: 3px solid #F2A65A; outline-offset: 2px; }
+
+  @keyframes floatUp {
+    0%   { transform: translate(-50%, 0) scale(.85); opacity: 0; }
+    15%  { transform: translate(-50%, -10px) scale(1.08); opacity: 1; }
+    100% { transform: translate(-50%, -84px) scale(1); opacity: 0; }
+  }
+  .floater { position: absolute; pointer-events: none; animation: floatUp .85s cubic-bezier(.2,.7,.3,1) forwards; text-shadow: 0 2px 0 #1d0f08; white-space: nowrap; }
+
+  @keyframes steam {
+    0%   { transform: translate(var(--sx), 0) scaleX(.7); opacity: 0; }
+    25%  { opacity: .55; }
+    100% { transform: translate(calc(var(--sx) * 1.8), -64px) scaleX(1.4) scaleY(1.2); opacity: 0; }
+  }
+  .steam { position: absolute; left: 50%; margin-left: -6px; width: 12px; height: 30px; border-radius: 50%;
+           background: rgba(246,231,207,.8); filter: blur(5px); animation: steam 2.6s ease-out infinite; animation-delay: var(--sd); }
+
+  @keyframes pulseOnce {
+    0%   { box-shadow: 0 0 0 0 rgba(242,166,90,.9); }
+    100% { box-shadow: 0 0 0 22px rgba(242,166,90,0); }
+  }
+  .pulse-ring { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: pulseOnce .9s ease-out 1 forwards; }
+
+  @keyframes modalIn { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-in { animation: modalIn .25s cubic-bezier(.2,.8,.3,1); }
+
+
+  @media (prefers-reduced-motion: reduce) {
+    .steam, .pulse-ring, .modal-in { animation: none; }
+    .floater { animation-duration: .01s; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.11/dist/index.global.js"></script>
+<style type="text/tailwindcss">
+  @theme {
+    --color-espresso: #2B170D;
+    --color-bean: #1d0f08;
+    --color-roast: #4A2C1A;
+    --color-mocha: #6B4530;
+    --color-cream: #F6E7CF;
+    --color-latte: #E8D3B2;
+    --color-foam: #FFF8EE;
+    --color-ember: #D9642A;
+    --color-amber: #F2A65A;
+    --color-mint: #9CC98B;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script>window.react = window.React; /* lucide's UMD build looks for a lowercase global */</script>
+<script src="https://cdn.jsdelivr.net/npm/lucide-react@0.468.0/dist/umd/lucide-react.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js"></script>
+</head>
+<body class="noselect">
+<div id="root"></div>
+<noscript><p style="padding:2rem;text-align:center">Bean Baron needs JavaScript. Open this file in Safari or Chrome directly.</p></noscript>
+<script>
+// ---- Bean Baron economy -------------------------------------------------
+// Pure game rules: no DOM, no React. The page runs this block verbatim and
+// tools/beanbaron_sim.js loads the very same text to balance the numbers.
+const BeanBaronEconomy = (() => {
+  const GROWTH = 1.15;
+  const MILESTONES = [10, 25, 50, 100];
+  const PRESTIGE_UNIT = 1e12;
+  const OFFLINE_CAP = 4 * 3600;
+  const OFFLINE_BASE = 0.5;
+
+  const GENS = [
+    { id: 'drip',       name: 'Drip Machine', base: 15,     rate: 0.1,   icon: 'Coffee',    blurb: 'A humble pot that never quite goes cold.' },
+    { id: 'espresso',   name: 'Espresso Bar', base: 100,    rate: 1,     icon: 'Zap',       blurb: 'Nine bars of pressure. Twenty-five seconds of hope.' },
+    { id: 'barista',    name: 'Barista',      base: 1100,   rate: 8,     icon: 'User',      blurb: 'Pours a fern into anything, including soup.' },
+    { id: 'roaster',    name: 'Roaster',      base: 12e3,   rate: 47,    icon: 'Flame',     blurb: 'Green beans in, first crack out.' },
+    { id: 'van',        name: 'Delivery Van', base: 130e3,  rate: 260,   icon: 'Truck',     blurb: 'Cold brew kegs to every office on the block.' },
+    { id: 'franchise',  name: 'Franchise',    base: 1.4e6,  rate: 1400,  icon: 'Store',     blurb: 'Same cup, new zip code.' },
+    { id: 'plantation', name: 'Plantation',   base: 20e6,   rate: 7800,  icon: 'Sprout',    blurb: 'Own the hillside the beans grow on.' },
+    { id: 'empire',     name: 'Coffee Empire', base: 330e6, rate: 44000, icon: 'Crown',     blurb: 'The sun never sets on your roast.' },
+  ];
+
+  // Cash upgrades. `kind` says what the multiplier applies to.
+  //   price   - every cup sells for more (the "x all" family)
+  //   tap     - value of one tap on the cup
+  //   offline - share of production earned while away
+  //   gen     - one generator tier (needs `gen`)
+  //   tapshare- each tap also brews this fraction of one second of output
+  const UPGRADES = [];
+  const BEANS = [
+    ['Better Beans',      'Swap the bargain sack for something with a farm on the label.'],
+    ['Arabica Blend',     'Smoother, sweeter, pricier. Customers notice.'],
+    ['Single Origin',     'One farm, one harvest, one very long menu description.'],
+    ['Fresh Roast Dates', 'Roasted Tuesday. Sold Wednesday. Bragged about Thursday.'],
+    ['House Cold Brew',   'Twelve hours of patience in a keg.'],
+    ['Signature Blend',   'Nobody knows what is in it. Everybody orders it.'],
+    ['Geisha Reserve',    'Tastes like jasmine and quarterly profit.'],
+    ['Barrel-Aged Beans', 'Rested in bourbon oak. Priced like it.'],
+    ['Micro-lot Auction', 'You outbid three countries for a single hillside.'],
+    ['Cup of Excellence', 'The trophy goes on the wall. The price goes on the board.'],
+    ['Competition Roast', 'Your roaster wins nationals. Menus are reprinted.'],
+    ['Legendary Harvest', 'A once-in-a-decade crop, and it is all yours.'],
+    ['Mythic Bean',       'Grown on a volcano no map shows.'],
+    ['Stardust Roast',    'Roasted with light from a distant sun.'],
+  ];
+  const BEANS_COST0 = 250, BEANS_RATIO = 9;
+  BEANS.forEach(([name, desc], i) => UPGRADES.push({
+    id: 'beans' + i, name, desc, kind: 'price', mult: 1.5, icon: 'Bean',
+    cost: BEANS_COST0 * Math.pow(BEANS_RATIO, i),
+    tier: i, family: 'beans',
+    effect: 'x1.5 all income',
+  }));
+  const TAPS = [
+    ['Loyalty App',  'Every tenth cup is free. Every cup is bigger.', 'Smartphone', 2,  400],
+    ['Double Shot',  'Two shots in every pour, no extra time.',        'Zap',        2,  25e3],
+    ['Tip Jar',      'A hand-lettered sign does wonders.',             'Coins',      2,  2e6],
+    ['Latte Art',    'A swan on top adds a dollar on the bottom.',     'Sparkles',   2,  150e6],
+    ['Golden Tamper','It does nothing. It costs a fortune. Tips triple.', 'Gem',    3,  20e9],
+  ];
+  TAPS.forEach(([name, desc, icon, mult, cost], i) => UPGRADES.push({
+    id: 'tap' + i, name, desc, kind: 'tap', mult, icon, cost, tier: i, family: 'tap',
+    effect: 'x' + mult + ' tap value',
+  }));
+  UPGRADES.push({ id: 'training', name: 'Barista Training', kind: 'tapshare', share: 0.02, icon: 'Hand',
+    desc: 'Your own taps now brew a slice of the whole chain\'s output.', cost: 60e3, family: 'tap', tier: 99,
+    effect: 'each tap adds 2% of your per-second income' });
+  UPGRADES.push({ id: 'nightshift', name: 'Night Shift', kind: 'offline', mult: 1.25, icon: 'Moon',
+    desc: 'Someone keeps the lights on while you sleep.', cost: 12e3, family: 'offline', tier: 0,
+    effect: 'x1.25 offline earnings' });
+  UPGRADES.push({ id: 'weekend', name: 'Weekend Crew', kind: 'offline', mult: 1.2, icon: 'Users',
+    desc: 'The shop hums along even when you are not looking.', cost: 5e6, family: 'offline', tier: 1,
+    effect: 'x1.2 offline earnings' });
+  // Per-generator gear: unlocked by owning enough of the tier.
+  const GEAR = [
+    ['Paper Filters',     'Gold Filters'],
+    ['Steam Wands',       'Dual Boilers'],
+    ['Aprons',            'Latte Art School'],
+    ['Drum Roaster',      'Fluid-bed Roaster'],
+    ['GPS Routing',       'Electric Fleet'],
+    ['Drive-thru Lanes',  'Airport Kiosks'],
+    ['Shade Trees',       'Terraced Hills'],
+    ['Trade Routes',      'Orbital Roastery'],
+  ];
+  GENS.forEach((g, gi) => {
+    UPGRADES.push({ id: g.id + '_gear1', name: GEAR[gi][0], kind: 'gen', gen: gi, mult: 2, icon: g.icon,
+      desc: 'Every ' + g.name + ' works twice as hard.', cost: g.base * 25, needs: 5, family: g.id, tier: 0,
+      effect: 'x2 ' + g.name + ' output' });
+    UPGRADES.push({ id: g.id + '_gear2', name: GEAR[gi][1], kind: 'gen', gen: gi, mult: 2, icon: g.icon,
+      desc: 'Serious kit for a serious ' + g.name.toLowerCase() + ' operation.', cost: g.base * 700, needs: 30, family: g.id, tier: 1,
+      effect: 'x2 ' + g.name + ' output' });
+  });
+  const UPG_BY_ID = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+
+  function newState(now) {
+    return {
+      v: 1,
+      cash: 0,
+      owned: GENS.map(() => 0),
+      upgrades: {},            // id -> true
+      rp: 0,
+      prestiges: 0,
+      lifetime: 0,             // all-time cash earned, survives prestige
+      runEarned: 0,            // cash earned since last prestige
+      cups: 0,                 // all-time cups brewed
+      taps: 0,
+      playtime: 0,             // seconds of active play
+      savedAt: now,
+      awayReport: null,        // { seconds, cash } shown by the "while you were away" modal
+    };
+  }
+
+  const has = (s, id) => !!s.upgrades[id];
+
+  function genCost(gi, owned, n) {
+    const g = GENS[gi];
+    return g.base * Math.pow(GROWTH, owned) * (Math.pow(GROWTH, n) - 1) / (GROWTH - 1);
+  }
+  function maxAffordable(gi, owned, cash) {
+    const g = GENS[gi];
+    const unit = g.base * Math.pow(GROWTH, owned);
+    if (cash < unit) return 0;
+    return Math.floor(Math.log(cash * (GROWTH - 1) / unit + 1) / Math.log(GROWTH));
+  }
+  function milestoneMult(owned) {
+    let m = 1;
+    for (const t of MILESTONES) if (owned >= t) m *= 2;
+    return m;
+  }
+  function nextMilestone(owned) {
+    for (const t of MILESTONES) if (owned < t) return t;
+    return null;
+  }
+  function gearMult(s, gi) {
+    let m = 1;
+    for (const u of UPGRADES) if (u.kind === 'gen' && u.gen === gi && has(s, u.id)) m *= u.mult;
+    return m;
+  }
+  function genMult(s, gi) { return milestoneMult(s.owned[gi]) * gearMult(s, gi); }
+  function genCups(s, gi) { return GENS[gi].rate * s.owned[gi] * genMult(s, gi); }
+  function cupsPerSec(s) { let t = 0; for (let i = 0; i < GENS.length; i++) t += genCups(s, i); return t; }
+  function priceMult(s) {
+    let m = 1;
+    for (const u of UPGRADES) if (u.kind === 'price' && has(s, u.id)) m *= u.mult;
+    return m * (1 + 0.02 * s.rp);
+  }
+  function cupPrice(s) { return priceMult(s); }
+  function cashPerSec(s) { return cupsPerSec(s) * cupPrice(s); }
+  function tapMult(s) {
+    let m = 1;
+    for (const u of UPGRADES) if (u.kind === 'tap' && has(s, u.id)) m *= u.mult;
+    return m;
+  }
+  function tapShare(s) {
+    let sh = 0;
+    for (const u of UPGRADES) if (u.kind === 'tapshare' && has(s, u.id)) sh += u.share;
+    return sh;
+  }
+  function tapValue(s) { return cupPrice(s) * tapMult(s) + tapShare(s) * cashPerSec(s); }
+  function offlineMult(s) {
+    let m = OFFLINE_BASE;
+    for (const u of UPGRADES) if (u.kind === 'offline' && has(s, u.id)) m *= u.mult;
+    return m;
+  }
+  function rpFor(lifetime) { return Math.floor(Math.sqrt(lifetime / PRESTIGE_UNIT)); }
+  function rpGain(s) { return Math.max(0, rpFor(s.lifetime) - s.rp); }
+  function prestigeUnlocked(s) { return s.lifetime >= PRESTIGE_UNIT; }
+
+  function upgradeAvailable(s, u) {
+    if (has(s, u.id)) return false;
+    if (u.kind === 'gen') return s.owned[u.gen] >= u.needs;
+    if (u.tier > 0 && u.family !== 'tap' && u.family !== 'offline') {
+      return has(s, u.family + (u.tier - 1));       // beans ladder: one rung at a time
+    }
+    if (u.family === 'tap' && u.tier > 0 && u.tier < 99) return has(s, 'tap' + (u.tier - 1));
+    if (u.id === 'weekend') return has(s, 'nightshift');
+    return true;
+  }
+  function availableUpgrades(s) { return UPGRADES.filter(u => upgradeAvailable(s, u)).sort((a, b) => a.cost - b.cost); }
+
+  // --- mutations: all return a NEW state object ----------------------------
+  function earn(s, amount) {
+    return { ...s, cash: s.cash + amount, lifetime: s.lifetime + amount, runEarned: s.runEarned + amount };
+  }
+  function step(s, dt) {
+    const cups = cupsPerSec(s) * dt;
+    const n = earn(s, cups * cupPrice(s));
+    n.cups = s.cups + cups;
+    n.playtime = s.playtime + dt;
+    return n;
+  }
+  function applyOffline(s, seconds) {
+    const secs = Math.min(OFFLINE_CAP, Math.max(0, seconds));
+    const cups = cupsPerSec(s) * secs * offlineMult(s);
+    const cash = cups * cupPrice(s);
+    const n = earn(s, cash);
+    n.cups = s.cups + cups;
+    n.awayReport = { seconds, credited: secs, cash, capped: seconds > OFFLINE_CAP };
+    return n;
+  }
+  function tap(s) {
+    const v = tapValue(s);
+    const n = earn(s, v);
+    n.cups = s.cups + 1; n.taps = s.taps + 1;
+    return [n, v];
+  }
+  function buyGen(s, gi, qty) {
+    const owned = s.owned[gi];
+    const n = qty === 'max' ? maxAffordable(gi, owned, s.cash) : qty;
+    if (n <= 0) return null;
+    const cost = genCost(gi, owned, n);
+    if (cost > s.cash + 1e-9) return null;
+    const ownedNext = s.owned.slice(); ownedNext[gi] = owned + n;
+    return { ...s, cash: s.cash - cost, owned: ownedNext };
+  }
+  function buyUpgrade(s, id) {
+    const u = UPG_BY_ID[id];
+    if (!u || !upgradeAvailable(s, u) || u.cost > s.cash + 1e-9) return null;
+    return { ...s, cash: s.cash - u.cost, upgrades: { ...s.upgrades, [id]: true } };
+  }
+  function prestige(s, now) {
+    const gain = rpGain(s);
+    if (!prestigeUnlocked(s) || gain <= 0) return null;
+    const n = newState(now);
+    n.rp = s.rp + gain;
+    n.prestiges = s.prestiges + 1;
+    n.lifetime = s.lifetime; n.cups = s.cups; n.taps = s.taps; n.playtime = s.playtime;
+    return n;
+  }
+
+  // --- number formatting -------------------------------------------------
+  const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+  function fmt(n, dec) {
+    if (!isFinite(n)) return '∞';
+    if (n < 0) return '-' + fmt(-n, dec);
+    if (n < 1000) {
+      if (dec != null) return n.toFixed(dec);
+      if (n < 10 && n !== Math.floor(n)) return n.toFixed(1);
+      return String(Math.floor(n));
+    }
+    let e = Math.floor(Math.log10(n) / 3);
+    if (e >= SUFFIX.length) return n.toExponential(2).replace('e+', 'e');
+    let m = n / Math.pow(1000, e);
+    if (m >= 999.995) { e++; m /= 1000; if (e >= SUFFIX.length) return n.toExponential(2).replace('e+', 'e'); }
+    return m.toFixed(2) + SUFFIX[e];
+  }
+  function fmtCash(n, dec) { return '$' + fmt(n, dec); }
+  function fmtTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    if (d) return d + 'd ' + h + 'h';
+    if (h) return h + 'h ' + m + 'm';
+    if (m) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+
+  return { GROWTH, MILESTONES, PRESTIGE_UNIT, OFFLINE_CAP, GENS, UPGRADES, UPG_BY_ID,
+    newState, has, genCost, maxAffordable, milestoneMult, nextMilestone, gearMult, genMult, genCups,
+    cupsPerSec, priceMult, cupPrice, cashPerSec, tapMult, tapShare, tapValue, offlineMult,
+    rpFor, rpGain, prestigeUnlocked, upgradeAvailable, availableUpgrades,
+    step, applyOffline, tap, buyGen, buyUpgrade, prestige, fmt, fmtCash, fmtTime };
+})();
+if (typeof module !== 'undefined') module.exports = BeanBaronEconomy;
+// ---- end economy --------------------------------------------------------
+</script>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const E = BeanBaronEconomy;
+const L = LucideReact;
+const Icon = ({ name, ...p }) => { const C = L[name] || L.Coffee; return <C {...p} />; };
+
+// The save file. It lives in this variable for as long as the page does, so
+// a reload starts fresh; use "Copy save code" in Stats to carry a game over.
+let SAVE_SLOT = null;
+const AWAY_MIN = 30;                 // seconds hidden before it counts as time away
+const SAVE_EVERY = 5000;
+
+const encodeSave = s => btoa(unescape(encodeURIComponent(JSON.stringify(s))));
+function decodeSave(str) {
+  try {
+    const s = JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
+    if (!s || s.v !== 1 || !Array.isArray(s.owned) || s.owned.length !== E.GENS.length) return null;
+    return { ...E.newState(Date.now()), ...s, awayReport: null };
+  } catch (e) { return null; }
+}
+function resumeFrom(save) {
+  const away = (Date.now() - (save.savedAt || Date.now())) / 1000;
+  const s = { ...save, awayReport: null };
+  return away > AWAY_MIN ? E.applyOffline(s, away) : s;
+}
+
+const QTYS = [['1', 'x1'], ['10', 'x10'], ['100', 'x100'], ['max', 'MAX']];
+const TABS = [['shop', 'Shop', 'Store'], ['upgrades', 'Upgrades', 'TrendingUp'], ['prestige', 'Prestige', 'Sparkles'], ['stats', 'Stats', 'BarChart3']];
+
+function rate(n) { return E.fmtCash(n, n < 100 ? 1 : undefined) + '/s'; }
+
+// ---- small building blocks ---------------------------------------------
+function FillBar({ ratio, tone }) {
+  const w = Math.max(0, Math.min(1, ratio)) * 100;
+  return (
+    <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-bean/70">
+      <div className={"h-full transition-[width] duration-150 ease-out " + (tone || (w >= 100 ? 'bg-amber' : 'bg-ember'))} style={{ width: w + '%' }} />
+    </div>
+  );
+}
+
+function Card({ onClick, affordable, disabled, pulseKey, children, className }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={"relative w-full text-left rounded-2xl border overflow-hidden transition-transform duration-100 active:scale-[.98] disabled:active:scale-100 "
+        + (affordable ? "bg-roast border-amber/70 shadow-[0_6px_0_#2B170D]" : "bg-espresso border-mocha/50 shadow-[0_4px_0_#150a05]")
+        + (disabled ? " opacity-70" : "") + " " + (className || '')}>
+      {pulseKey ? <span key={pulseKey} className="pulse-ring" /> : null}
+      {children}
+    </button>
+  );
+}
+
+function Modal({ children, onClose }) {
+  return (
+    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="modal-in w-full max-w-md bg-roast border border-mocha rounded-3xl p-5 shadow-2xl" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function BigButton({ children, onClick, tone, disabled, className }) {
+  const tones = {
+    ember: "bg-ember text-foam shadow-[0_5px_0_#8a3a12] active:shadow-none active:translate-y-[5px]",
+    quiet: "bg-mocha text-cream shadow-[0_5px_0_#2B170D] active:shadow-none active:translate-y-[5px]",
+    ghost: "bg-transparent border border-mocha text-latte",
+  };
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={"font-display font-semibold text-lg rounded-2xl px-5 py-3 transition-all duration-75 disabled:opacity-40 disabled:shadow-none disabled:translate-y-0 " + tones[tone || 'ember'] + " " + (className || '')}>
+      {children}
+    </button>
+  );
+}
+
+// ---- the game ------------------------------------------------------------
+function App() {
+  const [game, setGame] = useState(() => SAVE_SLOT ? resumeFrom(SAVE_SLOT) : E.newState(Date.now()));
+  const [tab, setTab] = useState('shop');
+  const [qty, setQty] = useState('1');
+  const [floaters, setFloaters] = useState([]);
+  const cupRef = useRef(null);
+  const [pulses, setPulses] = useState({});
+  const [confirmPrestige, setConfirmPrestige] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [toast, setToast] = useState(null);
+  const gameRef = useRef(game); gameRef.current = game;
+  const floaterId = useRef(0);
+
+  // One requestAnimationFrame loop, delta-time based. Renders are committed at
+  // ~30 Hz; a gap longer than AWAY_MIN means the tab was hidden, which is paid
+  // out at the offline rate instead of the live one.
+  useEffect(() => {
+    let last = performance.now(), acc = 0, raf = 0;
+    const loop = now => {
+      raf = requestAnimationFrame(loop);
+      const dt = (now - last) / 1000; last = now;
+      if (dt > AWAY_MIN) { setGame(g => E.applyOffline(g, dt)); acc = 0; return; }
+      acc += dt;
+      if (acc >= 1 / 30) { const d = Math.min(acc, 5); acc = 0; setGame(g => E.step(g, d)); }
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Autosave into the in-memory slot.
+  useEffect(() => {
+    const save = () => { SAVE_SLOT = { ...gameRef.current, savedAt: Date.now(), awayReport: null }; };
+    const id = setInterval(save, SAVE_EVERY);
+    const vis = () => { if (document.hidden) save(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); };
+  }, []);
+
+  // Pulse anything that just became affordable.
+  const prevAff = useRef(null);
+  useEffect(() => {
+    const now = {};
+    for (const u of E.availableUpgrades(game)) now[u.id] = u.cost <= game.cash;
+    E.GENS.forEach((g, i) => { now['g' + i] = E.genCost(i, game.owned[i], 1) <= game.cash; });
+    if (prevAff.current) {
+      let changed = null;
+      for (const id in now) if (now[id] && !prevAff.current[id]) (changed ||= {})[id] = Date.now();
+      if (changed) setPulses(p => ({ ...p, ...changed }));
+    }
+    prevAff.current = now;
+  }, [game]);
+
+  const showToast = useCallback(msg => { setToast(msg); setTimeout(() => setToast(null), 1800); }, []);
+
+  const onTap = useCallback(e => {
+    const v = E.tapValue(gameRef.current);
+    setGame(g => E.tap(g)[0]);
+    const id = ++floaterId.current;
+    const x = 50 + (Math.random() * 2 - 1) * 22;      // percent across the cup area
+    const y = 38 + (Math.random() * 2 - 1) * 6;
+    setFloaters(f => [...f.slice(-14), { id, x, y, text: '+' + E.fmtCash(v, v < 10 ? 1 : v < 1000 ? 0 : undefined) }]);
+    setTimeout(() => setFloaters(f => f.filter(o => o.id !== id)), 900);
+    if (cupRef.current && cupRef.current.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      cupRef.current.animate([{ transform: 'scale(1)' }, { transform: 'scale(.9)', offset: .35 }, { transform: 'scale(1)' }], { duration: 170, easing: 'ease-out' });
+    }
+    if (navigator.vibrate) navigator.vibrate(8);
+  }, []);
+
+  const buyGen = (gi) => setGame(g => E.buyGen(g, gi, qty === 'max' ? 'max' : +qty) || g);
+  const buyUpgrade = (id) => setGame(g => E.buyUpgrade(g, id) || g);
+  const doPrestige = () => { setGame(g => E.prestige(g, Date.now()) || g); setConfirmPrestige(false); setTab('shop'); showToast('Chain sold. Fresh start, stronger beans.'); };
+  const doReset = () => { SAVE_SLOT = null; setGame(E.newState(Date.now())); setConfirmReset(false); setTab('shop'); };
+
+  const cps = E.cashPerSec(game);
+  const tapV = E.tapValue(game);
+
+  return (
+    <div className="mx-auto max-w-md h-dvh flex flex-col bg-bean sm:border-x sm:border-mocha/40">
+      {/* header */}
+      <header className="px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2 bg-espresso border-b border-mocha/50 shadow-[0_4px_12px_rgba(0,0,0,.35)] z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-amber">
+            <Icon name="Bean" size={18} />
+            <span className="font-display font-semibold tracking-wide">Bean Baron</span>
+          </div>
+          {game.rp > 0 && (
+            <div className="flex items-center gap-1 text-sm text-amber bg-roast rounded-full px-3 py-1 border border-amber/40">
+              <Icon name="Sparkles" size={14} /> {game.rp} RP · +{(game.rp * 2)}%
+            </div>
+          )}
+        </div>
+        <div className="font-display font-bold text-4xl tabular leading-tight mt-1 text-foam">{E.fmtCash(game.cash)}</div>
+        <div className="text-latte/80 text-sm tabular flex gap-3">
+          <span>{rate(cps)}</span>
+          <span className="text-latte/50">·</span>
+          <span>{E.fmtCash(tapV, tapV < 10 ? 1 : undefined)} per tap</span>
+        </div>
+      </header>
+
+      {/* the cup */}
+      <section className="relative h-44 shrink-0 flex items-center justify-center overflow-hidden"
+        style={{ background: 'radial-gradient(ellipse at 50% 120%, #4A2C1A 0%, #2B170D 55%, #1d0f08 100%)' }}>
+        {floaters.map(f => (
+          <span key={f.id} className="floater font-display font-bold text-amber text-2xl" style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
+        ))}
+        <button aria-label="Brew a coffee" onPointerDown={onTap} ref={cupRef}
+          className="relative w-32 h-32 rounded-full bg-gradient-to-b from-ember to-[#a8431a] text-foam shadow-[0_8px_0_#6d2c0f,0_16px_28px_rgba(0,0,0,.45)] active:shadow-[0_2px_0_#6d2c0f] flex items-center justify-center">
+          <span className="absolute -top-2 left-0 right-0 h-16 pointer-events-none">
+            <span className="steam" style={{ '--sx': '-16px', '--sd': '0s' }} />
+            <span className="steam" style={{ '--sx': '2px', '--sd': '.9s' }} />
+            <span className="steam" style={{ '--sx': '18px', '--sd': '1.7s' }} />
+          </span>
+          <Icon name="Coffee" size={64} strokeWidth={2.2} />
+        </button>
+        <div className="absolute bottom-2 left-0 right-0 text-center text-xs text-latte/60 tracking-wide uppercase">tap to brew</div>
+      </section>
+
+      {/* tab panel */}
+      <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
+        {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} />}
+        {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
+        {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} />}
+        {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
+      </main>
+
+      {/* bottom tabs */}
+      <nav className="shrink-0 bg-espresso border-t border-mocha/60 pb-[env(safe-area-inset-bottom)] grid grid-cols-4">
+        {TABS.map(([id, label, icon]) => {
+          const on = tab === id;
+          const badge = id === 'prestige' && E.rpGain(game) > 0;
+          return (
+            <button key={id} onClick={() => setTab(id)} aria-current={on ? 'page' : undefined}
+              className={"relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold uppercase tracking-wider transition-colors " + (on ? "text-amber" : "text-latte/60")}>
+              <span className={"rounded-full px-4 py-1 transition-colors " + (on ? "bg-roast" : "")}><Icon name={icon} size={20} /></span>
+              {label}
+              {badge && <span className="absolute top-1.5 right-1/2 translate-x-5 w-2.5 h-2.5 rounded-full bg-amber shadow-[0_0_8px_#F2A65A]" />}
+            </button>
+          );
+        })}
+      </nav>
+
+      {toast && <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 bg-foam text-espresso font-bold px-4 py-2 rounded-full shadow-xl modal-in">{toast}</div>}
+
+      {game.awayReport && game.awayReport.cash > 0 && (
+        <Modal onClose={() => setGame(g => ({ ...g, awayReport: null }))}>
+          <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Moon" size={20} /><span className="text-xs font-bold uppercase tracking-widest">While you were away</span></div>
+          <h2 className="font-display font-bold text-2xl text-foam mb-1">The shop kept brewing.</h2>
+          <p className="text-latte/85">You were gone {E.fmtTime(game.awayReport.seconds)}{game.awayReport.capped ? ' (credited for the first 4 hours)' : ''}. Your chain sold at {Math.round(E.offlineMult(game) * 100)}% speed and earned</p>
+          <div className="font-display font-bold text-4xl text-amber tabular my-3">{E.fmtCash(game.awayReport.cash)}</div>
+          <BigButton onClick={() => setGame(g => ({ ...g, awayReport: null }))} className="w-full">Collect</BigButton>
+        </Modal>
+      )}
+
+      {confirmPrestige && (
+        <Modal onClose={() => setConfirmPrestige(false)}>
+          <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Sparkles" size={20} /><span className="text-xs font-bold uppercase tracking-widest">Sell the chain</span></div>
+          <h2 className="font-display font-bold text-2xl text-foam mb-2">Walk away with {E.rpGain(game)} Roast Point{E.rpGain(game) === 1 ? '' : 's'}?</h2>
+          <p className="text-latte/85 mb-3">Everything goes: cash, every machine, every upgrade. You keep your Roast Points, and every point makes every cup worth 2% more, forever.</p>
+          <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+            <div className="bg-espresso rounded-xl p-3"><div className="text-latte/60 text-xs uppercase tracking-wider">Now</div><div className="font-display text-xl text-foam">{game.rp} RP · +{game.rp * 2}%</div></div>
+            <div className="bg-espresso rounded-xl p-3 border border-amber/50"><div className="text-amber text-xs uppercase tracking-wider">After</div><div className="font-display text-xl text-amber">{game.rp + E.rpGain(game)} RP · +{(game.rp + E.rpGain(game)) * 2}%</div></div>
+          </div>
+          <div className="flex gap-2">
+            <BigButton tone="ghost" onClick={() => setConfirmPrestige(false)} className="flex-1">Keep brewing</BigButton>
+            <BigButton onClick={doPrestige} className="flex-1">Sell it</BigButton>
+          </div>
+        </Modal>
+      )}
+
+      {confirmReset && (
+        <Modal onClose={() => setConfirmReset(false)}>
+          <h2 className="font-display font-bold text-2xl text-foam mb-2">Start over from nothing?</h2>
+          <p className="text-latte/85 mb-4">This wipes the whole game, Roast Points included. Copy your save code first if you might want it back.</p>
+          <div className="flex gap-2">
+            <BigButton tone="ghost" onClick={() => setConfirmReset(false)} className="flex-1">Cancel</BigButton>
+            <BigButton onClick={doReset} className="flex-1">Wipe it</BigButton>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---- Shop ----------------------------------------------------------------
+function Shop({ game, qty, setQty, buy, pulses }) {
+  const firstUnowned = game.owned.findIndex(n => n === 0);
+  const visible = firstUnowned < 0 ? E.GENS.length : Math.min(E.GENS.length, firstUnowned + 2);
+  const price = E.cupPrice(game);
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Buy</span>
+        <div className="flex bg-espresso rounded-full p-1 border border-mocha/50">
+          {QTYS.map(([q, label]) => (
+            <button key={q} onClick={() => setQty(q)}
+              className={"px-3 py-1 rounded-full text-xs font-bold tracking-wide transition-colors " + (qty === q ? "bg-ember text-foam" : "text-latte/70")}>{label}</button>
+          ))}
+        </div>
+      </div>
+      {E.GENS.slice(0, visible).map((g, gi) => {
+        const owned = game.owned[gi];
+        const locked = firstUnowned >= 0 && gi === firstUnowned + 1;
+        const n = qty === 'max' ? Math.max(1, E.maxAffordable(gi, owned, game.cash)) : +qty;
+        const cost = E.genCost(gi, owned, n);
+        const affordable = cost <= game.cash;
+        const mult = E.genMult(game, gi);
+        const each = g.rate * mult * price;
+        const next = E.nextMilestone(owned);
+        if (locked) {
+          return (
+            <div key={g.id} className="relative rounded-2xl border border-dashed border-mocha/50 bg-espresso/50 px-4 py-3 flex items-center gap-3 text-latte/50">
+              <span className="w-11 h-11 rounded-xl bg-bean flex items-center justify-center"><Icon name="Lock" size={20} /></span>
+              <div>
+                <div className="font-display font-semibold text-latte/70">{g.name}</div>
+                <div className="text-xs">Opens once you own a {E.GENS[gi - 1].name.toLowerCase()}.</div>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <Card key={g.id} onClick={() => buy(gi)} affordable={affordable} pulseKey={pulses['g' + gi]}>
+            <div className="flex items-center gap-3 px-3 py-3 pb-4">
+              <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (affordable ? "bg-ember text-foam" : "bg-bean text-latte/70")}><Icon name={g.icon} size={26} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-display font-semibold text-lg text-foam truncate">{g.name}</span>
+                  <span className="text-xs text-latte/60 tabular">×{mult}</span>
+                </div>
+                <div className="text-xs text-latte/70 tabular truncate">
+                  {rate(each)} each{owned > 0 && <span> · {rate(each * owned)} total</span>}
+                </div>
+                <div className="text-[11px] text-latte/50 tabular mt-0.5">
+                  {next ? `${owned}/${next} → ×2 at ${next}` : 'All milestones reached'}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="font-display font-bold text-3xl tabular leading-none text-foam">{owned}</div>
+                <div className={"text-sm font-bold tabular mt-1 " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(cost)}</div>
+                <div className="text-[10px] text-latte/50 uppercase tracking-wider">buy {n}</div>
+              </div>
+            </div>
+            <FillBar ratio={game.cash / cost} />
+          </Card>
+        );
+      })}
+      <p className="text-center text-xs text-latte/40 px-6 pt-1">{E.GENS[firstUnowned < 0 ? E.GENS.length - 1 : Math.max(0, firstUnowned)].blurb}</p>
+    </div>
+  );
+}
+
+// ---- Upgrades ------------------------------------------------------------
+function Upgrades({ game, buy, pulses }) {
+  const list = E.availableUpgrades(game);
+  const bought = E.UPGRADES.filter(u => E.has(game, u.id));
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Available</span>
+        <span className="text-xs text-latte/50 tabular">{bought.length}/{E.UPGRADES.length} owned</span>
+      </div>
+      {list.length === 0 && <div className="text-center text-latte/50 py-8">Nothing on the shelf right now. Own more machines to unlock their gear.</div>}
+      {list.map(u => {
+        const affordable = u.cost <= game.cash;
+        return (
+          <Card key={u.id} onClick={() => buy(u.id)} affordable={affordable} pulseKey={pulses[u.id]}>
+            <div className="flex items-center gap-3 px-3 py-3 pb-4">
+              <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (affordable ? "bg-amber text-espresso" : "bg-bean text-latte/70")}><Icon name={u.icon} size={24} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="font-display font-semibold text-lg text-foam leading-tight">{u.name}</div>
+                <div className="text-xs font-bold text-mint">{u.effect}</div>
+                <div className="text-xs text-latte/60 leading-snug mt-0.5">{u.desc}</div>
+              </div>
+              <div className={"text-right shrink-0 font-bold tabular " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(u.cost)}</div>
+            </div>
+            <FillBar ratio={game.cash / u.cost} />
+          </Card>
+        );
+      })}
+      {bought.length > 0 && (
+        <div className="mt-2">
+          <div className="text-xs font-bold uppercase tracking-widest text-latte/60 mb-1.5">Installed</div>
+          <div className="flex flex-wrap gap-1.5">
+            {bought.map(u => <span key={u.id} className="text-xs bg-espresso border border-mocha/50 text-latte/80 rounded-full px-2.5 py-1 flex items-center gap-1"><Icon name="Check" size={12} className="text-mint" />{u.name}</span>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Prestige ------------------------------------------------------------
+function Prestige({ game, onSell }) {
+  const unlocked = E.prestigeUnlocked(game);
+  const gain = E.rpGain(game);
+  const total = E.rpFor(game.lifetime);
+  const nextAt = Math.pow(total + 1, 2) * E.PRESTIGE_UNIT;
+  const prog = unlocked ? (game.lifetime - Math.pow(total, 2) * E.PRESTIGE_UNIT) / (nextAt - Math.pow(total, 2) * E.PRESTIGE_UNIT) : game.lifetime / E.PRESTIGE_UNIT;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-3xl bg-gradient-to-b from-roast to-espresso border border-mocha/60 p-5 text-center">
+        <div className="text-xs font-bold uppercase tracking-widest text-amber flex items-center justify-center gap-1"><Icon name="Sparkles" size={14} /> Roast Points</div>
+        <div className="font-display font-bold text-6xl text-foam tabular mt-1">{game.rp}</div>
+        <div className="text-latte/80">+{game.rp * 2}% on every cup, forever</div>
+      </div>
+
+      <div className="rounded-2xl bg-espresso border border-mocha/50 p-4">
+        <div className="flex justify-between text-sm">
+          <span className="text-latte/70">Lifetime earnings</span>
+          <span className="font-bold tabular text-foam">{E.fmtCash(game.lifetime)}</span>
+        </div>
+        <div className="h-3 rounded-full bg-bean mt-2 overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-ember to-amber transition-[width] duration-300" style={{ width: Math.min(100, prog * 100) + '%' }} />
+        </div>
+        <div className="text-xs text-latte/60 mt-1.5 tabular">
+          {unlocked ? `Next point at ${E.fmtCash(nextAt)}` : `Sell unlocks at ${E.fmtCash(E.PRESTIGE_UNIT)} lifetime earnings`}
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-espresso border border-mocha/50 p-4 text-sm text-latte/85 leading-relaxed">
+        <p><strong className="text-foam">Sell the Chain</strong> resets cash, machines and upgrades. In return you bank <strong className="text-amber">√(lifetime ÷ $1T)</strong> Roast Points in total, and each one adds 2% to every cup you ever sell again.</p>
+      </div>
+
+      <div className="rounded-2xl bg-roast border border-amber/40 p-4 flex items-center justify-between">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-latte/60">If you sell now</div>
+          <div className={"font-display font-bold text-3xl tabular " + (gain > 0 ? "text-amber" : "text-latte/50")}>+{gain} RP</div>
+        </div>
+        <div className="text-right text-xs text-latte/60 tabular">
+          <div>{game.rp} → {game.rp + gain} RP</div>
+          <div>+{game.rp * 2}% → +{(game.rp + gain) * 2}%</div>
+        </div>
+      </div>
+
+      <BigButton onClick={onSell} disabled={!unlocked || gain <= 0} className="w-full flex items-center justify-center gap-2">
+        {unlocked ? (gain > 0 ? <>Sell the Chain</> : <>Earn more before selling</>) : <><Icon name="Lock" size={18} /> Locked until $1.00T earned</>}
+      </BigButton>
+      <div className="text-center text-xs text-latte/50">Sold {game.prestiges} time{game.prestiges === 1 ? '' : 's'} so far.</div>
+    </div>
+  );
+}
+
+// ---- Stats ---------------------------------------------------------------
+function Stats({ game, setGame, showToast, onReset }) {
+  const [showImport, setShowImport] = useState(false);
+  const [code, setCode] = useState('');
+  const [exported, setExported] = useState(null);
+  const cps = E.cashPerSec(game);
+  const rows = [
+    ['Cash on hand', E.fmtCash(game.cash)],
+    ['Income', rate(cps)],
+    ['Cups per second', E.fmt(E.cupsPerSec(game), 1)],
+    ['Price per cup', E.fmtCash(E.cupPrice(game), 2)],
+    ['Tap value', E.fmtCash(E.tapValue(game), 2)],
+    ['Cups brewed', E.fmt(game.cups)],
+    ['Taps', E.fmt(game.taps)],
+    ['Earned this run', E.fmtCash(game.runEarned)],
+    ['Earned all time', E.fmtCash(game.lifetime)],
+    ['Time played', E.fmtTime(game.playtime)],
+    ['Offline rate', Math.round(E.offlineMult(game) * 100) + '% for up to 4h'],
+    ['Roast Points', game.rp + ' (+' + game.rp * 2 + '%)'],
+    ['Chains sold', game.prestiges],
+  ];
+  const copySave = async () => {
+    const s = encodeSave({ ...game, savedAt: Date.now(), awayReport: null });
+    try { await navigator.clipboard.writeText(s); showToast('Save code copied'); }
+    catch (e) { setExported(s); }
+  };
+  const loadSave = () => {
+    const s = decodeSave(code);
+    if (!s) { showToast('That code did not read as a Bean Baron save'); return; }
+    setGame(resumeFrom(s)); setCode(''); setShowImport(false); showToast('Save loaded');
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-2xl bg-espresso border border-mocha/50 divide-y divide-mocha/30">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between px-4 py-2 text-sm"><span className="text-latte/70">{k}</span><span className="font-bold tabular text-foam">{v}</span></div>
+        ))}
+      </div>
+
+      <div className="text-xs font-bold uppercase tracking-widest text-latte/60 mt-1">The chain</div>
+      <div className="rounded-2xl bg-espresso border border-mocha/50 divide-y divide-mocha/30">
+        {E.GENS.map((g, gi) => {
+          const c = E.genCups(game, gi) * E.cupPrice(game);
+          const share = cps > 0 ? c / cps : 0;
+          return (
+            <div key={g.id} className="px-4 py-2 text-sm">
+              <div className="flex justify-between"><span className="flex items-center gap-2 text-latte/85"><Icon name={g.icon} size={16} className="text-amber" />{g.name} <span className="text-latte/50 tabular">×{game.owned[gi]}</span></span><span className="font-bold tabular text-foam">{rate(c)}</span></div>
+              <div className="h-1 rounded-full bg-bean mt-1.5 overflow-hidden"><div className="h-full bg-ember" style={{ width: share * 100 + '%' }} /></div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="text-xs font-bold uppercase tracking-widest text-latte/60 mt-1">Save</div>
+      <p className="text-xs text-latte/60 -mt-1">Your game autosaves in memory while this page is open. Copy a save code to keep it across reloads or move it to another device.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <BigButton tone="quiet" onClick={copySave} className="text-base flex items-center justify-center gap-2"><Icon name="ClipboardCopy" size={18} /> Copy save code</BigButton>
+        <BigButton tone="quiet" onClick={() => setShowImport(v => !v)} className="text-base flex items-center justify-center gap-2"><Icon name="Upload" size={18} /> Load save code</BigButton>
+      </div>
+      {exported && (
+        <div className="rounded-2xl bg-espresso border border-mocha/50 p-3 text-xs">
+          <div className="text-latte/70 mb-1">Clipboard was unavailable. Copy this by hand:</div>
+          <textarea readOnly value={exported} onFocus={e => e.target.select()} className="w-full h-20 bg-bean text-latte rounded-lg p-2 font-mono text-[10px]" />
+        </div>
+      )}
+      {showImport && (
+        <div className="rounded-2xl bg-espresso border border-mocha/50 p-3 flex flex-col gap-2">
+          <textarea value={code} onChange={e => setCode(e.target.value)} placeholder="Paste a save code" className="w-full h-20 bg-bean text-latte rounded-lg p-2 font-mono text-[10px] placeholder:text-latte/40" />
+          <BigButton onClick={loadSave} disabled={!code.trim()} className="text-base">Load</BigButton>
+        </div>
+      )}
+      <button onClick={onReset} className="text-xs text-latte/50 underline underline-offset-4 py-2 flex items-center justify-center gap-1"><Icon name="RotateCcw" size={12} /> Start over from nothing</button>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

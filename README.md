@@ -1,3 +1,28 @@
+# Bean Baron
+
+A single-file idle coffee-shop game, also in this repository: open
+`BeanBaron.html` in a browser. It is a React app (React 18, Tailwind, lucide
+icons, all pulled from jsDelivr at load, so it needs a network connection the
+first time) with the whole game in one file.
+
+- Tap the cup to brew. Buy eight tiers of generators, from Drip Machine to
+  Coffee Empire, each `1.15×` dearer per unit and doubling in output at 10, 25,
+  50 and 100 owned.
+- Cash upgrades: a ladder of ever-better beans (`×1.5` all income), tap
+  multipliers, per-machine gear, and Night Shift for better offline earnings.
+- **Sell the Chain** once you have earned $1T all-time for Roast Points,
+  `floor(√(lifetime ÷ 1e12))` in total, each worth +2% on every cup forever.
+- Away for more than 30 seconds (hidden tab, or a loaded save) pays out at 50%
+  of your rate for up to 4 hours. Saves live in memory only; **Stats → Copy
+  save code** carries a game across reloads or devices.
+
+`node tools/beanbaron_sim.js 70` plays a greedy bot against the exact economy
+block in the page and prints when each tier and upgrade is bought and when the
+first prestige unlocks (about 45 minutes for the bot, so 50–60 for a person).
+`node tools/beanbaron_artifact.js out.html` produces the Artifact page shape.
+
+---
+
 # Cube Roll
 
 A single-file 3D block-rolling puzzle game. No build step, no dependencies, no
