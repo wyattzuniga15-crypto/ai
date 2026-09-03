@@ -209,6 +209,30 @@ const BeanBaronEconomy = (() => {
   const cafeFor = gi => CAFES.find(c => !c.caps || c.caps[gi] > 0);
   const cafeFull = (s, gi) => { const c = cafeCap(s, gi); return c > 0 && isFinite(c) && s.owned[gi] >= c; };
 
+  // Orders. Customers ask for drinks and pastries; the player fills the
+  // ticket from a pantry stocked in the shop. Payouts scale with income so
+  // filling orders stays worth the attention at any stage.
+  const INGREDIENTS = [
+    { id: 'beans',  name: 'Beans',    icon: 'Bean',      base: 2 },
+    { id: 'milk',   name: 'Milk',     icon: 'Milk',      base: 1.5 },
+    { id: 'cups',   name: 'Cups',     icon: 'CupSoda',   base: 0.5 },
+    { id: 'syrup',  name: 'Syrup',    icon: 'Droplet',   base: 3 },
+    { id: 'pastry', name: 'Pastries', icon: 'Croissant', base: 4 },
+  ];
+  const ING_BY_ID = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
+  const RECIPES = [
+    { id: 'drip',      name: 'Drip Coffee', icon: 'Coffee',    needs: { beans: 1, cups: 1 } },
+    { id: 'latte',     name: 'Latte',       icon: 'Milk',      needs: { beans: 1, milk: 1, cups: 1 } },
+    { id: 'mocha',     name: 'Mocha',       icon: 'Candy',     needs: { beans: 1, milk: 1, syrup: 1, cups: 1 } },
+    { id: 'coldbrew',  name: 'Cold Brew',   icon: 'Snowflake', needs: { beans: 2, cups: 1 } },
+    { id: 'croissant', name: 'Croissant',   icon: 'Croissant', needs: { pastry: 1 } },
+    { id: 'cookie',    name: 'Cookie',      icon: 'Cookie',    needs: { pastry: 1 } },
+  ];
+  const RECIPE_BY_ID = Object.fromEntries(RECIPES.map(r => [r.id, r]));
+  const ORDER_NAMES = ['Maya', 'Theo', 'Priya', 'Jonas', 'Amara', 'Kai', 'Lena', 'Diego', 'Noor', 'Felix', 'Sana', 'Milo', 'Ada', 'Ravi', 'June', 'Omar', 'Ivy', 'Luca', 'Zoe', 'Nico', 'Hana', 'Sam', 'Rosa', 'Eli'];
+  const ORDER_MAX = 3, ORDER_LIFE = 90, ORDER_GAP = [25, 45], ORDER_FIRST = 20;
+  const ORDER_MARKUP = 3, ORDER_SECONDS = 6;      // payout = ingredients x markup + this many seconds of income
+
   // Perks are bought with Roast Points. Spending never lowers the +2% bonus,
   // which counts every point ever earned.
   const PERKS = [
@@ -221,6 +245,7 @@ const BeanBaronEconomy = (() => {
     { id: 'overdrive', name: 'Overdrive',     cost: 5, icon: 'Gauge',    desc: 'Machines keep doubling at 150, 200, 300 and 400 owned.' },
     { id: 'rushhour',  name: 'Rush Hour',     cost: 6, icon: 'Timer',    desc: 'Rush buffs from golden beans last twice as long.' },
     { id: 'landlord',  name: 'Landlord',      cost: 3, icon: 'Building2', desc: 'You own the building. Selling the chain keeps your café.' },
+    { id: 'patience',  name: 'Patient Regulars', cost: 2, icon: 'ClipboardList', desc: 'Order tickets wait 50% longer before the customer gives up.' },
   ];
   const PERK_BY_ID = Object.fromEntries(PERKS.map(p => [p.id, p]));
 
@@ -244,6 +269,10 @@ const BeanBaronEconomy = (() => {
   ACH.push({ id: 'allgens', name: 'Full House', desc: 'Own at least one of every tier.', icon: 'Trophy', test: s => s.owned.every(n => n >= 1) });
   ACH.push({ id: 'rate6', name: 'Cash Machine', desc: 'Earn $1.00M per second.', icon: 'Gauge', test: s => cashPerSec(s) >= 1e6 });
   ACH.push({ id: 'rate9', name: 'Money Printer', desc: 'Earn $1.00B per second.', icon: 'Gauge', test: s => cashPerSec(s) >= 1e9 });
+  ACH.push({ id: 'orders1', name: 'First Ticket', desc: 'Fill an order.', icon: 'Receipt', test: s => (s.ordersFilled || 0) >= 1 });
+  ACH.push({ id: 'orders50', name: 'Regular Service', desc: 'Fill 50 orders.', icon: 'Receipt', test: s => (s.ordersFilled || 0) >= 50 });
+  ACH.push({ id: 'orders250', name: 'Order Machine', desc: 'Fill 250 orders.', icon: 'Receipt', test: s => (s.ordersFilled || 0) >= 250 });
+  ACH.push({ id: 'streak8', name: 'On a Roll', desc: 'Fill 8 orders in a row without missing one.', icon: 'Flame', test: s => (s.bestStreak || 0) >= 8 });
   ACH.push({ id: 'cafe2', name: 'Proper Address', desc: 'Move into a Neighborhood Café.', icon: 'Store', test: s => (s.cafe || 0) >= 2 });
   ACH.push({ id: 'cafe3', name: 'Grand Opening', desc: 'Move into a Grand Café.', icon: 'Building2', test: s => (s.cafe || 0) >= 3 });
   ACH.push({ id: 'cafe4', name: 'Palace Intrigue', desc: 'Move into the Coffee Palace.', icon: 'Crown', test: s => (s.cafe || 0) >= 4 });
@@ -255,6 +284,11 @@ const BeanBaronEconomy = (() => {
       cafe: 0,                 // index into CAFES
       moves: 0,                // how many times the chain moved premises
       owned: GENS.map(() => 0),
+      stock: {},               // ingredient id -> units in the pantry
+      orders: [],              // open order tickets
+      nextOrder: ORDER_FIRST,  // playtime at which the next ticket arrives
+      orderSeq: 0,
+      streak: 0, bestStreak: 0, ordersFilled: 0, ordersMissed: 0,
       upgrades: {},            // id -> true
       perks: {},               // id -> true, bought with Roast Points
       achievements: {},        // id -> true
@@ -320,17 +354,90 @@ const BeanBaronEconomy = (() => {
   function genMult(s, gi) { return milestoneMult(s, s.owned[gi]) * gearMult(s, gi); }
   function genCups(s, gi) { return GENS[gi].rate * s.owned[gi] * genMult(s, gi); }
   function cupsPerSec(s) { let t = 0; for (let i = 0; i < GENS.length; i++) t += genCups(s, i); return t; }
-  function priceMult(s) {
+  function priceMult(s, calm) {
     let m = 1;
     for (const u of UPGRADES) if (u.kind === 'price' && has(s, u.id)) m *= u.mult;
     m *= cafeOf(s).mult;                  // the premises
     m *= 1 + 0.02 * s.rp;                 // Roast Points
     m *= 1 + 0.01 * achCount(s);          // reputation
     if (perk(s, 'regulars')) m *= 1.25;
-    if (buffActive(s, 'rush')) m *= RUSH_MULT;
+    if (!calm && buffActive(s, 'rush')) m *= RUSH_MULT;
     return m;
   }
   function cupPrice(s) { return priceMult(s); }
+  function calmCashPerSec(s) { return cupsPerSec(s) * priceMult(s, true); }
+  // --- pantry and orders ---------------------------------------------------
+  function ingredientPrice(s, id) { return ING_BY_ID[id].base * priceMult(s, true); }
+  function stockOf(s, id) { return (s.stock && s.stock[id]) || 0; }
+  function maxStock(s, id) { return Math.floor(s.cash / ingredientPrice(s, id)); }
+  function orderNeeds(order) {
+    const t = {};
+    for (const it of order.items) for (const k in RECIPE_BY_ID[it.recipe].needs) t[k] = (t[k] || 0) + RECIPE_BY_ID[it.recipe].needs[k] * it.n;
+    return t;
+  }
+  function orderMissing(s, order) {
+    const need = orderNeeds(order), m = {};
+    for (const k in need) if (stockOf(s, k) < need[k]) m[k] = need[k] - stockOf(s, k);
+    return m;
+  }
+  function orderMissingCost(s, order) { const m = orderMissing(s, order); let c = 0; for (const k in m) c += m[k] * ingredientPrice(s, k); return c; }
+  function canFill(s, order) { return Object.keys(orderMissing(s, order)).length === 0; }
+  function streakMult(s) { return Math.min(2, 1 + 0.125 * (s.streak || 0)); }
+  function orderValue(s, order) { let v = 0; const need = orderNeeds(order); for (const k in need) v += need[k] * ingredientPrice(s, k); return v; }
+  function orderLife(s) { return ORDER_LIFE * (perk(s, 'patience') ? 1.5 : 1); }
+  function newOrder(s, rng) {
+    const count = 1 + (rng() < 0.55 ? 1 : 0) + (rng() < 0.25 ? 1 : 0);
+    const items = [];
+    for (let i = 0; i < count; i++) {
+      const r = RECIPES[Math.floor(rng() * RECIPES.length)];
+      const ex = items.find(x => x.recipe === r.id);
+      if (ex) ex.n += 1; else items.push({ recipe: r.id, n: 1 + (rng() < 0.4 ? 1 : 0) + (rng() < 0.15 ? 1 : 0) });
+    }
+    const o = { id: (s.orderSeq || 0) + 1, name: ORDER_NAMES[Math.floor(rng() * ORDER_NAMES.length)], items, created: s.playtime, expires: s.playtime + orderLife(s), reward: 0 };
+    o.reward = orderValue(s, o) * ORDER_MARKUP + calmCashPerSec(s) * ORDER_SECONDS;
+    return o;
+  }
+  function stepOrders(n, rng) {
+    let orders = n.orders || [];
+    const expired = orders.filter(o => o.expires <= n.playtime);
+    if (expired.length) {
+      orders = orders.filter(o => o.expires > n.playtime);
+      n = { ...n, orders, streak: 0, ordersMissed: (n.ordersMissed || 0) + expired.length };
+      for (const o of expired) n = withEvent(n, { type: 'order-missed', name: o.name });
+    }
+    if (orders.length < ORDER_MAX && n.playtime >= (n.nextOrder == null ? ORDER_FIRST : n.nextOrder)) {
+      const o = newOrder(n, rng);
+      n = withEvent({ ...n, orders: orders.concat([o]), orderSeq: o.id, nextOrder: n.playtime + ORDER_GAP[0] + rng() * (ORDER_GAP[1] - ORDER_GAP[0]) }, { type: 'order-new', name: o.name });
+    }
+    return n;
+  }
+  function buyStock(s, id, qty) {
+    const n = qty === 'max' ? maxStock(s, id) : qty;
+    if (n <= 0) return null;
+    const cost = n * ingredientPrice(s, id);
+    if (cost > s.cash + 1e-9) return null;
+    return { ...s, cash: s.cash - cost, stock: { ...(s.stock || {}), [id]: stockOf(s, id) + n } };
+  }
+  function fillOrder(s, id, buyMissing) {
+    const o = (s.orders || []).find(o => o.id === id);
+    if (!o) return null;
+    let n = s;
+    const missing = orderMissing(s, o);
+    if (Object.keys(missing).length) {
+      if (!buyMissing) return null;
+      const cost = orderMissingCost(s, o);
+      if (cost > s.cash + 1e-9) return null;
+      const stock = { ...(s.stock || {}) };
+      for (const k in missing) stock[k] = stockOf(s, k) + missing[k];
+      n = { ...s, cash: s.cash - cost, stock };
+    }
+    const need = orderNeeds(o), stock = { ...(n.stock || {}) };
+    for (const k in need) stock[k] = stockOf(n, k) - need[k];
+    const payout = o.reward * streakMult(n);
+    n = earn({ ...n, stock, orders: n.orders.filter(x => x.id !== id), streak: (n.streak || 0) + 1, ordersFilled: (n.ordersFilled || 0) + 1 }, payout);
+    n.bestStreak = Math.max(n.bestStreak || 0, n.streak);
+    return checkAchievements(withEvent(n, { type: 'order-filled', name: o.name, payout }));
+  }
   function cashPerSec(s) { return cupsPerSec(s) * cupPrice(s); }
   function tapMult(s) {
     let m = 1;
@@ -403,7 +510,7 @@ const BeanBaronEconomy = (() => {
       n.gold = { x: 12 + rng() * 74, y: 10 + rng() * 68, until: n.playtime + life, life, kind: rng() < 0.55 ? 'rush' : rng() < 0.5 ? 'frenzy' : 'tip' };
       n.nextGold = n.playtime + life + goldGap(n, rng);
     }
-    return checkAchievements(n);
+    return checkAchievements(stepOrders(n, rng));
   }
   function goldGap(s, rng) {
     const gap = GOLD_GAP[0] + rng() * (GOLD_GAP[1] - GOLD_GAP[0]);
@@ -477,7 +584,7 @@ const BeanBaronEconomy = (() => {
   function expandCafe(s) {
     const nx = nextCafe(s);
     if (!nx || nx.cost > s.cash + 1e-9) return null;
-    let n = { ...s, cash: s.cash - nx.cost, cafe: s.cafe + 1, moves: (s.moves || 0) + 1, owned: GENS.map(() => 0), upgrades: {} };
+    let n = { ...s, cash: s.cash - nx.cost, cafe: s.cafe + 1, moves: (s.moves || 0) + 1, owned: GENS.map(() => 0), upgrades: {}, stock: {}, orders: [], streak: 0, nextOrder: s.playtime + 15 };
     if (perk(s, 'memory')) { if (has(s, 'tap0')) n.upgrades.tap0 = true; if (has(s, 'training')) n.upgrades.training = true; }
     return checkAchievements(withEvent(n, { type: 'cafe', tier: n.cafe }));
   }
@@ -498,6 +605,8 @@ const BeanBaronEconomy = (() => {
     n.prestiges = s.prestiges + 1;
     n.lifetime = s.lifetime; n.cups = s.cups; n.taps = s.taps; n.playtime = s.playtime;
     n.goldCaught = s.goldCaught; n.bestRate = s.bestRate;
+    n.ordersFilled = s.ordersFilled || 0; n.ordersMissed = s.ordersMissed || 0; n.bestStreak = s.bestStreak || 0; n.orderSeq = s.orderSeq || 0;
+    n.nextOrder = s.playtime + 20;
     n.nextGold = s.playtime + 60;
     if (perk(s, 'memory')) { if (has(s, 'tap0')) n.upgrades.tap0 = true; if (has(s, 'training')) n.upgrades.training = true; }
     if (perk(s, 'headstart')) n = applyHeadStart(n);
@@ -532,6 +641,7 @@ const BeanBaronEconomy = (() => {
 
   return { GROWTH, MILESTONES, PRESTIGE_UNIT, OFFLINE_CAP, RUSH_MULT, FRENZY_MULT, GOLD_LIFE,
     GENS, UPGRADES, UPG_BY_ID, PERKS, PERK_BY_ID, ACH, CAFES, cafeOf, nextCafe, cafeCap, cafeFor, cafeFull, buyCount, expandCafe, fitCafe,
+    INGREDIENTS, ING_BY_ID, RECIPES, RECIPE_BY_ID, ORDER_MAX, ingredientPrice, stockOf, maxStock, orderNeeds, orderMissing, orderMissingCost, canFill, streakMult, orderLife, buyStock, fillOrder, calmCashPerSec,
     newState, has, perk, rpAvailable, achCount, buffActive, buffLeft,
     genCost, maxAffordable, milestonesFor, milestoneMult, nextMilestone, gearMult, genMult, genCups,
     cupsPerSec, priceMult, cupPrice, cashPerSec, tapMult, tapShare, tapValue, offlineMult, offlineCap, upgradeCost,
@@ -1188,7 +1298,7 @@ const Sound = (() => {
 
 const QTYS = [['1', 'x1'], ['10', 'x10'], ['100', 'x100'], ['max', 'MAX']];
 const TABS = [['cafe', 'Café', 'Coffee'], ['shop', 'Shop', 'Store'], ['upgrades', 'Upgrades', 'TrendingUp'], ['prestige', 'Prestige', 'Sparkles'], ['stats', 'Stats', 'BarChart3']];
-const TOAST_ICON = { milestone: 'ArrowUpCircle', ach: 'Trophy', gold: 'Star', info: 'Info' };
+const TOAST_ICON = { milestone: 'ArrowUpCircle', ach: 'Trophy', gold: 'Star', info: 'Info', order: 'Receipt', miss: 'Frown' };
 
 function rate(n) { return E.fmtCash(n, n < 100 ? 1 : undefined) + '/s'; }
 
@@ -1293,6 +1403,55 @@ function Ticker({ sceneRef, game }) {
   );
 }
 
+// ---- order tickets ---------------------------------------------------------
+function Ticket({ game, o, onFill }) {
+  const total = o.expires - o.created, left = Math.max(0, o.expires - game.playtime), frac = total > 0 ? left / total : 0;
+  const missing = E.orderMissing(game, o);
+  const missKeys = Object.keys(missing);
+  const fillable = missKeys.length === 0;
+  const missCost = fillable ? 0 : E.orderMissingCost(game, o);
+  const canBuy = !fillable && missCost <= game.cash;
+  const payout = o.reward * E.streakMult(game);
+  return (
+    <button onClick={() => onFill(o.id, !fillable)} disabled={!fillable && !canBuy}
+      className={"relative shrink-0 w-[156px] text-left rounded-xl border px-2.5 pt-2 pb-3 overflow-hidden transition-transform active:scale-[.97] disabled:active:scale-100 "
+        + (fillable ? "bg-roast border-mint/70" : canBuy ? "bg-roast border-amber/60" : "bg-espresso border-mocha/50")}>
+      <div className="flex justify-between items-baseline text-[11px]"><span className="font-bold text-foam truncate">{o.name}</span><span className={"tabular " + (left < 15 ? 'text-ember font-bold' : 'text-latte/60')}>{Math.ceil(left)}s</span></div>
+      <div className="mt-1 flex flex-col gap-0.5">
+        {o.items.map(it => { const r = E.RECIPE_BY_ID[it.recipe]; return (
+          <div key={it.recipe} className="flex items-center gap-1 text-xs text-latte/90"><Icon name={r.icon} size={12} className="text-amber shrink-0" /><span className="tabular">{it.n}×</span><span className="truncate">{r.name}</span></div>
+        ); })}
+      </div>
+      {!fillable && <div className="text-[10px] text-amber mt-1 leading-tight">need {missKeys.map(k => `${missing[k]} ${E.ING_BY_ID[k].name.toLowerCase()}`).join(', ')}</div>}
+      <div className="flex justify-between items-baseline mt-1.5">
+        <span className="font-display font-bold text-sm tabular text-foam">{E.fmtCash(payout, payout < 100 ? 2 : undefined)}</span>
+        <span className={"text-[10px] font-bold uppercase tracking-wider " + (fillable ? 'text-mint' : canBuy ? 'text-amber' : 'text-latte/40')}>{fillable ? 'fill' : canBuy ? `buy ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)} & fill` : `need ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)}`}</span>
+      </div>
+      <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-bean/70"><div className={"h-full " + (left < 15 ? 'bg-ember' : 'bg-amber/80')} style={{ width: frac * 100 + '%' }} /></div>
+    </button>
+  );
+}
+
+function OrderRail({ game, onFill }) {
+  const [open, setOpen] = useState(true);
+  const orders = game.orders || [];
+  const mult = E.streakMult(game);
+  return (
+    <div className="shrink-0 bg-espresso border-t border-mocha/50 px-2 pt-1.5 pb-2">
+      <button onClick={() => setOpen(v => !v)} className="w-full flex justify-between items-center text-[10px] uppercase tracking-widest text-latte/50 px-1 mb-1">
+        <span className="flex items-center gap-1"><Icon name="Receipt" size={11} /> Tickets {orders.length}/{E.ORDER_MAX}</span>
+        <span className="flex items-center gap-2"><span className={game.streak > 0 ? 'text-amber' : ''}>streak ×{mult.toFixed(2)}{game.streak > 0 ? ` · ${game.streak} in a row` : ''}</span><Icon name={open ? 'ChevronDown' : 'ChevronUp'} size={12} /></span>
+      </button>
+      {open && (
+        <div className="flex gap-2 overflow-x-auto scroll-soft pb-0.5">
+          {orders.length === 0 && <div className="text-xs text-latte/50 px-1 py-3">No open tickets. Customers order every half minute or so; stock the pantry in the Shop so you can fill them fast.</div>}
+          {orders.map(o => <Ticket key={o.id} game={game} o={o} onFill={onFill} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- the game ------------------------------------------------------------
 function App() {
   const [game, setGame] = useState(() => SAVE_SLOT ? resumeFrom(SAVE_SLOT) : E.newState(Date.now()));
@@ -1350,6 +1509,9 @@ function App() {
       else if (ev.type === 'achievement') { showToast(`${ACH_BY_ID[ev.id].name} · +1% income`, 'ach'); Sound.chime(); }
       else if (ev.type === 'gold') { showToast(ev.text, 'gold'); }
       else if (ev.type === 'cafe') { showToast(`Welcome to your ${E.CAFES[ev.tier].name}`, 'gold'); Sound.gold(); }
+      else if (ev.type === 'order-new') { showToast(`New ticket from ${ev.name}`, 'order'); }
+      else if (ev.type === 'order-filled') { showToast(`${ev.name} paid ${E.fmtCash(ev.payout)}`, 'gold'); Sound.chime(); }
+      else if (ev.type === 'order-missed') { showToast(`${ev.name} gave up waiting. Streak reset.`, 'miss'); Sound.nope(); }
     }
     setGame(g => g.events.length ? { ...g, events: [] } : g);
   }, [game.events, showToast]);
@@ -1422,6 +1584,13 @@ function App() {
   const buyUpgrade = id => {
     if (E.buyUpgrade(gameRef.current, id)) { setGame(g => E.buyUpgrade(g, id) || g); Sound.buy(); } else Sound.nope();
   };
+  const buyStock = id => {
+    const q = qty === 'max' ? 'max' : +qty;
+    if (E.buyStock(gameRef.current, id, q)) { setGame(g => E.buyStock(g, id, q) || g); Sound.buy(); } else Sound.nope();
+  };
+  const fillOrder = (id, buyMissing) => {
+    if (E.fillOrder(gameRef.current, id, buyMissing)) setGame(g => E.fillOrder(g, id, buyMissing) || g); else Sound.nope();
+  };
   const buyPerk = id => {
     if (E.buyPerk(gameRef.current, id)) { setGame(g => E.buyPerk(g, id) || g); Sound.chime(); showToast(E.PERK_BY_ID[id].name + ' unlocked', 'ach'); }
   };
@@ -1440,8 +1609,11 @@ function App() {
     if (rush) return { text: `Rush hour: ×${E.RUSH_MULT} income for ${Math.ceil(E.buffLeft(game, 'rush'))}s`, hot: true };
     if (frenzy) return { text: `Tap frenzy: ×${E.FRENZY_MULT} per tap for ${Math.ceil(E.buffLeft(game, 'frenzy'))}s`, hot: true };
     if (game.owned.every(n => n === 0)) return { text: game.cash >= 15 ? 'A Drip Machine is affordable in the Shop' : 'Tap to brew · a Drip Machine costs $15' };
+    const ready = (game.orders || []).find(o => E.canFill(game, o));
+    if (ready) return { text: `${ready.name}'s ticket is ready to fill`, hot: true };
     const nx = E.nextCafe(game);
     if (nx && nx.cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)) && tab !== 'shop') return { text: `Your ${E.cafeOf(game).name} is full · move up in the Shop` };
+    if ((game.orders || []).length && tab !== 'shop') return { text: `Stock the pantry in the Shop for ${game.orders[0].name}'s ticket` };
     const cheapUpg = E.availableUpgrades(game).find(u => E.upgradeCost(game, u) <= game.cash);
     if (cheapUpg && tab !== 'upgrades' && tab !== 'cafe') return { text: `${cheapUpg.name} is affordable in Upgrades` };
     if (E.rpGain(game) > 0 && tab !== 'prestige' && tab !== 'cafe') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
@@ -1501,10 +1673,11 @@ function App() {
           </div>
           {tab === 'cafe' && <Ticker sceneRef={sceneRef} game={game} />}
         </section>
+        <OrderRail game={game} onFill={fillOrder} />
 
         {/* tab panel */}
         {tab !== 'cafe' && <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
-          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} onMove={() => setConfirmMove(true)} />}
+          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} buyStock={buyStock} pulses={pulses} onMove={() => setConfirmMove(true)} />}
           {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
           {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
           {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
@@ -1558,7 +1731,7 @@ function App() {
         <Modal onClose={() => setConfirmMove(false)}>
           <div className="flex items-center gap-2 text-amber mb-2"><Icon name="Building2" size={20} /><span className="text-xs font-bold uppercase tracking-widest">Bigger premises</span></div>
           <h2 className="font-display font-bold text-2xl text-foam mb-2">Move into a {nx.name}?</h2>
-          <p className="text-latte/85 mb-3">Your money comes with you: <strong className="text-foam tabular">{E.fmtCash(game.cash - nx.cost)}</strong> after the {E.fmtCash(nx.cost)} move. Everything else starts fresh: machines, staff and upgrades{E.perk(game, 'memory') ? ' except what Muscle Memory keeps' : ''}. Roast Points, perks and achievements stay.</p>
+          <p className="text-latte/85 mb-3">Your money comes with you: <strong className="text-foam tabular">{E.fmtCash(game.cash - nx.cost)}</strong> after the {E.fmtCash(nx.cost)} move. Everything else starts fresh: machines, staff, pantry and upgrades{E.perk(game, 'memory') ? ' except what Muscle Memory keeps' : ''}. Roast Points, perks and achievements stay.</p>
           <div className="grid grid-cols-2 gap-2 text-sm mb-3">
             <div className="bg-espresso rounded-xl p-3"><div className="text-latte/60 text-xs uppercase tracking-wider">{cur.name}</div><div className="font-display text-xl text-foam">×{cur.mult} per cup</div></div>
             <div className="bg-espresso rounded-xl p-3 border border-amber/50"><div className="text-amber text-xs uppercase tracking-wider">{nx.name}</div><div className="font-display text-xl text-amber">×{nx.mult} per cup</div></div>
@@ -1608,7 +1781,7 @@ function Eta({ game, cost }) {
   return <div className="text-[10px] text-latte/50 tabular">in {E.fmtTime(t)}</div>;
 }
 
-function Shop({ game, qty, setQty, buy, pulses, onMove }) {
+function Shop({ game, qty, setQty, buy, buyStock, pulses, onMove }) {
   const firstUnowned = game.owned.findIndex(n => n === 0);
   const visible = firstUnowned < 0 ? E.GENS.length : Math.min(E.GENS.length, firstUnowned + 2);
   const price = E.cupPrice(game);
@@ -1640,6 +1813,33 @@ function Shop({ game, qty, setQty, buy, pulses, onMove }) {
               className={"px-3 py-1 rounded-full text-xs font-bold tracking-wide transition-colors " + (qty === q ? "bg-ember text-foam" : "text-latte/70")}>{label}</button>
           ))}
         </div>
+      </div>
+      <div className="flex items-center justify-between -mb-1">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Pantry</span>
+        <span className="text-[11px] text-latte/50">stock for filling order tickets</span>
+      </div>
+      <div className="grid grid-cols-5 gap-1.5">
+        {E.INGREDIENTS.map(ing => {
+          const unit = E.ingredientPrice(game, ing.id);
+          const n = qty === 'max' ? Math.max(1, E.maxStock(game, ing.id)) : +qty;
+          const cost = unit * n, affordable = cost <= game.cash;
+          const wanted = (game.orders || []).some(o => E.orderMissing(game, o)[ing.id]);
+          return (
+            <button key={ing.id} onClick={() => buyStock(ing.id)}
+              className={"relative overflow-hidden rounded-xl border px-1 pt-2 pb-3 flex flex-col items-center gap-0.5 active:scale-[.97] transition-transform " + (affordable ? "bg-roast border-amber/60" : "bg-espresso border-mocha/50") + (wanted ? " ring-2 ring-amber/60" : "")}>
+              <Icon name={ing.icon} size={18} className={affordable ? 'text-amber' : 'text-latte/60'} />
+              <div className="font-display font-bold text-xl tabular text-foam leading-none">{E.stockOf(game, ing.id)}</div>
+              <div className="text-[10px] text-latte/60">{ing.name}</div>
+              <div className={"text-[10px] font-bold tabular " + (affordable ? "text-amber" : "text-latte/50")}>{E.fmtCash(cost, cost < 100 ? 2 : undefined)}</div>
+              <div className="text-[9px] text-latte/40 uppercase">×{n}</div>
+              <FillBar ratio={game.cash / cost} />
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Machines</span>
+        <span className="text-[11px] text-latte/50">brew cups by themselves</span>
       </div>
       {E.GENS.slice(0, visible).map((g, gi) => {
         const owned = game.owned[gi];
@@ -1833,6 +2033,9 @@ function Stats({ game, setGame, showToast, onReset }) {
     ['Cups brewed', E.fmt(game.cups)],
     ['Taps', E.fmt(game.taps)],
     ['Golden beans caught', game.goldCaught],
+    ['Orders filled', game.ordersFilled || 0],
+    ['Orders missed', game.ordersMissed || 0],
+    ['Best order streak', game.bestStreak || 0],
     ['Earned this run', E.fmtCash(game.runEarned)],
     ['Earned all time', E.fmtCash(game.lifetime)],
     ['Time played', E.fmtTime(game.playtime)],

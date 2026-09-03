@@ -18,6 +18,15 @@ first time) with the whole game in one file.
   $10B. Moving keeps your cash and resets everything else, and every bigger
   place sells each cup for more (×1.2 up to ×2.5). The scene redraws the
   actual building each time, "for lease" neighbours included.
+- **Order tickets.** Customers put in tickets (two lattes and a croissant,
+  say) that wait about 90 seconds. Stock the pantry in the Shop with beans,
+  milk, cups, syrup and pastries, then fill the ticket for ingredients ×3
+  plus six seconds of your income; a ticket can also buy its missing stock
+  in one tap. Filling tickets in a row builds a streak up to ×2; a missed
+  ticket resets it.
+- **Premises.** You start on a coffee cart. Each size caps how many of each
+  machine fit and which tiers exist; moving up costs money, keeps your
+  money, and resets machines, pantry and upgrades.
 - Tap the café to brew (space bar works too). Buy eight tiers of generators,
   from Drip Machine to Coffee Empire, each `1.15×` dearer per unit and
   doubling in output at 10, 25, 50 and 100 owned.

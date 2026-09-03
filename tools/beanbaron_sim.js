@@ -22,7 +22,7 @@ let seed = 12345; const rng = () => (seed = (seed * 1664525 + 1013904223) >>> 0)
 
 let s = E.newState(0);
 let t = 0; const DT = 0.5;
-const firstBuy = {}; const upgAt = []; const moves = []; let golds = 0;
+const firstBuy = {}; const upgAt = []; const moves = []; let golds = 0, filled = 0;
 let nextLog = 0, hit = null;
 // taps per second: eager at first, then the occasional poke
 const tps = t => t < 180 ? 5 : t < 900 ? 3 : t < 1800 ? 1.5 : 0.8;
@@ -65,6 +65,8 @@ while (t < MIN * 60) {
   }
   s = E.step(s, DT, rng);
   if (s.gold && s.gold.until - s.playtime < 4 && rng() < CATCH) { s = E.catchGold(s); golds++; }
+  // an attentive player fills tickets, buying the missing stock when it is pocket change
+  if (CATCH > 0) for (const o of s.orders.slice()) { if (E.orderMissingCost(s, o) <= s.cash * 0.05) { const f = E.fillOrder(s, o.id, true); if (f) { s = f; filled++; } } }
   for (let k = 0; k < tps(t) * DT; k++) s = E.tap(s)[0];
   s.events = [];
   t += DT;
@@ -77,5 +79,5 @@ while (t < MIN * 60) {
 console.log('\nfirst of each tier (min):', Object.entries(firstBuy).map(([k, v]) => `${k} ${(v / 60).toFixed(1)}`).join(', '));
 console.log('upgrades (min):', upgAt.join(', '));
 console.log('moves:', moves.join(', '));
-console.log('golden beans caught:', golds, '| achievements:', E.achCount(s) + '/' + E.ACH.length);
+console.log('orders filled:', filled, '| golden beans caught:', golds, '| achievements:', E.achCount(s) + '/' + E.ACH.length);
 console.log('\n$1T lifetime reached at', hit ? (hit / 60).toFixed(1) + ' min' : 'never', '| Roast Points banked by the end:', E.rpFor(s.lifetime));
