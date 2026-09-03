@@ -494,6 +494,505 @@ const BeanBaronEconomy = (() => {
 if (typeof module !== 'undefined') module.exports = BeanBaronEconomy;
 // ---- end economy --------------------------------------------------------
 </script>
+<script>
+// ---- Bean Baron scene ---------------------------------------------------
+// A little 2D café drawn on a canvas. It is decoration that reads the game:
+// what you own decides how many machines, baristas, vans and plants appear
+// and how busy the shop is. Nothing here changes the economy.
+const BeanBaronScene = (() => {
+  const W = 360;
+  const NAMES = ['Maya', 'Theo', 'Priya', 'Jonas', 'Amara', 'Kai', 'Lena', 'Diego', 'Noor', 'Felix', 'Sana', 'Milo', 'Ada', 'Ravi', 'June', 'Omar', 'Ivy', 'Luca', 'Zoe', 'Nico', 'Hana', 'Sam', 'Rosa', 'Eli', 'Tomas', 'Wren'];
+  const DRINKS = [
+    { name: 'latte', color: '#e9c9a3', kind: 'espresso' }, { name: 'cappuccino', color: '#d9b48a', kind: 'espresso' },
+    { name: 'flat white', color: '#f0d9bb', kind: 'espresso' }, { name: 'americano', color: '#5b3620', kind: 'espresso' },
+    { name: 'mocha', color: '#7a4a2e', kind: 'espresso' }, { name: 'cortado', color: '#c9a077', kind: 'espresso' },
+    { name: 'drip coffee', color: '#4a2a16', kind: 'drip' }, { name: 'pour-over', color: '#6a3d22', kind: 'drip' },
+    { name: 'cold brew', color: '#3a2214', kind: 'drip' },
+  ];
+  const SKIN = ['#f2cba7', '#e0aa80', '#c68a5b', '#8d5a3b', '#5c3a25', '#f7dcc3'];
+  const HAIR = ['#2b1b12', '#5a3a25', '#c78a3e', '#e8d3a0', '#1a1a1a', '#8a2f1f', '#d94f7a', '#6d6d6d'];
+  const SHIRT = ['#3b6ea5', '#d95d39', '#5aa06a', '#8e5bb5', '#e2b53d', '#3f8f9f', '#c94c6d', '#6b6b6b', '#f1f1f1', '#2e2e2e', '#f2a65a'];
+  const CARS = ['#d84a4a', '#3e78c2', '#f0c040', '#8fa8b8', '#f6f6f6', '#2c2c2c', '#5fae6a'];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const TABLE_X = [45, 112, 180, 248, 316];
+
+  function layout(H) {
+    const extra = Math.max(0, H - 300);
+    const bgBottom = Math.round(62 + extra * 0.5);
+    const interiorTop = bgBottom + 4;
+    const roadH = Math.round(34 + extra * 0.12), walkH = Math.round(16 + extra * 0.08), wallH = 8;
+    const interiorBottom = H - roadH - walkH - wallH;
+    const backY = interiorTop + 4;          // machines on the back wall
+    const laneY = interiorTop + 24;         // where baristas walk
+    const counterY = interiorTop + 32;      // counter top edge (14 tall)
+    const queueY = counterY + 24;
+    const tables = [];
+    for (let y = queueY + 30, r = 0; y <= interiorBottom - 26 && r < 3; y += 44, r++) {
+      TABLE_X.forEach(x => tables.push({ x, y, seats: [{ x: x - 14, y: y + 1, taken: null }, { x: x + 14, y: y + 1, taken: null }] }));
+    }
+    return { H, extra, bgBottom, interiorTop, interiorBottom, backY, laneY, counterY, queueY, tables,
+      doorX: 60, registerX: 128, aisleX: 79, bottomCorridor: interiorBottom - 12,
+      walkY: interiorBottom + wallH + walkH / 2, roadTop: interiorBottom + wallH + walkH,
+      lane1: H - roadH + 9 + (roadH - 34) * 0.3, lane2: H - roadH + 24 + (roadH - 34) * 0.7 };
+  }
+
+  function create(canvas, getGame, E) {
+    const ctx = canvas.getContext('2d');
+    const S = {
+      t: 0, scale: 1, H: 277, L: layout(277),
+      customers: [], baristas: [], vehicles: [], particles: [], log: [],
+      machines: [], counts: null, spawnT: 1.5, passT: 2, tapJiggle: 0,
+      served: 0, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
+    };
+    let dpr = 1, cssW = 360, cssH = 277;
+
+    function resize() {
+      const r = canvas.getBoundingClientRect();
+      if (r.width < 10 || r.height < 10) return;
+      dpr = Math.min(3, window.devicePixelRatio || 1);
+      cssW = r.width; cssH = r.height;
+      canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+      S.scale = cssW / W;
+      S.H = cssH / S.scale;
+      S.L = layout(S.H);
+      // the room changed shape: clear the floor and let it refill
+      S.customers = [];
+      for (const t of S.L.tables) for (const s of t.seats) s.taken = null;
+      for (const b of S.baristas) { b.state = 'idle'; b.customer = null; b.machine = null; b.cup = false; b.y = S.L.laneY; b.home.y = S.L.laneY; }
+      for (const m of S.machines) if (m.type !== 'roaster') m.busy = false;
+      S.spawnT = Math.min(S.spawnT, 0.5);
+      rebuildMachines(true);
+    }
+
+    function log(text) { S.log.unshift({ text, t: S.t }); S.log.length = Math.min(S.log.length, 6); }
+
+    // Machines along the back wall: drip machines, espresso bars, roasters.
+    function rebuildMachines(force) {
+      const g = getGame();
+      const key = g.owned.join(',');
+      if (!force && S.counts === key) return;
+      S.counts = key;
+      const drips = Math.min(4, g.owned[0]), esp = Math.min(3, g.owned[1]), roast = Math.min(2, g.owned[3]);
+      const m = [];
+      for (let i = 0; i < drips; i++) m.push({ type: 'drip', x: 112 + i * 20, busy: false, anim: 0 });
+      for (let i = 0; i < esp; i++) m.push({ type: 'espresso', x: 202 + i * 30, busy: false, anim: 0 });
+      for (let i = 0; i < roast; i++) m.push({ type: 'roaster', x: 306 + i * 30, busy: true, anim: rnd(0, 6) });
+      // keep animation phases of survivors
+      for (const n of m) { const o = S.machines.find(o => o.type === n.type && o.x === n.x); if (o) { n.anim = o.anim; n.busy = o.busy; } }
+      S.machines = m;
+      const nb = 1 + (g.owned[2] >= 1 ? 1 : 0) + (g.owned[2] >= 5 ? 1 : 0) + (g.owned[2] >= 20 ? 1 : 0) + (g.owned[2] >= 50 ? 1 : 0);
+      while (S.baristas.length < nb) {
+        const i = S.baristas.length;
+        S.baristas.push({ x: S.L.registerX + 12 + i * 22, y: S.L.laneY, home: { x: S.L.registerX + 12 + i * 22, y: S.L.laneY }, state: 'idle', t: 0, cup: false, skin: pick(SKIN), hair: pick(HAIR), owner: i === 0, walk: 0 });
+      }
+      while (S.baristas.length > nb) { const b = S.baristas.pop(); if (b.customer) b.customer.state = 'queue'; if (b.machine) b.machine.busy = false; }
+      const nv = g.owned[4] >= 30 ? 3 : g.owned[4] >= 10 ? 2 : g.owned[4] >= 1 ? 1 : 0;
+      const vans = S.vehicles.filter(v => v.kind === 'van');
+      while (vans.length < nv) { const v = { kind: 'van', x: rnd(-60, W + 60), lane: 1, speed: rnd(34, 44), color: '#D9642A', wheel: 0 }; S.vehicles.push(v); vans.push(v); }
+      while (vans.length > nv) { const v = vans.pop(); S.vehicles.splice(S.vehicles.indexOf(v), 1); }
+      while (S.vehicles.filter(v => v.kind === 'car').length < 2) S.vehicles.push({ kind: 'car', x: rnd(-80, W + 80), lane: Math.random() < 0.5 ? 1 : 2, speed: rnd(38, 60), color: pick(CARS), wheel: 0 });
+    }
+
+    // --- people -----------------------------------------------------------
+    function person(extra) {
+      return Object.assign({ name: pick(NAMES), skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), x: 0, y: 0, walk: 0, path: null, t: 0, holding: false, bubble: null, face: 1 }, extra);
+    }
+    function moveTo(e, tx, ty, speed, dt) {
+      const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
+      if (d < 0.6) { e.x = tx; e.y = ty; return true; }
+      const step = Math.min(d, speed * dt);
+      e.x += dx / d * step; e.y += dy / d * step;
+      e.walk += dt * 10; if (Math.abs(dx) > 0.2) e.face = dx > 0 ? 1 : -1;
+      return d - step < 0.6;
+    }
+    function followPath(e, speed, dt) {
+      if (!e.path || !e.path.length) return true;
+      if (moveTo(e, e.path[0].x, e.path[0].y, speed, dt)) e.path.shift();
+      return e.path.length === 0;
+    }
+    const queueSpot = i => ({ x: S.L.registerX + i * 15, y: S.L.queueY });
+    function queued() { return S.customers.filter(c => c.state === 'queue' || c.state === 'ordering').sort((a, b) => a.qi - b.qi); }
+    function reindexQueue() { queued().forEach((c, i) => { c.qi = i; }); }
+    function freeSeat() { const seats = []; for (const t of S.L.tables) for (const s of t.seats) if (!s.taken) seats.push({ t, s }); return seats.length ? pick(seats) : null; }
+
+    function spawnCustomer(rush) {
+      const L = S.L;
+      const fromLeft = Math.random() < 0.5;
+      const q = queued().length;
+      const c = person({ drink: pick(DRINKS), x: fromLeft ? -12 : W + 12, y: L.walkY + rnd(-3, 3), state: 'arrive', qi: q });
+      if (q >= 8) { c.state = 'passby'; c.path = [{ x: fromLeft ? W + 16 : -16, y: c.y }]; S.customers.push(c); return; }
+      c.path = [{ x: L.doorX, y: L.walkY }, { x: L.doorX, y: L.bottomCorridor }, { x: L.aisleX, y: L.bottomCorridor }, { x: L.aisleX, y: L.queueY }, queueSpot(q)];
+      c.state = 'arrive';
+      S.customers.push(c);
+    }
+    function spawnPasserby() {
+      const fromLeft = Math.random() < 0.5;
+      const c = person({ x: fromLeft ? -12 : W + 12, y: S.L.walkY + rnd(-4, 4), state: 'passby' });
+      c.path = [{ x: fromLeft ? W + 16 : -16, y: c.y }];
+      S.customers.push(c);
+    }
+
+    function updatePeople(dt, g, rush) {
+      const L = S.L;
+      const speed = rush ? 44 : 30;
+      for (const c of S.customers) {
+        switch (c.state) {
+          case 'passby': if (followPath(c, 26, dt)) c.dead = true; break;
+          case 'arrive': if (followPath(c, speed, dt)) { c.state = 'queue'; c.bubble = c.drink; log(`${c.name} wants a ${c.drink.name}`); } break;
+          case 'queue': { const spot = queueSpot(c.qi); moveTo(c, spot.x, spot.y, speed, dt); c.face = -1; break; }
+          case 'ordering': c.face = -1; break;
+          case 'served': {
+            const seat = Math.random() < 0.7 ? freeSeat() : null;
+            if (seat) {
+              seat.s.taken = c; c.seat = seat.s; c.table = seat.t; c.state = 'toTable';
+              c.path = [{ x: seat.s.x, y: L.queueY }, { x: seat.s.x, y: seat.s.y }];
+            } else { c.state = 'leave'; c.path = null; }
+            break;
+          }
+          case 'toTable': if (followPath(c, speed, dt)) { c.state = 'sit'; c.t = rnd(7, 16); c.face = c.x < c.table.x ? 1 : -1; } break;
+          case 'sit': c.t -= dt; if (c.t <= 0) { c.seat.taken = null; c.table.cup = null; c.holding = false; c.state = 'leave'; c.path = null; log(`${c.name} left happy`); } break;
+          case 'leave': {
+            if (!c.path) c.path = [{ x: c.x, y: L.bottomCorridor }, { x: L.doorX, y: L.bottomCorridor }, { x: L.doorX, y: L.walkY }, { x: Math.random() < 0.5 ? -16 : W + 16, y: L.walkY + rnd(-3, 3) }];
+            if (followPath(c, speed, dt)) c.dead = true;
+            break;
+          }
+        }
+      }
+      if (S.customers.some(c => c.dead)) { S.customers = S.customers.filter(c => !c.dead); reindexQueue(); }
+
+      // baristas
+      const bspeed = rush ? 70 : 46;
+      for (const b of S.baristas) {
+        b.walk += dt * (b.state === 'toMachine' || b.state === 'back' ? 10 : 0);
+        switch (b.state) {
+          case 'idle': {
+            moveTo(b, b.home.x, b.home.y, bspeed, dt);
+            const head = queued().find(c => c.state === 'queue' && c.qi === 0 && Math.abs(c.x - queueSpot(0).x) < 2);
+            if (!head) break;
+            let m = S.machines.filter(x => !x.busy && x.type === head.drink.kind)[0] || S.machines.filter(x => !x.busy && x.type !== 'roaster')[0] || null;
+            if (!m && S.machines.some(x => x.type !== 'roaster')) break;    // all busy: wait
+            head.state = 'ordering'; b.customer = head; b.machine = m; b.state = 'toMachine';
+            if (m) m.busy = true;
+            b.t = (m ? (m.type === 'espresso' ? 1.3 : 1.8) : 2.2) * (rush ? 0.5 : 1);
+            break;
+          }
+          case 'toMachine': if (moveTo(b, b.machine ? b.machine.x : L.registerX + 10, L.laneY, bspeed, dt)) b.state = 'brewing'; break;
+          case 'brewing': b.t -= dt; if (b.t <= 0) { if (b.machine) { b.machine.busy = false; b.machine.anim = 0; } b.cup = true; b.state = 'back'; } break;
+          case 'back': if (moveTo(b, L.registerX + 4, L.laneY, bspeed, dt)) {
+            const c = b.customer; b.cup = false; b.state = 'idle'; b.machine = null; b.customer = null;
+            if (c && !c.dead) { c.holding = true; c.bubble = null; c.state = 'served'; c.qi = 99; reindexQueue(); S.served++;
+              S.particles.push({ kind: 'text', text: '+' + E.fmtCash(E.cupPrice(g), E.cupPrice(g) < 10 ? 1 : undefined), x: L.registerX, y: L.counterY - 4, vy: -14, life: 1 });
+              S.particles.push({ kind: 'text', text: '♥', x: c.x, y: c.y - 16, vy: -10, life: 1, color: '#e0506e' });
+              if (c.table) c.table.cup = c.drink; }
+            break;
+          }
+        }
+        if (b.state === 'brewing' && b.machine) b.machine.anim += dt;
+      }
+      // cups appear on tables when someone sits
+      for (const t of L.tables) { t.cup = null; for (const s of t.seats) if (s.taken && s.taken.state === 'sit') t.cup = s.taken.drink; }
+    }
+
+    function updateVehicles(dt) {
+      for (const v of S.vehicles) {
+        const dir = v.lane === 1 ? 1 : -1;
+        v.x += v.speed * dir * dt; v.wheel += v.speed * dt * 0.3;
+        if (dir > 0 && v.x > W + 70) { v.x = -70 - rnd(0, 120); if (v.kind === 'van' && Math.random() < 0.35) log('A van left on a delivery run'); }
+        if (dir < 0 && v.x < -70) v.x = W + 70 + rnd(0, 120);
+      }
+    }
+
+    function update(dt) {
+      const g = getGame();
+      S.t += dt;
+      rebuildMachines(false);
+      const rush = E.buffActive(g, 'rush');
+      const cps = E.cupsPerSec(g);
+      // busier shop as the chain grows; capped so it never turns into a mob
+      const intensity = clamp(Math.log10(cps + 1) / 4.5, 0, 1);
+      const gap = lerp(6.5, 0.8, intensity) / (rush ? 2.2 : 1);
+      S.spawnT -= dt;
+      if (S.spawnT <= 0) { spawnCustomer(rush); S.spawnT = gap * rnd(0.6, 1.4); }
+      S.passT -= dt;
+      if (S.passT <= 0) { spawnPasserby(); S.passT = rnd(4, 11); }
+      updatePeople(dt, g, rush);
+      updateVehicles(dt);
+      for (const m of S.machines) if (m.type === 'roaster') m.anim += dt;
+      for (const p of S.particles) { p.life -= dt * 0.9; p.y += p.vy * dt; }
+      S.particles = S.particles.filter(p => p.life > 0);
+      S.tapJiggle = Math.max(0, S.tapJiggle - dt * 4);
+      for (const c of S.clouds) { c.x += c.v * dt; if (c.x > W + 40) c.x = -40; }
+    }
+
+    // --- drawing ------------------------------------------------------------
+    function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+    function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
+    function dayPhase() { return (S.t % 480) / 480; }       // 8 minutes per day
+    function nightAmount() { const p = dayPhase(); return clamp(Math.cos(p * Math.PI * 2) * -1, 0, 1); } // 0 at noon, 1 at midnight
+
+    function drawBackground(g, night) {
+      const L = S.L;
+      // sky
+      const sky = ctx.createLinearGradient(0, 0, 0, L.bgBottom);
+      const dayTop = '#8fc7e8', dayBot = '#f6e2c4', nightTop = '#0d1330', nightBot = '#3a2a45';
+      sky.addColorStop(0, mix(dayTop, nightTop, night)); sky.addColorStop(1, mix(dayBot, nightBot, night));
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, L.bgBottom);
+      const skyH = L.bgBottom - 32;
+      if (night > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(night - 0.3) * 0.9})`; for (let i = 0; i < 14 + L.extra / 6; i++) { const x = (i * 97) % W, y = (i * 53) % Math.max(8, skyH); ctx.fillRect(x, y, 1, 1); } }
+      // sun / moon
+      const p = dayPhase(); const sx = 20 + p * 320, sy = skyH - Math.sin(p * Math.PI) * (skyH - 6);
+      if (night > 0.5) { ctx.fillStyle = '#f4efd8'; circle(W - sx, 8 + skyH * 0.2, 4 + L.extra * 0.02); ctx.fill(); }
+      else { const glow = ctx.createRadialGradient(sx, sy, 2, sx, sy, 18); glow.addColorStop(0, 'rgba(255,220,120,.7)'); glow.addColorStop(1, 'rgba(255,220,120,0)'); ctx.fillStyle = glow; circle(sx, sy, 18); ctx.fill(); ctx.fillStyle = '#ffd166'; circle(sx, sy, 6); ctx.fill(); }
+      // clouds
+      for (const c of S.clouds) {
+        const cy = c.y * Math.max(1, skyH / 30);
+        ctx.fillStyle = `rgba(255,255,255,${0.85 - night * 0.6})`;
+        circle(c.x, cy, c.w * 0.22); ctx.fill(); circle(c.x + c.w * 0.3, cy - 2, c.w * 0.28); ctx.fill(); circle(c.x + c.w * 0.6, cy, c.w * 0.2); ctx.fill();
+        rr(c.x - c.w * 0.1, cy - 1, c.w * 0.85, 4, 2); ctx.fill();
+      }
+      ctx.save(); ctx.translate(0, L.bgBottom - 62);
+      // empire skyline
+      const empires = Math.min(7, g.owned[7]);
+      const bx = [24, 62, 100, 150, 210, 262, 310];
+      for (let i = 0; i < 7; i++) {
+        const lit = i < empires, h = lit ? 16 + (i % 3) * 6 : 10 + (i % 2) * 3, x = bx[i];
+        ctx.fillStyle = lit ? mix('#6b4530', '#2a1d2c', night) : mix('#a7b6c4', '#1c2238', night);
+        ctx.fillRect(x, 30 - h, 14 + (i % 2) * 6, h);
+        if (lit) { ctx.fillStyle = night > 0.4 ? '#ffd27a' : '#f6e7cf'; for (let wy = 30 - h + 3; wy < 28; wy += 4) for (let wx = x + 2; wx < x + 12 + (i % 2) * 6; wx += 4) ctx.fillRect(wx, wy, 2, 2); }
+        if (lit && i === 3) { ctx.fillStyle = '#F2A65A'; ctx.beginPath(); ctx.moveTo(x + 4, 30 - h - 1); ctx.lineTo(x + 6, 30 - h - 6); ctx.lineTo(x + 9, 30 - h - 2); ctx.lineTo(x + 12, 30 - h - 6); ctx.lineTo(x + 14, 30 - h - 1); ctx.closePath(); ctx.fill(); }
+      }
+      // town row (franchises)
+      const fr = Math.min(9, Math.ceil(g.owned[5] / 4));
+      for (let i = 0; i < 9; i++) {
+        const x = 6 + i * 40, own = i < fr;
+        ctx.fillStyle = mix(own ? '#f6e7cf' : ['#e8d3b2', '#d9c2a0', '#cdb08e'][i % 3], '#2b2436', night * 0.7);
+        ctx.fillRect(x, 32, 30, 14);
+        ctx.fillStyle = mix('#7a4a2e', '#1a1420', night * 0.6); ctx.fillRect(x - 1, 30, 32, 3);
+        if (own) { ctx.fillStyle = '#D9642A'; ctx.fillRect(x, 36, 30, 3); ctx.fillStyle = '#F2A65A'; circle(x + 15, 34, 1.6); ctx.fill(); }
+        ctx.fillStyle = night > 0.4 ? '#ffd27a' : mix('#8fc7e8', '#3a2a45', night); ctx.fillRect(x + 4, 40, 4, 4); ctx.fillRect(x + 22, 40, 4, 4);
+        ctx.fillStyle = mix('#5a3a25', '#1a1420', night * 0.6); ctx.fillRect(x + 12, 40, 6, 6);
+      }
+      // hills with plantations
+      ctx.fillStyle = mix('#7fb069', '#22402c', night * 0.8);
+      ctx.beginPath(); ctx.moveTo(0, 62); ctx.quadraticCurveTo(90, 38, 180, 48); ctx.quadraticCurveTo(270, 58, 360, 42); ctx.lineTo(360, 62); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = mix('#6a9c55', '#1b3323', night * 0.8);
+      ctx.beginPath(); ctx.moveTo(0, 62); ctx.quadraticCurveTo(120, 48, 220, 56); ctx.quadraticCurveTo(300, 62, 360, 54); ctx.lineTo(360, 62); ctx.closePath(); ctx.fill();
+      const bushes = Math.min(28, g.owned[6] * 2);
+      for (let i = 0; i < bushes; i++) {
+        const row = i % 2, x = 14 + Math.floor(i / 2) * 24 + row * 12, y = 52 + row * 5;
+        ctx.fillStyle = mix('#3f7a3a', '#173020', night * 0.7); circle(x, y, 3.2); ctx.fill();
+        ctx.fillStyle = '#d33'; circle(x - 1.2, y - 0.8, 0.7); ctx.fill(); circle(x + 1.4, y + 0.6, 0.7); ctx.fill();
+      }
+      if (g.owned[6] > 0) { ctx.fillStyle = '#c94c3a'; ctx.fillRect(338, 44, 10, 7); ctx.fillStyle = '#7a3a2a'; ctx.beginPath(); ctx.moveTo(336, 44); ctx.lineTo(343, 39); ctx.lineTo(350, 44); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+      // what the far side of town says about the chain
+      labelIf(g.owned[7], 6, L.bgBottom - 60, 'empires', g.owned[7]);
+      labelIf(g.owned[5], 6, L.bgBottom - 34, 'franchises', g.owned[5]);
+      labelIf(g.owned[6], 6, L.bgBottom - 8, 'plantations', g.owned[6]);
+    }
+    function labelIf(n, x, y, word, count) {
+      if (n <= 0) return;
+      ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const label = '×' + (count >= 1000 ? E.fmt(count) : count) + ' ' + word; const w = ctx.measureText(label).width + 6;
+      ctx.fillStyle = 'rgba(29,15,8,.7)'; rr(x, y - 4, w, 8, 4); ctx.fill();
+      ctx.fillStyle = '#F2A65A'; ctx.fillText(label, x + 3, y + 0.3);
+    }
+
+    function drawShop(g, night, nightShift) {
+      const L = S.L;
+      // building body
+      ctx.fillStyle = '#4A2C1A'; ctx.fillRect(0, L.bgBottom, W, L.interiorBottom + 8 - L.bgBottom);
+      // floor tiles
+      const dim = night * (nightShift ? 0.12 : 0.35);
+      for (let y = L.interiorTop; y < L.interiorBottom; y += 12) for (let x = 0; x < W; x += 12) {
+        ctx.fillStyle = mix(((x + y) / 12) % 2 ? '#e8d3b2' : '#dcc39e', '#2b170d', dim); ctx.fillRect(x, y, 12, Math.min(12, L.interiorBottom - y));
+      }
+      // back wall shelf with beans and bags
+      ctx.fillStyle = mix('#6B4530', '#2b170d', dim); ctx.fillRect(0, L.interiorTop, W, 4);
+      // machines
+      for (const m of S.machines) drawMachine(m, dim);
+      // machine group badges
+      badgeIf(g.owned[0], 112 + Math.min(4, g.owned[0]) * 10 - 10, L.backY - 2, g.owned[0]);
+      badgeIf(g.owned[1], 202 + Math.min(3, g.owned[1]) * 15 - 15, L.backY - 2, g.owned[1]);
+      badgeIf(g.owned[3], 306 + Math.min(2, g.owned[3]) * 15 - 15, L.backY - 2, g.owned[3]);
+      // counter
+      ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(56, L.counterY, W - 60, 14, 3); ctx.fill();
+      ctx.fillStyle = mix('#a97452', '#2b170d', dim); rr(56, L.counterY, W - 60, 4, 2); ctx.fill();
+      // register
+      ctx.fillStyle = '#2e2e2e'; rr(L.registerX - 5, L.counterY - 6, 10, 8, 1.5); ctx.fill();
+      ctx.fillStyle = '#9CC98B'; ctx.fillRect(L.registerX - 3, L.counterY - 4, 6, 2);
+      // pastry case
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; rr(W - 60, L.counterY - 7, 42, 9, 2); ctx.fill();
+      ctx.fillStyle = '#d98a4a'; circle(W - 50, L.counterY - 2, 2.2); ctx.fill(); ctx.fillStyle = '#c94c6d'; circle(W - 40, L.counterY - 2, 2.2); ctx.fill(); ctx.fillStyle = '#e2b53d'; circle(W - 30, L.counterY - 2, 2.2); ctx.fill();
+      // the big self-serve cup (the tap target) at the left end of the counter
+      const j = Math.sin(S.tapJiggle * 12) * S.tapJiggle * 2;
+      ctx.save(); ctx.translate(80, L.counterY + 1); ctx.scale(1 + S.tapJiggle * 0.15, 1 - S.tapJiggle * 0.1); ctx.rotate(j * 0.1);
+      ctx.fillStyle = '#F6E7CF'; rr(-9, -8, 18, 16, 3); ctx.fill(); ctx.strokeStyle = '#D9642A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(11, 0, 4, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      ctx.fillStyle = '#D9642A'; ctx.fillRect(-9, -2, 18, 3);
+      for (let k = 0; k < 3; k++) { const ph = (S.t * 0.8 + k * 0.33) % 1; ctx.fillStyle = `rgba(246,231,207,${(1 - ph) * 0.7})`; circle(-4 + k * 4 + Math.sin(ph * 6) * 1.5, -10 - ph * 12, 1.6 + ph * 1.2); ctx.fill(); }
+      ctx.restore();
+      // tables
+      for (const t of L.tables) drawTable(t, dim);
+      // front wall, windows and door
+      ctx.fillStyle = '#4A2C1A'; ctx.fillRect(0, L.interiorBottom, W, 8);
+      for (const wx of [110, 170, 230, 290]) { ctx.fillStyle = night > 0.4 && nightShift ? '#ffd27a' : mix('#bfe3f5', '#2a2140', night); ctx.fillRect(wx, L.interiorBottom + 1, 34, 6); }
+      ctx.fillStyle = '#e8d3b2'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 10); ctx.fillStyle = '#8a5a3c'; ctx.fillRect(L.doorX - 8, L.interiorBottom - 1, 16, 2);
+      // awning + sign
+      ctx.fillStyle = '#D9642A'; for (let x = 0; x < W; x += 20) { ctx.fillStyle = (x / 20) % 2 ? '#D9642A' : '#F6E7CF'; ctx.fillRect(x, L.interiorBottom + 8, 20, 4); }
+      ctx.fillStyle = '#1d0f08'; rr(132, L.interiorBottom + 6, 96, 9, 2.5); ctx.fill();
+      ctx.fillStyle = '#F2A65A'; ctx.font = 'bold 7px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('BEAN BARON', 180, L.interiorBottom + 10.8);
+      // sidewalk + road
+      ctx.fillStyle = mix('#cfc6b8', '#4a4652', night * 0.7); ctx.fillRect(0, L.interiorBottom + 12, W, L.roadTop - L.interiorBottom - 12);
+      ctx.fillStyle = mix('#5a5a60', '#1f1f28', night * 0.7); ctx.fillRect(0, L.roadTop, W, S.H - L.roadTop);
+      ctx.strokeStyle = mix('#e9d98a', '#7a7040', night * 0.5); ctx.lineWidth = 1; ctx.setLineDash([8, 8]); ctx.beginPath(); ctx.moveTo(0, (L.lane1 + L.lane2) / 2); ctx.lineTo(W, (L.lane1 + L.lane2) / 2); ctx.stroke(); ctx.setLineDash([]);
+      // street lights
+      for (const lx of [30, 330]) {
+        ctx.fillStyle = '#2e2e2e'; ctx.fillRect(lx - 1, L.roadTop - 14, 2, 14);
+        if (night > 0.4) { const gl = ctx.createRadialGradient(lx, L.roadTop - 12, 1, lx, L.roadTop - 12, 26); gl.addColorStop(0, `rgba(255,210,122,${0.5 * night})`); gl.addColorStop(1, 'rgba(255,210,122,0)'); ctx.fillStyle = gl; circle(lx, L.roadTop - 12, 26); ctx.fill(); }
+        ctx.fillStyle = night > 0.4 ? '#ffd27a' : '#c9c9c9'; circle(lx, L.roadTop - 14, 2); ctx.fill();
+      }
+    }
+
+    function badgeIf(n, x, y, count) {
+      if (n <= 0) return;
+      ctx.font = 'bold 6px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = '×' + (count >= 1000 ? E.fmt(count) : count); const w = ctx.measureText(label).width + 6;
+      ctx.fillStyle = 'rgba(29,15,8,.85)'; rr(x - w / 2, y - 4, w, 8, 4); ctx.fill();
+      ctx.fillStyle = '#F2A65A'; ctx.fillText(label, x, y + 0.3);
+    }
+    function drawMachine(m, dim) {
+      const y = S.L.backY;
+      if (m.type === 'drip') {
+        ctx.fillStyle = mix('#2e2e2e', '#111', dim); rr(m.x - 7, y, 14, 14, 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.7)'; rr(m.x - 5, y + 6, 10, 7, 1.5); ctx.fill();
+        ctx.fillStyle = '#4a2a16'; ctx.fillRect(m.x - 4, y + 9 + (m.busy ? 0 : 1), 8, m.busy ? 4 : 3);
+        ctx.fillStyle = m.busy ? '#f25d3a' : '#3a3a3a'; circle(m.x + 4, y + 3, 1.2); ctx.fill();
+        if (m.busy) { ctx.fillStyle = '#6a3d22'; ctx.fillRect(m.x - 0.5, y + 4, 1, 3 + Math.sin(m.anim * 20) * 1.5); }
+      } else if (m.type === 'espresso') {
+        ctx.fillStyle = mix('#c9ccd1', '#55585c', dim); rr(m.x - 12, y, 24, 13, 2.5); ctx.fill();
+        ctx.fillStyle = mix('#8d9095', '#3b3d40', dim); ctx.fillRect(m.x - 12, y + 4, 24, 2);
+        ctx.fillStyle = '#2e2e2e'; ctx.fillRect(m.x - 8, y + 7, 5, 2); ctx.fillRect(m.x + 3, y + 7, 5, 2);
+        ctx.strokeStyle = '#2e2e2e'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(m.x + 12, y + 3); ctx.lineTo(m.x + 15, y + 9); ctx.stroke();
+        if (m.busy) { ctx.fillStyle = '#F6E7CF'; rr(m.x - 7, y + 10, 4, 3, 1); ctx.fill(); for (let k = 0; k < 2; k++) { const ph = (m.anim * 1.6 + k * 0.5) % 1; ctx.fillStyle = `rgba(255,255,255,${(1 - ph) * 0.8})`; circle(m.x + 15 + ph * 3, y + 8 - ph * 9, 1.2 + ph); ctx.fill(); } }
+      } else {
+        // roaster: drum with a hopper and a glow underneath
+        ctx.fillStyle = mix('#7a4a2e', '#2b170d', dim); rr(m.x - 12, y + 1, 24, 13, 3); ctx.fill();
+        ctx.fillStyle = '#3a2214'; circle(m.x - 3, y + 7, 5); ctx.fill();
+        ctx.strokeStyle = '#a97452'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(m.x - 3 + Math.cos(m.anim * 4) * 4, y + 7 + Math.sin(m.anim * 4) * 4); ctx.lineTo(m.x - 3 - Math.cos(m.anim * 4) * 4, y + 7 - Math.sin(m.anim * 4) * 4); ctx.stroke();
+        ctx.fillStyle = '#8d9095'; ctx.fillRect(m.x + 4, y - 2, 6, 6);
+        for (let k = 0; k < 3; k++) { const ph = (m.anim * 0.5 + k * 0.33) % 1; ctx.fillStyle = `rgba(120,110,105,${(1 - ph) * 0.5})`; circle(m.x + 7 + Math.sin(ph * 5 + k) * 2, y - 3 - ph * 12, 1.5 + ph * 2.5); ctx.fill(); }
+        const gl = ctx.createRadialGradient(m.x - 3, y + 13, 1, m.x - 3, y + 13, 8); gl.addColorStop(0, `rgba(242,120,42,${0.5 + Math.sin(m.anim * 9) * 0.2})`); gl.addColorStop(1, 'rgba(242,120,42,0)'); ctx.fillStyle = gl; circle(m.x - 3, y + 13, 8); ctx.fill();
+      }
+    }
+    function drawTable(t, dim) {
+      for (const s of t.seats) { ctx.fillStyle = mix('#8a5a3c', '#2b170d', dim); rr(s.x - 4, s.y - 3, 8, 7, 2); ctx.fill(); }
+      ctx.fillStyle = 'rgba(0,0,0,.15)'; circle(t.x + 1, t.y + 2, 11); ctx.fill();
+      ctx.fillStyle = mix('#b07a4f', '#3a2214', dim); circle(t.x, t.y, 11); ctx.fill();
+      ctx.fillStyle = mix('#c98f60', '#4a2c1a', dim); circle(t.x, t.y, 8); ctx.fill();
+      if (t.cup) { ctx.fillStyle = '#F6E7CF'; rr(t.x - 3, t.y - 3, 6, 6, 1.5); ctx.fill(); ctx.fillStyle = t.cup.color; circle(t.x, t.y - 1, 2); ctx.fill(); }
+    }
+    function drawPerson(p, apron) {
+      const bob = p.walk ? Math.sin(p.walk) * 1.2 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 6, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      // legs
+      ctx.fillStyle = '#2e2e2e'; ctx.fillRect(p.x - 3, p.y + 2 + Math.max(0, bob), 2.4, 4); ctx.fillRect(p.x + 0.6, p.y + 2 + Math.max(0, -bob), 2.4, 4);
+      // body
+      ctx.fillStyle = p.shirt || '#3b6ea5'; rr(p.x - 4.5, p.y - 5, 9, 9, 2.5); ctx.fill();
+      if (apron) { ctx.fillStyle = '#6B4530'; rr(p.x - 3, p.y - 3, 6, 7, 1.5); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(p.x - 3, p.y - 3, 6, 1.2); }
+      // head
+      ctx.fillStyle = p.skin; circle(p.x, p.y - 9, 4.4); ctx.fill();
+      ctx.fillStyle = p.hair; ctx.beginPath(); ctx.arc(p.x, p.y - 9.6, 4.4, Math.PI, 0); ctx.fill();
+      if (apron) { ctx.fillStyle = '#D9642A'; rr(p.x - 4.6, p.y - 13.5, 9.2, 3, 1.5); ctx.fill(); }
+      ctx.fillStyle = '#1d0f08'; ctx.fillRect(p.x + (p.face > 0 ? 1 : -2.2), p.y - 9.5, 1.2, 1.2);
+      // cup in hand
+      if (p.holding || p.cup) { ctx.fillStyle = '#F6E7CF'; rr(p.x + (p.face > 0 ? 4 : -8), p.y - 3, 4, 4.5, 1); ctx.fill(); ctx.fillStyle = '#D9642A'; ctx.fillRect(p.x + (p.face > 0 ? 4 : -8), p.y - 1.5, 4, 1); }
+      // order bubble
+      if (p.bubble) {
+        const bx = p.x, by = p.y - 22;
+        ctx.fillStyle = '#fff'; rr(bx - 7, by - 6, 14, 12, 4); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(bx - 2, by + 6); ctx.lineTo(bx + 2, by + 6); ctx.lineTo(bx, by + 9); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#F6E7CF'; rr(bx - 3.5, by - 3, 7, 7, 1.5); ctx.fill(); ctx.strokeStyle = '#8a5a3c'; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.fillStyle = p.bubble.color; ctx.fillRect(bx - 2.5, by - 2, 5, 2.5);
+      }
+    }
+    function drawVehicle(v, night) {
+      const y = v.lane === 1 ? S.L.lane1 : S.L.lane2, dir = v.lane === 1 ? 1 : -1;
+      ctx.save(); ctx.translate(v.x, y); ctx.scale(dir, 1);
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0, 6, v.kind === 'van' ? 18 : 13, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+      if (v.kind === 'van') {
+        ctx.fillStyle = v.color; rr(-18, -8, 36, 14, 3); ctx.fill();
+        ctx.fillStyle = '#F6E7CF'; rr(-15, -6, 20, 6, 1.5); ctx.fill();
+        ctx.fillStyle = '#D9642A'; circle(-5, -3, 1.8); ctx.fill();
+        ctx.fillStyle = mix('#bfe3f5', '#2a2140', night); rr(8, -6, 8, 5, 1.5); ctx.fill();
+      } else {
+        ctx.fillStyle = v.color; rr(-13, -5, 26, 11, 3); ctx.fill();
+        ctx.fillStyle = mix('#bfe3f5', '#2a2140', night); rr(-7, -8, 13, 5, 2); ctx.fill();
+      }
+      if (night > 0.4) { ctx.fillStyle = `rgba(255,240,180,${night})`; ctx.fillRect(v.kind === 'van' ? 17 : 12, -1, 2, 2); ctx.fillStyle = `rgba(255,80,60,${night})`; ctx.fillRect(v.kind === 'van' ? -19 : -14, -1, 2, 2); }
+      for (const wx of v.kind === 'van' ? [-11, 11] : [-8, 8]) { ctx.fillStyle = '#1d1d1d'; circle(wx, 6, 3); ctx.fill(); ctx.strokeStyle = '#9a9a9a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(wx + Math.cos(v.wheel) * 2, 6 + Math.sin(v.wheel) * 2); ctx.lineTo(wx - Math.cos(v.wheel) * 2, 6 - Math.sin(v.wheel) * 2); ctx.stroke(); }
+      ctx.restore();
+    }
+
+    function mix(a, b, t) {
+      if (t <= 0) return a;
+      const pa = hex(a), pb = hex(b);
+      return `rgb(${Math.round(lerp(pa[0], pb[0], t))},${Math.round(lerp(pa[1], pb[1], t))},${Math.round(lerp(pa[2], pb[2], t))})`;
+    }
+    const hexCache = {};
+    function hex(h) { if (hexCache[h]) return hexCache[h]; const v = h.length === 4 ? [h[1] + h[1], h[2] + h[2], h[3] + h[3]] : [h.slice(1, 3), h.slice(3, 5), h.slice(5, 7)]; return (hexCache[h] = v.map(x => parseInt(x, 16))); }
+
+    function draw() {
+      const g = getGame();
+      const night = nightAmount();
+      const nightShift = E.has(g, 'nightshift');
+      ctx.setTransform(dpr * S.scale, 0, 0, dpr * S.scale, 0, 0);
+      ctx.clearRect(0, 0, W, S.H);
+      drawBackground(g, night);
+      drawShop(g, night, nightShift);
+      // people sorted by depth, vehicles last (they are lowest on screen)
+      const people = S.customers.map(c => ({ y: c.y, f: () => drawPerson(c, false) })).concat(S.baristas.map(b => ({ y: b.y, f: () => drawPerson(b, true) })));
+      people.sort((a, b) => a.y - b.y).forEach(p => p.f());
+      for (const v of S.vehicles) drawVehicle(v, night);
+      // night tint over the street, keeping the café bright
+      if (night > 0) {
+        ctx.fillStyle = `rgba(10,8,30,${night * 0.35})`; ctx.fillRect(0, S.L.interiorBottom + 8, W, S.H - S.L.interiorBottom - 8);
+        if (!nightShift) { ctx.fillStyle = `rgba(10,8,30,${night * 0.25})`; ctx.fillRect(0, S.L.bgBottom, W, S.L.interiorBottom + 8 - S.L.bgBottom); }
+      }
+      if (E.buffActive(g, 'rush')) { ctx.fillStyle = `rgba(242,166,90,${0.08 + Math.sin(S.t * 6) * 0.04})`; ctx.fillRect(0, 0, W, S.H); }
+      // particles
+      ctx.font = 'bold 7px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const p of S.particles) { ctx.globalAlpha = clamp(p.life, 0, 1); ctx.fillStyle = p.color || '#F2A65A'; ctx.fillText(p.text, p.x, p.y); }
+      ctx.globalAlpha = 1;
+    }
+
+    let raf = 0, last = performance.now();
+    function frame(now) {
+      raf = requestAnimationFrame(frame);
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      if (document.hidden) return;
+      update(dt); draw();
+    }
+    resize();
+    raf = requestAnimationFrame(frame);
+    canvas.__scene = S;
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
+    if (ro) ro.observe(canvas);
+
+    return {
+      resize, state: S,
+      tap() { S.tapJiggle = 1; },
+      log: S.log,
+      served: () => S.served,
+      destroy() { cancelAnimationFrame(raf); if (ro) ro.disconnect(); },
+    };
+  }
+  return { create };
+})();
+// ---- end scene ----------------------------------------------------------
+</script>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const E = BeanBaronEconomy;
@@ -551,7 +1050,7 @@ const Sound = (() => {
 })();
 
 const QTYS = [['1', 'x1'], ['10', 'x10'], ['100', 'x100'], ['max', 'MAX']];
-const TABS = [['shop', 'Shop', 'Store'], ['upgrades', 'Upgrades', 'TrendingUp'], ['prestige', 'Prestige', 'Sparkles'], ['stats', 'Stats', 'BarChart3']];
+const TABS = [['cafe', 'Café', 'Coffee'], ['shop', 'Shop', 'Store'], ['upgrades', 'Upgrades', 'TrendingUp'], ['prestige', 'Prestige', 'Sparkles'], ['stats', 'Stats', 'BarChart3']];
 const TOAST_ICON = { milestone: 'ArrowUpCircle', ach: 'Trophy', gold: 'Star', info: 'Info' };
 
 function rate(n) { return E.fmtCash(n, n < 100 ? 1 : undefined) + '/s'; }
@@ -631,6 +1130,31 @@ function BuffChip({ icon, label, left }) {
   );
 }
 
+// ---- the café scene --------------------------------------------------------
+function Cafe({ gameRef, sceneRef }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const sc = BeanBaronScene.create(canvasRef.current, () => gameRef.current, E);
+    sceneRef.current = sc;
+    return () => { sc.destroy(); if (sceneRef.current === sc) sceneRef.current = null; };
+  }, []);
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" aria-label="Your café" />;
+}
+
+function Ticker({ sceneRef }) {
+  const [, force] = useState(0);
+  useEffect(() => { const id = setInterval(() => force(n => n + 1), 700); return () => clearInterval(id); }, []);
+  const log = sceneRef.current ? sceneRef.current.log : [];
+  const served = sceneRef.current ? sceneRef.current.served() : 0;
+  return (
+    <div className="shrink-0 h-20 bg-espresso border-t border-mocha/50 px-3 py-2 text-xs leading-4 text-latte/80 flex flex-col justify-start gap-0.5 overflow-hidden">
+      <div className="flex justify-between text-[10px] uppercase tracking-widest text-latte/50"><span>On the floor</span>{served > 0 && <span className="text-amber tabular normal-case tracking-normal">{served} order{served === 1 ? '' : 's'} served</span>}</div>
+      {log.length === 0 && <div className="text-latte/50">The doors are open. Customers wander in as the chain grows.</div>}
+      {log.slice(0, 3).map((l, i) => <div key={l.t + l.text} className={"truncate " + (i === 0 ? 'text-foam' : i === 1 ? 'text-latte/70' : 'text-latte/45')}>{l.text}</div>)}
+    </div>
+  );
+}
+
 // ---- the game ------------------------------------------------------------
 function App() {
   const [game, setGame] = useState(() => SAVE_SLOT ? resumeFrom(SAVE_SLOT) : E.newState(Date.now()));
@@ -644,7 +1168,8 @@ function App() {
   const [confirmPrestige, setConfirmPrestige] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const gameRef = useRef(game); gameRef.current = game;
-  const cupRef = useRef(null);
+  const sceneRef = useRef(null);
+  const heroRef = useRef(null);
   const seq = useRef(0);
 
   // One requestAnimationFrame loop, delta-time based. Renders are committed at
@@ -709,16 +1234,22 @@ function App() {
     setTimeout(() => setFloaters(f => f.filter(o => o.id !== id)), 900);
   }, []);
 
-  const onTap = useCallback(() => {
+  const onTap = useCallback((xp, yp) => {
     const v = E.tapValue(gameRef.current);
     setGame(g => E.tap(g)[0]);
-    spawnFloater('+' + E.fmtCash(v, v < 10 ? 1 : v < 1000 ? 0 : undefined), 50 + (Math.random() * 2 - 1) * 22, 38 + (Math.random() * 2 - 1) * 6);
-    if (cupRef.current && cupRef.current.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      cupRef.current.animate([{ transform: 'scale(1)' }, { transform: 'scale(.9)', offset: .35 }, { transform: 'scale(1)' }], { duration: 170, easing: 'ease-out' });
-    }
+    const x = xp != null ? xp : 50 + (Math.random() * 2 - 1) * 22;
+    const y = yp != null ? yp : 50 + (Math.random() * 2 - 1) * 6;
+    spawnFloater('+' + E.fmtCash(v, v < 10 ? 1 : v < 1000 ? 0 : undefined), x + (Math.random() * 2 - 1) * 6, y);
+    if (sceneRef.current) sceneRef.current.tap();
     Sound.tap();
     if (navigator.vibrate) navigator.vibrate(8);
   }, [spawnFloater]);
+  const onHeroTap = useCallback(e => {
+    if (e.button != null && e.button !== 0) return;
+    const r = heroRef.current ? heroRef.current.getBoundingClientRect() : null;
+    if (!r) return onTap();
+    onTap(Math.max(6, Math.min(94, (e.clientX - r.left) / r.width * 100)), Math.max(10, Math.min(92, (e.clientY - r.top) / r.height * 100)));
+  }, [onTap]);
 
   // Space bar taps too.
   useEffect(() => {
@@ -768,9 +1299,9 @@ function App() {
     if (frenzy) return { text: `Tap frenzy: ×${E.FRENZY_MULT} per tap for ${Math.ceil(E.buffLeft(game, 'frenzy'))}s`, hot: true };
     if (game.owned.every(n => n === 0)) return { text: game.cash >= 15 ? 'A Drip Machine is affordable in the Shop' : 'Tap to brew · a Drip Machine costs $15' };
     const cheapUpg = E.availableUpgrades(game).find(u => E.upgradeCost(game, u) <= game.cash);
-    if (cheapUpg && tab !== 'upgrades') return { text: `${cheapUpg.name} is affordable in Upgrades` };
-    if (E.rpGain(game) > 0 && tab !== 'prestige') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
-    return { text: 'tap to brew', idle: true };
+    if (cheapUpg && tab !== 'upgrades' && tab !== 'cafe') return { text: `${cheapUpg.name} is affordable in Upgrades` };
+    if (E.rpGain(game) > 0 && tab !== 'prestige' && tab !== 'cafe') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
+    return { text: 'tap anywhere to brew', idle: true };
   }, [game, tab, rush, frenzy]);
 
   return (
@@ -811,31 +1342,29 @@ function App() {
           ))}
         </div>
 
-        {/* the cup */}
-        <section className="relative h-44 shrink-0 flex items-center justify-center overflow-hidden"
-          style={{ background: rush ? 'radial-gradient(ellipse at 50% 120%, #7a4520 0%, #3a1e10 55%, #1d0f08 100%)' : 'radial-gradient(ellipse at 50% 120%, #4A2C1A 0%, #2B170D 55%, #1d0f08 100%)' }}>
-          {floaters.map(f => (
-            <span key={f.id} className={"floater font-display font-bold text-amber " + (frenzy ? 'text-3xl' : 'text-2xl')} style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
-          ))}
-          <button aria-label="Brew a coffee" onPointerDown={onTap} ref={cupRef}
-            className={"relative w-32 h-32 rounded-full bg-gradient-to-b from-ember to-[#a8431a] text-foam shadow-[0_8px_0_#6d2c0f,0_16px_28px_rgba(0,0,0,.45)] active:shadow-[0_2px_0_#6d2c0f] flex items-center justify-center " + (rush ? 'cup-rush' : '')}>
-            <span className="absolute -top-2 left-0 right-0 h-16 pointer-events-none">
-              <span className="steam" style={{ '--sx': '-16px', '--sd': '0s' }} />
-              <span className="steam" style={{ '--sx': '2px', '--sd': '.9s' }} />
-              <span className="steam" style={{ '--sx': '18px', '--sd': '1.7s' }} />
-            </span>
-            <Icon name="Coffee" size={64} strokeWidth={2.2} />
-          </button>
-          <div className={"absolute bottom-2 left-3 right-3 text-center text-xs tracking-wide truncate " + (hint.hot ? 'text-amber font-bold' : hint.idle ? 'text-latte/60 uppercase' : 'text-latte/70')}>{hint.text}</div>
+        {/* the café */}
+        <section className={"relative shrink-0 flex flex-col " + (tab === 'cafe' ? 'flex-1 min-h-0' : 'h-72')}>
+          <div ref={heroRef} onPointerDown={onHeroTap} className="relative flex-1 min-h-0 overflow-hidden bg-bean cursor-pointer">
+            <Cafe gameRef={gameRef} sceneRef={sceneRef} />
+            {floaters.map(f => (
+              <span key={f.id} className={"floater font-display font-bold text-amber " + (frenzy ? 'text-3xl' : 'text-2xl')} style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
+            ))}
+            <div className={"absolute top-2 left-2 right-12 text-xs tracking-wide truncate rounded-full px-3 py-1 bg-bean/70 backdrop-blur-[2px] w-fit max-w-full " + (hint.hot ? 'text-amber font-bold' : hint.idle ? 'text-latte/80 uppercase' : 'text-latte/90')}>{hint.text}</div>
+            <button onPointerDown={e => e.stopPropagation()} onClick={() => setTab(tab === 'cafe' ? 'shop' : 'cafe')} aria-label={tab === 'cafe' ? 'Back to the shop' : 'Open the café view'}
+              className="absolute top-1.5 right-2 w-8 h-8 rounded-full bg-bean/70 text-latte/80 flex items-center justify-center backdrop-blur-[2px]">
+              <Icon name={tab === 'cafe' ? 'Minimize2' : 'Maximize2'} size={16} />
+            </button>
+          </div>
+          {tab === 'cafe' && <Ticker sceneRef={sceneRef} />}
         </section>
 
         {/* tab panel */}
-        <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
+        {tab !== 'cafe' && <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
           {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} pulses={pulses} />}
           {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
           {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
           {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
-        </main>
+        </main>}
 
         {/* golden bean */}
         {game.gold && (
@@ -854,7 +1383,7 @@ function App() {
       </div>
 
       {/* bottom tabs */}
-      <nav className="shrink-0 bg-espresso border-t border-mocha/60 pb-[env(safe-area-inset-bottom)] grid grid-cols-4">
+      <nav className="shrink-0 bg-espresso border-t border-mocha/60 pb-[env(safe-area-inset-bottom)] grid grid-cols-5">
         {TABS.map(([id, label, icon]) => {
           const on = tab === id;
           const badge = (id === 'prestige' && (E.rpGain(game) > 0 || E.PERKS.some(p => !game.perks[p.id] && p.cost <= E.rpAvailable(game))))

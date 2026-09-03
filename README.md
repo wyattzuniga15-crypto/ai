@@ -5,7 +5,14 @@ A single-file idle coffee-shop game, also in this repository: open
 icons, all pulled from jsDelivr at load, so it needs a network connection the
 first time) with the whole game in one file.
 
-- Tap the cup to brew (space bar works too). Buy eight tiers of generators,
+- **A living 2D café** drawn on a canvas: customers walk in off the street,
+  queue with an order bubble, get served by baristas who run to the drip
+  machines and espresso bars on the back wall, sit at tables with their cup
+  and leave; roasters turn, delivery vans drive the road, franchises light
+  up across town, plantations fill the hills, and the empire grows a skyline.
+  A day-night cycle runs every eight minutes. Tap anywhere on it to brew, or
+  open the **Café** tab for the full-size view with a live order ticker.
+- Tap the café to brew (space bar works too). Buy eight tiers of generators,
   from Drip Machine to Coffee Empire, each `1.15×` dearer per unit and
   doubling in output at 10, 25, 50 and 100 owned.
 - Cash upgrades: a ladder of ever-better beans (`×1.5` all income), tap
