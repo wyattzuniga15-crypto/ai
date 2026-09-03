@@ -800,7 +800,7 @@ const BeanBaronScene = (() => {
     }
     const queueSpot = i => ({ x: S.L.registerX + i * 15, y: S.L.queueY });
     function queued() { return S.customers.filter(c => c.state === 'queue').sort((a, b) => a.qi - b.qi); }
-    function pickupSpot(k) { return { x: S.L.registerX - 14 - k * 11, y: S.L.queueY + 16 }; }
+    function pickupSpot(k) { return { x: S.L.registerX - 18 - k * 12, y: S.L.queueY }; }
     function reindexQueue() { queued().forEach((c, i) => { c.qi = i; }); }
     function freeSeat() { const seats = []; for (const t of S.L.tables) for (const s of t.seats) if (!s.taken) seats.push({ t, s }); return seats.length ? pick(seats) : null; }
 
