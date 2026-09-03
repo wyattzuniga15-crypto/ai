@@ -1229,6 +1229,7 @@ const BeanBaronScene = (() => {
 
     return {
       resize, state: S,
+      cheer(text) { S.particles.push({ kind: 'text', text, x: S.L.registerX + 20, y: S.L.counterY - 8, vy: -16, life: 1.3, color: '#9CC98B' }); },
       clock() { const p = dayPhase(); const day = Math.floor(S.t / 480) + 1; const name = p < 0.2 ? 'Morning' : p < 0.45 ? 'Afternoon' : p < 0.62 ? 'Evening' : p < 0.9 ? 'Night' : 'Early morning'; return { day, name }; },
       tap() { S.tapJiggle = 1; },
       log: S.log,
@@ -1293,9 +1294,83 @@ const Sound = (() => {
     nope: () => blip(160, 0.12, 'sawtooth', 0.02, 110),
     gold: () => [0, 80, 160, 240].forEach((d, i) => setTimeout(() => blip(880 * Math.pow(1.2, i), 0.22, 'sine', 0.05), d)),
     chime: () => [0, 110].forEach((d, i) => setTimeout(() => blip(i ? 1318 : 1046, 0.3, 'sine', 0.045), d)),
+    bell: () => { blip(2093, 0.5, 'sine', 0.035); setTimeout(() => blip(2637, 0.6, 'sine', 0.025), 40); },
   };
 })();
 
+// Procedural lo-fi café music: four chords, a lazy bass, a wandering melody
+// and brushed hats, scheduled a little ahead on the audio clock.
+const Music = (() => {
+  let ctx = null, master = null, filter = null, noise = null, timer = null, playing = false;
+  let nextTime = 0, step = 0, tempo = 84, lastNote = 7;
+  const CHORDS = [[0, 4, 7, 11], [9, 12, 16, 19], [5, 9, 12, 16], [7, 11, 14, 17]];
+  const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19];
+  const freq = n => 261.63 * Math.pow(2, n / 12);
+  function ensure() {
+    if (ctx) return true;
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return false; }
+    master = ctx.createGain(); master.gain.value = 0;
+    filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 2400; filter.Q.value = 0.6;
+    master.connect(filter).connect(ctx.destination);
+    const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    noise = buf;
+    return true;
+  }
+  function tone(t, f, dur, type, gain, detune) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = f; if (detune) o.detune.value = detune;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function hat(t, gain) {
+    const src = ctx.createBufferSource(); src.buffer = noise;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6000;
+    const g = ctx.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    src.connect(hp).connect(g).connect(master); src.start(t); src.stop(t + 0.08);
+  }
+  function kick(t) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    g.gain.setValueAtTime(0.14, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.2);
+  }
+  function playStep(i, t) {
+    const beat = 60 / tempo, chord = CHORDS[Math.floor(i / 8) % CHORDS.length], pos = i % 8;
+    if (pos === 0) for (const n of chord) { tone(t, freq(n), beat * 4, 'triangle', 0.028, 4); tone(t, freq(n), beat * 4, 'sine', 0.02, -5); }
+    if (pos === 0 || pos === 4) { tone(t, freq(chord[0] - 24), beat * 1.6, 'sine', 0.09); kick(t); }
+    if (pos === 6) tone(t, freq(chord[2] - 24), beat * 0.8, 'sine', 0.07);
+    if (pos % 2 === 1) hat(t, pos === 3 || pos === 7 ? 0.05 : 0.025);
+    if (Math.random() < 0.42) {
+      const cand = SCALE.filter(n => Math.abs(n - lastNote) <= 5 && n !== lastNote);
+      lastNote = cand[Math.floor(Math.random() * cand.length)];
+      tone(t + (Math.random() < 0.3 ? beat * 0.25 : 0), freq(lastNote + 12), beat * (Math.random() < 0.5 ? 0.9 : 1.6), 'triangle', 0.05);
+    }
+  }
+  function schedule() {
+    if (!playing) return;
+    while (nextTime < ctx.currentTime + 0.35) { playStep(step, nextTime); nextTime += 60 / tempo / 2; step++; }
+  }
+  return {
+    start() {
+      if (!ensure()) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      if (playing) return;
+      playing = true; nextTime = ctx.currentTime + 0.1; step = 0;
+      master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(0.0001, ctx.currentTime); master.gain.exponentialRampToValueAtTime(0.6, ctx.currentTime + 1.5);
+      timer = setInterval(schedule, 90);
+    },
+    stop() {
+      if (!playing) return;
+      playing = false; clearInterval(timer);
+      master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(master.gain.value, ctx.currentTime); master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+    },
+    setTempo(t) { tempo = t; },
+    get playing() { return playing; },
+  };
+})();
+
+window.BeanBaronMusic = Music;   // handy for tests and the console
 const QTYS = [['1', 'x1'], ['10', 'x10'], ['100', 'x100'], ['max', 'MAX']];
 const TABS = [['cafe', 'Café', 'Coffee'], ['shop', 'Shop', 'Store'], ['upgrades', 'Upgrades', 'TrendingUp'], ['prestige', 'Prestige', 'Sparkles'], ['stats', 'Stats', 'BarChart3']];
 const TOAST_ICON = { milestone: 'ArrowUpCircle', ach: 'Trophy', gold: 'Star', info: 'Info', order: 'Receipt', miss: 'Frown' };
@@ -1463,6 +1538,8 @@ function App() {
   const [pulses, setPulses] = useState({});
   const [toasts, setToasts] = useState([]);
   const [muted, setMuted] = useState(false);
+  const [music, setMusic] = useState(true);
+  const musicRef = useRef(true);
   const [confirmPrestige, setConfirmPrestige] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmMove, setConfirmMove] = useState(false);
@@ -1502,6 +1579,11 @@ function App() {
     setTimeout(() => setToasts(t => t.filter(o => o.id !== id)), 2600);
   }, []);
 
+  const confetti = useCallback((x, y, count) => {
+    const id = ++seq.current;
+    setBursts(b => [...b, { id, x, y, parts: Array.from({ length: count || 18 }, (_, i) => ({ dx: Math.cos(i / (count || 18) * Math.PI * 2) * (50 + Math.random() * 70), dy: Math.sin(i / (count || 18) * Math.PI * 2) * (50 + Math.random() * 70) - 30 })) }]);
+    setTimeout(() => setBursts(b => b.filter(o => o.id !== id)), 900);
+  }, []);
   // Drain one-shot events the rules produced: milestones, achievements, golden beans.
   useEffect(() => {
     if (!game.events.length) return;
@@ -1509,13 +1591,13 @@ function App() {
       if (ev.type === 'milestone') { showToast(`${E.GENS[ev.gen].plural} doubled at ${ev.at}!`, 'milestone'); Sound.chime(); }
       else if (ev.type === 'achievement') { showToast(`${ACH_BY_ID[ev.id].name} · +1% income`, 'ach'); Sound.chime(); }
       else if (ev.type === 'gold') { showToast(ev.text, 'gold'); }
-      else if (ev.type === 'cafe') { showToast(`Welcome to your ${E.CAFES[ev.tier].name}`, 'gold'); Sound.gold(); }
-      else if (ev.type === 'order-new') { showToast(`New ticket from ${ev.name}`, 'order'); }
-      else if (ev.type === 'order-filled') { showToast(`${ev.name} paid ${E.fmtCash(ev.payout)}`, 'gold'); Sound.chime(); }
+      else if (ev.type === 'cafe') { showToast(`Welcome to your ${E.CAFES[ev.tier].name}`, 'gold'); Sound.gold(); confetti(50, 45, 24); }
+      else if (ev.type === 'order-new') { showToast(`New ticket from ${ev.name}`, 'order'); Sound.bell(); }
+      else if (ev.type === 'order-filled') { showToast(`${ev.name} paid ${E.fmtCash(ev.payout)}`, 'gold'); Sound.chime(); if (sceneRef.current) sceneRef.current.cheer('+' + E.fmtCash(ev.payout)); }
       else if (ev.type === 'order-missed') { showToast(`${ev.name} gave up waiting. Streak reset.`, 'miss'); Sound.nope(); }
     }
     setGame(g => g.events.length ? { ...g, events: [] } : g);
-  }, [game.events, showToast]);
+  }, [game.events, showToast, confetti]);
 
   // Pulse anything that just became affordable.
   const prevAff = useRef(null);
@@ -1596,13 +1678,21 @@ function App() {
     if (E.buyPerk(gameRef.current, id)) { setGame(g => E.buyPerk(g, id) || g); Sound.chime(); showToast(E.PERK_BY_ID[id].name + ' unlocked', 'ach'); }
   };
   const doMove = () => { setGame(g => E.expandCafe(g) || g); setConfirmMove(false); setTab('cafe'); };
-  const doPrestige = () => { setGame(g => E.prestige(g, Date.now()) || g); setConfirmPrestige(false); setTab('prestige'); showToast('Chain sold. Fresh start, stronger beans', 'gold'); Sound.gold(); };
+  const doPrestige = () => { setGame(g => E.prestige(g, Date.now()) || g); setConfirmPrestige(false); setTab('prestige'); showToast('Chain sold. Fresh start, stronger beans', 'gold'); Sound.gold(); confetti(50, 45, 28); };
   const doReset = () => { SAVE_SLOT = null; setGame(E.newState(Date.now())); setConfirmReset(false); setTab('shop'); };
   const toggleMute = () => { setMuted(m => { Sound.setMuted(!m); return !m; }); };
+  const toggleMusic = () => { setMusic(m => { const on = !m; musicRef.current = on; if (on) Music.start(); else Music.stop(); return on; }); };
+  // browsers only allow audio after a gesture: the first tap anywhere starts the music
+  useEffect(() => {
+    const first = () => { if (musicRef.current) Music.start(); window.removeEventListener('pointerdown', first); window.removeEventListener('keydown', first); };
+    window.addEventListener('pointerdown', first); window.addEventListener('keydown', first);
+    return () => { window.removeEventListener('pointerdown', first); window.removeEventListener('keydown', first); };
+  }, []);
 
   const cps = E.cashPerSec(game);
   const tapV = E.tapValue(game);
   const rush = E.buffActive(game, 'rush'), frenzy = E.buffActive(game, 'frenzy');
+  useEffect(() => { Music.setTempo(rush ? 108 : 84); }, [rush]);
 
   // A hint under the cup that follows what the player should do next.
   const hint = useMemo(() => {
@@ -1636,6 +1726,7 @@ function App() {
                 <Icon name="Sparkles" size={13} /> {game.rp} RP · +{game.rp * 2}%
               </div>
             )}
+            <button onClick={toggleMusic} aria-label={music ? 'Music off' : 'Music on'} className={"p-1 rounded-full " + (music ? 'text-amber' : 'text-latte/40')}><Icon name="Music" size={18} /></button>
             <button onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="text-latte/60 hover:text-latte p-1 rounded-full"><Icon name={muted ? 'VolumeX' : 'Volume2'} size={18} /></button>
           </div>
         </div>

@@ -27,6 +27,10 @@ first time) with the whole game in one file.
 - **Premises.** You start on a coffee cart. Each size caps how many of each
   machine fit and which tiers exist; moving up costs money, keeps your
   money, and resets machines, pantry and upgrades.
+- **Sound.** A procedural lo-fi café loop (four chords, lazy bass, wandering
+  melody, brushed hats) starts on your first tap and picks up the tempo
+  during a rush; a bell rings when a ticket arrives. Music and effects each
+  have a toggle in the header.
 - Tap the café to brew (space bar works too). Buy eight tiers of generators,
   from Drip Machine to Coffee Empire, each `1.15×` dearer per unit and
   doubling in output at 10, 25, 50 and 100 owned.
