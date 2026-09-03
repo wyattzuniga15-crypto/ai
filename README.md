@@ -50,6 +50,14 @@ first time) with the whole game in one file.
   of your rate for up to 4 hours. Saves live in memory only; **Stats → Copy
   save code** carries a game across reloads or devices.
 
+**Play it as a site.** The repository is ready for GitHub Pages: enable it
+once under *Settings → Pages → Build and deployment → Deploy from a branch*,
+pick this branch and the root folder, and the game is at
+`https://wyattzuniga15-crypto.github.io/ai/`. On an iPhone open that in
+Safari and use *Share → Add to Home Screen*: it launches full-screen with its
+own bean icon and keeps working offline (`manifest.json`, `sw.js`,
+`icons/`, regenerated with `node tools/beanbaron_icons.js`).
+
 `node tools/beanbaron_sim.js 70` plays a greedy bot against the exact economy
 block in the page and prints when each tier and upgrade is bought and when the
 first prestige unlocks (about 39 minutes for a bot that catches most golden

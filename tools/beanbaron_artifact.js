@@ -7,6 +7,7 @@ let html = fs.readFileSync(process.argv[3] || path.join(__dirname, '..', 'BeanBa
 html = html.slice(html.indexOf('<title>'));
 html = html.replace('</head>\n<body class="noselect">', '').replace('</body>\n</html>', '');
 html = html.replace(/<meta[^>]*>\n?/g, '');
+html = html.replace(/<link rel="(manifest|apple-touch-icon|icon)"[^>]*>\n?/g, '');   // site-only extras
 // the artifact skeleton owns <body>, so move the body class onto the app root
 html = html.replace('<div id="root"></div>', '<div id="root" class="noselect"></div>');
 fs.writeFileSync(out, html.trimEnd() + '\n');
