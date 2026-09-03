@@ -658,6 +658,7 @@ if (typeof module !== 'undefined') module.exports = BeanBaronEconomy;
 // and how busy the shop is. Nothing here changes the economy.
 const BeanBaronScene = (() => {
   const W = 360;
+  const MIN_WORLD_H = 250;          // below this the view scrolls instead of squashing the room
   const NAMES = ['Maya', 'Theo', 'Priya', 'Jonas', 'Amara', 'Kai', 'Lena', 'Diego', 'Noor', 'Felix', 'Sana', 'Milo', 'Ada', 'Ravi', 'June', 'Omar', 'Ivy', 'Luca', 'Zoe', 'Nico', 'Hana', 'Sam', 'Rosa', 'Eli', 'Tomas', 'Wren'];
   const DRINKS = [
     { name: 'latte', color: '#e9c9a3', kind: 'espresso' }, { name: 'cappuccino', color: '#d9b48a', kind: 'espresso' },
@@ -731,11 +732,24 @@ const BeanBaronScene = (() => {
       cssW = r.width; cssH = r.height;
       canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
       S.scale = cssW / W;
-      const newH = cssH / S.scale;
-      const big = force || Math.abs(newH - S.H) > 3;
+      S.visH = cssH / S.scale;
+      const newH = Math.max(S.visH, MIN_WORLD_H);
+      const big = force || Math.abs(newH - S.H) > 40;
       S.H = newH;
-      if (!big) return;                   // a nudge of a few pixels: keep everyone where they are
+      const oldTables = S.L.tables;
       S.L = layout(S.H, S.tier);
+      if (!big) {                         // a modest change: keep everyone, re-seat them on the new layout
+        for (const c of S.customers) {
+          if (!c.table) continue;
+          const ti = oldTables.indexOf(c.table), si = ti >= 0 ? c.table.seats.indexOf(c.seat) : -1;
+          const nt = S.L.tables[ti];
+          if (nt && si >= 0) { c.table = nt; c.seat = nt.seats[si]; c.seat.taken = c; if (c.state === 'sit') { c.x = c.seat.x; c.y = c.seat.y; } else if (c.path) c.path = [{ x: c.seat.x, y: S.L.queueY }, { x: c.seat.x, y: c.seat.y }]; }
+          else { c.table = null; c.seat = null; c.state = 'leave'; c.path = null; }
+        }
+        S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; b.home.y = S.L.laneY; });
+        rebuildMachines(true);
+        return;
+      }
       // the room changed shape: clear the floor and let it refill
       S.customers = [];
       for (const t of S.L.tables) for (const s of t.seats) s.taken = null;
@@ -1347,8 +1361,11 @@ const BeanBaronScene = (() => {
       const g = getGame();
       const night = nightAmount();
       const nightShift = E.has(g, 'nightshift');
-      ctx.setTransform(dpr * S.scale, 0, 0, dpr * S.scale, 0, 0);
-      ctx.clearRect(0, 0, W, S.H);
+      // when the strip is short, look at the counter rather than the sky
+      const visH = S.visH || S.H;
+      S.viewY = S.H > visH + 0.5 ? clamp(S.L.counterY + 14 - visH / 2, 0, S.H - visH) : 0;
+      ctx.setTransform(dpr * S.scale, 0, 0, dpr * S.scale, 0, -S.viewY * dpr * S.scale);
+      ctx.clearRect(0, S.viewY, W, visH);
       drawBackground(g, night);
       drawShop(g, night, nightShift);
       // people sorted by depth, vehicles last (they are lowest on screen)
@@ -1385,7 +1402,7 @@ const BeanBaronScene = (() => {
     return {
       resize, state: S,
       poke(xp, yp) {
-        const x = xp / 100 * W, y = yp / 100 * S.H;
+        const x = xp / 100 * W, y = yp / 100 * (S.visH || S.H) + (S.viewY || 0);
         const all = S.customers.concat(S.baristas);
         let best = null, bd = 14;
         for (const p of all) { const d = Math.hypot(p.x - x, p.y - (y + 6)); if (d < bd) { bd = d; best = p; } }
@@ -1414,6 +1431,8 @@ const ACH_BY_ID = Object.fromEntries(E.ACH.map(a => [a.id, a]));
 // The save file. It lives in this variable for as long as the page does, so
 // a reload starts fresh; use "Copy save code" in Stats to carry a game over.
 let SAVE_SLOT = null;
+const UI_PREFS = { heroH: 288 };     // remembered while the page lives
+const HERO_MIN = 64, HERO_DEFAULT = 288;
 const AWAY_MIN = 30;                 // seconds hidden before it counts as time away
 const SAVE_EVERY = 5000;
 
@@ -1702,6 +1721,14 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [muted, setMuted] = useState(false);
   const [music, setMusic] = useState(true);
+  const [heroH, setHeroH] = useState(UI_PREFS.heroH);
+  const drag = useRef(null);
+  useEffect(() => { UI_PREFS.heroH = heroH; }, [heroH]);
+  const heroMax = () => Math.min(560, Math.round((window.innerHeight || 800) * 0.62));
+  const onGripDown = useCallback(e => { drag.current = { y: e.clientY, h: heroH }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }, [heroH]);
+  const onGripMove = useCallback(e => { if (!drag.current) return; setHeroH(Math.max(HERO_MIN, Math.min(heroMax(), drag.current.h + (e.clientY - drag.current.y)))); }, []);
+  const onGripUp = useCallback(() => { drag.current = null; }, []);
+  const toggleHero = useCallback(() => setHeroH(h => h > HERO_MIN + 40 ? HERO_MIN : HERO_DEFAULT), []);
   const musicRef = useRef(true);
   const [confirmPrestige, setConfirmPrestige] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -1916,19 +1943,26 @@ function App() {
         </div>
 
         {/* the café */}
-        <section className={"relative shrink-0 flex flex-col " + (tab === 'cafe' ? 'flex-1 min-h-0' : 'h-72')}>
+        <section className={"relative shrink-0 flex flex-col " + (tab === 'cafe' ? 'flex-1 min-h-0' : '')} style={tab === 'cafe' ? undefined : { height: heroH + 18 }}>
           <div ref={heroRef} onPointerDown={onHeroTap} className="relative flex-1 min-h-0 overflow-hidden bg-bean cursor-pointer">
             <Cafe gameRef={gameRef} sceneRef={sceneRef} />
             {floaters.map(f => (
               <span key={f.id} className={"floater font-display font-bold text-amber " + (frenzy ? 'text-3xl' : 'text-2xl')} style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
             ))}
-            <div className={"absolute top-2 left-2 right-12 text-xs tracking-wide truncate rounded-full px-3 py-1 bg-bean/70 backdrop-blur-[2px] w-fit max-w-full " + (hint.hot ? 'text-amber font-bold' : hint.idle ? 'text-latte/80 uppercase' : 'text-latte/90')}>{hint.text}</div>
+            {(tab === 'cafe' || heroH >= 120) && <div className={"absolute top-2 left-2 right-12 text-xs tracking-wide truncate rounded-full px-3 py-1 bg-bean/70 backdrop-blur-[2px] w-fit max-w-full " + (hint.hot ? 'text-amber font-bold' : hint.idle ? 'text-latte/80 uppercase' : 'text-latte/90')}>{hint.text}</div>}
             <button onPointerDown={e => e.stopPropagation()} onClick={() => setTab(tab === 'cafe' ? 'shop' : 'cafe')} aria-label={tab === 'cafe' ? 'Back to the shop' : 'Open the café view'}
               className="absolute top-1.5 right-2 w-8 h-8 rounded-full bg-bean/70 text-latte/80 flex items-center justify-center backdrop-blur-[2px]">
               <Icon name={tab === 'cafe' ? 'Minimize2' : 'Maximize2'} size={16} />
             </button>
           </div>
           {tab === 'cafe' && <Ticker sceneRef={sceneRef} game={game} />}
+          {tab !== 'cafe' && (
+            <div onPointerDown={onGripDown} onPointerMove={onGripMove} onPointerUp={onGripUp} onPointerCancel={onGripUp} onDoubleClick={toggleHero}
+              role="separator" aria-label="Drag to resize the café view" title="Drag to resize · double-tap to snap"
+              className="shrink-0 h-[18px] bg-espresso border-t border-mocha/50 flex items-center justify-center cursor-row-resize select-none" style={{ touchAction: 'none' }}>
+              <span className="w-12 h-1.5 rounded-full bg-latte/40" />
+            </div>
+          )}
         </section>
         <OrderRail game={game} onFill={fillOrder} />
 
