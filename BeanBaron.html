@@ -1862,7 +1862,9 @@ function App() {
   const gameRef = useRef(game); gameRef.current = game;
   const sceneRef = useRef(null);
   const heroRef = useRef(null);
+  const mainRef = useRef(null);
   const seq = useRef(0);
+  useEffect(() => { if (mainRef.current) mainRef.current.scrollTop = 0; }, [tab]);
 
   // One requestAnimationFrame loop, delta-time based. Renders are committed at
   // ~30 Hz; a gap longer than AWAY_MIN means the tab was hidden, which is paid
@@ -2022,7 +2024,8 @@ function App() {
     if (ready) return { text: `${ready.name}'s ticket is ready to fill` + (tab === 'orders' ? '' : ' · open Orders'), hot: true };
     const nx = E.nextCafe(game);
     if (nx && nx.cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)) && tab !== 'shop') return { text: `Your ${E.cafeOf(game).name} is full · move up in the Shop` };
-    if ((game.orders || []).length && tab !== 'shop') return { text: `Stock the pantry in the Shop for ${game.orders[0].name}'s ticket` };
+    if ((game.orders || []).length && tab !== 'shop' && tab !== 'orders') return { text: `${game.orders[0].name} is waiting · open Orders to give it` };
+    if ((game.orders || []).length && tab === 'orders') return { text: `Stock the pantry below to give ${game.orders[0].name}'s order` };
     const cheapUpg = E.availableUpgrades(game).find(u => E.upgradeCost(game, u) <= game.cash);
     if (cheapUpg && tab !== 'upgrades' && tab !== 'cafe') return { text: `${cheapUpg.name} is affordable in Upgrades` };
     if (E.rpGain(game) > 0 && tab !== 'prestige' && tab !== 'cafe') return { text: `Sell the chain for +${E.rpGain(game)} Roast Point${E.rpGain(game) > 1 ? 's' : ''}` };
@@ -2093,7 +2096,7 @@ function App() {
         {tab !== 'orders' && <OrderRail game={game} onFill={fillOrder} />}
 
         {/* tab panel */}
-        {tab !== 'cafe' && <main className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
+        {tab !== 'cafe' && <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
           {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} buyStock={buyStock} pulses={pulses} onMove={() => setConfirmMove(true)} />}
           {tab === 'orders' && <Orders game={game} qty={qty} setQty={setQty} buyStock={buyStock} onFill={fillOrder} />}
           {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
