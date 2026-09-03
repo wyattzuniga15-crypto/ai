@@ -1,3 +1,32 @@
+# Minebreak
+
+A single-file 3D block-mining game with mouse-look. Open `Minebreak.html` in
+any browser with WebGL and play — no build step, no assets, no network.
+
+You stand on a floating island. Dig for ore, keep the lantern fed with coal,
+and get back out before the dark, the lava, a rockfall or a grub finishes you.
+
+- **Mouse tracking.** Click the island to capture the mouse and the view
+  follows it (pointer lock). While the pointer is free — before you click, or
+  where the browser refuses to lock it — the cursor itself is the crosshair:
+  whatever it rests on is what you mine, and pushing it toward an edge turns
+  the view. `Esc` gives the mouse back and pauses.
+- **Desktop:** `WASD`/arrows walk, `Space` jumps, click mines, right-click
+  builds with pocketed rubble, `P`/`Esc` pause, `M` mutes.
+- **Phone:** left thumb walks (joystick), right thumb looks, hold the pick to
+  mine, tap the cube to build, tap the arrow to jump.
+- **The mine:** eleven block types (moss, dirt, stone, coal, iron, gold, gem,
+  gravel, plank, bedrock, lava), caves, ore veins that pay more the deeper
+  they sit, sealed lava pockets, loose gravel that comes down when you dig
+  under it, and grubs that hunt in unlit tunnels. Reaching bedrock pays 200.
+- Built to the `CLAUDE.md` visual rules: one `THEME` object, one UI kit, the
+  world's own textures on every panel and button, a 400×600 logical canvas.
+  Best score lives in memory only.
+
+`node tools/minebreak_smoke.js [screenshot-dir]` drives the game headlessly on
+an emulated desktop and phone (start, walk, look, mine, build, pause, die,
+rockfall) and fails on any console error.
+
 # Cube Roll
 
 A single-file 3D block-rolling puzzle game. No build step, no dependencies, no

@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Minebreak">
+<title>Minebreak</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;cursor:default}
+.stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.frame{position:relative}
+.frame canvas{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none}
+</style>
+</head>
+<body>
+<div class="stage"><div class="frame"><canvas class="gl"></canvas><canvas class="ui"></canvas></div></div>
+<script>
+'use strict';
+/* =====================================================================
+   MINEBREAK — a single-file 3D block-mining game.
+   Dig for ore, keep the lantern lit, mind the lava and the things that
+   live in the dark. Mouse-look (pointer lock) on desktop, cursor tracking
+   when the pointer is free, joystick + drag-to-look on touch.
+   ===================================================================== */
+
+/* ---------- 1. THEME — the only place a color, width, radius or font lives ---------- */
+const THEME = {
+  // palette — named by ROLE, not hue. Deep-mine look: dusk sky, slate stone, lantern amber, moss teal.
+  bg:      '#6FA3C4',  // sky / far background
+  ground:  '#8B857A',  // stone — the world's main material
+  accent:  '#FFB454',  // lantern light, gold, primary action
+  accent2: '#58C7A6',  // moss on the island, gems, highlights
+  ink:     '#2B221C',  // outlines AND text — same color for both
+  paper:   '#E6D3A8',  // mine planks — panel / card / button fill
+  danger:  '#E5472A',  // lava, hurt, grub eyes
+  // shape language
+  outline: 3,          // px — used on blocks, icons, panels AND buttons
+  radius:  14,         // panel/button corner radius
+  shadow:  { dx: 0, dy: 4, color: 'rgba(0,0,0,.25)' },  // hard-edged, offset
+  // one light direction for world faces AND UI bevels (screen space: from upper-left)
+  light:   { x: -0.6, y: -0.8 },
+  // type
+  font:    '"Arial Rounded MT Bold", "Nunito", system-ui, sans-serif',
+  size:    { title: 40, body: 20, small: 14 },
+};
+
+/* ---------- derivation helpers: every tint comes through shade() ---------- */
+function hexToRgb(c){ const n=parseInt(c.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+// k<0 darkens toward black, k>0 lightens toward white; a (optional) adds alpha.
+function shade(c,k,a){
+  let [r,g,b]=hexToRgb(c);
+  if(k<0){ r*=1+k; g*=1+k; b*=1+k; } else { r+=(255-r)*k; g+=(255-g)*k; b+=(255-b)*k; }
+  r=Math.round(r); g=Math.round(g); b=Math.round(b);
+  if(a!==undefined) return 'rgba('+r+','+g+','+b+','+a+')';
+  return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);
+}
+// GL wants 0..1 floats
+function rgbOf(c){ const v=hexToRgb(c); return [v[0]/255,v[1]/255,v[2]/255]; }
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+function mulberry32(seed){ let s=seed>>>0; return function(){ s=(s+0x6D2B79F5)>>>0; let t=s; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
+
+/* ---------- 2. canvases: 400×600 logical, scaled to devicePixelRatio, letterboxed ---------- */
+const W=400, H=600;
+const frameEl=document.querySelector('.frame');
+const glCanvas=document.querySelector('.gl');
+const uiCanvas=document.querySelector('.ui');
+const ctx=uiCanvas.getContext('2d');
+let DPR=1, SCALE=1;
+document.body.style.background=shade(THEME.bg,-0.45);
+{ const m=document.createElement('meta'); m.name='theme-color'; m.content=shade(THEME.bg,-0.45); document.head.appendChild(m); }
+function resize(){
+  SCALE=Math.min(innerWidth/W, innerHeight/H);
+  DPR=Math.min(window.devicePixelRatio||1, 2);
+  const cw=Math.max(1,Math.floor(W*SCALE)), ch=Math.max(1,Math.floor(H*SCALE));
+  frameEl.style.width=cw+'px'; frameEl.style.height=ch+'px';
+  for(const c of [glCanvas,uiCanvas]){ c.width=Math.round(W*DPR); c.height=Math.round(H*DPR); }
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(gl) gl.viewport(0,0,glCanvas.width,glCanvas.height);
+}
+addEventListener('resize',resize);
+// client → logical coordinates
+function toLogical(e){ const r=uiCanvas.getBoundingClientRect(); return { x:(e.clientX-r.left)*(W/r.width), y:(e.clientY-r.top)*(H/r.height) }; }
+
+/* ---------- 3. textures — generated once from THEME, shared by the world AND the menus ---------- */
+const TEXEL=64;   // one texel density everywhere: 64 texels per block face, 64 px per menu tile
+const GRAIN=4;    // one noise scale: every speckle, seam, nugget and crack is built from 4-texel cells
+const TEX={}, TEXC={};
+const trand=mulberry32(20260903);
+
+function grainFill(c,s,base,dark,light,density){
+  c.fillStyle=base; c.fillRect(0,0,s,s);
+  const n=Math.floor(density*(s/GRAIN)*(s/GRAIN));
+  for(let i=0;i<n;i++){
+    const gx=Math.floor(trand()*s/GRAIN)*GRAIN, gy=Math.floor(trand()*s/GRAIN)*GRAIN;
+    c.fillStyle=trand()<0.5?dark:light; c.fillRect(gx,gy,GRAIN,GRAIN);
+  }
+}
+// ore nuggets: small clusters of grain cells with an ink edge and a glint on the lit corner
+function blobs(c,s,color,count){
+  for(let i=0;i<count;i++){
+    const gx=GRAIN*2+Math.floor(trand()*(s/GRAIN-6))*GRAIN, gy=GRAIN*2+Math.floor(trand()*(s/GRAIN-6))*GRAIN;
+    const cells=[[0,0],[1,0],[0,1],[1,1]];
+    if(trand()<0.6) cells.push([2,0]); if(trand()<0.6) cells.push([0,2]); if(trand()<0.4) cells.push([-1,1]);
+    c.fillStyle=THEME.ink; for(const [dx,dy] of cells) c.fillRect(gx+dx*GRAIN-1,gy+dy*GRAIN-1,GRAIN+2,GRAIN+2);
+    c.fillStyle=color; for(const [dx,dy] of cells) c.fillRect(gx+dx*GRAIN,gy+dy*GRAIN,GRAIN,GRAIN);
+    c.fillStyle=shade(color,0.5); c.fillRect(gx,gy,GRAIN/2,GRAIN/2);
+  }
+}
+function paintMaterial(c,name,s){
+  const G=THEME.ground, P=THEME.paper, K=THEME.ink, o=THEME.outline;
+  const dirt=shade(P,-0.5);
+  switch(name){
+    case 'stone': grainFill(c,s,G,shade(G,-0.14),shade(G,0.10),0.22); break;
+    case 'dirt': grainFill(c,s,dirt,shade(dirt,-0.18),shade(dirt,0.14),0.25); break;
+    case 'grass': grainFill(c,s,shade(THEME.accent2,-0.1),shade(THEME.accent2,-0.26),shade(THEME.accent2,0.06),0.22); break;
+    case 'grass_side':
+      paintMaterial(c,'dirt',s);
+      c.fillStyle=shade(THEME.accent2,-0.1); for(let x=0;x<s;x+=GRAIN) c.fillRect(x,0,GRAIN,GRAIN*(2+Math.floor(trand()*2)));
+      c.fillStyle=shade(THEME.accent2,-0.26); for(let x=0;x<s;x+=GRAIN) if(trand()<0.3) c.fillRect(x,GRAIN,GRAIN,GRAIN);
+      break;
+    case 'plank': {
+      grainFill(c,s,P,shade(P,-0.08),shade(P,0.08),0.12);
+      c.fillStyle=shade(P,-0.25);
+      for(let y=GRAIN;y<s;y+=GRAIN*2) if(trand()<0.7) c.fillRect(Math.floor(trand()*s/GRAIN)*GRAIN,y,GRAIN*3,1);
+      c.fillStyle=shade(P,-0.42);
+      c.fillRect(0,0,s,o); c.fillRect(0,s/2,s,o);                       // two planks per tile
+      c.fillRect(s*0.3,0,o,s/2); c.fillRect(s*0.72,s/2,o,s/2);         // staggered end joints
+      break; }
+    case 'coal': paintMaterial(c,'stone',s); blobs(c,s,shade(K,0.12),3); break;
+    case 'iron': paintMaterial(c,'stone',s); blobs(c,s,shade(P,0.12),3); break;
+    case 'gold': paintMaterial(c,'stone',s); blobs(c,s,THEME.accent,3); break;
+    case 'gem':  paintMaterial(c,'stone',s); blobs(c,s,THEME.accent2,2); break;
+    case 'gravel': grainFill(c,s,shade(G,-0.22),shade(G,-0.42),shade(G,0.16),0.5); break;
+    case 'bedrock': grainFill(c,s,shade(G,-0.58),shade(G,-0.72),shade(G,-0.42),0.4); break;
+    case 'lava':
+      grainFill(c,s,THEME.danger,shade(THEME.danger,-0.18),shade(THEME.danger,0.4),0.35);
+      c.fillStyle=shade(THEME.accent,0.2);
+      for(let i=0;i<6;i++) c.fillRect(Math.floor(trand()*s/GRAIN)*GRAIN,Math.floor(trand()*s/GRAIN)*GRAIN,GRAIN*2,GRAIN);
+      break;
+    case 'grub': grainFill(c,s,shade(G,-0.36),shade(G,-0.52),shade(G,-0.2),0.3); break;
+    case 'grub_face': // eyes and mouth use the same stroke weight as the UI icons
+      paintMaterial(c,'grub',s);
+      c.lineWidth=o; c.strokeStyle=K;
+      for(const ex of [s*0.32,s*0.68]){
+        c.beginPath(); c.arc(ex,s*0.4,s*0.14,0,Math.PI*2); c.fillStyle=THEME.danger; c.fill(); c.stroke();
+        c.fillStyle=K; c.beginPath(); c.arc(ex+s*0.03,s*0.42,s*0.05,0,Math.PI*2); c.fill();
+      }
+      c.beginPath(); c.moveTo(s*0.3,s*0.72);
+      for(let i=1;i<=4;i++) c.lineTo(s*0.3+i*s*0.1,s*0.72+(i%2?GRAIN:0));
+      c.stroke();
+      break;
+    case 'frame': // aim highlight: a paper line just inside the block's ink edge, so it reads on every material
+      c.clearRect(0,0,s,s); c.lineWidth=o; c.strokeStyle=P; c.strokeRect(o*1.5,o*1.5,s-o*3,s-o*3); break;
+    case 'crack1': case 'crack2': case 'crack3': {
+      c.clearRect(0,0,s,s);
+      const n=name==='crack1'?1:name==='crack2'?2:4, r=mulberry32(7+n);
+      c.lineWidth=o; c.strokeStyle=K; c.lineCap='round'; c.lineJoin='round';
+      for(let i=0;i<n;i++){
+        let x=s/2+(r()-0.5)*s*0.3, y=s/2+(r()-0.5)*s*0.3;
+        c.beginPath(); c.moveTo(x,y);
+        for(let j=0;j<3+n;j++){ x+=(r()-0.5)*s*0.4; y+=(r()-0.5)*s*0.4; c.lineTo(clamp(x,2,s-2),clamp(y,2,s-2)); }
+        c.stroke();
+      }
+      break; }
+    default: grainFill(c,s,G,shade(G,-0.14),shade(G,0.10),0.22);
+  }
+}
+function makeTexture(name){
+  if(TEX[name]) return TEX[name];
+  const cv=document.createElement('canvas'); cv.width=cv.height=TEXEL;
+  paintMaterial(cv.getContext('2d'),name,TEXEL);
+  TEXC[name]=cv; TEX[name]=ctx.createPattern(cv,'repeat');
+  return TEX[name];
+}
+// The GPU atlas is the same materials; blocks additionally get the cel outline on every edge.
+const ATLAS_NAMES=['stone','dirt','grass','grass_side','plank','coal','iron','gold','gem','gravel','bedrock','lava','grub','grub_face','frame','crack1','crack2','crack3'];
+const ATLAS_COLS=8, ATLAS_ROWS=4;   // 512×256: power-of-two so the atlas can mipmap
+const ATLAS_IDX={};
+let atlasCanvas=null;
+function buildAtlas(){
+  atlasCanvas=document.createElement('canvas');
+  atlasCanvas.width=TEXEL*ATLAS_COLS; atlasCanvas.height=TEXEL*ATLAS_ROWS;
+  const c=atlasCanvas.getContext('2d'), o=THEME.outline;
+  ATLAS_NAMES.forEach((name,i)=>{
+    ATLAS_IDX[name]=i; makeTexture(name);
+    const x=(i%ATLAS_COLS)*TEXEL, y=Math.floor(i/ATLAS_COLS)*TEXEL;
+    c.drawImage(TEXC[name],x,y);
+    if(!(name==='frame'||name.indexOf('crack')===0)){
+      c.lineWidth=o; c.strokeStyle=THEME.ink; c.strokeRect(x+o/2,y+o/2,TEXEL-o,TEXEL-o);
+    }
+  });
+}
+
+/* ---------- 4. UI kit — every screen, HUD, toast and world label is built from these ---------- */
+function rrect(x,y,w,h,r){
+  r=Math.max(0,Math.min(r,w/2,h/2));
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+// THEME.paper texture fill, THEME.ink outline at THEME.outline, THEME.radius corners, THEME.shadow, bevel from THEME.light
+function drawPanel(x,y,w,h,opt){
+  opt=opt||{};
+  const tex=opt.texture===undefined?'plank':opt.texture, r=opt.radius===undefined?THEME.radius:opt.radius, o=THEME.outline;
+  if(opt.shadow!==false){ ctx.fillStyle=THEME.shadow.color; rrect(x+THEME.shadow.dx,y+THEME.shadow.dy,w,h,r); ctx.fill(); }
+  ctx.fillStyle=tex?makeTexture(tex):(opt.fill||THEME.paper); rrect(x,y,w,h,r); ctx.fill();
+  if(opt.tint){ ctx.fillStyle=opt.tint; rrect(x,y,w,h,r); ctx.fill(); }
+  if(opt.bevel!==false){
+    ctx.save(); rrect(x,y,w,h,r); ctx.clip(); ctx.lineWidth=o*2;
+    const L=THEME.light, d=o*1.5;
+    ctx.strokeStyle=shade(THEME.paper,0.6,0.55); rrect(x+L.x*d,y+L.y*d,w,h,r); ctx.stroke();  // rim facing the light
+    ctx.strokeStyle=shade(THEME.ink,0,0.28);     rrect(x-L.x*d,y-L.y*d,w,h,r); ctx.stroke();  // rim in shadow
+    ctx.restore();
+  }
+  ctx.lineWidth=o; ctx.strokeStyle=THEME.ink; rrect(x,y,w,h,r); ctx.stroke();
+}
+// built on drawPanel; pressed shifts down by shadow.dy and drops the shadow
+function drawButton(x,y,w,h,label,pressed,icon){
+  const dy=pressed?THEME.shadow.dy:0;
+  drawPanel(x,y+dy,w,h,{shadow:!pressed});
+  const cx=x+w/2, cy=y+h/2+dy;
+  if(icon&&label){ drawIcon(icon,x+h*0.62,cy,h*0.5); drawLabel(label,cx+h*0.25,cy,'body','center'); }
+  else if(icon) drawIcon(icon,cx,cy,h*0.55);
+  else drawLabel(label,cx,cy,'body','center');
+}
+// THE only way text is drawn: THEME.font, ink stroke behind the fill. size ∈ title|body|small
+function drawLabel(text,x,y,size,align,color){
+  const px=THEME.size[size]||THEME.size.body;
+  ctx.font='bold '+px+'px '+THEME.font;
+  ctx.textAlign=align||'center'; ctx.textBaseline='middle';
+  ctx.lineJoin='round'; ctx.lineWidth=THEME.outline*2; ctx.strokeStyle=THEME.ink;
+  ctx.strokeText(text,x,y);
+  ctx.fillStyle=color||THEME.paper; ctx.fillText(text,x,y);
+}
+// HUD bars: same outline, same radius, highlight on the side facing THEME.light
+function drawMeter(x,y,w,h,pct,color){
+  const r=Math.min(THEME.radius,h/2), o=THEME.outline;
+  ctx.fillStyle=THEME.shadow.color; rrect(x+THEME.shadow.dx,y+THEME.shadow.dy,w,h,r); ctx.fill();
+  ctx.fillStyle=shade(THEME.ink,0.18); rrect(x,y,w,h,r); ctx.fill();
+  const fw=Math.max(0,Math.min(w,w*pct));
+  if(fw>o){
+    ctx.save(); rrect(x,y,w,h,r); ctx.clip();
+    ctx.fillStyle=color; rrect(x,y,fw,h,r); ctx.fill();
+    ctx.fillStyle=shade(color,0.55,0.6); rrect(x+o,y+o,Math.max(0,fw-o*2),Math.max(1,h*0.28),r/2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.lineWidth=o; ctx.strokeStyle=THEME.ink; rrect(x,y,w,h,r); ctx.stroke();
+}
+// vector icons in THEME.ink strokes at THEME.outline, centred on (x,y), fitting a box of size s
+function drawIcon(name,x,y,s){
+  ctx.save(); ctx.translate(x,y);
+  const u=s/2;
+  ctx.lineWidth=THEME.outline; ctx.strokeStyle=THEME.ink; ctx.lineJoin='round'; ctx.lineCap='round';
+  const P=(pts,close)=>{ ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(p[0]*u,p[1]*u):ctx.moveTo(p[0]*u,p[1]*u)); if(close) ctx.closePath(); };
+  const FS=c=>{ ctx.fillStyle=c; ctx.fill(); ctx.stroke(); };
+  const cube=(k,color)=>{ // isometric cube, top face lit (THEME.light comes from above)
+    ctx.save(); ctx.scale(k,k);
+    P([[0,-0.9],[0.8,-0.45],[0.8,0.45],[0,0.9],[-0.8,0.45],[-0.8,-0.45]],true); FS(color);
+    P([[0,-0.9],[0.8,-0.45],[0,0],[-0.8,-0.45]],true); FS(shade(color,0.3));
+    P([[-0.8,-0.45],[0,0],[0,0.9]]); ctx.stroke();
+    ctx.restore();
+  };
+  switch(name){
+    case 'heart':
+      ctx.beginPath(); ctx.moveTo(0,u*0.9);
+      ctx.bezierCurveTo(-u*1.35,u*0.05,-u*0.75,-u*1.05,0,-u*0.4);
+      ctx.bezierCurveTo(u*0.75,-u*1.05,u*1.35,u*0.05,0,u*0.9); ctx.closePath(); FS(THEME.danger); break;
+    case 'lantern':
+      P([[-0.3,-0.55],[-0.3,-0.85],[0.3,-0.85],[0.3,-0.55]]); ctx.stroke();
+      P([[-0.5,-0.55],[0.5,-0.55],[0.6,0.55],[-0.6,0.55]],true); FS(THEME.accent);
+      ctx.beginPath(); ctx.arc(0,0.05,u*0.22,0,Math.PI*2); FS(shade(THEME.accent,0.65));
+      P([[-0.35,0.55],[-0.35,0.85],[0.35,0.85],[0.35,0.55]],true); FS(shade(THEME.paper,-0.2)); break;
+    case 'pick':
+      ctx.rotate(-0.5);
+      P([[-0.13,-0.5],[0.13,-0.5],[0.18,0.95],[-0.18,0.95]],true); FS(THEME.paper);
+      ctx.beginPath(); ctx.moveTo(-0.95*u,-0.3*u); ctx.quadraticCurveTo(0,-1.2*u,0.95*u,-0.3*u);
+      ctx.quadraticCurveTo(0,-0.62*u,-0.95*u,-0.3*u); ctx.closePath(); FS(THEME.ground); break;
+    case 'cube': cube(1,THEME.ground); break;
+    case 'place':
+      cube(0.8,shade(THEME.paper,-0.5));
+      ctx.translate(u*0.55,-u*0.55); P([[-0.35,0],[0.35,0]]); ctx.lineWidth=THEME.outline*2; ctx.stroke(); P([[0,-0.35],[0,0.35]]); ctx.stroke();
+      ctx.lineWidth=THEME.outline*0.8; ctx.strokeStyle=THEME.accent2; P([[-0.35,0],[0.35,0]]); ctx.stroke(); P([[0,-0.35],[0,0.35]]); ctx.stroke(); break;
+    case 'gem':
+      P([[-0.9,-0.3],[-0.45,-0.8],[0.45,-0.8],[0.9,-0.3],[0,0.85]],true); FS(THEME.accent2);
+      P([[-0.9,-0.3],[0.9,-0.3]]); ctx.stroke(); P([[-0.45,-0.8],[-0.3,-0.3],[0,0.85]]); ctx.stroke(); P([[0.45,-0.8],[0.3,-0.3],[0,0.85]]); ctx.stroke(); break;
+    case 'coal': P([[-0.8,-0.2],[-0.4,-0.8],[0.4,-0.7],[0.85,0],[0.4,0.8],[-0.5,0.7]],true); FS(shade(THEME.ink,0.22)); P([[-0.4,-0.8],[-0.2,-0.2],[0.4,0.8]]); ctx.stroke(); break;
+    case 'gold': P([[-0.8,0.2],[-0.5,-0.7],[0.3,-0.8],[0.85,-0.1],[0.5,0.8],[-0.4,0.75]],true); FS(THEME.accent); break;
+    case 'pause': P([[-0.6,-0.7],[-0.15,-0.7],[-0.15,0.7],[-0.6,0.7]],true); FS(THEME.paper); P([[0.15,-0.7],[0.6,-0.7],[0.6,0.7],[0.15,0.7]],true); FS(THEME.paper); break;
+    case 'play': P([[-0.55,-0.8],[0.75,0],[-0.55,0.8]],true); FS(THEME.accent2); break;
+    case 'menu': for(const yy of [-0.55,0,0.55]){ P([[-0.7,yy],[0.7,yy]]); ctx.stroke(); } break;
+    case 'sound': case 'mute':
+      P([[-0.85,-0.35],[-0.45,-0.35],[0.05,-0.8],[0.05,0.8],[-0.45,0.35],[-0.85,0.35]],true); FS(THEME.paper);
+      if(name==='sound'){ ctx.beginPath(); ctx.arc(0.05*u,0,u*0.5,-0.9,0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(0.05*u,0,u*0.85,-0.75,0.75); ctx.stroke(); }
+      else { ctx.strokeStyle=THEME.danger; P([[0.3,-0.4],[0.85,0.4]]); ctx.stroke(); P([[0.85,-0.4],[0.3,0.4]]); ctx.stroke(); }
+      break;
+    case 'cross': // crosshair: paper core with the ink stroke behind it, like text
+      for(const pass of [0,1]){
+        ctx.lineWidth=pass?THEME.outline*0.9:THEME.outline*2.4; ctx.strokeStyle=pass?THEME.paper:THEME.ink;
+        P([[-0.95,0],[-0.3,0]]); ctx.stroke(); P([[0.3,0],[0.95,0]]); ctx.stroke(); P([[0,-0.95],[0,-0.3]]); ctx.stroke(); P([[0,0.3],[0,0.95]]); ctx.stroke();
+      } break;
+    case 'jump': P([[0,-0.85],[0.75,-0.05],[0.32,-0.05],[0.32,0.85],[-0.32,0.85],[-0.32,-0.05],[-0.75,-0.05]],true); FS(THEME.accent2); break;
+    case 'stick': ctx.beginPath(); ctx.arc(0,0,u,0,Math.PI*2); FS(shade(THEME.paper,0,0.22)); break;
+    case 'knob': ctx.beginPath(); ctx.arc(0,0,u,0,Math.PI*2); FS(THEME.paper); ctx.beginPath(); ctx.arc(-u*0.3,-u*0.3,u*0.25,0,Math.PI*2); ctx.fillStyle=shade(THEME.paper,0.6); ctx.fill(); break;
+    case 'skull':
+      ctx.beginPath(); ctx.arc(0,-0.15*u,u*0.75,0,Math.PI*2); FS(THEME.paper);
+      P([[-0.45,0.4],[0.45,0.4],[0.4,0.9],[-0.4,0.9]],true); FS(THEME.paper);
+      ctx.fillStyle=THEME.ink; ctx.beginPath(); ctx.arc(-0.3*u,-0.2*u,u*0.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(0.3*u,-0.2*u,u*0.2,0,Math.PI*2); ctx.fill();
+      P([[-0.15,0.5],[-0.15,0.85]]); ctx.stroke(); P([[0.15,0.5],[0.15,0.85]]); ctx.stroke(); break;
+    case 'star':
+      ctx.beginPath(); for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, r=i%2?0.42:0.95; ctx.lineTo(Math.cos(a)*r*u,Math.sin(a)*r*u); } ctx.closePath(); FS(THEME.accent); break;
+    case 'depth': P([[0,-0.9],[0,0.5]]); ctx.stroke(); P([[-0.5,0.05],[0,0.6],[0.5,0.05]]); ctx.stroke(); P([[-0.8,0.9],[0.8,0.9]]); ctx.stroke(); break;
+    case 'mouse':
+      rrect(-0.55*u,-0.9*u,1.1*u,1.8*u,0.5*u); FS(THEME.paper);
+      P([[-0.55,-0.2],[0.55,-0.2]]); ctx.stroke(); P([[0,-0.9],[0,-0.2]]); ctx.stroke(); break;
+  }
+  ctx.restore();
+}
+// full-screen tint from a THEME color (damage flash, dim behind menus)
+function drawFlash(color,a){ ctx.fillStyle=shade(color,0,a); ctx.fillRect(0,0,W,H); }
+
+/* ---------- 5. audio — WebAudio synth for SFX and music (no samples) ---------- */
+let AC=null, masterGain=null, musicGain=null, sfxGain=null, muted=false, noiseBuf=null;
+function audioInit(){
+  if(AC) return;
+  try{
+    AC=new (window.AudioContext||window.webkitAudioContext)();
+    masterGain=AC.createGain(); masterGain.gain.value=muted?0:0.7; masterGain.connect(AC.destination);
+    sfxGain=AC.createGain(); sfxGain.gain.value=0.9; sfxGain.connect(masterGain);
+    musicGain=AC.createGain(); musicGain.gain.value=0.4; musicGain.connect(masterGain);
+  }catch(e){ AC=null; }
+}
+function audioResume(){ if(AC&&AC.state==='suspended') AC.resume().catch(()=>{}); }
+function setMuted(m){ muted=m; if(AC&&masterGain) masterGain.gain.setTargetAtTime(m?0:0.7,AC.currentTime,0.02); }
+// one enveloped oscillator: {type,f,f2,dur,gain,a,t,dest}
+function tone(o){
+  if(!AC) return;
+  const t=o.t||AC.currentTime, osc=AC.createOscillator(), g=AC.createGain();
+  osc.type=o.type||'sine'; osc.frequency.setValueAtTime(o.f,t);
+  if(o.f2) osc.frequency.exponentialRampToValueAtTime(Math.max(20,o.f2),t+o.dur);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(o.gain||0.3,t+(o.a||0.01));
+  g.gain.exponentialRampToValueAtTime(0.0001,t+o.dur);
+  osc.connect(g); g.connect(o.dest||sfxGain); osc.start(t); osc.stop(t+o.dur+0.03);
+}
+// filtered noise burst: {dur,gain,fc,fc2,q,type,t}
+function noise(o){
+  if(!AC) return;
+  if(!noiseBuf){ noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; }
+  const t=o.t||AC.currentTime, s=AC.createBufferSource(); s.buffer=noiseBuf; s.loop=true;
+  const f=AC.createBiquadFilter(); f.type=o.type||'bandpass'; f.frequency.setValueAtTime(o.fc||800,t);
+  if(o.fc2) f.frequency.exponentialRampToValueAtTime(o.fc2,t+o.dur); f.Q.value=o.q||0.8;
+  const g=AC.createGain(); g.gain.setValueAtTime(o.gain||0.3,t); g.gain.exponentialRampToValueAtTime(0.0001,t+o.dur);
+  s.connect(f); f.connect(g); g.connect(sfxGain); s.start(t); s.stop(t+o.dur+0.03);
+}
+function sfx(name){
+  if(!AC||muted) return;
+  const t=AC.currentTime;
+  switch(name){
+    case 'click': tone({type:'square',f:660,f2:520,dur:0.07,gain:0.1}); break;
+    case 'dig': noise({dur:0.08,gain:0.22,fc:900,fc2:300,q:1.2}); break;
+    case 'break': noise({dur:0.25,gain:0.4,fc:600,fc2:120,q:0.7}); tone({type:'triangle',f:180,f2:60,dur:0.2,gain:0.2}); break;
+    case 'ore': [660,880,1320].forEach((f,i)=>tone({type:'triangle',f,dur:0.35,gain:0.16,t:t+i*0.07})); break;
+    case 'gem': [880,1108,1320,1760].forEach((f,i)=>tone({type:'sine',f,dur:0.5,gain:0.15,t:t+i*0.08})); break;
+    case 'coal': tone({type:'triangle',f:420,f2:640,dur:0.25,gain:0.16}); noise({dur:0.3,gain:0.08,fc:2500,q:2}); break;
+    case 'hurt': tone({type:'sawtooth',f:220,f2:90,dur:0.28,gain:0.22}); noise({dur:0.15,gain:0.18,fc:400,q:0.6}); break;
+    case 'die': [[330,262],[262,196],[196,131],[131,65]].forEach((p,i)=>tone({type:'sawtooth',f:p[0],f2:p[1],dur:0.5,gain:0.18,t:t+i*0.22})); break;
+    case 'jump': tone({type:'sine',f:300,f2:520,dur:0.14,gain:0.1}); break;
+    case 'land': noise({dur:0.12,gain:0.16,fc:300,q:0.5}); break;
+    case 'place': tone({type:'square',f:240,f2:200,dur:0.08,gain:0.1}); noise({dur:0.08,gain:0.14,fc:1200,q:1}); break;
+    case 'hit': tone({type:'square',f:160,f2:110,dur:0.12,gain:0.18}); noise({dur:0.1,gain:0.14,fc:700,q:1}); break;
+    case 'grubdie': tone({type:'sawtooth',f:520,f2:80,dur:0.4,gain:0.16}); noise({dur:0.3,gain:0.18,fc:500,fc2:150,q:0.8}); break;
+    case 'lava': noise({dur:0.5,gain:0.22,fc:200,fc2:900,q:0.5}); break;
+    case 'lowfuel': tone({type:'sine',f:440,dur:0.12,gain:0.14}); tone({type:'sine',f:440,dur:0.12,gain:0.14,t:t+0.18}); break;
+    case 'rumble': noise({type:'lowpass',dur:0.6,gain:0.35,fc:160,fc2:50,q:0.7}); break;
+    case 'bonus': [523,659,784,1046,1318].forEach((f,i)=>tone({type:'square',f,dur:0.3,gain:0.09,t:t+i*0.09})); break;
+    case 'growl': tone({type:'sawtooth',f:90,f2:70,dur:0.3,gain:0.12}); noise({type:'lowpass',dur:0.3,gain:0.15,fc:300,q:1}); break;
+  }
+}
+// music: a slow minor-pentatonic lantern tune — drone, pluck line, a far bell now and then
+const MUSIC_SCALE=[0,3,5,7,10,12,15,17], MUSIC_ROOT=110;
+let nextNoteT=0, beat=0;
+function musicUpdate(){
+  if(!AC||muted) return;
+  const spb=60/76;
+  if(nextNoteT<AC.currentTime-1) nextNoteT=AC.currentTime;   // came back from a hidden tab: don't dump the backlog
+  while(nextNoteT<AC.currentTime+0.5){
+    const t=Math.max(nextNoteT,AC.currentTime), d=musicGain;
+    if(beat%16===0) tone({type:'sine',f:MUSIC_ROOT,dur:spb*8,gain:0.16,a:0.6,t,dest:d});
+    if(beat%16===8) tone({type:'sine',f:MUSIC_ROOT*Math.pow(2,5/12),dur:spb*8,gain:0.13,a:0.6,t,dest:d});
+    if(beat%2===0||Math.random()<0.3){
+      const deg=MUSIC_SCALE[Math.floor(Math.random()*MUSIC_SCALE.length)], oct=beat%4===0?2:(Math.random()<0.5?2:3);
+      tone({type:'triangle',f:MUSIC_ROOT*Math.pow(2,deg/12+oct-1),dur:spb*0.9,gain:0.085,a:0.02,t,dest:d});
+    }
+    if(beat%32===28) tone({type:'sine',f:MUSIC_ROOT*8,dur:spb*3,gain:0.05,a:0.05,t,dest:d});
+    nextNoteT=t+spb; beat++;
+  }
+}
+
+/* ---------- 6. world — voxels, generation, light ---------- */
+const SX=32, SY=48, SZ=32, N=SX*SY*SZ;
+const idx=(x,y,z)=>(x*SZ+z)*SY+y;
+const inWorld=(x,y,z)=>x>=0&&x<SX&&y>=0&&y<SY&&z>=0&&z<SZ;
+const B={AIR:0,GRASS:1,DIRT:2,STONE:3,COAL:4,IRON:5,GOLD:6,GEM:7,GRAVEL:8,PLANK:9,BEDROCK:10,LAVA:11};
+// tex: [top, bottom, side] · hard: seconds to break · drop: block you pocket · score/fuel/heal on break
+const BLOCK=[
+  {name:'air'},
+  {name:'Moss',    tex:['grass','dirt','grass_side'],  hard:0.45, drop:2},
+  {name:'Dirt',    tex:['dirt','dirt','dirt'],         hard:0.40, drop:2},
+  {name:'Stone',   tex:['stone','stone','stone'],      hard:0.85, drop:3},
+  {name:'Coal',    tex:['coal','coal','coal'],         hard:0.95, score:10,  fuel:22, sound:'coal', icon:'coal'},
+  {name:'Iron',    tex:['iron','iron','iron'],         hard:1.30, score:25,  sound:'ore', icon:'cube'},
+  {name:'Gold',    tex:['gold','gold','gold'],         hard:1.45, score:60,  sound:'ore', icon:'gold'},
+  {name:'Gem',     tex:['gem','gem','gem'],            hard:1.80, score:150, sound:'gem', heal:25, icon:'gem'},
+  {name:'Gravel',  tex:['gravel','gravel','gravel'],   hard:0.50, drop:3, falls:true},
+  {name:'Plank',   tex:['plank','plank','plank'],      hard:0.60, drop:3},
+  {name:'Bedrock', tex:['bedrock','bedrock','bedrock'],hard:Infinity},
+  {name:'Lava',    tex:['lava','lava','lava'],         hard:Infinity, lava:true},
+];
+const world=new Uint8Array(N), skyL=new Uint8Array(N), glowL=new Uint8Array(N), surface=new Uint8Array(SX*SZ);
+const getB=(x,y,z)=>inWorld(x,y,z)?world[idx(x,y,z)]:B.AIR;
+const solidAt=(x,y,z)=>{ const b=getB(x,y,z); return b!==B.AIR&&b!==B.LAVA; };
+let spawn={x:SX/2+0.5,y:40,z:SZ/2+0.5}, spawnSurface=40;
+
+function hash3(x,y,z,s){
+  let h=(Math.imul(x,374761393)+Math.imul(y,668265263)+Math.imul(z,1274126177)+Math.imul(s,69069))|0;
+  h=Math.imul(h^(h>>>13),1103515245); h^=h>>>16; h=Math.imul(h,1597334677); h^=h>>>15;
+  return (h>>>0)/4294967296;
+}
+const smooth=t=>t*t*(3-2*t);
+function vnoise2(x,z,s){
+  const x0=Math.floor(x),z0=Math.floor(z),fx=smooth(x-x0),fz=smooth(z-z0);
+  return lerp(lerp(hash3(x0,0,z0,s),hash3(x0+1,0,z0,s),fx),lerp(hash3(x0,0,z0+1,s),hash3(x0+1,0,z0+1,s),fx),fz);
+}
+function vnoise3(x,y,z,s){
+  const x0=Math.floor(x),y0=Math.floor(y),z0=Math.floor(z),fx=smooth(x-x0),fy=smooth(y-y0),fz=smooth(z-z0);
+  const v=(dx,dy,dz)=>hash3(x0+dx,y0+dy,z0+dz,s);
+  return lerp(lerp(lerp(v(0,0,0),v(1,0,0),fx),lerp(v(0,1,0),v(1,1,0),fx),fy),
+              lerp(lerp(v(0,0,1),v(1,0,1),fx),lerp(v(0,1,1),v(1,1,1),fx),fy),fz);
+}
+
+function genWorld(seed){
+  const rnd=mulberry32(seed);
+  const s1=1+Math.floor(rnd()*1e6), s2=1+Math.floor(rnd()*1e6), s3=1+Math.floor(rnd()*1e6);
+  world.fill(B.AIR);
+  // island heightmap: rolling top, shoulders that fall away toward the rim
+  for(let x=0;x<SX;x++) for(let z=0;z<SZ;z++){
+    const rim=Math.max(Math.abs(x/(SX-1)-0.5),Math.abs(z/(SZ-1)-0.5))*2;
+    let h=39+(vnoise2(x*0.09,z*0.09,s1)-0.5)*7+(vnoise2(x*0.27,z*0.27,s2)-0.5)*2.5;
+    h-=Math.max(0,rim-0.72)*14;
+    h=clamp(Math.round(h),30,SY-4);
+    surface[x*SZ+z]=h;
+    for(let y=0;y<=h;y++){
+      let b=B.STONE;
+      if(y===h) b=B.GRASS; else if(y>h-3) b=B.DIRT;
+      if(y===0||(y===1&&rnd()<0.5)) b=B.BEDROCK;
+      world[idx(x,y,z)]=b;
+    }
+  }
+  // caves: 3D noise pockets below the soil, opening wider with depth; the deepest ones flood with lava
+  for(let x=1;x<SX-1;x++) for(let z=1;z<SZ-1;z++){
+    const h=surface[x*SZ+z];
+    for(let y=2;y<h-4;y++){
+      const n=vnoise3(x*0.12,y*0.15,z*0.12,s3)*0.7+vnoise3(x*0.25,y*0.28,z*0.25,s3+7)*0.3;
+      const thr=0.665-((h-y)/h)*0.11;
+      if(n>thr) world[idx(x,y,z)]=(y<=6&&rnd()<0.8)?B.LAVA:B.AIR;
+    }
+  }
+  // ore veins: random walks through stone. Rarer ore sits deeper.
+  const vein=(type,count,ymin,ymax,len)=>{
+    for(let i=0;i<count;i++){
+      let x=1+Math.floor(rnd()*(SX-2)), z=1+Math.floor(rnd()*(SZ-2)), y=ymin+Math.floor(rnd()*(ymax-ymin));
+      for(let j=0;j<len;j++){
+        if(inWorld(x,y,z)&&world[idx(x,y,z)]===B.STONE) world[idx(x,y,z)]=type;
+        const d=Math.floor(rnd()*6); x+=[1,-1,0,0,0,0][d]; y+=[0,0,1,-1,0,0][d]; z+=[0,0,0,0,1,-1][d];
+      }
+    }
+  };
+  vein(B.COAL,80,5,38,6); vein(B.IRON,44,3,30,5); vein(B.GOLD,24,2,18,4); vein(B.GEM,14,2,10,3); vein(B.GRAVEL,44,6,36,7);
+  // lava pockets sealed in stone: digging can break into them
+  for(let i=0;i<12;i++){
+    let x=2+Math.floor(rnd()*(SX-4)), z=2+Math.floor(rnd()*(SZ-4)), y=3+Math.floor(rnd()*13);
+    for(let j=0;j<4;j++){ if(inWorld(x,y,z)&&world[idx(x,y,z)]===B.STONE) world[idx(x,y,z)]=B.LAVA; x+=Math.floor(rnd()*3)-1; z+=Math.floor(rnd()*3)-1; }
+  }
+  // old mine shafts: a plank collar around a one-block hole that drops into the dark
+  for(let i=0;i<3;i++){
+    let x,z; do{ x=4+Math.floor(rnd()*(SX-8)); z=4+Math.floor(rnd()*(SZ-8)); }while(Math.abs(x-SX/2)<4&&Math.abs(z-SZ/2)<4);
+    const h=surface[x*SZ+z];
+    for(let y=h-9;y<=h;y++) if(y>1) world[idx(x,y,z)]=B.AIR;
+    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]) if(inWorld(x+dx,h,z+dz)) world[idx(x+dx,h,z+dz)]=B.PLANK;
+  }
+  // nothing floats: unsupported gravel settles, lava with air below drains away
+  for(let pass=0;pass<SY;pass++){
+    let moved=false;
+    for(let x=0;x<SX;x++) for(let z=0;z<SZ;z++) for(let y=1;y<SY;y++){
+      const i=idx(x,y,z), j=idx(x,y-1,z);
+      if(world[i]===B.GRAVEL&&world[j]===B.AIR){ world[j]=B.GRAVEL; world[i]=B.AIR; moved=true; }
+      else if(world[i]===B.LAVA&&world[j]===B.AIR){ world[i]=B.AIR; moved=true; }
+    }
+    if(!moved) break;
+  }
+  // spawn on the centre column, standing on moss
+  const sx=SX>>1, sz=SZ>>1;
+  spawnSurface=surface[sx*SZ+sz];
+  for(let y=spawnSurface;y<SY;y++) world[idx(sx,y,sz)]=y===spawnSurface?B.GRASS:B.AIR;
+  for(let y=spawnSurface-1;y>=spawnSurface-3;y--) world[idx(sx,y,sz)]=B.DIRT;
+  spawn={x:sx+0.5,y:spawnSurface+1,z:sz+0.5};
+  computeLight(false);
+  chunks.forEach(c=>c.dirty=true);
+}
+
+/* light: sky light falls straight down through air then spreads with -1 per step; lava glows */
+const lightQueue=[];
+function spread(L){
+  let qh=0;
+  while(qh<lightQueue.length){
+    const i=lightQueue[qh++], v=L[i]-1;
+    if(v<=0) continue;
+    const y=i%SY, xz=(i-y)/SY, z=xz%SZ, x=(xz-z)/SZ;
+    for(let k=0;k<6;k++){
+      const nx=x+[1,-1,0,0,0,0][k], ny=y+[0,0,1,-1,0,0][k], nz=z+[0,0,0,0,1,-1][k];
+      if(!inWorld(nx,ny,nz)) continue;
+      const j=idx(nx,ny,nz);
+      if(world[j]!==B.AIR||L[j]>=v) continue;
+      L[j]=v; lightQueue.push(j);
+    }
+  }
+  lightQueue.length=0;
+}
+const oldSky=new Uint8Array(N), oldGlow=new Uint8Array(N);
+function computeLight(markChanged){
+  if(markChanged){ oldSky.set(skyL); oldGlow.set(glowL); }
+  skyL.fill(0); glowL.fill(0);
+  for(let x=0;x<SX;x++) for(let z=0;z<SZ;z++){
+    let y=SY-1;
+    while(y>=0&&world[idx(x,y,z)]===B.AIR){ const i=idx(x,y,z); skyL[i]=15; lightQueue.push(i); y--; }
+  }
+  spread(skyL);
+  for(let i=0;i<N;i++) if(world[i]===B.LAVA){ glowL[i]=15; lightQueue.push(i); }
+  spread(glowL);
+  if(markChanged){
+    for(let i=0;i<N;i++) if(skyL[i]!==oldSky[i]||glowL[i]!==oldGlow[i]){
+      const y=i%SY, xz=(i-y)/SY, z=xz%SZ, x=(xz-z)/SZ;
+      chunks[chunkOf(x,z)].dirty=true;
+    }
+  }
+}
+
+/* chunks: 8×8 columns, full height; re-meshed when a block or a light value inside changes */
+const CH=8, CXN=SX/CH, CZN=SZ/CH;
+const chunks=[]; for(let i=0;i<CXN*CZN;i++) chunks.push({vbo:null,count:0,dirty:true});
+const chunkOf=(x,z)=>(x>>3)+(z>>3)*CXN;
+let relightNeeded=false;
+function setBlock(x,y,z,b){
+  if(!inWorld(x,y,z)) return;
+  world[idx(x,y,z)]=b;
+  for(let dx=-1;dx<=1;dx++) for(let dz=-1;dz<=1;dz++){ const nx=clamp(x+dx,0,SX-1), nz=clamp(z+dz,0,SZ-1); chunks[chunkOf(nx,nz)].dirty=true; }
+  relightNeeded=true;
+}
+
+/* ---------- 7. renderer — WebGL: one atlas, one lit-texture shader, one sky shader ---------- */
+// the same light that bevels the UI lights the world: THEME.light lifted into 3D
+const SUN=(()=>{ const v=[THEME.light.x,-THEME.light.y,0.45], l=Math.hypot(v[0],v[1],v[2]); return [v[0]/l,v[1]/l,v[2]/l]; })();
+const faceShade=n=>0.5+0.5*Math.max(0,n[0]*SUN[0]+n[1]*SUN[1]+n[2]*SUN[2]);
+// [normal], corners (0/1 offsets) in CCW order seen from outside, which texture slot (0 top,1 bottom,2 side)
+const FACES=[
+  {n:[ 1,0,0], v:[[1,0,1],[1,0,0],[1,1,0],[1,1,1]], side:2},
+  {n:[-1,0,0], v:[[0,0,0],[0,0,1],[0,1,1],[0,1,0]], side:2},
+  {n:[0, 1,0], v:[[0,1,1],[1,1,1],[1,1,0],[0,1,0]], side:0},
+  {n:[0,-1,0], v:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]], side:1},
+  {n:[0,0, 1], v:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]], side:2},
+  {n:[0,0,-1], v:[[1,0,0],[0,0,0],[0,1,0],[1,1,0]], side:2},
+];
+FACES.forEach(f=>{ f.shade=faceShade(f.n); f.ax=f.n[0]?[1,2]:f.n[1]?[0,2]:[0,1]; });
+const CORNER_UV=[[0,1],[1,1],[1,0],[0,0]];
+const AW=TEXEL*ATLAS_COLS, AH=TEXEL*ATLAS_ROWS, UVR={};
+function uvRect(name){
+  if(UVR[name]) return UVR[name];
+  const i=ATLAS_IDX[name], cx=(i%ATLAS_COLS)*TEXEL, cy=Math.floor(i/ATLAS_COLS)*TEXEL, ins=0.5;
+  return UVR[name]=[(cx+ins)/AW,(cy+ins)/AH,(cx+TEXEL-ins)/AW,(cy+TEXEL-ins)/AH];
+}
+const VS_MAIN=`attribute vec3 aPos;attribute vec2 aUV;attribute vec3 aLight;
+uniform mat4 uMVP;uniform vec3 uCam;
+varying vec2 vUV;varying vec3 vLight;varying float vDist;
+void main(){gl_Position=uMVP*vec4(aPos,1.0);vUV=aUV;vLight=aLight;vDist=distance(aPos,uCam);}`;
+const FS_MAIN=`precision mediump float;
+uniform sampler2D uTex;uniform vec3 uInk;uniform vec3 uSky;uniform vec3 uLava;
+uniform float uLantern;uniform float uAlpha;uniform float uFlicker;
+varying vec2 vUV;varying vec3 vLight;varying float vDist;
+void main(){
+  vec4 t=texture2D(uTex,vUV);
+  if(t.a<0.05) discard;
+  float lan=clamp(1.0-vDist/max(uLantern,0.01),0.0,1.0);
+  lan=lan*lan*(3.0-2.0*lan)*uFlicker;
+  float lit=max(max(vLight.y,vLight.z*0.9),lan);
+  lit=max(lit,0.035);
+  vec3 col=t.rgb*vLight.x;
+  col=mix(uInk*0.55,col,lit);
+  col=mix(col,uLava,vLight.z*(1.0-vLight.y)*0.25);
+  float fog=smoothstep(22.0,70.0,vDist)*vLight.y;
+  col=mix(col,uSky,fog);
+  gl_FragColor=vec4(col,t.a*uAlpha);
+}`;
+const VS_SKY=`attribute vec2 aP;varying vec2 vP;void main(){gl_Position=vec4(aP,0.999,1.0);vP=aP;}`;
+const FS_SKY=`precision mediump float;
+uniform vec3 uFwd;uniform vec3 uRight;uniform vec3 uUp;uniform vec2 uTan;
+uniform vec3 uHorizon;uniform vec3 uZenith;uniform vec3 uVoid;uniform vec3 uSun;uniform vec3 uInk;uniform vec3 uSunDir;
+varying vec2 vP;
+void main(){
+  vec3 d=normalize(uFwd+uRight*vP.x*uTan.x+uUp*vP.y*uTan.y);
+  vec3 col=mix(uHorizon,uZenith,smoothstep(0.0,0.75,d.y));
+  col=mix(col,uVoid,smoothstep(-0.03,-0.7,d.y));
+  float ang=acos(clamp(dot(d,uSunDir),-1.0,1.0));
+  if(ang<0.075) col=uSun; else if(ang<0.092) col=uInk;
+  gl_FragColor=vec4(col,1.0);
+}`;
+let gl=null, prog=null, skyProg=null, atlasTex=null, glOK=false, glLost=false;
+let skyBuf=null, dynBuf=null, ovBuf=null;
+const U={}, A={}, SU={};
+function compile(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function makeProgram(vs,fs){ const p=gl.createProgram(); gl.attachShader(p,compile(gl.VERTEX_SHADER,vs)); gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+function initGL(){
+  try{
+    gl=glCanvas.getContext('webgl',{antialias:true,alpha:false,depth:true})||glCanvas.getContext('experimental-webgl',{antialias:true,alpha:false,depth:true});
+    if(!gl) return false;
+    prog=makeProgram(VS_MAIN,FS_MAIN); skyProg=makeProgram(VS_SKY,FS_SKY);
+    for(const n of ['aPos','aUV','aLight']) A[n]=gl.getAttribLocation(prog,n);
+    for(const n of ['uMVP','uCam','uTex','uInk','uSky','uLava','uLantern','uAlpha','uFlicker']) U[n]=gl.getUniformLocation(prog,n);
+    for(const n of ['uFwd','uRight','uUp','uTan','uHorizon','uZenith','uVoid','uSun','uInk','uSunDir']) SU[n]=gl.getUniformLocation(skyProg,n);
+    SU.aP=gl.getAttribLocation(skyProg,'aP');
+    atlasTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,atlasTex);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,atlasCanvas);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    skyBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,skyBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]),gl.STATIC_DRAW);
+    dynBuf=gl.createBuffer(); ovBuf=gl.createBuffer();
+    chunks.forEach(c=>{ c.vbo=null; c.count=0; c.dirty=true; });
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW);
+    gl.viewport(0,0,glCanvas.width,glCanvas.height);
+    glOK=true; return true;
+  }catch(e){ console.error(e); gl=null; return false; }
+}
+glCanvas.addEventListener('webglcontextlost',e=>{ e.preventDefault(); glOK=false; glLost=true; });
+glCanvas.addEventListener('webglcontextrestored',()=>{ glLost=false; initGL(); });
+
+/* mesh scratch: 8 floats per vertex — pos(3) uv(2) light(shade, sky, glow) */
+const VSTRIDE=8;
+const SCRATCH=new Float32Array(VSTRIDE*6*40000);
+let sp=0;
+let sSky=0, sGlow=0;
+function sampleLight(x,y,z){
+  if(!inWorld(x,y,z)){ sSky=1; sGlow=0; return; }
+  const b=world[idx(x,y,z)];
+  if(b===B.AIR){ const i=idx(x,y,z); sSky=skyL[i]/15; sGlow=glowL[i]/15; }
+  else if(b===B.LAVA){ sSky=0; sGlow=1; }
+  else { sSky=0; sGlow=0; }
+}
+const cornerSky=[0,0,0,0], cornerGlow=[0,0,0,0], cc=[0,0,0];
+function blockCornerLight(bx,by,bz,f){ // smooth light: average of the 4 front cells touching each corner (solid cells count 0 → AO)
+  const fx=bx+f.n[0], fy=by+f.n[1], fz=bz+f.n[2], a0=f.ax[0], a1=f.ax[1];
+  for(let k=0;k<4;k++){
+    const c=f.v[k], d0=c[a0]?1:-1, d1=c[a1]?1:-1;
+    let sk=0, gw=0;
+    for(let m=0;m<4;m++){
+      cc[0]=fx; cc[1]=fy; cc[2]=fz;
+      if(m&1) cc[a0]+=d0;
+      if(m&2) cc[a1]+=d1;
+      sampleLight(cc[0],cc[1],cc[2]); sk+=sSky; gw+=sGlow;
+    }
+    cornerSky[k]=sk/4; cornerGlow[k]=gw/4;
+  }
+}
+function emitQuad(px,py,pz,f,scale,uv,shade,skyArr,glowArr){ // 6 vertices for one face of a unit cube at (px,py,pz)×scale
+  if(sp+VSTRIDE*6>SCRATCH.length) return;
+  const order=[0,1,2,0,2,3];
+  for(let q=0;q<6;q++){
+    const k=order[q], c=f.v[k], t=CORNER_UV[k];
+    SCRATCH[sp++]=px+c[0]*scale; SCRATCH[sp++]=py+c[1]*scale; SCRATCH[sp++]=pz+c[2]*scale;
+    SCRATCH[sp++]=t[0]?uv[2]:uv[0]; SCRATCH[sp++]=t[1]?uv[3]:uv[1];
+    SCRATCH[sp++]=shade; SCRATCH[sp++]=skyArr?skyArr[k]:1; SCRATCH[sp++]=glowArr?glowArr[k]:0;
+  }
+}
+function meshChunk(ci){
+  const c=chunks[ci], cx=(ci%CXN)*CH, cz=Math.floor(ci/CXN)*CH;
+  sp=0;
+  for(let x=cx;x<cx+CH;x++) for(let z=cz;z<cz+CH;z++) for(let y=0;y<SY;y++){
+    const b=world[idx(x,y,z)]; if(b===B.AIR) continue;
+    const def=BLOCK[b];
+    for(let fi=0;fi<6;fi++){
+      const f=FACES[fi], nx=x+f.n[0], ny=y+f.n[1], nz=z+f.n[2];
+      if(inWorld(nx,ny,nz)&&world[idx(nx,ny,nz)]!==B.AIR) continue;
+      const uv=uvRect(def.tex[f.side]);
+      if(def.lava){ emitQuad(x,y,z,f,1,uv,1,null,[1,1,1,1]); continue; }
+      blockCornerLight(x,y,z,f);
+      emitQuad(x,y,z,f,1,uv,f.shade,cornerSky,cornerGlow);
+    }
+  }
+  if(!c.vbo) c.vbo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,c.vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,SCRATCH.subarray(0,sp),gl.STATIC_DRAW);
+  c.count=sp/VSTRIDE; c.dirty=false;
+}
+// a free cube (particle, falling rock, grub): centre, half-size, yaw about Y, per-slot textures, flat light
+function emitCube(cx,cy,cz,hx,hy,hz,yaw,texs,sky,glow){
+  const cs=Math.cos(yaw), sn=Math.sin(yaw), order=[0,1,2,0,2,3];
+  for(let fi=0;fi<6;fi++){
+    const f=FACES[fi], uv=uvRect(texs[f.side===2?(fi===5&&texs[3]?3:2):f.side]);
+    const nx=f.n[0]*cs-f.n[2]*sn, nz=f.n[0]*sn+f.n[2]*cs;
+    const shade=faceShade([nx,f.n[1],nz]);
+    if(sp+VSTRIDE*6>SCRATCH.length) return;
+    for(let q=0;q<6;q++){
+      const k=order[q], c=f.v[k], t=CORNER_UV[k];
+      const lx=(c[0]*2-1)*hx, ly=(c[1]*2-1)*hy, lz=(c[2]*2-1)*hz;
+      SCRATCH[sp++]=cx+lx*cs-lz*sn; SCRATCH[sp++]=cy+ly; SCRATCH[sp++]=cz+lx*sn+lz*cs;
+      SCRATCH[sp++]=t[0]?uv[2]:uv[0]; SCRATCH[sp++]=t[1]?uv[3]:uv[1];
+      SCRATCH[sp++]=shade; SCRATCH[sp++]=sky; SCRATCH[sp++]=glow;
+    }
+  }
+}
+
+/* matrices (column-major) */
+function perspective(out,fovy,aspect,near,far){ const f=1/Math.tan(fovy/2), nf=1/(near-far); out.fill(0); out[0]=f/aspect; out[5]=f; out[10]=(far+near)*nf; out[11]=-1; out[14]=2*far*near*nf; return out; }
+function lookAt(out,eye,fwd,up){
+  let zx=-fwd[0],zy=-fwd[1],zz=-fwd[2]; let l=Math.hypot(zx,zy,zz); zx/=l; zy/=l; zz/=l;
+  let xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx; l=Math.hypot(xx,xy,xz)||1; xx/=l; xy/=l; xz/=l;
+  const yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  out[0]=xx; out[1]=yx; out[2]=zx; out[3]=0; out[4]=xy; out[5]=yy; out[6]=zy; out[7]=0; out[8]=xz; out[9]=yz; out[10]=zz; out[11]=0;
+  out[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]); out[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]); out[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]); out[15]=1;
+  return out;
+}
+function mul4(out,a,b){
+  const o=new Float32Array(16);
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){ let s=0; for(let k=0;k<4;k++) s+=a[k*4+j]*b[i*4+k]; o[i*4+j]=s; }
+  out.set(o); return out;
+}
+const PROJ=new Float32Array(16), VIEW=new Float32Array(16), MVP=new Float32Array(16);
+const cam={eye:[0,0,0],fwd:[0,0,-1],right:[1,0,0],up:[0,1,0],fovy:75*Math.PI/180};
+function setCamera(eye,yaw,pitch){
+  const cp=Math.cos(pitch);
+  cam.eye=[eye[0],eye[1],eye[2]];
+  cam.fwd=[Math.sin(yaw)*cp,Math.sin(pitch),-Math.cos(yaw)*cp];
+  cam.right=[Math.cos(yaw),0,Math.sin(yaw)];
+  cam.up=[-Math.sin(yaw)*Math.sin(pitch),cp,Math.cos(yaw)*Math.sin(pitch)];
+  perspective(PROJ,cam.fovy,W/H,0.05,220);
+  lookAt(VIEW,cam.eye,cam.fwd,[0,1,0]);
+  mul4(MVP,PROJ,VIEW);
+}
+function project(x,y,z){ // world → logical screen, or null when behind the camera
+  const m=MVP, w=m[3]*x+m[7]*y+m[11]*z+m[15];
+  if(w<=0.01) return null;
+  const px=(m[0]*x+m[4]*y+m[8]*z+m[12])/w, py=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;
+  return {x:(px*0.5+0.5)*W, y:(0.5-py*0.5)*H, w};
+}
+// ray through a logical screen point (the cursor when the mouse is free, the centre when locked)
+function rayThrough(sx,sy){
+  const tanV=Math.tan(cam.fovy/2), tanH=tanV*(W/H), nx=(sx/W)*2-1, ny=1-(sy/H)*2;
+  const d=[cam.fwd[0]+cam.right[0]*nx*tanH+cam.up[0]*ny*tanV, cam.fwd[1]+cam.right[1]*nx*tanH+cam.up[1]*ny*tanV, cam.fwd[2]+cam.right[2]*nx*tanH+cam.up[2]*ny*tanV];
+  const l=Math.hypot(d[0],d[1],d[2]); return [d[0]/l,d[1]/l,d[2]/l];
+}
+function bindAttribs(){
+  gl.enableVertexAttribArray(A.aPos); gl.vertexAttribPointer(A.aPos,3,gl.FLOAT,false,VSTRIDE*4,0);
+  gl.enableVertexAttribArray(A.aUV); gl.vertexAttribPointer(A.aUV,2,gl.FLOAT,false,VSTRIDE*4,12);
+  gl.enableVertexAttribArray(A.aLight); gl.vertexAttribPointer(A.aLight,3,gl.FLOAT,false,VSTRIDE*4,20);
+}
+function renderWorld(lanternRadius,flicker,dynCount,ovCount,ovAlpha){
+  if(!glOK) return;
+  const bg=rgbOf(THEME.bg);
+  gl.clearColor(bg[0],bg[1],bg[2],1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  // sky
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+  gl.useProgram(skyProg);
+  gl.uniform3fv(SU.uFwd,cam.fwd); gl.uniform3fv(SU.uRight,cam.right); gl.uniform3fv(SU.uUp,cam.up);
+  const tanV=Math.tan(cam.fovy/2); gl.uniform2f(SU.uTan,tanV*(W/H),tanV);
+  gl.uniform3fv(SU.uHorizon,rgbOf(THEME.bg)); gl.uniform3fv(SU.uZenith,rgbOf(shade(THEME.bg,-0.22)));
+  gl.uniform3fv(SU.uVoid,rgbOf(shade(THEME.bg,-0.6))); gl.uniform3fv(SU.uSun,rgbOf(THEME.accent));
+  gl.uniform3fv(SU.uInk,rgbOf(THEME.ink)); gl.uniform3fv(SU.uSunDir,SUN);
+  gl.bindBuffer(gl.ARRAY_BUFFER,skyBuf); gl.enableVertexAttribArray(SU.aP); gl.vertexAttribPointer(SU.aP,2,gl.FLOAT,false,0,0);
+  gl.drawArrays(gl.TRIANGLES,0,6);
+  gl.disableVertexAttribArray(SU.aP);
+  // world
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true);
+  gl.useProgram(prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,atlasTex); gl.uniform1i(U.uTex,0);
+  gl.uniformMatrix4fv(U.uMVP,false,MVP); gl.uniform3fv(U.uCam,cam.eye);
+  gl.uniform3fv(U.uInk,rgbOf(THEME.ink)); gl.uniform3fv(U.uSky,rgbOf(THEME.bg)); gl.uniform3fv(U.uLava,rgbOf(THEME.danger));
+  gl.uniform1f(U.uLantern,lanternRadius); gl.uniform1f(U.uFlicker,flicker); gl.uniform1f(U.uAlpha,1);
+  for(const c of chunks){ if(c.dirty) meshChunk(chunks.indexOf(c)); }
+  for(const c of chunks){ if(!c.count) continue; gl.bindBuffer(gl.ARRAY_BUFFER,c.vbo); bindAttribs(); gl.drawArrays(gl.TRIANGLES,0,c.count); }
+  if(dynCount){ gl.bindBuffer(gl.ARRAY_BUFFER,dynBuf); bindAttribs(); gl.drawArrays(gl.TRIANGLES,0,dynCount); }
+  if(ovCount){
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.CULL_FACE);
+    gl.uniform1f(U.uAlpha,ovAlpha);
+    gl.bindBuffer(gl.ARRAY_BUFFER,ovBuf); bindAttribs(); gl.drawArrays(gl.TRIANGLES,0,ovCount);
+    gl.enable(gl.CULL_FACE); gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+}
+
+/* ---------- 8. game: player, entities, mining ---------- */
+let state='ready';        // ready → playing → paused / dead
+let best=0;               // memory only — no localStorage
+let time=0, worldFresh=false;
+const HW=0.3, PH=1.8, EYE=1.62, GRAV=28, WALK=4.4, JUMPV=8.6, REACH=5.5;
+const P={x:0,y:0,z:0,vx:0,vy:0,vz:0,yaw:0,pitch:0,onGround:false,hp:100,fuel:100,score:0,blocks:0,depth:0,depthMax:0,ore:0,
+         hurtT:0,lastHurt:-10,fallStart:0,cause:'',mineT:0,mineKey:-1,swing:0,swingCD:0,digTick:0,lowBeep:0,lavaSfx:0,bottom:false,placeCD:0,deadT:0};
+let grubs=[], fallers=[], particles=[], pops=[], toasts=[];
+let aim=null, mining=false, placing=false, jumpWish=false, spawnTimer=0;
+const move={f:0,s:0};      // wish direction from keys / joystick
+
+function collides(x,y,z,hw,h){
+  const x0=Math.floor(x-hw),x1=Math.floor(x+hw-1e-6),y0=Math.floor(y),y1=Math.floor(y+h-1e-6),z0=Math.floor(z-hw),z1=Math.floor(z+hw-1e-6);
+  for(let bx=x0;bx<=x1;bx++) for(let by=y0;by<=y1;by++) for(let bz=z0;bz<=z1;bz++) if(solidAt(bx,by,bz)) return true;
+  return false;
+}
+function touches(x,y,z,hw,h,type){
+  const x0=Math.floor(x-hw),x1=Math.floor(x+hw-1e-6),y0=Math.floor(y),y1=Math.floor(y+h-1e-6),z0=Math.floor(z-hw),z1=Math.floor(z+hw-1e-6);
+  for(let bx=x0;bx<=x1;bx++) for(let by=y0;by<=y1;by++) for(let bz=z0;bz<=z1;bz++) if(getB(bx,by,bz)===type) return true;
+  return false;
+}
+// axis-separated sweep against the voxel grid; a body already inside a block is allowed to move out
+function moveBody(e,hw,h,dt){
+  const EPS=1e-4;
+  e.onGround=false;
+  const free=!collides(e.x,e.y,e.z,hw,h);
+  let ny=e.y+e.vy*dt;
+  if(free&&collides(e.x,ny,e.z,hw,h)){
+    if(e.vy<0){ ny=Math.floor(ny)+1+EPS; e.onGround=true; } else ny=Math.floor(ny+h)-h-EPS;
+    e.vy=0;
+  }
+  e.y=ny;
+  let nx=e.x+e.vx*dt;
+  if(free&&collides(nx,e.y,e.z,hw,h)){ nx=e.vx>0?Math.floor(nx+hw)-hw-EPS:Math.floor(nx-hw)+1+hw+EPS; e.vx=0; }
+  e.x=nx;
+  let nz=e.z+e.vz*dt;
+  if(free&&collides(e.x,e.y,nz,hw,h)){ nz=e.vz>0?Math.floor(nz+hw)-hw-EPS:Math.floor(nz-hw)+1+hw+EPS; e.vz=0; }
+  e.z=nz;
+  if(!e.onGround&&e.vy<=0&&collides(e.x,e.y-0.02,e.z,hw,h)) e.onGround=true;
+}
+function raycast(o,d,maxD){
+  let x=Math.floor(o[0]),y=Math.floor(o[1]),z=Math.floor(o[2]);
+  const sx=d[0]>0?1:-1, sy=d[1]>0?1:-1, sz=d[2]>0?1:-1;
+  const dx=Math.abs(1/d[0]), dy=Math.abs(1/d[1]), dz=Math.abs(1/d[2]);
+  let tx=d[0]>0?(x+1-o[0])*dx:(o[0]-x)*dx, ty=d[1]>0?(y+1-o[1])*dy:(o[1]-y)*dy, tz=d[2]>0?(z+1-o[2])*dz:(o[2]-z)*dz;
+  let nx=0,ny=0,nz=0,t=0;
+  for(let i=0;i<160;i++){
+    if(inWorld(x,y,z)&&world[idx(x,y,z)]!==B.AIR) return {x,y,z,nx,ny,nz,dist:t};
+    if(tx<ty&&tx<tz){ x+=sx; t=tx; tx+=dx; nx=-sx; ny=0; nz=0; }
+    else if(ty<tz){ y+=sy; t=ty; ty+=dy; nx=0; ny=-sy; nz=0; }
+    else { z+=sz; t=tz; tz+=dz; nx=0; ny=0; nz=-sz; }
+    if(t>maxD) return null;
+  }
+  return null;
+}
+function rayBox(o,d,mn,mx){
+  let t0=0,t1=Infinity;
+  for(let i=0;i<3;i++){
+    if(Math.abs(d[i])<1e-8){ if(o[i]<mn[i]||o[i]>mx[i]) return -1; continue; }
+    let a=(mn[i]-o[i])/d[i], b=(mx[i]-o[i])/d[i]; if(a>b){ const s=a; a=b; b=s; }
+    t0=Math.max(t0,a); t1=Math.min(t1,b); if(t0>t1) return -1;
+  }
+  return t0;
+}
+const fmt=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+function toast(text,ttl){ toasts.push({text,t:ttl||2.2}); if(toasts.length>3) toasts.shift(); }
+function pop(x,y,z,text,color){ pops.push({x,y,z,text,t:1.1,color}); }
+function burst(x,y,z,tex,n,spread){
+  for(let i=0;i<n;i++) particles.push({x:x+0.5+(Math.random()-0.5)*(spread||0.6),y:y+0.5+(Math.random()-0.5)*(spread||0.6),z:z+0.5+(Math.random()-0.5)*(spread||0.6),
+    vx:(Math.random()-0.5)*4,vy:Math.random()*4+1,vz:(Math.random()-0.5)*4,life:0.55+Math.random()*0.3,size:0.05+Math.random()*0.08,tex});
+}
+function damage(amount,cause){
+  if(state!=='playing') return;
+  P.hp-=amount; P.hurtT=Math.max(P.hurtT,0.4); P.lastHurt=time;
+  if(amount>=3) sfx('hurt');
+  if(P.hp<=0){ P.hp=0; die(cause); }
+}
+function die(cause){
+  P.cause=cause; best=Math.max(best,P.score); P.deadT=0; mining=false; placing=false;
+  sfx('die'); setState('dead');
+}
+function resetRun(){
+  if(!worldFresh) genWorld((Math.random()*1e9)>>>0);
+  worldFresh=false;
+  Object.assign(P,{x:spawn.x,y:spawn.y+0.01,z:spawn.z,vx:0,vy:0,vz:0,yaw:Math.PI*0.25,pitch:-0.35,onGround:false,hp:100,fuel:100,score:0,blocks:0,depth:0,depthMax:0,ore:0,
+    hurtT:0,lastHurt:-10,fallStart:spawn.y,cause:'',mineT:0,mineKey:-1,swing:0,swingCD:0,digTick:0,lowBeep:0,lavaSfx:0,bottom:false,placeCD:0,deadT:0});
+  grubs=[]; fallers=[]; particles=[]; pops=[]; toasts=[]; aim=null; mining=false; placing=false; spawnTimer=12; grubsSlain=0;
+  spawnGrubs(12,0);
+  toast('Dig for ore. Coal feeds the lantern.',3.5);
+  setState('playing');
+}
+/* grubs: cave crawlers that wander in the dark and rush you when you get close */
+function spawnGrubs(n,minDist){
+  for(let tries=0;tries<1500&&n>0;tries++){
+    const x=2+Math.floor(Math.random()*(SX-4)), z=2+Math.floor(Math.random()*(SZ-4)), h=surface[x*SZ+z];
+    const y=3+Math.floor(Math.random()*Math.max(1,h-9));
+    if(getB(x,y,z)!==B.AIR||!solidAt(x,y-1,z)||skyL[idx(x,y,z)]>2) continue;
+    const d=Math.hypot(x+0.5-P.x,y-P.y,z+0.5-P.z); if(d<(minDist||8)||d>26) continue;
+    grubs.push({x:x+0.5,y:y+0.01,z:z+0.5,vx:0,vy:0,vz:0,yaw:Math.random()*6.28,hp:3,onGround:false,t:Math.random()*2,chase:false,bite:0,hurt:0,anim:Math.random()*6});
+    n--;
+  }
+}
+function killGrub(g,byPlayer){
+  grubs.splice(grubs.indexOf(g),1);
+  burst(g.x-0.5,g.y-0.15,g.z-0.5,'grub',10,0.5);
+  if(byPlayer){ P.score+=40; grubsSlain++; pop(g.x,g.y+0.9,g.z,'+40',THEME.accent2); }
+  sfx('grubdie');
+}
+function updateGrub(g,dt){
+  const dx=P.x-g.x, dz=P.z-g.z, dy=(P.y+0.9)-(g.y+0.35), d=Math.hypot(dx,dy,dz), hl=Math.hypot(dx,dz)||1;
+  g.t-=dt; g.anim+=dt*(g.vx||g.vz?10:2);
+  if(d<8&&Math.abs(dy)<4&&state==='playing'){
+    if(!g.chase){ g.chase=true; if(d<6.5) sfx('growl'); }
+    g.vx=dx/hl*2.7; g.vz=dz/hl*2.7; g.yaw=Math.atan2(g.vx,-g.vz);
+  } else {
+    g.chase=false;
+    if(g.t<=0){ g.t=1+Math.random()*2; if(Math.random()<0.4){ g.vx=0; g.vz=0; } else { const a=Math.random()*Math.PI*2; g.vx=Math.cos(a)*1.3; g.vz=Math.sin(a)*1.3; g.yaw=Math.atan2(g.vx,-g.vz); } }
+  }
+  if(g.onGround&&(g.vx||g.vz)){ // hop over a one-block step
+    const ax=Math.floor(g.x+Math.sign(g.vx)*0.7), az=Math.floor(g.z+Math.sign(g.vz)*0.7), fy=Math.floor(g.y+0.1);
+    if(solidAt(ax,fy,az)&&!solidAt(ax,fy+1,az)&&!solidAt(ax,fy+2,az)) g.vy=7.2;
+  }
+  g.vy-=GRAV*dt;
+  moveBody(g,0.35,0.7,dt);
+  if(touches(g.x,g.y,g.z,0.35,0.7,B.LAVA)){ killGrub(g,false); return; }
+  if(g.y<-6){ grubs.splice(grubs.indexOf(g),1); return; }
+  g.bite-=dt; g.hurt=Math.max(0,g.hurt-dt);
+  if(d<1.35&&g.bite<=0&&state==='playing'){
+    g.bite=1.1; damage(16,'Eaten by a grub');
+    P.vx-=dx/hl*4; P.vz-=dz/hl*4; P.vy=Math.max(P.vy,3.5); sfx('growl');
+  }
+}
+/* mining and building */
+function updateAim(){
+  const o=[P.x,P.y+EYE,P.z];
+  const d=(locked||touchMode||!mouse.inside)?cam.fwd:rayThrough(mouse.x,mouse.y);
+  aim=raycast(o,d,REACH);
+  let bestT=aim?aim.dist:REACH, hitG=null;
+  for(const g of grubs){ const t=rayBox(o,d,[g.x-0.4,g.y,g.z-0.4],[g.x+0.4,g.y+0.75,g.z+0.4]); if(t>=0&&t<bestT){ bestT=t; hitG=g; } }
+  if(hitG) aim={grub:hitG,dist:bestT};
+}
+function breakBlock(x,y,z){
+  const b=world[idx(x,y,z)], def=BLOCK[b];
+  setBlock(x,y,z,B.AIR);
+  burst(x,y,z,def.tex[2],10);
+  if(def.score){
+    P.score+=def.score; P.ore++;
+    pop(x+0.5,y+0.5,z+0.5,'+'+def.score,def.icon==='gem'?THEME.accent2:def.icon==='gold'?THEME.accent:THEME.paper);
+    sfx(def.sound);
+  } else sfx('break');
+  if(def.fuel){ P.fuel=Math.min(100,P.fuel+def.fuel); pop(x+0.5,y+0.9,z+0.5,'lantern +'+def.fuel,THEME.accent); }
+  if(def.heal) P.hp=Math.min(100,P.hp+def.heal);
+  if(def.drop) P.blocks=Math.min(99,P.blocks+1);
+  P.mineT=0; P.mineKey=-1;
+  checkFall(x,y+1,z);
+}
+function checkFall(x,y,z){ // cave-in: loose rock above a hole comes down, and everything above it
+  if(getB(x,y,z)!==B.GRAVEL) return;
+  setBlock(x,y,z,B.AIR);
+  fallers.push({x:x+0.5,y:y,z:z+0.5,vy:0});
+  if(fallers.length===1||Math.random()<0.5) sfx('rumble');
+  toast('Cave-in!',1.4);
+  checkFall(x,y+1,z);
+}
+function updateFaller(f,dt){
+  f.vy-=GRAV*dt; f.y+=f.vy*dt;
+  const bx=Math.floor(f.x), bz=Math.floor(f.z), by=Math.floor(f.y);
+  const remove=()=>fallers.splice(fallers.indexOf(f),1);
+  // hits the player on the way down
+  if(f.x+0.5>P.x-HW&&f.x-0.5<P.x+HW&&f.z+0.5>P.z-HW&&f.z-0.5<P.z+HW&&f.y<P.y+PH&&f.y+1>P.y){
+    damage(25,'Crushed by falling rock'); burst(bx,by,bz,'gravel',12); P.vy=Math.min(P.vy,-2); remove(); sfx('break'); return;
+  }
+  for(const g of grubs) if(Math.abs(g.x-f.x)<0.75&&Math.abs(g.z-f.z)<0.75&&f.y<g.y+0.7&&f.y+1>g.y){ killGrub(g,true); }
+  if(f.y<-4){ remove(); return; }
+  if(by<0) return;
+  if(solidAt(bx,by,bz)||getB(bx,by,bz)===B.LAVA){
+    const ly=by+1;
+    if(getB(bx,ly,bz)===B.AIR) setBlock(bx,ly,bz,B.GRAVEL); else burst(bx,ly,bz,'gravel',8);
+    remove(); sfx('land');
+  }
+}
+function placeBlock(){
+  if(!aim||aim.grub||P.blocks<=0) return;
+  let tx=aim.x+aim.nx, ty=aim.y+aim.ny, tz=aim.z+aim.nz;
+  const onLava=world[idx(aim.x,aim.y,aim.z)]===B.LAVA;
+  if(onLava){ tx=aim.x; ty=aim.y; tz=aim.z; }          // cap the lava with the block itself
+  else if(!aim.nx&&!aim.ny&&!aim.nz) return;
+  if(!inWorld(tx,ty,tz)) return;
+  const cur=getB(tx,ty,tz); if(cur!==B.AIR&&cur!==B.LAVA) return;
+  // never build inside yourself or a grub
+  if(tx+1>P.x-HW&&tx<P.x+HW&&tz+1>P.z-HW&&tz<P.z+HW&&ty+1>P.y&&ty<P.y+PH) return;
+  for(const g of grubs) if(tx+1>g.x-0.35&&tx<g.x+0.35&&tz+1>g.z-0.35&&tz<g.z+0.35&&ty+1>g.y&&ty<g.y+0.7) return;
+  setBlock(tx,ty,tz,B.STONE); P.blocks--; sfx('place'); P.placeCD=0.22;
+  if(onLava){ P.score+=15; pop(tx+0.5,ty+1.2,tz+0.5,'capped +15',THEME.accent2); }
+}
+function updatePlaying(dt){
+  // walk
+  const s=Math.sin(P.yaw), c=Math.cos(P.yaw);
+  let f=move.f, st=move.s;
+  if(keys.KeyW||keys.ArrowUp) f+=1; if(keys.KeyS||keys.ArrowDown) f-=1;
+  if(keys.KeyD||keys.ArrowRight) st+=1; if(keys.KeyA||keys.ArrowLeft) st-=1;
+  let dx=f*s+st*c, dz=-f*c+st*s; const l=Math.hypot(dx,dz); if(l>1){ dx/=l; dz/=l; }
+  const inLava=touches(P.x,P.y,P.z,HW,PH,B.LAVA);
+  const speed=WALK*(inLava?0.4:1);
+  const accel=P.onGround?18:6;
+  P.vx=lerp(P.vx,dx*speed,Math.min(1,accel*dt)); P.vz=lerp(P.vz,dz*speed,Math.min(1,accel*dt));
+  if((keys.Space||jumpWish)&&P.onGround){ P.vy=inLava?4:JUMPV; sfx('jump'); }
+  P.vy-=GRAV*dt; if(inLava) P.vy=Math.max(P.vy,-1.6);
+  const wasGround=P.onGround;
+  moveBody(P,HW,PH,dt);
+  if(!P.onGround) P.fallStart=Math.max(P.fallStart,P.y);
+  else {
+    if(!wasGround){ const fall=P.fallStart-P.y; if(fall>3.5) damage((fall-3.5)*14,'Fell too far'); else if(fall>0.6) sfx('land'); }
+    P.fallStart=P.y;
+  }
+  if(inLava){ damage(45*dt,'Swallowed by lava'); P.lavaSfx-=dt; if(P.lavaSfx<=0){ sfx('lava'); P.lavaSfx=0.5; } }
+  if(P.y<-10){ die('Fell into the void'); return; }
+  // lantern
+  P.fuel=Math.max(0,P.fuel-dt*1.6);
+  if(P.fuel<=0) damage(6*dt,'The dark took you');
+  else if(P.fuel<25){ P.lowBeep-=dt; if(P.lowBeep<=0){ P.lowBeep=3; sfx('lowfuel'); toast('Lantern is low — find coal',1.6); } }
+  if(time-P.lastHurt>5) P.hp=Math.min(100,P.hp+3*dt);
+  P.hurtT=Math.max(0,P.hurtT-dt);
+  P.depth=Math.max(0,spawnSurface+1-P.y); P.depthMax=Math.max(P.depthMax,P.depth);
+  if(!P.bottom&&P.y<=2.05){ P.bottom=true; P.score+=200; toast('Bedrock! +200',2.5); sfx('bonus'); }
+  // aim, mine, hit, build
+  updateAim();
+  P.swingCD=Math.max(0,P.swingCD-dt); P.placeCD=Math.max(0,P.placeCD-dt);
+  if(mining){
+    P.swing+=dt*14;
+    if(aim&&aim.grub){
+      if(P.swingCD<=0){ const g=aim.grub; P.swingCD=0.4; g.hp--; g.hurt=0.3; const hl=Math.hypot(g.x-P.x,g.z-P.z)||1; g.vx+=(g.x-P.x)/hl*4; g.vz+=(g.z-P.z)/hl*4; g.vy=Math.max(g.vy,4); sfx('hit'); burst(g.x-0.5,g.y-0.2,g.z-0.5,'grub',3,0.4); if(g.hp<=0) killGrub(g,true); }
+      P.mineT=0; P.mineKey=-1;
+    } else if(aim){
+      const key=idx(aim.x,aim.y,aim.z), def=BLOCK[world[key]];
+      if(key!==P.mineKey){ P.mineKey=key; P.mineT=0; }
+      if(def.hard<Infinity){
+        P.mineT+=dt; P.digTick-=dt; if(P.digTick<=0){ P.digTick=0.22; sfx('dig'); }
+        if(P.mineT>=def.hard) breakBlock(aim.x,aim.y,aim.z);
+      } else { P.digTick-=dt; if(P.digTick<=0){ P.digTick=0.45; sfx('hit'); } }
+    } else { P.mineT=0; P.mineKey=-1; }
+  } else { P.mineT=Math.max(0,P.mineT-dt*2); P.swing=lerp(P.swing,0,Math.min(1,dt*8)); if(P.mineT===0) P.mineKey=-1; }
+  if(placing&&P.placeCD<=0) placeBlock();
+  // things in the dark
+  for(const g of grubs.slice()) updateGrub(g,dt);
+  for(const f of fallers.slice()) updateFaller(f,dt);
+  spawnTimer-=dt; if(spawnTimer<=0){ spawnTimer=12; if(grubs.length<12) spawnGrubs(1,10); }
+  if(relightNeeded){ computeLight(true); relightNeeded=false; }
+}
+function updateFx(dt){
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.life-=dt; if(p.life<=0){ particles.splice(i,1); continue; } p.vy-=GRAV*0.6*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; if(solidAt(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z))){ p.vy=Math.abs(p.vy)*0.3; p.vx*=0.5; p.vz*=0.5; p.y+=0.02; } }
+  for(let i=pops.length-1;i>=0;i--){ const p=pops[i]; p.t-=dt; p.y+=dt*0.8; if(p.t<=0) pops.splice(i,1); }
+  for(let i=toasts.length-1;i>=0;i--){ toasts[i].t-=dt; if(toasts[i].t<=0) toasts.splice(i,1); }
+}
+
+/* ---------- 9. input — keyboard, mouse (pointer lock, or free-cursor tracking), touch ---------- */
+const keys={};
+const pointers=new Map();   // active pointers: id → {x,y,x0,y0,px,py,type,role}
+let released=[];            // pointer-ups since last frame, consumed by uiButton
+const mouse={x:W/2,y:H/2,inside:false};
+let locked=false, lockWanted=false, lockErrors=0, mouseMining=false, mousePlacing=false, lockFresh=false;
+const MAX_DELTA=300;   // per-event mouse delta clamp: browsers can report one wild jump right after locking
+let touchMode=!!(window.matchMedia&&matchMedia('(pointer: coarse)').matches);
+const SENS=0.0024, TOUCH_SENS=0.0075;
+const HUD_R={pause:{x:W-56,y:8,w:48,h:48}, mine:{x:W-80,y:H-88,w:72,h:72}, jump:{x:W-80,y:H-168,w:72,h:72}, place:{x:W-160,y:H-88,w:72,h:72}};
+const STICK={cx:88,cy:H-96,r:56};
+const inRect=(px,py,r)=>px>=r.x&&py>=r.y&&px<=r.x+r.w&&py<=r.y+r.h;
+const lockDenied=()=>lockErrors>=3;
+function requestLock(){
+  if(!uiCanvas.requestPointerLock||lockDenied()||locked) return;
+  const plain=()=>{ try{ const r=uiCanvas.requestPointerLock(); if(r&&r.catch) r.catch(()=>{ lockErrors++; }); }catch(e){ lockErrors++; } };
+  try{ const r=uiCanvas.requestPointerLock({unadjustedMovement:true}); if(r&&r.catch) r.catch(plain); }catch(e){ plain(); }
+}
+document.addEventListener('pointerlockchange',()=>{
+  locked=document.pointerLockElement===uiCanvas;
+  if(locked){ lockErrors=0; lockFresh=true; }
+  else if(state==='playing'&&lockWanted) setState('paused');     // Esc gave the mouse back: that is a pause
+});
+document.addEventListener('pointerlockerror',()=>{ lockErrors++; });
+
+addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code.indexOf('Arrow')===0) e.preventDefault();
+  keys[e.code]=true;
+  if(e.repeat) return;
+  audioInit(); audioResume();
+  if(e.code==='KeyM'){ setMuted(!muted); return; }
+  if(state==='ready'&&(e.code==='Enter'||e.code==='Space')) resetRun();
+  else if(state==='playing'&&(e.code==='KeyP'||(e.code==='Escape'&&!locked))) setState('paused');
+  else if(state==='paused'&&(e.code==='KeyP'||e.code==='Enter'||e.code==='Escape')) setState('playing');
+  else if(state==='dead'&&(e.code==='Enter'||e.code==='KeyR'||e.code==='Space')) resetRun();
+});
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; if(state==='playing') setState('paused'); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden&&state==='playing') setState('paused'); });
+
+function syncMouseButtons(e,l){
+  if(state!=='playing') return;
+  const overUI=!locked&&inRect(l.x,l.y,HUD_R.pause);
+  mouseMining=!!(e.buttons&1)&&!overUI;
+  mousePlacing=!!(e.buttons&2);
+}
+uiCanvas.addEventListener('pointerdown',e=>{
+  audioInit(); audioResume();
+  const l=toLogical(e);
+  const p={id:e.pointerId,type:e.pointerType,x:l.x,y:l.y,x0:l.x,y0:l.y,px:l.x,py:l.y,role:'ui',t0:time};
+  if(e.pointerType==='mouse'){ touchMode=false; mouse.inside=true; if(!locked){ mouse.x=l.x; mouse.y=l.y; } }
+  else touchMode=true;
+  if(state==='playing'){
+    if(e.pointerType==='mouse'){
+      if(!(inRect(l.x,l.y,HUD_R.pause)&&!locked)){ p.role='mouse'; if(e.button===0&&lockWanted&&!locked) requestLock(); }
+      syncMouseButtons(e,l);
+    } else if(inRect(l.x,l.y,HUD_R.pause)||inRect(l.x,l.y,HUD_R.mine)||inRect(l.x,l.y,HUD_R.jump)||inRect(l.x,l.y,HUD_R.place)) p.role='ui';
+    else if(l.x<W*0.45&&l.y>H*0.4) p.role='stick';
+    else p.role='look';
+  }
+  pointers.set(e.pointerId,p);
+  try{ uiCanvas.setPointerCapture(e.pointerId); }catch(err){}
+  e.preventDefault();
+});
+uiCanvas.addEventListener('pointermove',e=>{
+  const l=toLogical(e);
+  if(e.pointerType==='mouse'){
+    mouse.inside=true;
+    if(!locked){ mouse.x=l.x; mouse.y=l.y; }
+    else if(state==='playing'){
+      const mx=e.movementX||0, my=e.movementY||0;
+      if(lockFresh){ lockFresh=false; }                       // drop the first sample after locking
+      else if(Math.abs(mx)<=MAX_DELTA&&Math.abs(my)<=MAX_DELTA){ P.yaw+=mx*SENS; P.pitch=clamp(P.pitch-my*SENS,-1.55,1.55); }
+    }
+    if(pointers.has(e.pointerId)) syncMouseButtons(e,l);
+  }
+  const p=pointers.get(e.pointerId); if(!p) return;
+  const dx=l.x-p.px, dy=l.y-p.py; p.px=l.x; p.py=l.y; p.x=l.x; p.y=l.y;
+  if(p.role==='look'&&state==='playing'){ P.yaw+=dx*TOUCH_SENS; P.pitch=clamp(P.pitch-dy*TOUCH_SENS,-1.55,1.55); }
+});
+function endPointer(e){
+  const p=pointers.get(e.pointerId); if(!p) return;
+  const l=toLogical(e);
+  released.push({x:locked?p.x:l.x,y:locked?p.y:l.y,x0:p.x0,y0:p.y0,type:p.type,role:p.role,cancel:e.type==='pointercancel'});
+  if(p.type==='mouse'){ mouseMining=!!(e.buttons&1); mousePlacing=!!(e.buttons&2); }
+  if(p.role==='stick'){ move.f=0; move.s=0; }
+  pointers.delete(e.pointerId);
+}
+uiCanvas.addEventListener('pointerup',endPointer);
+uiCanvas.addEventListener('pointercancel',endPointer);
+uiCanvas.addEventListener('pointerleave',e=>{ if(e.pointerType==='mouse'&&!pointers.has(e.pointerId)) mouse.inside=false; });
+uiCanvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+// free-cursor tracking: with the pointer unlocked the view turns toward the cursor when it nears the edge,
+// and the aim ray passes through the cursor itself (see updateAim)
+function freeLook(dt){
+  if(locked||touchMode||!mouse.inside) return;
+  const nx=(mouse.x/W-0.5)*2, ny=(mouse.y/H-0.5)*2, dz=0.55;
+  const kx=Math.max(0,Math.abs(nx)-dz)/(1-dz), ky=Math.max(0,Math.abs(ny)-dz)/(1-dz);
+  P.yaw+=Math.sign(nx)*kx*kx*2.6*dt;
+  P.pitch=clamp(P.pitch-Math.sign(ny)*ky*ky*1.8*dt,-1.55,1.55);
+}
+function syncControls(){
+  const holdIn=r=>{ for(const p of pointers.values()) if(p.role==='ui'&&inRect(p.x0,p.y0,r)) return true; return false; };
+  mining=mouseMining||holdIn(HUD_R.mine);
+  placing=mousePlacing||holdIn(HUD_R.place);
+  jumpWish=holdIn(HUD_R.jump);
+  move.f=0; move.s=0;
+  for(const p of pointers.values()) if(p.role==='stick'){
+    let vx=p.x-p.x0, vy=p.y-p.y0; const l=Math.hypot(vx,vy);
+    if(l>STICK.r){ vx*=STICK.r/l; vy*=STICK.r/l; }
+    if(l>STICK.r*0.15){ move.s=vx/STICK.r; move.f=-vy/STICK.r; }
+  }
+}
+
+/* ---------- 10. screens — layouts of kit calls. Same panel width, same buttons, spacing in 8s ---------- */
+const PANEL_X=40, PANEL_W=320, BTN_X=80, BTN_W=240, BTN_H=48;
+function uiButton(x,y,w,h,label,icon){
+  const r={x,y,w,h}; let pressed=false, clicked=false;
+  for(const p of pointers.values()) if(p.role==='ui'&&inRect(p.x0,p.y0,r)&&inRect(p.x,p.y,r)) pressed=true;
+  for(const q of released) if(!q.cancel&&q.role==='ui'&&inRect(q.x0,q.y0,r)&&inRect(q.x,q.y,r)) clicked=true;
+  drawButton(x,y,w,h,label,pressed,icon);
+  if(clicked) sfx('click');
+  return clicked;
+}
+function drawToasts(y0){
+  toasts.forEach((t,i)=>{
+    ctx.globalAlpha=Math.min(1,t.t*3);
+    drawPanel(48,y0+i*40,304,32); drawLabel(t.text,W/2,y0+16+i*40,'small');
+    ctx.globalAlpha=1;
+  });
+}
+function drawPops(){
+  for(const p of pops){
+    const s=project(p.x,p.y,p.z); if(!s||s.w>REACH+6) continue;
+    ctx.globalAlpha=Math.min(1,p.t*2.5);
+    drawLabel(p.text,s.x,s.y,'small','center',p.color);
+  }
+  ctx.globalAlpha=1;
+}
+function drawHUD(){
+  const inter=state==='playing';
+  // damage flash and the closing dark
+  if(P.hurtT>0) drawFlash(THEME.danger,P.hurtT*0.8);
+  if(P.fuel<25) drawFlash(THEME.ink,(1-P.fuel/25)*0.22*(0.75+0.25*Math.sin(time*6)));
+  drawPops();
+  // status card (top-left) — meters, score, depth
+  drawPanel(8,8,208,96);
+  drawIcon('heart',30,30,22);   drawMeter(46,21,160,18,P.hp/100,THEME.danger);
+  drawIcon('lantern',30,58,22); drawMeter(46,49,160,18,P.fuel/100,THEME.accent);
+  drawLabel('SCORE '+fmt(P.score),20,86,'small','left');
+  drawLabel('DEPTH '+Math.floor(P.depth),204,86,'small','right');
+  // pocket (blocks you can build with)
+  drawPanel(8,112,104,40); drawIcon('cube',30,132,22); drawLabel('x '+P.blocks,50,132,'small','left');
+  if(inter&&uiButton(HUD_R.pause.x,HUD_R.pause.y,HUD_R.pause.w,HUD_R.pause.h,'','pause')) setState('paused');
+  drawToasts(168);
+  if(!inter) return;
+  // crosshair sits on the cursor while the mouse is free, in the centre when it is captured
+  const free=!locked&&!touchMode&&mouse.inside;
+  const ax=free?mouse.x:W/2, ay=free?mouse.y:H/2;
+  drawIcon('cross',ax,ay,26);
+  if(aim){
+    const name=aim.grub?'Grub':BLOCK[world[idx(aim.x,aim.y,aim.z)]].name;
+    if(name!=='air') drawLabel(name,ax,ay+26,'small');
+  }
+  if(touchMode){
+    // left thumb: joystick · right thumb: mine (hold), jump, build
+    let kx=STICK.cx, ky=STICK.cy;
+    for(const p of pointers.values()) if(p.role==='stick'){ let vx=p.x-p.x0, vy=p.y-p.y0; const l=Math.hypot(vx,vy); if(l>STICK.r){ vx*=STICK.r/l; vy*=STICK.r/l; } kx+=vx; ky+=vy; }
+    drawIcon('stick',STICK.cx,STICK.cy,STICK.r*2); drawIcon('knob',kx,ky,48);
+    uiButton(HUD_R.mine.x,HUD_R.mine.y,HUD_R.mine.w,HUD_R.mine.h,'','pick');
+    uiButton(HUD_R.jump.x,HUD_R.jump.y,HUD_R.jump.w,HUD_R.jump.h,'','jump');
+    uiButton(HUD_R.place.x,HUD_R.place.y,HUD_R.place.w,HUD_R.place.h,'','place');
+  } else {
+    // the pick swings while you dig
+    const sw=mining?Math.sin(P.swing)*0.5+0.5:0, bob=Math.sin(time*7)*(Math.hypot(P.vx,P.vz)>0.5?3:0);
+    drawIcon('pick',W-72-sw*34,H-96-sw*26+bob,120);
+    if(locked||lockDenied()){ drawLabel('WASD walk · space jump · Esc pause',W/2,H-36,'small'); drawLabel('click mine · right-click build',W/2,H-14,'small'); }
+    else { drawLabel('Cursor aims and steers the view',W/2,H-36,'small'); drawLabel('Click to capture the mouse',W/2,H-14,'small'); }
+  }
+}
+function drawReady(){
+  drawFlash(THEME.ink,0.18);
+  drawPanel(PANEL_X,104,PANEL_W,392);
+  drawLabel('MINEBREAK',W/2,152,'title',  'center',THEME.accent);
+  drawLabel('dig deep · mind the dark',W/2,192,'small');
+  if(uiButton(BTN_X,216,BTN_W,BTN_H,'PLAY','play')) resetRun();
+  drawLabel('BEST '+fmt(best),W/2,296,'body');
+  const lines=touchMode
+    ?['Left thumb walks · right thumb looks','Hold the pick to mine what you aim at','Tap the cube to build with rubble','Coal feeds the lantern','Lava, rockfalls and grubs hurt']
+    :['Mouse looks · click mines','Right-click builds · WASD walks','Space jumps · Esc pauses','Coal feeds the lantern','Lava, rockfalls and grubs hurt'];
+  lines.forEach((l,i)=>drawLabel(l,W/2,336+i*20,'small'));
+  if(uiButton(176,440,48,48,'',muted?'mute':'sound')) setMuted(!muted);
+}
+function drawPause(){
+  drawFlash(THEME.ink,0.45);
+  drawPanel(PANEL_X,160,PANEL_W,296);
+  drawLabel('PAUSED',W/2,208,'title','center',THEME.accent);
+  if(uiButton(BTN_X,248,BTN_W,BTN_H,'RESUME','play')) setState('playing');
+  if(uiButton(BTN_X,312,BTN_W,BTN_H,'NEW MINE','cube')) resetRun();
+  if(uiButton(BTN_X,376,48,48,'',muted?'mute':'sound')) setMuted(!muted);
+  if(uiButton(144,376,176,48,'MENU','menu')) setState('ready');
+}
+function drawDead(){
+  drawFlash(THEME.danger,0.22); drawFlash(THEME.ink,0.35);
+  drawPanel(PANEL_X,120,PANEL_W,360);
+  drawIcon('skull',W/2,164,44);
+  drawLabel('GAME OVER',W/2,212,'title','center',THEME.danger);
+  drawLabel(P.cause,W/2,248,'small');
+  drawLabel('SCORE '+fmt(P.score),W/2,284,'body');
+  drawLabel('BEST '+fmt(best),W/2,312,'body',  'center',THEME.accent);
+  drawLabel('Depth '+Math.floor(P.depthMax)+' · Ore '+P.ore+' · Grubs '+grubsSlain,W/2,340,'small');
+  if(uiButton(BTN_X,368,BTN_W,BTN_H,'DIG AGAIN','pick')) resetRun();
+  if(uiButton(BTN_X,424,BTN_W,BTN_H,'MENU','menu')) setState('ready');
+}
+function drawNoGL(){
+  drawFlash(THEME.bg,1);
+  drawPanel(PANEL_X,200,PANEL_W,200);
+  drawLabel('MINEBREAK',W/2,248,'title','center',THEME.accent);
+  drawLabel('This game needs WebGL.',W/2,300,'body');
+  drawLabel('Open the file in Chrome, Safari or Firefox.',W/2,336,'small');
+}
+
+/* ---------- 11. frame: camera per state, dynamic cubes, overlays, world, then the UI layer ---------- */
+let grubsSlain=0;
+function sampleLightAt(x,y,z){
+  sampleLight(Math.floor(x),Math.floor(y),Math.floor(z));
+  if(sSky===0&&sGlow===0){ const s=sSky; sampleLight(Math.floor(x),Math.floor(y)+1,Math.floor(z)); sSky=Math.max(s,sSky); }
+}
+function render(){
+  if(glOK){
+    if(state==='ready'){
+      const t=time*0.1, r=34, eye=[spawn.x+Math.cos(t)*r,spawn.y+14,spawn.z+Math.sin(t)*r];
+      const d=[spawn.x-eye[0],spawn.y-9-eye[1],spawn.z-eye[2]];
+      setCamera(eye,Math.atan2(d[0],-d[2]),Math.atan2(d[1],Math.hypot(d[0],d[2])));
+    } else if(state==='dead'){
+      const k=Math.min(1,P.deadT/1.2);
+      setCamera([P.x,P.y+lerp(EYE,0.5,k*k),P.z],P.yaw,lerp(P.pitch,-0.8,k));
+    } else setCamera([P.x,P.y+EYE,P.z],P.yaw,P.pitch);
+    // free cubes
+    sp=0;
+    for(const p of particles){ sampleLightAt(p.x,p.y,p.z); emitCube(p.x,p.y,p.z,p.size,p.size,p.size,0,[p.tex,p.tex,p.tex],sSky,sGlow); }
+    for(const f of fallers){ sampleLightAt(f.x,f.y+0.5,f.z); emitCube(f.x,f.y+0.5,f.z,0.5,0.5,0.5,0,['gravel','gravel','gravel'],sSky,sGlow); }
+    for(const g of grubs){
+      sampleLightAt(g.x,g.y+0.4,g.z);
+      const hop=(g.vx||g.vz)?Math.abs(Math.sin(g.anim))*0.06:0, hy=0.35+hop;
+      emitCube(g.x,g.y+hy,g.z,0.38,hy,0.38,g.yaw,g.hurt>0?['lava','lava','lava','lava']:['grub','grub','grub','grub_face'],sSky,sGlow);
+    }
+    const dynCount=sp/VSTRIDE;
+    if(dynCount){ gl.bindBuffer(gl.ARRAY_BUFFER,dynBuf); gl.bufferData(gl.ARRAY_BUFFER,SCRATCH.subarray(0,sp),gl.DYNAMIC_DRAW); }
+    // aim frame and cracks
+    sp=0;
+    if(state==='playing'&&aim&&!aim.grub){
+      const e=0.004, f=FACES.find(q=>q.n[0]===aim.nx&&q.n[1]===aim.ny&&q.n[2]===aim.nz);
+      if(f) emitQuad(aim.x-e,aim.y-e,aim.z-e,f,1+2*e,uvRect('frame'),1,null,null);
+      const def=BLOCK[world[idx(aim.x,aim.y,aim.z)]];
+      if(P.mineT>0&&def.hard<Infinity){
+        const stage=Math.min(3,1+Math.floor(P.mineT/def.hard*3));
+        for(const q of FACES) emitQuad(aim.x-e*2,aim.y-e*2,aim.z-e*2,q,1+4*e,uvRect('crack'+stage),1,null,null);
+      }
+    }
+    const ovCount=sp/VSTRIDE;
+    if(ovCount){ gl.bindBuffer(gl.ARRAY_BUFFER,ovBuf); gl.bufferData(gl.ARRAY_BUFFER,SCRATCH.subarray(0,sp),gl.DYNAMIC_DRAW); }
+    let lantern=2.5+10*(P.fuel/100);
+    const flicker=0.93+0.05*Math.sin(time*13)+0.02*Math.sin(time*31);
+    if(state==='ready') lantern=14;
+    if(state==='dead') lantern=Math.max(1.2,lantern*(1-Math.min(1,P.deadT/1.5)));
+    renderWorld(lantern,flicker,dynCount,ovCount,0.95);
+  }
+  ctx.clearRect(0,0,W,H);
+  if(!glOK) drawNoGL();
+  else if(state==='ready') drawReady();
+  else if(state==='playing') drawHUD();
+  else if(state==='paused'){ drawHUD(); drawPause(); }
+  else drawDead();
+}
+function setState(s){
+  state=s;
+  uiCanvas.style.cursor=(s==='playing'&&!touchMode)?'none':'default';
+  if(s==='playing'){ lockWanted=!touchMode; if(lockWanted&&!locked) requestLock(); }
+  else {
+    lockWanted=false; mouseMining=false; mousePlacing=false; mining=false; placing=false;
+    if(locked&&document.exitPointerLock) document.exitPointerLock();
+    if(s==='ready') worldFresh=false;
+  }
+}
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,Math.max(0.001,(now-last)/1000)); last=now; time+=dt;
+  musicUpdate();
+  if(state==='playing'){ syncControls(); freeLook(dt); updatePlaying(dt); updateFx(dt); }
+  else if(state==='dead'){ P.deadT+=dt; updateFx(dt); }
+  else if(state==='ready') updateFx(dt);
+  render();
+  released.length=0;
+}
+/* debug hook for automated smoke tests (no gameplay effect) */
+window.__mb={get state(){return state},get locked(){return locked},get touchMode(){return touchMode},get glOK(){return glOK},P,B,world,idx,get aim(){return aim},get grubs(){return grubs},get fallers(){return fallers},get best(){return best},get mining(){return mining},setState,resetRun,cam,get chunks(){return chunks},getB,mouse,get time(){return time},denyLock(){ lockErrors=3; lockWanted=false; if(locked&&document.exitPointerLock) document.exitPointerLock(); }};
+/* boot */
+buildAtlas();
+resize();
+if(initGL()){ genWorld((Math.random()*1e9)>>>0); worldFresh=true; }
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
