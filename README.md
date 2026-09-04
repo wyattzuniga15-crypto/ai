@@ -98,8 +98,9 @@ Arrows / WASD roll · swipe on touch · `Z` undo · `R` restart · `H` hint ·
   that auto-solves all 70 levels plus a daily and three endless islands, and
   fails on any console error.
 - `token-ore/` — an unrelated side project: a Minecraft Bedrock add-on that
-  adds a glowing Token Ore, plus Raw Token and Token items, to the Overworld.
-  See `token-ore/README.md`; `node token-ore/build.js` rebuilds its `.mcaddon`.
+  adds a glowing Token Ore to the Overworld, plus Token tools and armor a step
+  below netherite. See `token-ore/README.md`; `node token-ore/build.js` rebuilds
+  its `.mcaddon`.
 
 ### Rebuilding
 

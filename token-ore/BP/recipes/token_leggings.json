@@ -1,0 +1,29 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "cvc:token_leggings"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "TTT",
+      "T T",
+      "T T"
+    ],
+    "key": {
+      "T": {
+        "item": "cvc:token"
+      }
+    },
+    "unlock": [
+      {
+        "item": "cvc:token"
+      }
+    ],
+    "result": {
+      "item": "cvc:token_leggings"
+    }
+  }
+}

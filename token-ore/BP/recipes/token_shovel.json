@@ -1,0 +1,32 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "cvc:token_shovel"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "T",
+      "S",
+      "S"
+    ],
+    "key": {
+      "T": {
+        "item": "cvc:token"
+      },
+      "S": {
+        "item": "minecraft:stick"
+      }
+    },
+    "unlock": [
+      {
+        "item": "cvc:token"
+      }
+    ],
+    "result": {
+      "item": "cvc:token_shovel"
+    }
+  }
+}

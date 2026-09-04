@@ -14,12 +14,13 @@ const MIN_DROP = 1;
 const MAX_DROP = 3;
 
 // A pickaxe of iron tier or better harvests the ore. The tier tags cover
-// custom pickaxes from other packs; the ids are a fallback for vanilla ones.
-const TIER_TAGS = ["minecraft:iron_tier", "minecraft:diamond_tier", "minecraft:netherite_tier"];
+// custom pickaxes from other packs; the ids are a fallback for known ones.
+const TIER_TAGS = ["minecraft:iron_tier", "minecraft:diamond_tier", "minecraft:netherite_tier", "cvc:token_tier"];
 const HARVEST_PICKAXES = new Set([
   "minecraft:iron_pickaxe",
   "minecraft:diamond_pickaxe",
-  "minecraft:netherite_pickaxe"
+  "minecraft:netherite_pickaxe",
+  "cvc:token_pickaxe"
 ]);
 
 function randomInt(min, max) {

@@ -83,6 +83,7 @@ for (const [rel, atlas] of [["RP/textures/terrain_texture.json", terrain], ["RP/
 const names = exists("RP/texts/en_US.lang") ? lang("RP/texts/en_US.lang") : new Set();
 const blockIds = new Set();
 const itemIds = new Set();
+const wearables = new Set();
 for (const rel of files.BP.filter((f) => f.startsWith("blocks/") && f.endsWith(".json"))) {
   const block = readJson(`BP/${rel}`);
   if (!block) continue;
@@ -108,7 +109,25 @@ for (const rel of files.BP.filter((f) => f.startsWith("items/") && f.endsWith(".
   const key = typeof icon === "string" ? icon : icon && icon.textures && icon.textures.default;
   if (items && !(key in items.texture_data)) fail(`BP/${rel}: icon "${key}" is not in item_texture.json`);
   if (!def.description.menu_category) fail(`BP/${rel}: no menu_category, so it will not show in the creative inventory`);
+  if (def.components["minecraft:wearable"]) wearables.add(id);
 }
+
+// Armor is invisible when worn unless an attachable binds a model to the item.
+const ARMOR_GEOMETRY = new Set(["helmet", "chestplate", "leggings", "boots"].flatMap((p) => [`geometry.humanoid.armor.${p}`, `geometry.player.armor.${p}`]));
+const attached = new Set();
+for (const rel of files.RP.filter((f) => f.startsWith("attachables/") && f.endsWith(".json"))) {
+  const attachable = readJson(`RP/${rel}`);
+  if (!attachable) continue;
+  const desc = attachable["minecraft:attachable"].description;
+  const target = desc.item ? Object.keys(desc.item)[0] : desc.identifier;
+  if (!itemIds.has(target)) fail(`RP/${rel}: attaches to unknown item ${target}`);
+  attached.add(target);
+  const tex = desc.textures && desc.textures.default;
+  if (!tex || !exists(`RP/${tex}.png`)) fail(`RP/${rel}: texture RP/${tex}.png is missing`);
+  const geo = desc.geometry && desc.geometry.default;
+  if (!ARMOR_GEOMETRY.has(geo)) fail(`RP/${rel}: unknown armor geometry ${geo}`);
+}
+for (const id of wearables) if (!attached.has(id)) fail(`${id} is wearable but has no attachable in RP/attachables`);
 
 const featureIds = new Set();
 for (const rel of files.BP.filter((f) => f.startsWith("features/") && f.endsWith(".json"))) {
@@ -133,7 +152,8 @@ for (const rel of files.BP.filter((f) => f.startsWith("recipes/") && f.endsWith(
   if (!recipe) continue;
   for (const def of Object.values(recipe)) {
     if (typeof def !== "object") continue;
-    for (const ref of [def.input, def.output]) {
+    const refs = [def.input, def.output, def.result, ...(def.unlock || []), ...(def.ingredients || []), ...Object.values(def.key || {})];
+    for (const ref of refs) {
       const id = typeof ref === "string" ? ref : ref && ref.item;
       if (id && id.startsWith("cvc:") && !itemIds.has(id) && !blockIds.has(id)) fail(`BP/${rel}: unknown item ${id}`);
     }

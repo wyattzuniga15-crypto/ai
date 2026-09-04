@@ -7,6 +7,33 @@
     },
     "cvc_token": {
       "textures": "textures/items/token"
+    },
+    "cvc_token_sword": {
+      "textures": "textures/items/token_sword"
+    },
+    "cvc_token_pickaxe": {
+      "textures": "textures/items/token_pickaxe"
+    },
+    "cvc_token_axe": {
+      "textures": "textures/items/token_axe"
+    },
+    "cvc_token_shovel": {
+      "textures": "textures/items/token_shovel"
+    },
+    "cvc_token_hoe": {
+      "textures": "textures/items/token_hoe"
+    },
+    "cvc_token_helmet": {
+      "textures": "textures/items/token_helmet"
+    },
+    "cvc_token_chestplate": {
+      "textures": "textures/items/token_chestplate"
+    },
+    "cvc_token_leggings": {
+      "textures": "textures/items/token_leggings"
+    },
+    "cvc_token_boots": {
+      "textures": "textures/items/token_boots"
     }
   }
 }

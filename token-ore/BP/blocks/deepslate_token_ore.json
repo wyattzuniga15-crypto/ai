@@ -17,14 +17,20 @@
         }
       },
       "minecraft:destructible_by_mining": {
-        "seconds_to_destroy": 22.5,
+        "seconds_to_destroy": 15.0,
         "item_specific_speeds": [
           {
-            "item": { "tags": "q.any_tag('minecraft:is_pickaxe')" },
+            "item": {
+              "tags": "q.any_tag('minecraft:is_pickaxe') && q.any_tag('minecraft:iron_tier', 'minecraft:diamond_tier', 'minecraft:netherite_tier', 'cvc:token_tier')"
+            },
             "destroy_speed": 4.5
           }
         ]
       },
+      "minecraft:tags": [
+        "minecraft:is_pickaxe_item_destructible",
+        "minecraft:iron_tier_destructible"
+      ],
       "minecraft:destructible_by_explosion": {
         "explosion_resistance": 3.0
       },

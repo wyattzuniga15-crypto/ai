@@ -1,0 +1,29 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "cvc:token_chestplate"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "T T",
+      "TTT",
+      "TTT"
+    ],
+    "key": {
+      "T": {
+        "item": "cvc:token"
+      }
+    },
+    "unlock": [
+      {
+        "item": "cvc:token"
+      }
+    ],
+    "result": {
+      "item": "cvc:token_chestplate"
+    }
+  }
+}
