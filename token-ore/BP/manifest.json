@@ -1,0 +1,34 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "CvC Token Ore",
+    "description": "Claude vs ChatGPT Challenge: Token Ore. Adds Token Ore, Deepslate Token Ore, Raw Token and Token to the Overworld.",
+    "uuid": "8d3f6e1a-2c47-4b9e-9a55-1f0c7d2e6b31",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 26, 20]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "5b9a2c74-0e6d-4f18-8c3a-7d1e9f4b2a60",
+      "version": [1, 0, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "c41e7f93-6a2b-4d05-b7e8-2f9c0a3d5e17",
+      "version": [1, 0, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.0.0"
+    },
+    {
+      "uuid": "e7a2c5d9-3b18-4f6c-a0d4-9e1b7c3f2a58",
+      "version": [1, 0, 0]
+    }
+  ]
+}

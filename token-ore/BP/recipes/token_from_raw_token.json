@@ -1,0 +1,11 @@
+{
+  "format_version": "1.12",
+  "minecraft:recipe_furnace": {
+    "description": {
+      "identifier": "cvc:token_from_raw_token"
+    },
+    "tags": ["furnace", "blast_furnace"],
+    "input": "cvc:raw_token",
+    "output": "cvc:token"
+  }
+}

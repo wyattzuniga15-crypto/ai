@@ -1,0 +1,14 @@
+{
+  "resource_pack_name": "cvc_token_ore",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "cvc_token_ore": {
+      "textures": "textures/blocks/token_ore"
+    },
+    "cvc_deepslate_token_ore": {
+      "textures": "textures/blocks/deepslate_token_ore"
+    }
+  }
+}

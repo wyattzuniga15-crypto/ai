@@ -1,0 +1,9 @@
+{
+  "format_version": "1.21.40",
+  "cvc:token_ore": {
+    "sound": "stone"
+  },
+  "cvc:deepslate_token_ore": {
+    "sound": "deepslate"
+  }
+}

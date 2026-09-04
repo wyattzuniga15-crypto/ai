@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "CvC Token Ore",
+    "description": "Claude vs ChatGPT Challenge: Token Ore. Textures, names and sounds for the Token Ore behavior pack.",
+    "uuid": "e7a2c5d9-3b18-4f6c-a0d4-9e1b7c3f2a58",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 26, 20]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "2f8b4d6e-9c1a-4e73-b5f0-6a3d8e2c1b94",
+      "version": [1, 0, 0]
+    }
+  ]
+}

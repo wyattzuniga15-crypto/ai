@@ -1,0 +1,7 @@
+## Claude vs ChatGPT Challenge - Token Ore
+tile.cvc:token_ore.name=Token Ore
+tile.cvc:deepslate_token_ore.name=Deepslate Token Ore
+item.cvc:raw_token=Raw Token
+item.cvc:raw_token.name=Raw Token
+item.cvc:token=Token
+item.cvc:token.name=Token

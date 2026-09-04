@@ -1,0 +1,12 @@
+{
+  "resource_pack_name": "cvc_token_ore",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "cvc_raw_token": {
+      "textures": "textures/items/raw_token"
+    },
+    "cvc_token": {
+      "textures": "textures/items/token"
+    }
+  }
+}

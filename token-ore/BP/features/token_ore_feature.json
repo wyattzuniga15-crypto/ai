@@ -1,0 +1,27 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:ore_feature": {
+    "description": {
+      "identifier": "cvc:token_ore_feature"
+    },
+    "count": 9,
+    "replace_rules": [
+      {
+        "places_block": "cvc:token_ore",
+        "may_replace": [
+          "minecraft:stone",
+          "minecraft:granite",
+          "minecraft:diorite",
+          "minecraft:andesite",
+          "minecraft:tuff"
+        ]
+      },
+      {
+        "places_block": "cvc:deepslate_token_ore",
+        "may_replace": [
+          "minecraft:deepslate"
+        ]
+      }
+    ]
+  }
+}
