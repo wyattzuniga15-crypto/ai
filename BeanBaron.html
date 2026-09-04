@@ -758,11 +758,11 @@ const BeanBaronScene = (() => {
   // What each premises size looks like: building extents, table rows, how
   // many machines of each kind fit on the back wall.
   const TIERS = [
-    { x0: 0,  x1: 360, interior: false, rows: 0, slots: [1, 1, 0], registerX: 124 },
-    { x0: 40, x1: 220, interior: true,  rows: 1, slots: [2, 1, 1] },
-    { x0: 20, x1: 300, interior: true,  rows: 2, slots: [3, 2, 1] },
-    { x0: 0,  x1: 360, interior: true,  rows: 3, slots: [4, 3, 2] },
-    { x0: 0,  x1: 360, interior: true,  rows: 3, slots: [4, 3, 2], fancy: true },
+    { x0: 90,  x1: 270, interior: false, rows: 0, slots: [1, 1, 0], registerX: 124 },
+    { x0: 100, x1: 260, interior: true,  rows: 2, slots: [2, 1, 1] },
+    { x0: 80,  x1: 280, interior: true,  rows: 3, slots: [2, 2, 1] },
+    { x0: 60,  x1: 300, interior: true,  rows: 5, slots: [3, 2, 2] },
+    { x0: 60,  x1: 300, interior: true,  rows: 6, slots: [3, 3, 2], fancy: true },
   ];
 
   function layout(H, tier) {
@@ -783,13 +783,13 @@ const BeanBaronScene = (() => {
       for (let x = T.x0 + 44; x <= T.x1 - 30; x += 72) tables.push({ x, y, seats: [{ x: x - 18, y: y + 1, taken: null }, { x: x + 18, y: y + 1, taken: null }] });
     }
     const registerX = T.registerX != null ? T.registerX : T.x0 + 84;
-    const wide = T.x1 - T.x0 >= 300;
-    let cx = T.interior ? T.x0 + (wide ? 100 : 60) : registerX + 4;
+    const wide = T.x1 - T.x0 >= 230;
+    let cx = T.interior ? T.x0 + 50 : registerX + 4;
     const slots = { drip: [], espresso: [], roaster: [] };
-    for (let i = 0; i < T.slots[0]; i++) { cx += 10; slots.drip.push(cx); cx += 10; }
-    for (let i = 0; i < T.slots[1]; i++) { cx += 14; slots.espresso.push(cx); cx += 16; }
-    for (let i = 0; i < T.slots[2]; i++) { cx += 14; slots.roaster.push(cx); cx += 16; }
-    const doorX = T.interior ? T.x0 + 73.5 : registerX - 18;     // between the first two table columns, a step from the register
+    for (let i = 0; i < T.slots[0]; i++) { cx += 9; slots.drip.push(cx); cx += 9; }
+    for (let i = 0; i < T.slots[1]; i++) { cx += 13; slots.espresso.push(cx); cx += 13; }
+    for (let i = 0; i < T.slots[2]; i++) { cx += 14; slots.roaster.push(cx); cx += 14; }
+    const doorX = T.interior ? T.x0 + 80 : registerX - 18;     // between the first two table columns, a step from the register
     const maxQueue = Math.max(2, Math.min(8, Math.floor((T.x1 - 8 - registerX) / 18)));
     return { H, T, tier, extra, wide, bgBottom, interiorTop, interiorBottom, backY, laneY, counterY, queueY, tables, slots, maxQueue,
       doorX, registerX, aisleX: doorX, bottomCorridor: interiorBottom - 12,
@@ -816,9 +816,8 @@ const BeanBaronScene = (() => {
       cssW = r.width; cssH = r.height;
       let newH;
       if (R) {
-        const fh = R.frame(cssW, cssH, dpr);
-        S.scale = cssW / 372;
-        S.visH = (fh - 30) / R.SINP;
+        S.visH = R.frame(cssW, cssH, dpr) - 40;
+        S.scale = cssW / 380;
       } else {
         canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
         S.scale = cssW / W;
@@ -1496,8 +1495,9 @@ const BeanBaronScene = (() => {
       if (!renderer || !renderer.getContext()) return null;
       renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
       const scene = new T.Scene(); scene.background = new T.Color('#a9d8f2');
-      const camera = new T.OrthographicCamera(-186, 186, 100, -100, 1, 3000);
-      const PHI = 56 * Math.PI / 180, SINP = Math.sin(PHI), COSP = Math.cos(PHI);
+      const camera = new T.PerspectiveCamera(38, 1, 10, 4000);
+      const PHI = 61 * Math.PI / 180, SINP = Math.sin(PHI), COSP = Math.cos(PHI);
+      let camDist = 900, visDepth = 500;
       const hemi = new T.HemisphereLight('#ffffff', '#b09a80', 0.55); scene.add(hemi);
       const sun = new T.DirectionalLight('#fff4e0', 0.75); sun.castShadow = true; sun.shadow.mapSize.set(window.innerWidth < 600 ? 1024 : 2048, window.innerWidth < 600 ? 1024 : 2048);
       Object.assign(sun.shadow.camera, { left: -280, right: 280, top: 280, bottom: -280, near: 1, far: 1400 }); sun.shadow.bias = -0.0006; sun.shadow.radius = 3;
@@ -1571,9 +1571,9 @@ const BeanBaronScene = (() => {
         lamps[0].position.set(30, 22, L.roadTop - 3); lamps[1].position.set(330, 22, L.roadTop - 3);
         if (!T2.interior) {
           // plaza with the cart
-          mesh(box(360, 1, L.interiorBottom + 8 - L.bgBottom), M('#d9d0c0'), 180, 0, (L.bgBottom + L.interiorBottom + 8) / 2, statics, true);
+          mesh(box(x1 - x0, 1, L.interiorBottom + 8 - L.bgBottom), M('#d9d0c0'), cx, 0, (L.bgBottom + L.interiorBottom + 8) / 2, statics, true);
           for (const tx of [40, 320]) { mesh(cyl(1.6, 2, 16, 6), M('#6b4530'), tx, 8, L.interiorTop + 20); mesh(sph(11, 8), M('#4f8a45'), tx, 22, L.interiorTop + 20); mesh(sph(8, 8), M('#5a9a4f'), tx - 7, 18, L.interiorTop + 24); }
-          for (const bxx of [265, 315]) { mesh(box(30, 2, 7), M('#8a5a3c'), bxx, 5, L.queueY + 30); mesh(box(30, 6, 1.5), M('#8a5a3c'), bxx, 8, L.queueY + 27); }
+          for (const bxx of [205, 245]) { mesh(box(30, 2, 7), M('#8a5a3c'), bxx, 5, L.queueY + 34); mesh(box(30, 6, 1.5), M('#8a5a3c'), bxx, 8, L.queueY + 31); }
           const cz = L.counterY + 7;
           mesh(box(100, 18, 18), M('#8a5a3c'), 150, 9, cz); mesh(box(102, 2, 20), M('#a97452'), 150, 19, cz);
           for (let k = 0; k < 5; k++) mesh(box(10, 8, 1), M('#D9642A'), 110 + k * 20, 8, cz + 9.6, statics, true);
@@ -1747,13 +1747,15 @@ const BeanBaronScene = (() => {
       let cssW = 390, cssH = 300;
       function frame(w, h, dpr) {
         cssW = w; cssH = h; renderer.setPixelRatio(Math.min(2, dpr || 1)); renderer.setSize(w, h, false);
-        const aspect = w / h, fw = 372, fh = fw / aspect;
-        camera.left = -fw / 2; camera.right = fw / 2; camera.top = fh / 2; camera.bottom = -fh / 2; camera.updateProjectionMatrix();
-        return fh;
+        const aspect = w / h; camera.aspect = aspect; camera.updateProjectionMatrix();
+        const halfTan = Math.tan(camera.fov / 2 * Math.PI / 180);
+        camDist = 190 / (halfTan * aspect);                 // fit ~380 units across at the aim point
+        visDepth = 2 * camDist * halfTan / SINP;            // ground depth the view covers, roughly
+        return visDepth;
       }
       function aim(zCenter) {
         const t = new T.Vector3(180, 0, zCenter);
-        camera.position.set(180, 700 * SINP, zCenter + 700 * COSP); camera.lookAt(t);
+        camera.position.set(180, camDist * SINP, zCenter + camDist * COSP); camera.lookAt(t);
         sun.position.set(t.x - 160, 340, t.z + 40); sun.target.position.copy(t); sun.target.updateMatrixWorld();
       }
       const dayBg = new T.Color('#a9d8f2'), nightBg = new T.Color('#141a3a');
@@ -1788,8 +1790,10 @@ const BeanBaronScene = (() => {
       if (R) {
         const dt = Math.min(0.1, S.t - lastDrawT); lastDrawT = S.t;
         if (S.staticsDirty) { S.staticsDirty = false; R.buildStatic(); }
-        S.viewLeft = 0; S.viewTop = S.viewY;
-        R.aim(S.viewY + visH / 2 + 4);
+        // like the reference: the back wall sits near the top of the screen, a sliver of town above it
+        const top = S.L.interiorTop - 64;
+        S.viewLeft = 0; S.viewTop = top; S.viewY = top;
+        R.aim(top + visH / 2);
         R.render(dt, night, nightShift);
         return;
       }
