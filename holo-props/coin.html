@@ -1,0 +1,757 @@
+<title>Holo Coin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#050b0c; --holo:#7fe8d6; --holo-deep:#2ea79a; --holo-hot:#e2fff8;
+  --chrome:#4fd1c5; --dim:#5c8480; --line:rgba(79,209,197,.28); --line-soft:rgba(79,209,197,.14);
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--void);color:var(--holo);
+  font:14px/1.45 Barlow,"Segoe UI",Roboto,Helvetica,sans-serif;overflow:hidden;-webkit-text-size-adjust:100%}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+
+/* ---- reticle behind the hologram ---- */
+#reticle{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:0;opacity:.5}
+#reticle svg{width:min(96vmin,880px);height:min(96vmin,880px);overflow:visible}
+.spin-slow{transform-origin:50% 50%;animation:rot 68s linear infinite}
+.spin-back{transform-origin:50% 50%;animation:rot 104s linear infinite reverse}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ---- hud ---- */
+.hud{position:fixed;z-index:2}
+#brand{left:22px;top:20px;max-width:min(46vw,300px)}
+.eyebrow{font:500 10px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--dim);margin:0 0 7px}
+#brand h1{font:600 30px/.95 "Barlow Condensed",Barlow,"Arial Narrow",sans-serif;letter-spacing:.05em;
+  text-transform:uppercase;margin:0 0 8px;color:var(--holo-hot);text-wrap:balance}
+#spec{font:400 11px/1.7 "IBM Plex Mono",ui-monospace,monospace;color:var(--dim);
+  font-variant-numeric:tabular-nums;margin:0;border-top:1px solid var(--line-soft);padding-top:7px}
+#spec b{color:var(--chrome);font-weight:500}
+
+#status{left:22px;bottom:20px;display:flex;align-items:center;gap:11px}
+#status .ring{position:relative;width:46px;height:46px;flex:none}
+#status .ring svg{position:absolute;inset:0}
+#status .txt .a{font:600 12px/1.2 "Barlow Condensed",sans-serif;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--holo-hot)}
+#status .txt .b{font:400 10px/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;color:var(--dim)}
+
+#rail{right:22px;top:20px;width:184px;display:flex;flex-direction:column;gap:13px}
+.grp{display:flex;flex-direction:column;gap:6px}
+.grp>.eyebrow{margin:0}
+.seg{display:flex;gap:5px;flex-wrap:wrap}
+button{font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;
+  padding:7px 9px;border-radius:2px;border:1px solid var(--line);background:rgba(79,209,197,.05);
+  color:var(--dim);cursor:pointer;flex:1 1 auto;transition:color .15s,border-color .15s,background .15s}
+button:hover{border-color:rgba(79,209,197,.6);color:var(--holo)}
+button[aria-pressed="true"]{color:var(--void);background:var(--chrome);border-color:var(--chrome);font-weight:500}
+button:focus-visible{outline:2px solid var(--holo-hot);outline-offset:2px}
+.sw{flex:1 1 0;min-width:0;height:26px;padding:0;position:relative}
+.sw span{position:absolute;inset:5px;border-radius:1px}
+
+#tip{right:22px;bottom:20px;font:400 10px/1.6 "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.06em;color:var(--dim);text-align:right}
+
+/* corner brackets */
+.br{position:fixed;width:19px;height:19px;border:1px solid var(--line);z-index:1;pointer-events:none}
+.br.tl{left:10px;top:10px;border-right:0;border-bottom:0}
+.br.tr{right:10px;top:10px;border-left:0;border-bottom:0}
+.br.bl{left:10px;bottom:10px;border-right:0;border-top:0}
+.br.br2{right:10px;bottom:10px;border-left:0;border-top:0}
+
+#boot{position:fixed;inset:0;display:grid;place-items:center;z-index:5;background:var(--void);
+  font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--dim);transition:opacity .5s}
+#boot.gone{opacity:0;pointer-events:none}
+
+@media (max-width:760px){
+  #brand{top:16px;left:16px;max-width:56vw}
+  #brand h1{font-size:23px}
+  #rail{right:16px;top:16px;width:132px;gap:10px}
+  button{padding:6px 6px;font-size:10px}
+  #tip{display:none}
+  #status{left:16px;bottom:16px}
+  #reticle{opacity:.35}
+}
+@media (prefers-reduced-motion:reduce){.spin-slow,.spin-back{animation:none}}
+</style>
+
+<div id="reticle" aria-hidden="true">
+  <svg viewBox="-100 -100 200 200" fill="none" stroke="currentColor" style="color:var(--chrome)">
+    <circle r="86" stroke-width=".3" opacity=".5"/>
+    <circle r="70" stroke-width=".2" opacity=".3"/>
+    <g class="spin-slow" stroke-width=".45" opacity=".55">
+      <path d="M0-92A92 92 0 0 1 62-67" /><path d="M0 92A92 92 0 0 1-62 67" />
+      <path d="M92 0A92 92 0 0 1 67 62" opacity=".5"/><path d="M-92 0A92 92 0 0 1-67-62" opacity=".5"/>
+    </g>
+    <g class="spin-back" stroke-width=".3" opacity=".4">
+      <path d="M0-78 0-72"/><path d="M0 78 0 72"/><path d="M78 0 72 0"/><path d="M-78 0-72 0"/>
+      <path d="M55-55 51-51"/><path d="M-55 55-51 51"/><path d="M55 55 51 51"/><path d="M-55-55-51-51"/>
+    </g>
+  </svg>
+</div>
+
+<canvas id="c"></canvas>
+
+<div class="br tl"></div><div class="br tr"></div><div class="br bl"></div><div class="br br2"></div>
+
+<div class="hud" id="brand">
+  <p class="eyebrow">Props · Holo</p>
+  <h1>Holo Coin</h1>
+  <p id="spec"></p>
+</div>
+
+<div class="hud" id="rail">
+  <div class="grp"><p class="eyebrow">Face</p><div class="seg" id="faces"></div></div>
+  <div class="grp"><p class="eyebrow">Emission</p><div class="seg" id="hues"></div></div>
+  <div class="grp"><p class="eyebrow">Projection</p><div class="seg">
+    <button id="bSpin" aria-pressed="true">Spin</button>
+    <button id="bScan" aria-pressed="true">Scan</button>
+  </div></div>
+</div>
+
+<div class="hud" id="status">
+  <div class="ring">
+    <svg viewBox="-25 -25 50 50" fill="none" stroke="currentColor" style="color:var(--chrome)">
+      <circle r="21" stroke-width="1" opacity=".25"/>
+      <circle r="16" stroke-width=".6" opacity=".18"/>
+      <g class="spin-slow"><path d="M0-21A21 21 0 0 1 15-15" stroke-width="1.4" stroke-linecap="round"/></g>
+      <circle r="3.6" fill="currentColor" stroke="none" opacity=".85"/>
+    </svg>
+  </div>
+  <div class="txt"><div class="a">Prop online</div><div class="b" id="stat2">holo · coin</div></div>
+</div>
+
+<div class="hud" id="tip">drag · orbit<br>wheel · zoom</div>
+<div id="boot">Compiling prop…</div>
+
+<script>
+(() => {
+"use strict";
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', {antialias:true, alpha:false});
+if(!gl){
+  document.getElementById('boot').textContent = 'WebGL2 required';
+  return;
+}
+
+/* ═══ physical spec ═══ */
+const DIA_MM = 45, THK_MM = 3.4;     // coin is modelled at unit radius; mm is display only
+const MM = DIA_MM/2;                  // 1 unit == MM millimetres
+const T = (THK_MM/MM)/2;              // half-thickness in units
+const RELIEF = 0.85/MM;               // max relief height
+const REED = 0.26/MM, REEDS = 116;    // milled edge
+const NA = 256, NR = 96;             // angular / radial mesh resolution
+const MAP = 512;                      // heightmap resolution
+
+/* ═══ palettes ═══ */
+const HUES = {
+  mint:    {core:[0.42,0.98,0.84], hot:[0.86,1.00,0.97], css:'#7fe8d6'},
+  ice:     {core:[0.40,0.76,1.00], hot:[0.85,0.95,1.00], css:'#66c2ff'},
+  gold:    {core:[1.00,0.78,0.34], hot:[1.00,0.95,0.80], css:'#ffc757'},
+  crimson: {core:[1.00,0.42,0.42], hot:[1.00,0.85,0.82], css:'#ff6b6b'}
+};
+
+/* ═══════════ heightmap painting ═══════════
+   Each face is drawn as a greyscale relief map: black = field, white = full relief. */
+function newMap(){
+  const cv = document.createElement('canvas'); cv.width = cv.height = MAP;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#000'; x.fillRect(0,0,MAP,MAP);
+  x.translate(MAP/2, MAP/2);
+  const s = MAP/2;                    // unit radius -> pixels
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  return {cv, x, s};
+}
+function grey(v){ const n = Math.round(v*255); return `rgb(${n},${n},${n})`; }
+
+// text laid along an arc; flip=true reads correctly along the bottom
+function arcText(x, text, r, centerAng, size, flip, weight){
+  x.save();
+  x.font = `${weight||600} ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  const w = [...text].map(ch => x.measureText(ch).width + size*0.10);
+  const total = w.reduce((a,b)=>a+b,0), arc = total/r;
+  let a = centerAng + (flip ? arc/2 : -arc/2);
+  for(let i=0;i<text.length;i++){
+    const step = w[i]/r, mid = a + (flip ? -step/2 : step/2);
+    x.save();
+    x.translate(Math.cos(mid)*r, Math.sin(mid)*r);
+    x.rotate(flip ? mid - Math.PI/2 : mid + Math.PI/2);
+    x.fillText(text[i], 0, 0);
+    x.restore();
+    a += flip ? -step : step;
+  }
+  x.restore();
+}
+// ring of tick marks
+function ticks(x, s, r0, r1, n, w, v){
+  x.strokeStyle = grey(v); x.lineWidth = w*s;
+  for(let i=0;i<n;i++){
+    const a = i/n*Math.PI*2;
+    x.beginPath();
+    x.moveTo(Math.cos(a)*r0*s, Math.sin(a)*r0*s);
+    x.lineTo(Math.cos(a)*r1*s, Math.sin(a)*r1*s);
+    x.stroke();
+  }
+}
+// the raised border every face shares
+function border(x, s){
+  x.strokeStyle = grey(0.85); x.lineWidth = 0.078*s;
+  x.beginPath(); x.arc(0,0,0.940*s,0,7); x.stroke();
+  x.strokeStyle = grey(0.34); x.lineWidth = 0.010*s;
+  x.beginPath(); x.arc(0,0,0.836*s,0,7); x.stroke();
+}
+function star(x, s, R, r, pts, v){
+  x.fillStyle = grey(v); x.beginPath();
+  for(let i=0;i<pts*2;i++){
+    const a = -Math.PI/2 + i*Math.PI/pts, rad = (i%2 ? r : R)*s;
+    i ? x.lineTo(Math.cos(a)*rad, Math.sin(a)*rad) : x.moveTo(Math.cos(a)*rad, Math.sin(a)*rad);
+  }
+  x.closePath(); x.fill();
+}
+
+const FACES = {
+  crest: {
+    label:'Crest',
+    obverse(x,s){
+      border(x,s);
+      ticks(x,s,0.79,0.826,72,0.006,0.30);
+      // shield
+      x.fillStyle = grey(0.50);
+      x.beginPath();
+      x.moveTo(-0.40*s,-0.46*s); x.lineTo(0.40*s,-0.46*s); x.lineTo(0.40*s,0.10*s);
+      x.quadraticCurveTo(0.40*s,0.44*s, 0,0.60*s);
+      x.quadraticCurveTo(-0.40*s,0.44*s, -0.40*s,0.10*s);
+      x.closePath(); x.fill();
+      // chief band
+      x.fillStyle = grey(0.68);
+      x.fillRect(-0.40*s,-0.46*s,0.80*s,0.15*s);
+      star(x,s,0.26,0.108,5,0.96);
+      // rays
+      x.strokeStyle = grey(0.72); x.lineWidth = 0.016*s;
+      for(let i=0;i<12;i++){
+        const a = -Math.PI/2 + i*Math.PI/6;
+        if(Math.abs(Math.sin(a)) < 0.12) continue;
+        x.beginPath();
+        x.moveTo(Math.cos(a)*0.32*s, Math.sin(a)*0.32*s);
+        x.lineTo(Math.cos(a)*0.375*s, Math.sin(a)*0.375*s);
+        x.stroke();
+      }
+      x.fillStyle = grey(0.92);
+      arcText(x,'HOLOGRAPHIC ASSET',0.735*s,-Math.PI/2,0.088*s,false);
+      arcText(x,'SERIES I',0.745*s,Math.PI/2,0.078*s,true);
+    },
+    reverse(x,s){
+      border(x,s);
+      ticks(x,s,0.79,0.826,144,0.005,0.26);
+      x.fillStyle = grey(0.90);
+      x.font = `700 ${0.72*s}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+      x.textAlign='center'; x.textBaseline='middle';
+      x.fillText('I', 0, 0.02*s);
+      // laurel arcs
+      x.strokeStyle = grey(0.58); x.lineWidth = 0.026*s;
+      for(const dir of [-1,1]){
+        x.beginPath(); x.arc(0,0.06*s,0.46*s, dir>0?0.35:Math.PI-0.35, dir>0?1.55:Math.PI+1.55, dir<0); x.stroke();
+        for(let i=0;i<7;i++){
+          const a = (dir>0? 0.42:Math.PI-0.42) + dir*i*0.16;
+          const px = Math.cos(a)*0.46*s, py = 0.06*s + Math.sin(a)*0.46*s;
+          x.save(); x.translate(px,py); x.rotate(a);
+          x.fillStyle = grey(0.66); x.beginPath();
+          x.ellipse(0, -dir*0.045*s, 0.052*s, 0.022*s, 0, 0, 7); x.fill(); x.restore();
+        }
+      }
+      x.fillStyle = grey(0.92);
+      arcText(x,'ONE CREDIT',0.735*s,-Math.PI/2,0.086*s,false);
+    }
+  },
+
+  compass: {
+    label:'Compass',
+    obverse(x,s){
+      border(x,s);
+      ticks(x,s,0.755,0.822,120,0.005,0.26);
+      ticks(x,s,0.735,0.822,8,0.011,0.44);
+      // eight-point rose
+      for(const [R,off,v] of [[0.60,0,0.88],[0.40,Math.PI/4,0.60]]){
+        for(let i=0;i<4;i++){
+          const a = off + i*Math.PI/2;
+          x.fillStyle = grey(v);
+          x.beginPath();
+          x.moveTo(Math.cos(a)*R*s, Math.sin(a)*R*s);
+          x.lineTo(Math.cos(a+Math.PI/2)*0.085*R*s, Math.sin(a+Math.PI/2)*0.085*R*s);
+          x.lineTo(Math.cos(a+Math.PI)*R*s, Math.sin(a+Math.PI)*R*s);
+          x.lineTo(Math.cos(a-Math.PI/2)*0.085*R*s, Math.sin(a-Math.PI/2)*0.085*R*s);
+          x.closePath(); x.fill();
+        }
+      }
+      x.fillStyle = grey(0.34);
+      x.beginPath(); x.arc(0,0,0.115*s,0,7); x.fill();
+      x.fillStyle = grey(1.0);
+      x.beginPath(); x.arc(0,0,0.052*s,0,7); x.fill();
+      x.fillStyle = grey(0.94);
+      x.font = `700 ${0.10*s}px "Barlow Condensed", sans-serif`;
+      x.textAlign='center'; x.textBaseline='middle';
+      for(const [ch,a] of [['N',-Math.PI/2],['E',0],['S',Math.PI/2],['W',Math.PI]])
+        x.fillText(ch, Math.cos(a)*0.685*s, Math.sin(a)*0.685*s);
+    },
+    reverse(x,s){
+      border(x,s);
+      ticks(x,s,0.70,0.822,36,0.006,0.28);
+      x.strokeStyle = grey(0.60); x.lineWidth = 0.020*s;
+      x.beginPath(); x.arc(0,0,0.46*s,0,7); x.stroke();
+      x.beginPath(); x.arc(0,0,0.30*s,0,7); x.stroke();
+      // meridians
+      x.lineWidth = 0.013*s; x.strokeStyle = grey(0.46);
+      for(let i=1;i<4;i++){
+        const k = i/4;
+        x.beginPath(); x.ellipse(0,0,0.46*s*Math.cos(k*Math.PI/2),0.46*s,0,0,7); x.stroke();
+      }
+      x.beginPath(); x.moveTo(-0.46*s,0); x.lineTo(0.46*s,0); x.stroke();
+      x.fillStyle = grey(0.92);
+      arcText(x,'TRUE NORTH',0.735*s,-Math.PI/2,0.086*s,false);
+      arcText(x,'BEARING',0.745*s,Math.PI/2,0.076*s,true);
+    }
+  },
+
+  cipher: {
+    label:'Cipher',
+    obverse(x,s){
+      border(x,s);
+      // segmented data rings
+      const ring = (r, n, gap, w, v) => {
+        x.strokeStyle = grey(v); x.lineWidth = w*s;
+        for(let i=0;i<n;i++){
+          const a0 = i/n*Math.PI*2, a1 = a0 + (Math.PI*2/n)*(1-gap);
+          x.beginPath(); x.arc(0,0,r*s,a0,a1); x.stroke();
+        }
+      };
+      ring(0.775, 24, 0.35, 0.020, 0.40);
+      ring(0.700, 13, 0.22, 0.030, 0.62);
+      ring(0.610,  7, 0.40, 0.022, 0.34);
+      // hex core
+      x.fillStyle = grey(0.55); x.beginPath();
+      for(let i=0;i<6;i++){
+        const a = -Math.PI/2 + i*Math.PI/3;
+        i ? x.lineTo(Math.cos(a)*0.42*s, Math.sin(a)*0.42*s)
+          : x.moveTo(Math.cos(a)*0.42*s, Math.sin(a)*0.42*s);
+      }
+      x.closePath(); x.fill();
+      x.strokeStyle = grey(0.95); x.lineWidth = 0.022*s; x.stroke();
+      // inner glyph lattice
+      x.strokeStyle = grey(0.88); x.lineWidth = 0.026*s;
+      for(let i=0;i<3;i++){
+        const a = -Math.PI/2 + i*2*Math.PI/3;
+        x.beginPath(); x.moveTo(0,0);
+        x.lineTo(Math.cos(a)*0.27*s, Math.sin(a)*0.27*s); x.stroke();
+      }
+      x.fillStyle = grey(1.0);
+      x.beginPath(); x.arc(0,0,0.056*s,0,7); x.fill();
+      ticks(x,s,0.47,0.52,36,0.006,0.30);
+    },
+    reverse(x,s){
+      border(x,s);
+      ticks(x,s,0.76,0.822,96,0.005,0.24);
+      // barcode ring — reads as encoded data
+      x.strokeStyle = grey(0.70);
+      let a = 0, seed = 7;
+      while(a < Math.PI*2 - 0.02){
+        seed = (seed*1103515245 + 12345) & 0x7fffffff;
+        const w = 0.012 + (seed % 5) * 0.011;
+        x.lineWidth = 0.085*s;
+        x.beginPath(); x.arc(0,0,0.665*s, a, Math.min(a+w, Math.PI*2)); x.stroke();
+        a += w + 0.016 + (seed >> 8) % 3 * 0.008;
+      }
+      x.fillStyle = grey(0.92);
+      x.font = `600 ${0.20*s}px "IBM Plex Mono", ui-monospace, monospace`;
+      x.textAlign='center'; x.textBaseline='middle';
+      x.fillText('0x1F', 0, -0.10*s);
+      x.fillText('AE20', 0,  0.11*s);
+      x.strokeStyle = grey(0.44); x.lineWidth = 0.014*s;
+      x.beginPath(); x.moveTo(-0.30*s,0.005*s); x.lineTo(0.30*s,0.005*s); x.stroke();
+      x.beginPath(); x.arc(0,0,0.42*s,0,7); x.stroke();
+    }
+  }
+};
+
+/* blur + sample the painted map into a float height field */
+function bake(draw){
+  const {cv,x,s} = newMap();
+  draw(x,s);
+  const img = x.getImageData(0,0,MAP,MAP).data;
+  let h = new Float32Array(MAP*MAP);
+  for(let i=0;i<MAP*MAP;i++) h[i] = img[i*4]/255;
+  // two separable box passes ≈ gaussian; radius tracks mesh spacing so relief never aliases
+  const rad = Math.max(1, Math.round(MAP/NR/2));
+  const tmp = new Float32Array(MAP*MAP);
+  const pass = (src,dst,horiz) => {
+    const n = rad*2+1;
+    for(let a=0;a<MAP;a++){
+      let sum = 0;
+      const at = i => horiz ? src[a*MAP + Math.min(MAP-1,Math.max(0,i))]
+                            : src[Math.min(MAP-1,Math.max(0,i))*MAP + a];
+      for(let i=-rad;i<=rad;i++) sum += at(i);
+      for(let i=0;i<MAP;i++){
+        if(horiz) dst[a*MAP+i] = sum/n; else dst[i*MAP+a] = sum/n;
+        sum += at(i+rad+1) - at(i-rad);
+      }
+    }
+  };
+  pass(h,tmp,true);  pass(tmp,h,false);
+  pass(h,tmp,true);  pass(tmp,h,false);
+  return h;
+}
+// bilinear sample; (u,v) in unit-disc coords, u,v ∈ [-1,1]
+function sample(h,u,v){
+  const px = (u*0.5+0.5)*(MAP-1), py = (0.5-v*0.5)*(MAP-1);
+  const x0 = Math.max(0,Math.min(MAP-2, Math.floor(px))), y0 = Math.max(0,Math.min(MAP-2, Math.floor(py)));
+  const fx = px-x0, fy = py-y0, i = y0*MAP+x0;
+  return (h[i]*(1-fx) + h[i+1]*fx)*(1-fy) + (h[i+MAP]*(1-fx) + h[i+MAP+1]*fx)*fy;
+}
+
+/* ═══════════ mesh ═══════════
+   Coin axis is +Z (faces the camera at rest); disc lies in XY, so screen-vertical is Y. */
+function buildCoin(hF, hB){
+  const rimR = th => 1 - REED*(0.5 - 0.5*Math.cos(REEDS*th));
+  const nv = 2*(NR+1)*(NA+1) + 2*(NA+1);
+  const pos = new Float32Array(nv*3), nor = new Float32Array(nv*3);
+  const idx = [];
+  let p = 0;
+  const put = (x,y,z,nx,ny,nz) => { pos[p*3]=x;pos[p*3+1]=y;pos[p*3+2]=z; nor[p*3]=nx;nor[p*3+1]=ny;nor[p*3+2]=nz; return p++; };
+
+  const eps = 1.2/NR;
+  for(const side of [1,-1]){                       // +1 front, -1 back
+    const h = side>0 ? hF : hB;
+    const base = p;
+    for(let i=0;i<=NR;i++){
+      const r = i/NR;
+      for(let j=0;j<=NA;j++){
+        const th = j/NA*Math.PI*2, ct = Math.cos(th), st = Math.sin(th);
+        const rr = r*rimR(th);
+        const u = r*ct, v = r*st;                  // heightmap coords: face is mirrored on the back
+        const uu = side>0 ? u : -u;
+        const z = side*(T + sample(h,uu,v)*RELIEF);
+        // normal from the relief gradient (finite difference in map space)
+        const gx = (sample(h,uu+eps,v) - sample(h,uu-eps,v))/(2*eps)*RELIEF;
+        const gy = (sample(h,uu,v+eps) - sample(h,uu,v-eps))/(2*eps)*RELIEF;
+        let nx = -gx*(side>0?1:-1), ny = -gy, nz = side;
+        const L = Math.hypot(nx,ny,nz);
+        put(rr*ct, rr*st, z, nx/L, ny/L, nz/L);
+      }
+    }
+    for(let i=0;i<NR;i++) for(let j=0;j<NA;j++){
+      const a = base + i*(NA+1)+j, b = a+1, c = a+(NA+1), d = c+1;
+      if(side>0) idx.push(a,c,b, b,c,d);
+      else       idx.push(a,b,c, b,d,c);
+    }
+  }
+  // milled edge wall
+  const eF = p, eB = p+(NA+1);
+  for(const side of [1,-1]){
+    const h = side>0 ? hF : hB;
+    for(let j=0;j<=NA;j++){
+      const th = j/NA*Math.PI*2, ct = Math.cos(th), st = Math.sin(th);
+      const rr = rimR(th);
+      const uu = side>0 ? ct : -ct;
+      put(rr*ct, rr*st, side*(T + sample(h,uu,st)*RELIEF), ct, st, 0);
+    }
+  }
+  for(let j=0;j<NA;j++) idx.push(eF+j, eB+j, eF+j+1, eF+j+1, eB+j, eB+j+1);
+
+  return {pos, nor, idx: new Uint32Array(idx), tris: idx.length/3};
+}
+
+/* ═══════════ gl plumbing ═══════════ */
+function sh(t,src){
+  const s = gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function prog(vs,fs){
+  const p = gl.createProgram();
+  gl.attachShader(p,sh(gl.VERTEX_SHADER,vs)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+const QUAD_VS = `#version 300 es
+out vec2 uv;
+void main(){
+  vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2));
+  uv = p; gl_Position = vec4(p*2.0-1.0, 0.0, 1.0);
+}`;
+
+const coinP = prog(`#version 300 es
+layout(location=0) in vec3 p;
+layout(location=1) in vec3 n;
+uniform mat4 mvp, mv, rot;
+out vec3 vN, vE, vW, vNm;
+void main(){
+  vN = mat3(mv) * n;
+  vNm = n;
+  vE = (mv * vec4(p,1.0)).xyz;
+  vW = (rot * vec4(p,1.0)).xyz;
+  gl_Position = mvp * vec4(p,1.0);
+}`, `#version 300 es
+precision highp float;
+in vec3 vN, vE, vW, vNm;
+uniform vec3 core, hot;
+uniform float time, scanY, scanOn;
+out vec4 o;
+void main(){
+  vec3 N = normalize(vN);
+  vec3 V = normalize(-vE);
+  float fres = pow(1.0 - abs(dot(N,V)), 2.4);   // silhouette
+
+  // The coin's axis is +Z in model space, so a flat field has normal (0,0,±1) and
+  // slope == 0. Anything struck into the face tilts the normal into XY — that is the
+  // design, and it is what should catch the light. The milled edge reads as slope 1.
+  float slope = length(vNm.xy);
+
+  float fringe = 0.5 + 0.5*sin(vW.y*180.0 - time*1.0);
+  float band   = exp(-pow((vW.y - scanY)/0.05, 2.0)) * scanOn;
+
+  vec3 c = core * (0.035 + 0.18*fres);          // the translucent body
+  c += core * pow(slope, 1.25) * 0.30;          // struck relief
+  c += hot  * pow(slope, 3.0)  * 0.22;          // its crisp shoulders
+  c += hot  * fres * fres * 0.22;               // hot rim
+  c += (hot*0.35 + core*0.65) * band * 0.30;    // read-out sweep
+  c *= 0.90 + 0.10*fringe;                      // interference
+  o = vec4(c, 1.0);
+}`);
+
+const brightP = prog(QUAD_VS, `#version 300 es
+precision highp float; in vec2 uv; uniform sampler2D src; out vec4 o;
+void main(){
+  vec3 c = texture(src, uv).rgb;
+  o = vec4(max(c - 0.30, 0.0) * 1.4, 1.0);
+}`);
+const blurP = prog(QUAD_VS, `#version 300 es
+precision highp float; in vec2 uv; uniform sampler2D src; uniform vec2 dir; out vec4 o;
+void main(){
+  vec3 c = texture(src, uv).rgb * 0.2270;
+  c += (texture(src, uv + dir*1.3846).rgb + texture(src, uv - dir*1.3846).rgb) * 0.3162;
+  c += (texture(src, uv + dir*3.2308).rgb + texture(src, uv - dir*3.2308).rgb) * 0.0702;
+  o = vec4(c, 1.0);
+}`);
+const compP = prog(QUAD_VS, `#version 300 es
+precision highp float;
+in vec2 uv; uniform sampler2D scene, bloom; uniform vec2 res; uniform float time; out vec4 o;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main(){
+  vec3 c = texture(scene, uv).rgb + texture(bloom, uv).rgb * 0.65;
+  c *= 0.94 + 0.06*sin(uv.y*640.0);                            // scanlines
+  float d = length((uv - 0.5) * vec2(res.x/res.y, 1.0));
+  c *= smoothstep(1.25, 0.30, d);                              // vignette
+  c += (hash(uv + fract(time)) - 0.5) * 0.010;                 // grain
+  c = c / (c + 1.00) * 1.42;                                   // soft shoulder
+  o = vec4(pow(max(c, 0.0), vec3(1.0/2.2)), 1.0);
+}`);
+
+const U = p => { const c = Object.create(null);
+  return new Proxy({}, {get:(_,k) => k in c ? c[k] : (c[k] = gl.getUniformLocation(p, k))}); };
+const uCoin = U(coinP), uBlur = U(blurP), uComp = U(compP), uBright = U(brightP);
+
+/* framebuffers */
+function makeFbo(w,h,depth){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  let rb = null;
+  if(depth){
+    rb = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rb);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return {fb, tex, rb, w, h};
+}
+let sceneFb = null, bloomA = null, bloomB = null, fbW = 0, fbH = 0;
+function resizeFbos(w,h){
+  if(w === fbW && h === fbH) return;
+  for(const f of [sceneFb,bloomA,bloomB]) if(f){ gl.deleteTexture(f.tex); gl.deleteFramebuffer(f.fb); if(f.rb) gl.deleteRenderbuffer(f.rb); }
+  const bw = Math.max(1, w>>2), bh = Math.max(1, h>>2);
+  sceneFb = makeFbo(w,h,true); bloomA = makeFbo(bw,bh,false); bloomB = makeFbo(bw,bh,false);
+  fbW = w; fbH = h;
+}
+
+/* geometry upload */
+const emptyVao = gl.createVertexArray();
+let vao = null, vbuf = null, nbuf = null, ibuf = null, nIdx = 0;
+function upload(m){
+  if(!vao){ vao = gl.createVertexArray(); vbuf = gl.createBuffer(); nbuf = gl.createBuffer(); ibuf = gl.createBuffer(); }
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbuf); gl.bufferData(gl.ARRAY_BUFFER, m.pos, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, nbuf); gl.bufferData(gl.ARRAY_BUFFER, m.nor, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  nIdx = m.idx.length;
+}
+
+/* ═══════════ matrices (column-major) ═══════════ */
+const mul = (a,b) => { const o = new Float32Array(16);
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<4;k++) o[j*4+i] += a[k*4+i]*b[j*4+k];
+  return o; };
+const persp = (fov,asp,n,f) => { const t = 1/Math.tan(fov/2);
+  return new Float32Array([t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0]); };
+const rotX = a => { const c=Math.cos(a), s=Math.sin(a);
+  return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]); };
+const rotY = a => { const c=Math.cos(a), s=Math.sin(a);
+  return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]); };
+const tr = (x,y,z) => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+
+/* ═══════════ state ═══════════ */
+const state = { face:'crest', hue:'mint', spin:true, scan:true };
+let yaw = 0.0, pitch = 0.16, dist = 5.0, drag = null;
+
+function setFace(k){
+  state.face = k;
+  const f = FACES[k];
+  upload(buildCoin(bake(f.obverse), bake(f.reverse)));
+  document.getElementById('stat2').textContent = 'holo · coin · ' + f.label.toLowerCase();
+  for(const b of faceBtns) b.setAttribute('aria-pressed', String(b.dataset.k === k));
+}
+function setHue(k){
+  state.hue = k;
+  const css = HUES[k].css;
+  document.documentElement.style.setProperty('--holo', css);
+  document.documentElement.style.setProperty('--chrome', css);
+  document.documentElement.style.setProperty('--line', css + '47');
+  document.documentElement.style.setProperty('--line-soft', css + '24');
+  for(const b of hueBtns) b.setAttribute('aria-pressed', String(b.dataset.k === k));
+}
+
+/* ═══════════ controls ═══════════ */
+const faceBtns = [], hueBtns = [];
+const facesEl = document.getElementById('faces');
+for(const k of Object.keys(FACES)){
+  const b = document.createElement('button');
+  b.textContent = FACES[k].label; b.dataset.k = k; b.setAttribute('aria-pressed','false');
+  b.onclick = () => setFace(k);
+  facesEl.append(b); faceBtns.push(b);
+}
+const huesEl = document.getElementById('hues');
+for(const k of Object.keys(HUES)){
+  const b = document.createElement('button');
+  b.className = 'sw'; b.dataset.k = k; b.title = k; b.setAttribute('aria-label', k);
+  b.setAttribute('aria-pressed','false');
+  const sp = document.createElement('span'); sp.style.background = HUES[k].css; b.append(sp);
+  b.onclick = () => setHue(k);
+  huesEl.append(b); hueBtns.push(b);
+}
+const bSpin = document.getElementById('bSpin'), bScan = document.getElementById('bScan');
+bSpin.onclick = () => { state.spin = !state.spin; bSpin.setAttribute('aria-pressed', String(state.spin)); };
+bScan.onclick = () => { state.scan = !state.scan; bScan.setAttribute('aria-pressed', String(state.scan)); };
+
+canvas.addEventListener('pointerdown', e => {
+  drag = {x:e.clientX, y:e.clientY}; canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if(!drag) return;
+  yaw   += (e.clientX - drag.x)*0.009;
+  pitch  = Math.max(-1.3, Math.min(1.3, pitch + (e.clientY - drag.y)*0.009));
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+addEventListener('pointerup', () => drag = null);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  dist = Math.max(2.8, Math.min(10.0, dist * Math.exp(e.deltaY*0.0012)));
+}, {passive:false});
+
+/* ═══════════ frame ═══════════ */
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE);     // additive: front and back of the coin both contribute
+let t0 = 0, spinAng = 0, scanY = -1;
+
+function frame(t){
+  const dt = Math.min(0.05, (t - t0)/1000); t0 = t;
+  if(state.spin) spinAng += dt*0.42;
+  scanY += dt*0.62; if(scanY > 1.5) scanY = -1.5;
+
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const w = Math.max(1, canvas.clientWidth*dpr|0), h = Math.max(1, canvas.clientHeight*dpr|0);
+  if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
+  resizeFbos(w,h);
+
+  const R  = mul(rotX(pitch), rotY(yaw + spinAng));
+  const mv = mul(tr(0,0,-dist), R);
+  const P  = persp(0.62, w/h, 0.1, 40);
+
+  // ── scene
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFb.fb);
+  gl.viewport(0,0,w,h);
+  gl.clearColor(0.012, 0.026, 0.030, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST);            // translucent: everything accumulates
+  gl.disable(gl.CULL_FACE);
+  gl.useProgram(coinP);
+  gl.uniformMatrix4fv(uCoin.mvp, false, mul(P, mv));
+  gl.uniformMatrix4fv(uCoin.mv,  false, mv);
+  gl.uniformMatrix4fv(uCoin.rot, false, R);
+  gl.uniform3fv(uCoin.core, HUES[state.hue].core);
+  gl.uniform3fv(uCoin.hot,  HUES[state.hue].hot);
+  gl.uniform1f(uCoin.time, t*0.001);
+  gl.uniform1f(uCoin.scanY, scanY);
+  gl.uniform1f(uCoin.scanOn, state.scan ? 1 : 0);
+  gl.bindVertexArray(vao);
+  gl.drawElements(gl.TRIANGLES, nIdx, gl.UNSIGNED_INT, 0);
+
+  // ── bloom
+  gl.disable(gl.BLEND);
+  gl.bindVertexArray(emptyVao);
+  const bw = bloomA.w, bh = bloomA.h;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, bloomA.fb); gl.viewport(0,0,bw,bh);
+  gl.useProgram(brightP);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneFb.tex);
+  gl.uniform1i(uBright.src, 0); gl.drawArrays(gl.TRIANGLES,0,3);
+
+  gl.useProgram(blurP); gl.uniform1i(uBlur.src, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, bloomB.fb);
+  gl.bindTexture(gl.TEXTURE_2D, bloomA.tex);
+  gl.uniform2f(uBlur.dir, 1/bw, 0); gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, bloomA.fb);
+  gl.bindTexture(gl.TEXTURE_2D, bloomB.tex);
+  gl.uniform2f(uBlur.dir, 0, 1/bh); gl.drawArrays(gl.TRIANGLES,0,3);
+
+  // ── composite
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0,0,w,h);
+  gl.useProgram(compP);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneFb.tex); gl.uniform1i(uComp.scene, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, bloomA.tex);  gl.uniform1i(uComp.bloom, 1);
+  gl.uniform2f(uComp.res, w, h);
+  gl.uniform1f(uComp.time, t*0.001);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.enable(gl.BLEND);
+
+  requestAnimationFrame(frame);
+}
+
+/* ═══════════ boot ═══════════ */
+const ready = document.fonts && document.fonts.ready
+  ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))])
+  : Promise.resolve();
+
+ready.then(() => {
+  setHue('mint');
+  setFace('crest');
+  const m = { tris: nIdx/3 };
+  document.getElementById('spec').innerHTML =
+    `<b>${DIA_MM}</b> × <b>${THK_MM}</b> mm · reeded ×${REEDS}<br>` +
+    `relief <b>0.85</b> mm · <b>${m.tris.toLocaleString()}</b> tris`;
+  document.getElementById('boot').classList.add('gone');
+  requestAnimationFrame(t => { t0 = t; frame(t); });
+}).catch(e => {
+  document.getElementById('boot').textContent = 'Prop failed to compile';
+  console.error(e);
+});
+})();
+</script>
