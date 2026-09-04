@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#1d0f08">
+<meta name="theme-color" content="#15181d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,13 +18,13 @@
   /* Bean Baron commits to one look: a dark espresso counter with cream type
      and a burnt-orange accent. Every colour is painted explicitly so the page
      holds up on any host ground. */
-  :root { color-scheme: dark; }
-  html, body { margin: 0; background: #1d0f08; color: #F6E7CF; }
+  :root { color-scheme: light; }
+  html, body { margin: 0; background: #e9eef4; color: #1f2430; }
   body { font-family: Nunito, "Segoe UI", system-ui, -apple-system, sans-serif; font-weight: 500; overscroll-behavior: none; }
   .font-display { font-family: Fredoka, Nunito, "Segoe UI", system-ui, sans-serif; }
   .tabular { font-variant-numeric: tabular-nums; }
   .noselect { user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-  .scroll-soft { scrollbar-width: thin; scrollbar-color: #5a3a26 transparent; }
+  .scroll-soft { scrollbar-width: thin; scrollbar-color: #c9d3de transparent; }
   button:focus-visible { outline: 3px solid #F2A65A; outline-offset: 2px; }
 
   @keyframes floatUp {
@@ -32,7 +32,7 @@
     15%  { transform: translate(-50%, -10px) scale(1.08); opacity: 1; }
     100% { transform: translate(-50%, -84px) scale(1); opacity: 0; }
   }
-  .floater { position: absolute; pointer-events: none; animation: floatUp .85s cubic-bezier(.2,.7,.3,1) forwards; text-shadow: 0 2px 0 #1d0f08; white-space: nowrap; }
+  .floater { position: absolute; pointer-events: none; animation: floatUp .85s cubic-bezier(.2,.7,.3,1) forwards; text-shadow: 0 2px 0 #fff, 0 0 6px #fff; white-space: nowrap; }
 
   @keyframes steam {
     0%   { transform: translate(var(--sx), 0) scaleX(.7); opacity: 0; }
@@ -80,22 +80,23 @@
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.11/dist/index.global.js"></script>
 <style type="text/tailwindcss">
   @theme {
-    --color-espresso: #2B170D;
-    --color-bean: #1d0f08;
-    --color-roast: #4A2C1A;
-    --color-mocha: #6B4530;
-    --color-cream: #F6E7CF;
-    --color-latte: #E8D3B2;
-    --color-foam: #FFF8EE;
-    --color-ember: #D9642A;
-    --color-amber: #F2A65A;
-    --color-mint: #9CC98B;
+    --color-espresso: #ffffff;
+    --color-bean: #e9eef4;
+    --color-roast: #eaf6ff;
+    --color-mocha: #d6dde6;
+    --color-cream: #1f2430;
+    --color-latte: #5b6573;
+    --color-foam: #141821;
+    --color-ember: #2fa8f0;
+    --color-amber: #f0a020;
+    --color-mint: #34c05f;
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script>window.react = window.React; /* lucide's UMD build looks for a lowercase global */</script>
 <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.468.0/dist/umd/lucide-react.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js"></script>
 </head>
 <body class="noselect">
@@ -767,17 +768,19 @@ const BeanBaronScene = (() => {
   function layout(H, tier) {
     const T = TIERS[Math.max(0, Math.min(tier || 0, TIERS.length - 1))];
     const extra = Math.max(0, H - 300);
-    const bgBottom = Math.round(62 + extra * 0.5);
+    const bgBottom = Math.round(62 + extra * 0.36);
     const interiorTop = bgBottom + 4;
-    const roadH = Math.round(34 + extra * 0.12), walkH = Math.round(16 + extra * 0.08), wallH = 8;
-    const interiorBottom = H - roadH - walkH - wallH;
+    const roadH = Math.round(34 + extra * 0.1), walkH = Math.round(18 + extra * 0.07), wallH = 8;
+    // the room is only as deep as its tables need; anything left becomes street and park
+    const need = 36 + 28 + 36 + T.rows * 56 + 34;
+    const interiorBottom = Math.min(H - roadH - walkH - wallH, interiorTop + need);
     const backY = interiorTop + 4;          // machines on the back wall
-    const laneY = interiorTop + 24;         // where baristas walk
-    const counterY = interiorTop + 32;      // counter top edge (14 tall)
-    const queueY = counterY + 24;
+    const laneY = interiorTop + 26;         // where baristas walk
+    const counterY = interiorTop + 36;      // counter top edge (14 tall)
+    const queueY = counterY + 28;
     const tables = [];
-    for (let y = queueY + 30, r = 0; y <= interiorBottom - 26 && r < T.rows; y += 44, r++) {
-      for (let x = T.x0 + 40; x <= T.x1 - 26; x += 67) tables.push({ x, y, seats: [{ x: x - 14, y: y + 1, taken: null }, { x: x + 14, y: y + 1, taken: null }] });
+    for (let y = queueY + 36, r = 0; y <= interiorBottom - 32 && r < T.rows; y += 56, r++) {
+      for (let x = T.x0 + 44; x <= T.x1 - 30; x += 72) tables.push({ x, y, seats: [{ x: x - 18, y: y + 1, taken: null }, { x: x + 18, y: y + 1, taken: null }] });
     }
     const registerX = T.registerX != null ? T.registerX : T.x0 + 84;
     const wide = T.x1 - T.x0 >= 300;
@@ -787,15 +790,15 @@ const BeanBaronScene = (() => {
     for (let i = 0; i < T.slots[1]; i++) { cx += 14; slots.espresso.push(cx); cx += 16; }
     for (let i = 0; i < T.slots[2]; i++) { cx += 14; slots.roaster.push(cx); cx += 16; }
     const doorX = T.interior ? T.x0 + 73.5 : registerX - 18;     // between the first two table columns, a step from the register
-    const maxQueue = Math.max(2, Math.min(8, Math.floor((T.x1 - 8 - registerX) / 15)));
+    const maxQueue = Math.max(2, Math.min(8, Math.floor((T.x1 - 8 - registerX) / 18)));
     return { H, T, tier, extra, wide, bgBottom, interiorTop, interiorBottom, backY, laneY, counterY, queueY, tables, slots, maxQueue,
       doorX, registerX, aisleX: doorX, bottomCorridor: interiorBottom - 12,
       walkY: interiorBottom + wallH + walkH / 2, roadTop: interiorBottom + wallH + walkH,
-      lane1: H - roadH + 9 + (roadH - 34) * 0.3, lane2: H - roadH + 24 + (roadH - 34) * 0.7 };
+      roadH, lane1: interiorBottom + wallH + walkH + 9 + (roadH - 34) * 0.3, lane2: interiorBottom + wallH + walkH + 24 + (roadH - 34) * 0.7 };
   }
 
   function create(canvas, getGame, E) {
-    const ctx = canvas.getContext('2d');
+    let R = null, ctx = null;
     const S = {
       t: 0, scale: 1, H: 277, tier: getGame().cafe || 0, L: layout(277, getGame().cafe || 0),
       customers: [], baristas: [], vehicles: [], particles: [], log: [],
@@ -803,16 +806,25 @@ const BeanBaronScene = (() => {
       served: 0, staffFigs: [], critters: [], birdT: 8, catT: 40, shadow: { dx: 0, alpha: 0.22 }, focus: null, clouds: Array.from({ length: 5 }, (_, i) => ({ x: i * 80 + rnd(0, 40), y: 4 + rnd(0, 18), w: rnd(16, 30), v: rnd(2, 5) })),
     };
     let dpr = 1, cssW = 360, cssH = 277;
+    R = makeRenderer3D(canvas);
+    if (!R) ctx = canvas.getContext('2d');
 
     function resize(force) {
       const r = canvas.getBoundingClientRect();
       if (r.width < 10 || r.height < 10) return;
       dpr = Math.min(3, window.devicePixelRatio || 1);
       cssW = r.width; cssH = r.height;
-      canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
-      S.scale = cssW / W;
-      S.visH = cssH / S.scale;
-      const newH = Math.max(S.visH, MIN_WORLD_H);
+      let newH;
+      if (R) {
+        const fh = R.frame(cssW, cssH, dpr);
+        S.scale = cssW / 372;
+        S.visH = (fh - 30) / R.SINP;
+      } else {
+        canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+        S.scale = cssW / W;
+        S.visH = cssH / S.scale;
+      }
+      newH = Math.max(S.visH, MIN_WORLD_H);
       const big = force || Math.abs(newH - S.H) > 40;
       S.H = newH;
       const oldTables = S.L.tables;
@@ -825,7 +837,7 @@ const BeanBaronScene = (() => {
           if (nt && si >= 0) { c.table = nt; c.seat = nt.seats[si]; c.seat.taken = c; if (c.state === 'sit') { c.x = c.seat.x; c.y = c.seat.y; } else if (c.path) c.path = [{ x: c.seat.x, y: S.L.queueY }, { x: c.seat.x, y: c.seat.y }]; }
           else { c.table = null; c.seat = null; c.state = 'leave'; c.path = null; }
         }
-        S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; b.home.y = S.L.laneY; });
+        S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 14 + i * 26; b.home.y = S.L.laneY; });
         rebuildMachines(true);
         return;
       }
@@ -833,7 +845,7 @@ const BeanBaronScene = (() => {
       S.customers = [];
       for (const t of S.L.tables) for (const s of t.seats) s.taken = null;
       for (const b of S.baristas) { b.state = 'idle'; b.customer = null; b.machine = null; b.cup = false; b.y = S.L.laneY; b.home.y = S.L.laneY; }
-      S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; b.x = b.home.x; });
+      S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 14 + i * 26; b.x = b.home.x; });
       for (const f of S.staffFigs) { f.waypoint = null; f.x = S.L.registerX; f.y = S.L.laneY; }
       for (const m of S.machines) if (m.type !== 'roaster') m.busy = false;
       S.spawnT = Math.min(S.spawnT, 0.5);
@@ -845,9 +857,10 @@ const BeanBaronScene = (() => {
     // Machines along the back wall: drip machines, espresso bars, roasters.
     function rebuildMachines(force) {
       const g = getGame();
-      const key = g.owned.join(',');
+      const key = g.owned.join(',') + '|' + (g.cafe || 0);
       if (!force && S.counts === key) return;
       S.counts = key;
+      S.staticsDirty = true;
       const sl = S.L.slots;
       const drips = Math.min(sl.drip.length, g.owned[0]), esp = Math.min(sl.espresso.length, g.owned[1]), roast = Math.min(sl.roaster.length, g.owned[3]);
       const m = [];
@@ -860,10 +873,10 @@ const BeanBaronScene = (() => {
       const nb = 1 + (g.owned[2] >= 1 ? 1 : 0) + (g.owned[2] >= 5 ? 1 : 0) + (g.owned[2] >= 20 ? 1 : 0) + (g.owned[2] >= 50 ? 1 : 0);
       while (S.baristas.length < nb) {
         const i = S.baristas.length;
-        S.baristas.push(person({ x: S.L.registerX + 12 + i * 22, y: S.L.laneY, home: { x: S.L.registerX + 12 + i * 22, y: S.L.laneY }, state: 'idle', cup: false, owner: i === 0, hat: null, shirt: '#F6E7CF', working: false }));
+        S.baristas.push(person({ x: S.L.registerX + 14 + i * 26, y: S.L.laneY, home: { x: S.L.registerX + 14 + i * 26, y: S.L.laneY }, state: 'idle', cup: false, owner: i === 0, hat: null, shirt: '#F6E7CF', working: false }));
       }
       while (S.baristas.length > nb) { const b = S.baristas.pop(); if (b.customer) b.customer.state = 'queue'; if (b.machine) b.machine.busy = false; }
-      S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 12 + i * 22; });
+      S.baristas.forEach((b, i) => { b.home.x = S.L.registerX + 14 + i * 26; });
       // hired staff each get a figure with a job to do
       const roles = STAFF_ROLES.filter(r => g.staff && g.staff[r.id]);
       S.staffFigs = S.staffFigs.filter(f => roles.some(r => r.id === f.role));
@@ -900,9 +913,9 @@ const BeanBaronScene = (() => {
       if (moveTo(e, e.path[0].x, e.path[0].y, speed, dt)) e.path.shift();
       return e.path.length === 0;
     }
-    const queueSpot = i => ({ x: S.L.registerX + i * 15, y: S.L.queueY });
+    const queueSpot = i => ({ x: S.L.registerX + i * 18, y: S.L.queueY });
     function queued() { return S.customers.filter(c => c.state === 'queue').sort((a, b) => a.qi - b.qi); }
-    function pickupSpot(k) { return { x: S.L.registerX - 18 - k * 12, y: S.L.queueY }; }
+    function pickupSpot(k) { return { x: S.L.registerX - 20 - k * 14, y: S.L.queueY }; }
     function reindexQueue() { queued().forEach((c, i) => { c.qi = i; }); }
     function freeSeat() { const seats = []; for (const t of S.L.tables) for (const s of t.seats) if (!s.taken) seats.push({ t, s }); return seats.length ? pick(seats) : null; }
 
@@ -980,6 +993,8 @@ const BeanBaronScene = (() => {
             const c = b.customer; b.cup = false; b.state = 'idle'; b.machine = null; b.customer = null;
             if (c && !c.dead) { c.holding = true; c.bubble = null; c.state = 'served'; c.qi = 99; reindexQueue(); S.served++;
               S.particles.push({ kind: 'text', text: '+' + E.fmtCash(E.cupPrice(g), E.cupPrice(g) < 10 ? 1 : undefined), x: L.registerX, y: L.counterY - 4, vy: -14, life: 1 });
+              if (R) R.burstCoins(L.registerX + 4, L.counterY + 2, 4);
+              if (Math.random() < 0.35) S.particles.push({ kind: 'text', text: 'Perfect', x: L.registerX + 30, y: L.counterY + 10, vy: -12, life: 1.2, color: '#F2A65A' });
               S.particles.push({ kind: 'text', text: '♥', x: c.x, y: c.y - 16, vy: -10, life: 1, color: '#e0506e' });
               if (c.table) c.table.cup = c.drink; }
             break;
@@ -1471,6 +1486,298 @@ const BeanBaronScene = (() => {
     const hexCache = {};
     function hex(h) { if (hexCache[h]) return hexCache[h]; const v = h.length === 4 ? [h[1] + h[1], h[2] + h[2], h[3] + h[3]] : [h.slice(1, 3), h.slice(3, 5), h.slice(5, 7)]; return (hexCache[h] = v.map(x => parseInt(x, 16))); }
 
+    // ---- 3D renderer (Three.js): the Eatventure look ------------------------
+    // The simulation keeps its top-down coordinates; here x becomes X and the
+    // 2D y becomes Z, with the camera tilted down at the room from the street.
+    function makeRenderer3D(canvas) {
+      const T = window.THREE; if (!T) return null;
+      let renderer;
+      try { renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); } catch (e) { return null; }
+      if (!renderer || !renderer.getContext()) return null;
+      renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+      const scene = new T.Scene(); scene.background = new T.Color('#a9d8f2');
+      const camera = new T.OrthographicCamera(-186, 186, 100, -100, 1, 3000);
+      const PHI = 56 * Math.PI / 180, SINP = Math.sin(PHI), COSP = Math.cos(PHI);
+      const hemi = new T.HemisphereLight('#ffffff', '#b09a80', 0.55); scene.add(hemi);
+      const sun = new T.DirectionalLight('#fff4e0', 0.75); sun.castShadow = true; sun.shadow.mapSize.set(window.innerWidth < 600 ? 1024 : 2048, window.innerWidth < 600 ? 1024 : 2048);
+      Object.assign(sun.shadow.camera, { left: -280, right: 280, top: 280, bottom: -280, near: 1, far: 1400 }); sun.shadow.bias = -0.0006; sun.shadow.radius = 3;
+      scene.add(sun); scene.add(sun.target);
+      const lamps = [0, 1].map(() => { const l = new T.PointLight('#ffd27a', 0, 110, 1.6); scene.add(l); return l; });
+      const statics = new T.Group(), dyn = new T.Group(); scene.add(statics); scene.add(dyn);
+      const matCache = {}, geoCache = {}, texCache = {};
+      const M = (c, o) => { const k = c + JSON.stringify(o || {}); return matCache[k] || (matCache[k] = new T.MeshPhongMaterial(Object.assign({ color: c, flatShading: true, shininess: 4, specular: '#1a1a1a' }, o || {}))); };
+      const box = (w, h, d) => geoCache['b' + w + ',' + h + ',' + d] || (geoCache['b' + w + ',' + h + ',' + d] = new T.BoxGeometry(w, h, d));
+      const cyl = (rt, rb, h, seg) => { const k = 'c' + rt + ',' + rb + ',' + h + ',' + (seg || 12); return geoCache[k] || (geoCache[k] = new T.CylinderGeometry(rt, rb, h, seg || 12)); };
+      const sph = (r, seg) => { const k = 's' + r + ',' + (seg || 10); return geoCache[k] || (geoCache[k] = new T.SphereGeometry(r, seg || 10, Math.max(6, (seg || 10) - 2))); };
+      const cone = (r, h, seg) => { const k = 'k' + r + ',' + h + ',' + seg; return geoCache[k] || (geoCache[k] = new T.ConeGeometry(r, h, seg)); };
+      function mesh(geo, mat, x, y, z, parent, noShadow) { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = !noShadow; m.receiveShadow = true; (parent || statics).add(m); return m; }
+      function disposeGroup(g) { for (const c of g.children.slice()) { g.remove(c); c.traverse(o => { if (o.material && o.material.map && o.material.map.__temp) o.material.map.dispose(); if (o.isSprite && o.material.__temp) o.material.dispose(); }); } }
+      // canvas-made textures: labels, chalkboard, checker floor
+      function textTexture(key, w, h, draw) {
+        if (texCache[key]) return texCache[key];
+        const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); draw(x, w, h);
+        const t = new T.CanvasTexture(c); t.anisotropy = 4; texCache[key] = t; return t;
+      }
+      const checker = (a, b) => textTexture('chk' + a + b, 64, 64, (x, w, h) => { x.fillStyle = a; x.fillRect(0, 0, w, h); x.fillStyle = b; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32); });
+      function labelTex(text, fg, bg, big) { return textTexture('lbl' + text + fg + bg + !!big, 256, 64, (x, w, h) => { if (bg) { x.fillStyle = bg; x.beginPath(); x.roundRect(0, 0, w, h, 18); x.fill(); } x.fillStyle = fg; let size = big ? 40 : 30; x.font = `bold ${size}px Fredoka, Nunito, sans-serif`; while (x.measureText(text).width > w - 16 && size > 12) { size -= 2; x.font = `bold ${size}px Fredoka, Nunito, sans-serif`; } x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, w / 2, h / 2 + 2); }); }
+      function sprite(tex, w, h) { const m = new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }); const s = new T.Sprite(m); s.scale.set(w, h, 1); s.renderOrder = 10; return s; }
+      function bubbleTex(drink) {
+        return textTexture('bub' + drink.name, 96, 96, (x, w, h) => {
+          x.fillStyle = 'rgba(0,0,0,.12)'; x.beginPath(); x.arc(50, 50, 40, 0, Math.PI * 2); x.fill();
+          x.fillStyle = '#fff'; x.beginPath(); x.arc(46, 42, 40, 0, Math.PI * 2); x.fill();
+          x.beginPath(); x.moveTo(30, 74); x.lineTo(42, 92); x.lineTo(52, 74); x.closePath(); x.fill();
+          // cup
+          x.fillStyle = '#F6E7CF'; x.beginPath(); x.roundRect(30, 26, 30, 34, 6); x.fill(); x.strokeStyle = '#8a5a3c'; x.lineWidth = 3; x.stroke();
+          x.fillStyle = drink.color; x.fillRect(33, 36, 24, 10);
+          x.strokeStyle = '#8a5a3c'; x.beginPath(); x.arc(63, 43, 7, -Math.PI / 2, Math.PI / 2); x.stroke();
+          // count badge
+          x.fillStyle = '#1d0f08'; x.beginPath(); x.arc(70, 66, 12, 0, Math.PI * 2); x.fill();
+          x.fillStyle = '#fff'; x.font = 'bold 16px Fredoka, Nunito, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('1', 70, 67);
+        });
+      }
+      // ---------- static world ----------
+      const winMats = [], roasters = [];
+      function buildStatic() {
+        disposeGroup(statics); winMats.length = 0; roasters.length = 0;
+        const L = S.L, T2 = L.T, x0 = T2.x0, x1 = T2.x1, bw = x1 - x0, g = getGame();
+        const cx = (x0 + x1) / 2;
+        // ground
+        const ground = new T.Mesh(new T.PlaneGeometry(1600, 1800), M('#7fb069')); ground.rotation.x = -Math.PI / 2; ground.position.set(180, -0.6, L.bgBottom); ground.receiveShadow = true; statics.add(ground);
+        // hills with plantations, town, skyline (the world beyond the back wall)
+        for (const [hx, hz, sx, sz, col] of [[60, L.bgBottom - 40, 260, 110, '#86b96f'], [300, L.bgBottom - 55, 300, 130, '#6fa35c'], [180, L.bgBottom - 20, 420, 70, '#7fb069']]) {
+          const h = new T.Mesh(sph(1, 14), M(col)); h.scale.set(sx, 26, sz); h.position.set(hx, -14, hz); h.receiveShadow = true; h.castShadow = false; statics.add(h);
+        }
+        const bushes = Math.min(28, g.owned[6] * 2);
+        for (let i = 0; i < bushes; i++) { const row = i % 2; const b = mesh(sph(3.4, 8), M('#3f7a3a'), 16 + Math.floor(i / 2) * 24 + row * 12, 4, L.bgBottom - 24 - row * 9); b.scale.y = 0.8; mesh(sph(0.9, 6), M('#d33'), b.position.x - 1.2, 5.5, b.position.z + 2.6); }
+        if (g.owned[6] > 0) { mesh(box(14, 9, 12), M('#c94c3a'), 180, 4.5, L.bgBottom - 34); const rf = mesh(cone(10, 7, 4), M('#7a3a2a'), 180, 12.5, L.bgBottom - 34); rf.rotation.y = Math.PI / 4; }
+        const fr = Math.min(9, Math.ceil(g.owned[5] / 4));
+        for (let i = 0; i < 9; i++) {
+          const hx = 6 + i * 40 + 15, own = i < fr, hz = L.bgBottom - 62;
+          mesh(box(30, 16, 22), M(own ? '#f6e7cf' : ['#e8d3b2', '#d9c2a0', '#cdb08e'][i % 3]), hx, 8, hz);
+          const rf = mesh(cone(19, 9, 4), M(own ? '#D9642A' : '#7a4a2e'), hx, 20.5, hz); rf.rotation.y = Math.PI / 4;
+          const wm = M('#bfe3f5', { emissive: '#ffd27a', emissiveIntensity: 0 }); winMats.push(wm);
+          mesh(box(5, 5, 1), wm, hx - 8, 9, hz + 11.5, statics, true); mesh(box(5, 5, 1), wm, hx + 8, 9, hz + 11.5, statics, true);
+          if (own) { mesh(box(30, 1.2, 6), M('#D9642A'), hx, 13, hz + 13.5); mesh(sph(1.6, 8), M('#F2A65A'), hx, 15.5, hz + 12); }
+        }
+        const empires = Math.min(7, g.owned[7]); const bx = [24, 62, 100, 150, 210, 262, 310];
+        for (let i = 0; i < 7; i++) { const lit = i < empires, hgt = lit ? 60 + (i % 3) * 22 : 34 + (i % 2) * 10; const b = mesh(box(22 + (i % 2) * 8, hgt, 22), M(lit ? '#6b4530' : '#9fb0bf'), bx[i] + 10, hgt / 2, L.bgBottom - 120 - (i % 2) * 20); if (lit) { const wm = M('#f6e7cf', { emissive: '#ffd27a', emissiveIntensity: 0 }); winMats.push(wm); for (let wy = 8; wy < hgt - 6; wy += 10) for (let wx = -6; wx <= 6; wx += 6) mesh(box(3, 4, 1), wm, b.position.x + wx, wy, b.position.z + 11.6, statics, true); if (i === 3) mesh(cone(6, 8, 5), M('#F2A65A'), b.position.x, hgt + 4, b.position.z); } }
+        // street
+        mesh(box(1600, 1, L.roadH), M('#5a5a60'), 180, -0.2, L.roadTop + L.roadH / 2, statics, true);
+        mesh(box(1600, 1.2, 14), M('#cfc6b8'), 180, -0.1, L.roadTop + L.roadH + 7, statics, true);
+        if (L.H - (L.roadTop + L.roadH) > 40) for (const [tx, tz] of [[30, 30], [120, 44], [250, 34], [340, 48], [-60, 36], [420, 40]]) { const z = L.roadTop + L.roadH + tz; mesh(cyl(1.8, 2.4, 14, 6), M('#6b4530'), tx, 7, z); mesh(sph(11, 8), M('#4f8a45'), tx, 20, z); mesh(sph(7, 8), M('#5a9a4f'), tx + 6, 16, z + 4); }
+        for (let x = -400; x < 800; x += 16) mesh(box(8, 0.2, 1), M('#e9d98a'), x, 0.35, (L.lane1 + L.lane2) / 2, statics, true);
+        mesh(box(1600, 2, L.roadTop - L.interiorBottom - 8), M('#cfc6b8'), 180, 0.3, (L.interiorBottom + 8 + L.roadTop) / 2, statics, true);
+        for (const lx of [30, 330]) { mesh(cyl(0.8, 0.8, 22, 6), M('#2e2e2e'), lx, 11, L.roadTop - 3); const lm = M('#ffd27a', { emissive: '#ffd27a', emissiveIntensity: 0 }); winMats.push(lm); mesh(sph(2.2, 8), lm, lx, 23, L.roadTop - 3, statics, true); }
+        lamps[0].position.set(30, 22, L.roadTop - 3); lamps[1].position.set(330, 22, L.roadTop - 3);
+        if (!T2.interior) {
+          // plaza with the cart
+          mesh(box(360, 1, L.interiorBottom + 8 - L.bgBottom), M('#d9d0c0'), 180, 0, (L.bgBottom + L.interiorBottom + 8) / 2, statics, true);
+          for (const tx of [40, 320]) { mesh(cyl(1.6, 2, 16, 6), M('#6b4530'), tx, 8, L.interiorTop + 20); mesh(sph(11, 8), M('#4f8a45'), tx, 22, L.interiorTop + 20); mesh(sph(8, 8), M('#5a9a4f'), tx - 7, 18, L.interiorTop + 24); }
+          for (const bxx of [265, 315]) { mesh(box(30, 2, 7), M('#8a5a3c'), bxx, 5, L.queueY + 30); mesh(box(30, 6, 1.5), M('#8a5a3c'), bxx, 8, L.queueY + 27); }
+          const cz = L.counterY + 7;
+          mesh(box(100, 18, 18), M('#8a5a3c'), 150, 9, cz); mesh(box(102, 2, 20), M('#a97452'), 150, 19, cz);
+          for (let k = 0; k < 5; k++) mesh(box(10, 8, 1), M('#D9642A'), 110 + k * 20, 8, cz + 9.6, statics, true);
+          for (const wx of [112, 188]) { const w = mesh(cyl(4, 4, 3, 10), M('#1d1d1d'), wx, 4, cz + 10); w.rotation.x = Math.PI / 2; }
+          mesh(cyl(0.9, 0.9, 62, 6), M('#2e2e2e'), 150, 31, cz - 4);
+          const um = mesh(cone(34, 12, 10), M('#D9642A'), 150, 66, cz - 4); um.castShadow = true;
+          mesh(cone(35, 3, 10), M('#F6E7CF'), 150, 61.5, cz - 4, statics, true);
+          mesh(box(64, 8, 1.5), M('#1d0f08'), 150, 34, cz - 12); const sg = new T.Mesh(box(60, 6, 0.4), new T.MeshBasicMaterial({ map: labelTex('BEAN BARON', '#F2A65A', null, true), transparent: true })); sg.position.set(150, 34, cz - 11); statics.add(sg);
+          buildRegisterAndCup(L.registerX, x0 + 104, cz);
+          for (const m of S.machines) buildMachine(m, L.counterY - 14, 19);
+        } else {
+          // neighbours
+          const gaps = []; if (x0 > 0) gaps.push([0, x0, 'left']); if (x1 < W) gaps.push([x1, W, 'right']);
+          for (const [a, b, side] of gaps) {
+            const nb = mesh(box(b - a, 46, L.interiorBottom + 12 - L.bgBottom), M('#a9aeb6'), (a + b) / 2, 23, (L.bgBottom + L.interiorBottom + 12) / 2);
+            const wm = M('#6d7f90', { emissive: '#ffd27a', emissiveIntensity: 0 }); winMats.push(wm);
+            for (let y = 8; y < 42; y += 11) for (let x = a + 8; x < b - 8; x += 16) mesh(box(8, 7, 1), wm, x + 4, y, L.interiorBottom + 12.6, statics, true);
+            if (side === 'right') { const s = new T.Mesh(box(Math.min(48, b - a - 16), 12, 1), new T.MeshBasicMaterial({ map: labelTex('FOR LEASE', '#c94c3a', '#F6E7CF') })); s.position.set(a + 8 + Math.min(48, b - a - 16) / 2, 30, L.interiorBottom + 13); statics.add(s); }
+          }
+          // floor, walls
+          const fl = new T.Mesh(box(bw, 2, L.interiorBottom - L.interiorTop), new T.MeshPhongMaterial({ map: checker(T2.fancy ? '#f1e6d2' : '#e8d3b2', T2.fancy ? '#e2d3ba' : '#dcc39e'), flatShading: true, shininess: 2 }));
+          fl.material.map.wrapS = fl.material.map.wrapT = T.RepeatWrapping; fl.material.map.repeat.set(bw / 24, (L.interiorBottom - L.interiorTop) / 24);
+          fl.position.set(cx, 0, (L.interiorTop + L.interiorBottom) / 2); fl.receiveShadow = true; statics.add(fl);
+          mesh(box(bw, 34, 4), M(T2.fancy ? '#8a5a3c' : '#6B4530'), cx, 17, L.interiorTop - 2);
+          mesh(box(3, 30, L.interiorBottom - L.interiorTop + 4), M('#5a3a25'), x0 + 1.5, 15, (L.interiorTop + L.interiorBottom) / 2);
+          mesh(box(3, 30, L.interiorBottom - L.interiorTop + 4), M('#5a3a25'), x1 - 1.5, 15, (L.interiorTop + L.interiorBottom) / 2);
+          // front wall with a door gap and windows
+          const fz = L.interiorBottom + 4;
+          const segs = [[x0, L.doorX - 9], [L.doorX + 9, x1]];
+          for (const [a, b] of segs) if (b > a) mesh(box(b - a, 12, 6), M('#4A2C1A'), (a + b) / 2, 6, fz);
+          for (let wx = x0 + 14; wx <= x1 - 40; wx += 56) { if (Math.abs(wx + 17 - L.doorX) < 30) continue; const wm = M('#bfe3f5', { emissive: '#ffd27a', emissiveIntensity: 0, transparent: true, opacity: 0.85 }); winMats.push(wm); mesh(box(34, 8, 1), wm, wx + 17, 6, fz + 3.2, statics, true); }
+          mesh(box(18, 0.6, 12), M(T2.fancy ? '#c94c3a' : '#e8d3b2'), L.doorX, 0.4, fz, statics, true);
+          for (let x = x0; x < x1; x += 20) { const w = Math.min(20, x1 - x); const aw = mesh(box(w, 1.2, 14), M(((x - x0) / 20) % 2 ? (T2.fancy ? '#F2A65A' : '#D9642A') : '#F6E7CF'), x + w / 2, 15, fz + 7); aw.rotation.x = 0.35; }
+          const sw = Math.min(96, bw - 20); mesh(box(sw + 4, 10, 2), M('#1d0f08'), cx, 22, fz + 1); const sg = new T.Mesh(box(sw, 8, 0.4), new T.MeshBasicMaterial({ map: labelTex(T2.fancy ? 'BEAN BARON PALACE' : 'BEAN BARON', '#F2A65A', null, true), transparent: true })); sg.position.set(cx, 22, fz + 2.3); statics.add(sg);
+          // counter
+          const cz = L.counterY + 7, cw = bw - 56, ccx = x0 + 52 + cw / 2;
+          mesh(box(cw, 12, 14), M('#6d4530'), ccx, 6, cz); mesh(box(cw + 2, 2, 16), M('#b98058'), ccx, 13, cz);
+          if (T2.fancy) mesh(box(cw + 2, 0.8, 16.4), M('#F2A65A'), ccx, 14.2, cz, statics, true);
+          buildRegisterAndCup(L.registerX, x0 + 64, cz);
+          if (bw >= 170) { mesh(box(42, 8, 8), M('#dff3ff', { transparent: true, opacity: 0.55 }), x1 - 39, 18, cz - 1, statics, true); for (const [dx, c] of [[-10, '#d98a4a'], [0, '#c94c6d'], [10, '#e2b53d']]) mesh(sph(2.4, 8), M(c), x1 - 39 + dx, 16.5, cz - 1); }
+          // back wall: chalkboard, bags, machines
+          mesh(box(40, 15, 1.5), M('#1f2a24'), x0 + 34, 22, L.interiorTop + 0.8, statics, true); const mb = new T.Mesh(box(36, 10, 0.4), new T.MeshBasicMaterial({ map: labelTex('MENU', '#F2A65A', null) , transparent: true })); mb.position.set(x0 + 34, 24, L.interiorTop + 1.8); statics.add(mb);
+          if (L.wide) for (let k = 0; k < 3; k++) mesh(box(9, 10, 6), M(k === 1 ? '#a97452' : '#8a5a3c'), x0 + 64 + k * 12, 5, L.backY + 8);
+          for (const m of S.machines) buildMachine(m, L.backY + 7, 0);
+          // tables, chairs, rug, plants, sofa, chandelier
+          if (L.tables.length) { const top = L.tables[0].y - 18, bottom = L.tables[L.tables.length - 1].y + 18; mesh(box(bw - 36, 0.5, bottom - top), M(T2.fancy ? '#e5a79a' : '#e6b58f'), cx, 1.2, (top + bottom) / 2, statics, true); }
+          for (const t of L.tables) {
+            mesh(cyl(2, 2.8, 12, 8), M('#6d4530'), t.x, 6.5, t.y); mesh(cyl(14, 14, 2.4, 18), M('#c98f60'), t.x, 13.2, t.y); mesh(cyl(14.4, 14.4, 0.8, 18), M('#a8704a'), t.x, 12, t.y, statics, true);
+            for (const s of t.seats) { mesh(box(10, 2.4, 8.5), M('#8a5a3c'), s.x, 7, s.y + 1); mesh(box(10, 10, 1.8), M('#6d4530'), s.x + (s.x < t.x ? -4.3 : 4.3), 11.5, s.y + 1); for (const [lx, lz] of [[-3.8, -3], [3.8, -3], [-3.8, 3], [3.8, 3]]) mesh(box(1.2, 6, 1.2), M('#5a3a25'), s.x + lx, 3, s.y + 1 + lz, statics, true); }
+          }
+          for (const px of [x1 - 10].concat(bw >= 200 ? [x0 + 28] : [])) { mesh(cyl(4, 3, 8, 8), M('#b5563a'), px, 4, L.interiorBottom - 10); mesh(sph(5, 8), M('#3f7a3a'), px, 12, L.interiorBottom - 10); mesh(sph(4, 8), M('#4f8a45'), px - 3, 15, L.interiorBottom - 12); }
+          if (bw >= 300 && L.interiorBottom - (L.tables.length ? L.tables[L.tables.length - 1].y : L.queueY) > 60) { const sy = L.interiorBottom - 26; mesh(box(60, 7, 16), M('#d95d39'), x0 + 230, 3.5, sy); mesh(box(60, 12, 5), M('#c94c3a'), x0 + 230, 9, sy - 6); mesh(box(22, 20, 12), M('#6B4530'), x0 + 281, 10, sy); }
+          if (T2.fancy && L.tables.length) { const ly = L.tables[0].y - 30; mesh(cyl(0.6, 0.6, 16, 6), M('#F2A65A'), cx, 38, ly, statics, true); mesh(new T.TorusGeometry(7, 0.9, 6, 14), M('#F2A65A'), cx, 30, ly, statics, true).rotation.x = Math.PI / 2; for (const a of [0, 2.09, 4.19]) mesh(sph(1.8, 8), M('#ffd27a', { emissive: '#ffd27a', emissiveIntensity: 1 }), cx + Math.cos(a) * 7, 29, ly + Math.sin(a) * 7, statics, true); }
+        }
+        // shared vehicles / people get rebuilt lazily
+        for (const [, v] of vehMap) dyn.remove(v); vehMap.clear();
+      }
+      function buildRegisterAndCup(registerX, cupX, cz) {
+        mesh(box(10, 8, 8), M('#2e2e2e'), registerX, 18, cz - 1); mesh(box(6, 2, 1), M('#9CC98B', { emissive: '#9CC98B', emissiveIntensity: 0.4 }), registerX, 20, cz + 3.2, statics, true);
+        const cup = new T.Group(); cup.position.set(cupX, 14, cz - 1);
+        const c1 = new T.Mesh(cyl(6.5, 5.5, 12, 14), M('#F6E7CF')); c1.position.y = 6; c1.castShadow = true; cup.add(c1);
+        const band = new T.Mesh(cyl(6.7, 6.7, 2.5, 14), M('#D9642A')); band.position.y = 5; cup.add(band);
+        const hd = new T.Mesh(new T.TorusGeometry(3.2, 1, 6, 10), M('#D9642A')); hd.position.set(8, 6, 0); cup.add(hd);
+        const cf = new T.Mesh(cyl(5.4, 5.4, 0.6, 14), M('#4a2a16')); cf.position.y = 12.1; cup.add(cf);
+        statics.add(cup); cupGroup = cup;
+      }
+      let cupGroup = null;
+      function buildMachine(m, z, lift) {
+        const y = lift;
+        const grpSave = statics; const grp = new T.Group(); grp.position.set(m.x, 0, z); grp.scale.setScalar(1.25); statics.add(grp);
+        const mesh = (geo, mat, x, yy, zz, parent, noShadow) => { const mm = new T.Mesh(geo, mat); mm.position.set(x - m.x, yy, zz - z); mm.castShadow = !noShadow; mm.receiveShadow = true; grp.add(mm); return mm; };
+        if (m.type === 'drip') { mesh(box(14, 14, 12), M('#2e2e2e'), m.x, y + 7, z); mesh(cyl(4.5, 4, 7, 10), M('#d9ecf5', { transparent: true, opacity: 0.7 }), m.x, y + 4, z + 4); mesh(sph(1.2, 6), M(m.busy ? '#f25d3a' : '#3a3a3a', { emissive: m.busy ? '#f25d3a' : '#000', emissiveIntensity: 0.8 }), m.x + 5, y + 11, z + 6, statics, true); }
+        else if (m.type === 'espresso') { mesh(box(24, 13, 12), M('#c9ccd1'), m.x, y + 6.5, z); mesh(box(24, 2, 13), M('#8d9095'), m.x, y + 9, z); for (const dx of [-6, 5]) mesh(cyl(2, 2, 2, 8), M('#2e2e2e'), m.x + dx, y + 4, z + 6); const wand = mesh(cyl(0.6, 0.6, 9, 6), M('#2e2e2e'), m.x + 13, y + 6, z + 2); wand.rotation.z = 0.5; }
+        else { mesh(box(24, 14, 14), M('#7a4a2e'), m.x, y + 7, z); const drum = mesh(cyl(5.5, 5.5, 7, 10), M('#3a2214'), m.x - 3, y + 7, z + 7); drum.rotation.x = Math.PI / 2; roasters.push(drum); mesh(box(6, 6, 6), M('#8d9095'), m.x + 5, y + 16, z); mesh(cyl(4, 6, 1.5, 10), M('#f27a2a', { emissive: '#f25d3a', emissiveIntensity: 1 }), m.x - 3, y + 0.6, z + 7, statics, true); }
+      }
+      // ---------- people ----------
+      const peopleMap = new Map(), vehMap = new Map(), textMap = new Map();
+      function makePerson(p) {
+        const grp = new T.Group();
+        const u = grp.userData;
+        const skin = M(p.skin), shirt = M(p.shirt || '#3b6ea5');
+        u.legs = [[-2.2, M(p.pants || '#2e2e2e')], [2.2, M(p.pants || '#2e2e2e')]].map(([x, mt]) => { const l = new T.Mesh(cyl(1.5, 1.5, 3.5, 8), mt); l.position.set(x, 1.75, 0); l.castShadow = true; grp.add(l); return l; });
+        u.body = new T.Mesh(cyl(4.4, 3.8, 8.5, 10), shirt); u.body.position.y = 7.5; u.body.castShadow = true; grp.add(u.body);
+        const apronColor = p.apron || (p.owner != null ? '#D9642A' : null);
+        if (apronColor) { const ap = new T.Mesh(box(7, 7, 1.2), M('#6B4530')); ap.position.set(0, 6.5, 4.2); grp.add(ap); const st = new T.Mesh(box(7, 1.2, 1.3), M(apronColor)); st.position.set(0, 10, 4.2); grp.add(st); }
+        u.head = new T.Mesh(sph(5.2, 12), skin); u.head.position.y = 16.5; u.head.castShadow = true; grp.add(u.head);
+        const hair = new T.Mesh(sph(5.4, 10), M(p.hair)); hair.scale.set(1, 0.72, 1); hair.position.set(0, 17.8, -0.8); grp.add(hair);
+        for (const ex of [-1.9, 1.9]) { const e = new T.Mesh(box(1, 1.5, 0.6), M('#1d0f08')); e.position.set(ex, 16.8, 4.8); grp.add(e); }
+        if (p.glasses) for (const ex of [-1.9, 1.9]) { const r = new T.Mesh(new T.TorusGeometry(1.4, 0.3, 4, 8), M('#1d0f08')); r.position.set(ex, 16.8, 5); grp.add(r); }
+        if (apronColor) { if (p.owner != null) { const t = new T.Mesh(cyl(4.6, 4, 5.5, 10), M('#F6E7CF')); t.position.y = 23; grp.add(t); } else { const c = new T.Mesh(cyl(5.6, 5.6, 1.6, 10), M(apronColor)); c.position.y = 21.2; grp.add(c); const br = new T.Mesh(box(6, 0.8, 4), M(apronColor)); br.position.set(0, 20.6, 5.5); grp.add(br); } }
+        else if (p.hat) { const c = new T.Mesh(cyl(5.6, 5.6, 1.6, 10), M(p.hat)); c.position.y = 21.2; grp.add(c); const br = new T.Mesh(box(6, 0.8, 4), M(p.hat)); br.position.set(0, 20.6, 5.5); grp.add(br); }
+        u.arms = [-5.8, 5.8].map(x => { const a = new T.Mesh(sph(1.9, 8), skin); a.position.set(x, 8.5, 0); a.castShadow = true; grp.add(a); return a; });
+        u.cup = new T.Group(); const c1 = new T.Mesh(cyl(1.8, 1.4, 3.6, 8), M('#F6E7CF')); u.cup.add(c1); const c2 = new T.Mesh(cyl(1.9, 1.9, 0.8, 8), M('#D9642A')); c2.position.y = -0.4; u.cup.add(c2); u.cup.position.set(5.8, 10, 4.5); u.cup.visible = false; grp.add(u.cup);
+        u.bubble = null; u.tag = null; u.rot = 0;
+        grp.scale.setScalar(1.35);
+        dyn.add(grp); return grp;
+      }
+      function headingOf(p) { return p.dir === 'down' ? 0 : p.dir === 'up' ? Math.PI : (p.face > 0 ? Math.PI / 2 : -Math.PI / 2); }
+      function syncPeople(dt) {
+        const all = S.customers.concat(S.baristas, S.staffFigs);
+        const seen = new Set();
+        for (const p of all) {
+          seen.add(p);
+          let grp = peopleMap.get(p); if (!grp) { grp = makePerson(p); peopleMap.set(p, grp); }
+          const u = grp.userData, walking = p.moving, sitting = p.state === 'sit';
+          const bob = walking ? Math.abs(Math.sin(p.walk)) * 1.6 : Math.sin(S.t * 2.2 + p.seed) * 0.3;
+          grp.position.set(p.x, sitting ? -2 : bob, p.y);
+          const target = headingOf(p); let d = target - u.rot; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; u.rot += d * Math.min(1, dt * 12); grp.rotation.y = u.rot;
+          const sw = walking ? Math.sin(p.walk) : 0;
+          u.legs[0].position.z = sw * 2.4; u.legs[1].position.z = -sw * 2.4; u.legs[0].visible = u.legs[1].visible = !sitting;
+          if (p.working) { const w = Math.sin(S.t * 9) * 1.5; u.arms[0].position.set(-5.2, 9 + w, 4.5); u.arms[1].position.set(5.2, 9 - w, 4.5); }
+          else if (p.wave) { u.arms[0].position.set(-5.8, 8.5, 0); u.arms[1].position.set(6.2, 15 + Math.sin(S.t * 6) * 1.5, 1); }
+          else if (sitting) { u.arms[0].position.set(-5.4, 9, 3); u.arms[1].position.set(5.4, 9 + (p.sip < 0.9 ? Math.sin(p.sip / 0.9 * Math.PI) * 5 : 0), 3); }
+          else if (p.holding || p.cup) { u.arms[0].position.set(-5.8, 8.5 + sw * 1.5, -sw * 2.2); u.arms[1].position.set(5.4, 9.5, 4.5); }
+          else { u.arms[0].position.set(-5.8, 8.5, -sw * 2.6); u.arms[1].position.set(5.8, 8.5, sw * 2.6); }
+          u.cup.visible = !!(p.holding || p.cup); if (u.cup.visible) u.cup.position.set(5.4, sitting ? 9 + (p.sip < 0.9 ? Math.sin(p.sip / 0.9 * Math.PI) * 5 : 0) + 2 : 11.5, 4.5);
+          // order bubble
+          if (p.bubble) { if (!u.bubble || u.bubbleKey !== p.bubble.name) { if (u.bubble) grp.remove(u.bubble); u.bubble = sprite(bubbleTex(p.bubble), 18, 18); u.bubble.position.set(3, 31, 0); u.bubbleKey = p.bubble.name; grp.add(u.bubble); } u.bubble.position.y = 31 + Math.sin(S.t * 3 + p.seed) * 0.6; }
+          else if (u.bubble) { grp.remove(u.bubble); u.bubble = null; u.bubbleKey = null; }
+          // name tag
+          const focused = S.focus && S.focus.p === p;
+          if (focused) { const label = p.name + (p.role ? '' : (p.owner != null) ? ' · barista' : '') + ' · ' + personMood(p); if (!u.tag || u.tagText !== label) { if (u.tag) grp.remove(u.tag); u.tag = sprite(labelTex(label, '#F2A65A', 'rgba(29,15,8,.9)'), 44, 11); u.tag.material.__temp = true; u.tag.position.set(0, p.bubble ? 42 : 30, 0); u.tagText = label; grp.add(u.tag); } }
+          else if (u.tag) { grp.remove(u.tag); u.tag = null; u.tagText = null; }
+        }
+        for (const [p, grp] of peopleMap) if (!seen.has(p)) { dyn.remove(grp); peopleMap.delete(p); }
+      }
+      function makeVehicle(v) {
+        const grp = new T.Group(); const u = grp.userData;
+        const col = v.color;
+        if (v.kind === 'van') { const b = new T.Mesh(box(36, 13, 14), M(col)); b.position.y = 9.5; b.castShadow = true; grp.add(b); const cab = new T.Mesh(box(10, 7, 12), M('#bfe3f5')); cab.position.set(13, 15.5, 0); grp.add(cab); const logo = new T.Mesh(box(22, 7, 0.5), M('#F6E7CF')); logo.position.set(-4, 10, 7.3); grp.add(logo); const bean = new T.Mesh(sph(1.8, 8), M('#D9642A')); bean.position.set(-4, 10, 7.8); grp.add(bean); }
+        else { const b = new T.Mesh(box(26, 9, 14), M(col)); b.position.y = 7.5; b.castShadow = true; grp.add(b); const cab = new T.Mesh(box(13, 6, 12), M('#bfe3f5')); cab.position.set(-1, 15, 0); grp.add(cab); }
+        u.wheels = (v.kind === 'van' ? [-11, 11] : [-8, 8]).flatMap(x => [-7, 7].map(z => { const w = new T.Mesh(cyl(3.2, 3.2, 2.2, 10), M('#1d1d1d')); w.rotation.z = Math.PI / 2; w.position.set(x, 3.2, z); w.castShadow = true; grp.add(w); return w; }));
+        const hl = M('#fff2c0', { emissive: '#fff2c0', emissiveIntensity: 0 }); u.hl = hl; const h1 = new T.Mesh(box(1, 2, 2), hl); h1.position.set(v.kind === 'van' ? 18.2 : 13.2, 8, 4); grp.add(h1); const h2 = h1.clone(); h2.position.z = -4; grp.add(h2);
+        grp.scale.setScalar(1.2);
+        dyn.add(grp); return grp;
+      }
+      function syncVehicles(night) {
+        const seen = new Set();
+        for (const v of S.vehicles) { seen.add(v); let grp = vehMap.get(v); if (!grp) { grp = makeVehicle(v); vehMap.set(v, grp); } const dir = v.lane === 1 ? 1 : -1; grp.position.set(v.x, 0, v.lane === 1 ? S.L.lane1 : S.L.lane2); grp.rotation.y = dir > 0 ? 0 : Math.PI; for (const w of grp.userData.wheels) w.rotation.x = v.wheel; grp.userData.hl.emissiveIntensity = night > 0.4 ? 1 : 0; }
+        for (const [v, grp] of vehMap) if (!seen.has(v)) { dyn.remove(grp); vehMap.delete(v); }
+      }
+      // floating text and coins
+      const coins = [];
+      function syncTexts() {
+        const seen = new Set();
+        for (const p of S.particles) { seen.add(p); let sp = textMap.get(p); if (!sp) { sp = sprite(labelTex(p.text, p.color || '#F2A65A', null, true), 40, 10); sp.material.__temp = true; textMap.set(p, sp); dyn.add(sp); } sp.position.set(p.x, 22 + (1.3 - Math.min(1.3, p.life)) * 14, p.y); sp.material.opacity = clamp(p.life, 0, 1); }
+        for (const [p, sp] of textMap) if (!seen.has(p)) { dyn.remove(sp); textMap.delete(p); }
+      }
+      function burstCoins(x, z, n) {
+        for (let i = 0; i < n; i++) { const c = new T.Mesh(cyl(2.2, 2.2, 0.7, 10), M('#f2c14e', { emissive: '#8a5a00', emissiveIntensity: 0.15 })); c.rotation.x = Math.PI / 2; c.position.set(x, 16, z); c.castShadow = true; dyn.add(c); coins.push({ m: c, vx: rnd(-40, 40), vy: rnd(60, 110), vz: rnd(-40, 20), t: 0 }); }
+      }
+      function stepCoins(dt) {
+        const tx = S.viewLeft + 18, tz = S.viewTop + 6;
+        for (const c of coins) {
+          c.t += dt;
+          if (c.t < 0.55) { c.vy -= 320 * dt; c.m.position.x += c.vx * dt; c.m.position.y = Math.max(2, c.m.position.y + c.vy * dt); c.m.position.z += c.vz * dt; }
+          else { const k = Math.min(1, (c.t - 0.55) * 3); c.m.position.x += (tx - c.m.position.x) * k * 0.3; c.m.position.z += (tz - c.m.position.z) * k * 0.3; c.m.position.y += (40 - c.m.position.y) * k * 0.3; }
+          c.m.rotation.y += dt * 9;
+          if (c.t > 1.5) { dyn.remove(c.m); c.dead = true; }
+        }
+        for (let i = coins.length - 1; i >= 0; i--) if (coins[i].dead) coins.splice(i, 1);
+      }
+      const puffs = [];
+      function stepPuffs(dt) {
+        for (const m of S.machines) if (m.busy && m.type !== 'roaster' && Math.random() < dt * 4) { const p = new T.Mesh(sph(1.3, 6), M('#ffffff', { transparent: true, opacity: 0.8 })); p.position.set(m.x + rnd(-3, 3), (S.L.T.interior ? 16 : 32), (S.L.T.interior ? S.L.backY + 12 : S.L.counterY - 10)); dyn.add(p); puffs.push({ m: p, t: 0 }); }
+        for (const r of roasters) { r.rotation.y += dt * 4; }
+        for (const p of puffs) { p.t += dt; p.m.position.y += dt * 14; p.m.scale.setScalar(1 + p.t * 1.5); p.m.material.opacity = Math.max(0, 0.8 - p.t); if (p.t > 0.9) { dyn.remove(p.m); p.dead = true; } }
+        for (let i = puffs.length - 1; i >= 0; i--) if (puffs[i].dead) puffs.splice(i, 1);
+      }
+      // ---------- camera and light ----------
+      let cssW = 390, cssH = 300;
+      function frame(w, h, dpr) {
+        cssW = w; cssH = h; renderer.setPixelRatio(Math.min(2, dpr || 1)); renderer.setSize(w, h, false);
+        const aspect = w / h, fw = 372, fh = fw / aspect;
+        camera.left = -fw / 2; camera.right = fw / 2; camera.top = fh / 2; camera.bottom = -fh / 2; camera.updateProjectionMatrix();
+        return fh;
+      }
+      function aim(zCenter) {
+        const t = new T.Vector3(180, 0, zCenter);
+        camera.position.set(180, 700 * SINP, zCenter + 700 * COSP); camera.lookAt(t);
+        sun.position.set(t.x - 160, 340, t.z + 40); sun.target.position.copy(t); sun.target.updateMatrixWorld();
+      }
+      const dayBg = new T.Color('#a9d8f2'), nightBg = new T.Color('#141a3a');
+      function light(night, nightShift) {
+        sun.intensity = 0.75 - night * 0.62; hemi.intensity = 0.55 - night * 0.3;
+        sun.color.setStyle(night > 0.5 ? '#b9c6ff' : '#fff4e0');
+        scene.background.copy(dayBg).lerp(nightBg, night);
+        for (const l of lamps) l.intensity = night > 0.35 ? 1.4 : 0;
+        for (const wm of winMats) wm.emissiveIntensity = night > 0.35 ? (nightShift || true ? 0.9 : 0.3) : 0;
+      }
+      const ray = new T.Raycaster(), plane = new T.Plane(new T.Vector3(0, 1, 0), 0), hit = new T.Vector3();
+      function unproject(xp, yp) { ray.setFromCamera(new T.Vector2(xp / 50 - 1, 1 - yp / 50), camera); return ray.ray.intersectPlane(plane, hit) ? { x: hit.x, y: hit.z } : null; }
+      return {
+        frame, aim, buildStatic, unproject, burstCoins,
+        render(dt, night, nightShift) {
+          light(night, nightShift); syncPeople(dt); syncVehicles(night); syncTexts(); stepCoins(dt); stepPuffs(dt);
+          if (cupGroup) { const j = S.tapJiggle; cupGroup.scale.set(1 + j * 0.15, 1 - j * 0.12, 1 + j * 0.15); }
+          renderer.render(scene, camera);
+        },
+        get SINP() { return SINP; },
+      };
+    }
+
+    let lastDrawT = 0;
     function draw() {
       const g = getGame();
       const night = nightAmount();
@@ -1478,6 +1785,14 @@ const BeanBaronScene = (() => {
       // when the strip is short, look at the counter rather than the sky
       const visH = S.visH || S.H;
       S.viewY = S.H > visH + 0.5 ? clamp(S.L.counterY + 14 - visH / 2, 0, S.H - visH) : 0;
+      if (R) {
+        const dt = Math.min(0.1, S.t - lastDrawT); lastDrawT = S.t;
+        if (S.staticsDirty) { S.staticsDirty = false; R.buildStatic(); }
+        S.viewLeft = 0; S.viewTop = S.viewY;
+        R.aim(S.viewY + visH / 2 + 4);
+        R.render(dt, night, nightShift);
+        return;
+      }
       ctx.setTransform(dpr * S.scale, 0, 0, dpr * S.scale, 0, -S.viewY * dpr * S.scale);
       ctx.clearRect(0, S.viewY, W, visH);
       drawBackground(g, night);
@@ -1516,14 +1831,15 @@ const BeanBaronScene = (() => {
     return {
       resize, state: S,
       poke(xp, yp) {
-        const x = xp / 100 * W, y = yp / 100 * (S.visH || S.H) + (S.viewY || 0);
+        let x = xp / 100 * W, y = yp / 100 * (S.visH || S.H) + (S.viewY || 0);
+        if (R) { const w = R.unproject(xp, yp); if (w) { x = w.x; y = w.y; } }
         const all = S.customers.concat(S.baristas, S.staffFigs);
         let best = null, bd = 14;
         for (const p of all) { const d = Math.hypot(p.x - x, p.y - (y + 6)); if (d < bd) { bd = d; best = p; } }
         S.focus = best ? { p: best, until: S.t + 2.5 } : null;
         return !!best;
       },
-      cheer(text) { S.particles.push({ kind: 'text', text, x: S.L.registerX + 20, y: S.L.counterY - 8, vy: -16, life: 1.3, color: '#9CC98B' }); },
+      cheer(text) { S.particles.push({ kind: 'text', text, x: S.L.registerX + 20, y: S.L.counterY - 8, vy: -16, life: 1.3, color: '#9CC98B' }); if (R) R.burstCoins(S.L.registerX + 4, S.L.counterY + 2, 8); },
       clock() { const p = dayPhase(); const day = Math.floor(S.t / 480) + 1; const name = p < 0.2 ? 'Morning' : p < 0.45 ? 'Afternoon' : p < 0.62 ? 'Evening' : p < 0.9 ? 'Night' : 'Early morning'; return { day, name }; },
       tap() { S.tapJiggle = 1; },
       log: S.log,
@@ -1687,7 +2003,7 @@ function Card({ onClick, affordable, disabled, pulseKey, children, className }) 
   return (
     <button onClick={onClick} disabled={disabled}
       className={"relative w-full text-left rounded-2xl border overflow-hidden transition-transform duration-100 active:scale-[.98] disabled:active:scale-100 "
-        + (affordable ? "bg-roast border-amber/70 shadow-[0_6px_0_#2B170D]" : "bg-espresso border-mocha/50 shadow-[0_4px_0_#150a05]")
+        + (affordable ? "bg-roast border-ember/50 shadow-[0_5px_0_#bfe1f7]" : "bg-espresso border-mocha shadow-[0_4px_0_#d6dde6]")
         + (disabled ? " opacity-70" : "") + " " + (className || '')}>
       {pulseKey ? <span key={pulseKey} className="pulse-ring" /> : null}
       {children}
@@ -1697,8 +2013,8 @@ function Card({ onClick, affordable, disabled, pulseKey, children, className }) 
 
 function Modal({ children, onClose }) {
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="modal-in w-full max-w-md bg-roast border border-mocha rounded-3xl p-5 shadow-2xl" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="modal-in w-full max-w-md bg-espresso border border-mocha rounded-3xl p-5 shadow-2xl" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
         {children}
       </div>
     </div>
@@ -1707,9 +2023,10 @@ function Modal({ children, onClose }) {
 
 function BigButton({ children, onClick, tone, disabled, className }) {
   const tones = {
-    ember: "bg-ember text-foam shadow-[0_5px_0_#8a3a12] active:shadow-none active:translate-y-[5px]",
-    quiet: "bg-mocha text-cream shadow-[0_5px_0_#2B170D] active:shadow-none active:translate-y-[5px]",
-    ghost: "bg-transparent border border-mocha text-latte",
+    ember: "bg-gradient-to-b from-[#5ec5ff] to-[#2fa8f0] text-white shadow-[0_5px_0_#1b7fc0] active:shadow-none active:translate-y-[5px]",
+    quiet: "bg-[#e6ebf1] text-foam shadow-[0_5px_0_#c9d3de] active:shadow-none active:translate-y-[5px]",
+    ghost: "bg-transparent border-2 border-mocha text-latte",
+    mint: "bg-gradient-to-b from-[#5fd98a] to-[#34c05f] text-white shadow-[0_5px_0_#1f8f42] active:shadow-none active:translate-y-[5px]",
   };
   return (
     <button onClick={onClick} disabled={disabled}
@@ -1771,6 +2088,39 @@ function Ticker({ sceneRef, game }) {
       {log.length === 0 && <div className="text-latte/50">The doors are open. Customers wander in as the chain grows.</div>}
       {log.slice(0, 3).map((l, i) => <div key={l.t + l.text} className={"truncate " + (i === 0 ? 'text-foam' : i === 1 ? 'text-latte/70' : 'text-latte/45')}>{l.text}</div>)}
     </div>
+  );
+}
+
+// ---- staff -----------------------------------------------------------------
+function StaffSection({ game, hire, pulses }) {
+  return (
+    <>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Staff</span>
+        <span className="text-[11px] text-latte/50">they do the busywork</span>
+      </div>
+      {E.STAFF.map(r => {
+        const lv = E.staffLevel(game, r.id), cur = E.staffCfg(game, r.id), nx = E.staffNext(game, r.id);
+        const affordable = !!nx && nx.cost <= game.cash;
+        return (
+          <Card key={r.id} onClick={() => nx && hire(r.id)} affordable={affordable} disabled={!nx} pulseKey={pulses['staff_' + r.id]} className={!nx ? 'opacity-100' : ''}>
+            <div className="flex items-center gap-3 px-3 py-3 pb-4">
+              <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (lv ? "bg-mint text-espresso" : affordable ? "bg-amber text-espresso" : "bg-bean text-latte/70")}><Icon name={r.icon} size={24} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2"><span className="font-display font-semibold text-lg text-foam truncate">{r.name}</span><span className="text-xs text-latte/60 tabular">{lv ? `Lv ${lv}/${r.levels.length}` : 'not hired'}</span></div>
+                <div className="text-xs font-bold text-mint">{cur ? r.effect(cur) : r.blurb}</div>
+                <div className="text-xs text-latte/60 leading-snug mt-0.5">{nx ? (lv ? `Promote: ${r.effect(nx)}` : r.blurb) : 'Fully trained.'}</div>
+              </div>
+              {nx && <div className="text-right shrink-0">
+                <div className={"font-bold tabular " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(nx.cost)}</div>
+                <div className="text-[10px] text-latte/50 uppercase tracking-wider">{lv ? 'promote' : 'hire'}</div>
+              </div>}
+            </div>
+            {nx && <FillBar ratio={game.cash / nx.cost} />}
+          </Card>
+        );
+      })}
+    </>
   );
 }
 
@@ -1857,7 +2207,7 @@ function OrderCard({ game, o, onFill }) {
             <div className="text-[10px] uppercase tracking-widest text-latte/50">Pays</div>
             <div className="font-display font-bold text-xl tabular text-foam leading-none">{E.fmtCash(payout, payout < 100 ? 2 : undefined)}</div>
           </div>
-          <BigButton tone={fillable ? 'ember' : canBuy ? 'quiet' : 'ghost'} disabled={!fillable && !canBuy} onClick={() => onFill(o.id, !fillable)} className="text-base px-4 py-2.5">
+          <BigButton tone={fillable ? 'mint' : canBuy ? 'ember' : 'ghost'} disabled={!fillable && !canBuy} onClick={() => onFill(o.id, !fillable)} className="text-base px-4 py-2.5">
             {fillable ? 'Give order' : canBuy ? `Buy ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)} & give` : `Short ${E.fmtCash(missCost, missCost < 100 ? 2 : undefined)}`}
           </BigButton>
         </div>
@@ -1935,13 +2285,13 @@ function OrderRail({ game, onFill }) {
   const orders = game.orders || [];
   const mult = E.streakMult(game);
   return (
-    <div className="shrink-0 bg-espresso border-t border-mocha/50 px-2 pt-1.5 pb-2">
-      <button onClick={() => setOpen(v => !v)} className="w-full flex justify-between items-center text-[10px] uppercase tracking-widest text-latte/50 px-1 mb-1">
+    <div className="shrink-0 bg-white/92 backdrop-blur-[3px] border-t border-mocha px-2 pt-1.5 pb-[max(env(safe-area-inset-bottom),8px)]">
+      <button onPointerDown={e => e.stopPropagation()} onClick={() => setOpen(v => !v)} className="w-full flex justify-between items-center text-[10px] uppercase tracking-widest text-latte px-1 mb-1">
         <span className="flex items-center gap-1"><Icon name="Receipt" size={11} /> Tickets {orders.length}/{E.ORDER_MAX}</span>
         <span className="flex items-center gap-2"><span className={game.streak > 0 ? 'text-amber' : ''}>streak ×{mult.toFixed(2)}{game.streak > 0 ? ` · ${game.streak} in a row` : ''}</span><Icon name={open ? 'ChevronDown' : 'ChevronUp'} size={12} /></span>
       </button>
       {open && (
-        <div className="flex gap-2 overflow-x-auto scroll-soft pb-0.5 h-[108px] items-start">
+        <div onPointerDown={e => e.stopPropagation()} className="flex gap-2 overflow-x-auto scroll-soft pb-0.5 h-[108px] items-start">
           {orders.length === 0 && <div className="text-xs text-latte/50 px-1 py-3">No open tickets. Customers order every half minute or so; stock the pantry in the Shop so you can fill them fast.</div>}
           {orders.map(o => <Ticket key={o.id} game={game} o={o} onFill={onFill} />)}
         </div>
@@ -1949,6 +2299,34 @@ function OrderRail({ game, onFill }) {
     </div>
   );
 }
+
+function SideButton({ icon, label, onClick, dot, badge }) {
+  return (
+    <button onPointerDown={e => e.stopPropagation()} onClick={onClick}
+      className="relative w-14 h-14 rounded-2xl bg-white shadow-[0_3px_0_#c9d3de] flex flex-col items-center justify-center gap-0.5 active:translate-y-[2px] active:shadow-none">
+      <Icon name={icon} size={22} className="text-foam" />
+      <span className="text-[9px] font-bold uppercase tracking-wide text-latte">{label}</span>
+      {dot && !badge && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#ff5c5c] border-2 border-white" />}
+      {badge > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#ff5c5c] text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">{badge}</span>}
+    </button>
+  );
+}
+
+function Sheet({ title, onClose, children }) {
+  return (
+    <div className="absolute inset-0 z-40 bg-black/40 flex items-end justify-center" onClick={onClose}>
+      <div className="modal-in w-full max-h-[88%] bg-espresso rounded-t-3xl shadow-2xl flex flex-col" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-2 border-b border-mocha">
+          <h2 className="font-display font-bold text-2xl text-foam">{title}</h2>
+          <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-xl bg-[#ff5c5c] text-white font-display font-bold text-lg shadow-[0_3px_0_#c73c3c] active:translate-y-[2px] active:shadow-none">X</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const PANEL_TITLES = { shop: 'Shop', staff: 'Staff', orders: 'Orders', upgrades: 'Upgrades', prestige: 'Sell the Chain', stats: 'Stats & settings' };
 
 // ---- the game ------------------------------------------------------------
 function App() {
@@ -2141,10 +2519,10 @@ function App() {
     if (frenzy) return { text: `Tap frenzy: ×${E.FRENZY_MULT} per tap for ${Math.ceil(E.buffLeft(game, 'frenzy'))}s`, hot: true };
     if (game.owned.every(n => n === 0)) return { text: game.cash >= 15 ? 'A Drip Machine is affordable in the Shop' : 'Tap to brew · a Drip Machine costs $15' };
     const ready = (game.orders || []).find(o => E.canFill(game, o));
-    if (ready) return { text: `${ready.name}'s ticket is ready to fill` + (tab === 'orders' ? '' : ' · open Orders'), hot: true };
+    if (ready) return { text: `${ready.name}'s ticket is ready · tap Orders`, hot: true };
     const nx = E.nextCafe(game);
     if (nx && nx.cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)) && tab !== 'shop') return { text: `Your ${E.cafeOf(game).name} is full · move up in the Shop` };
-    if ((game.orders || []).length && tab !== 'shop' && tab !== 'orders') return { text: `${game.orders[0].name} is waiting · open Orders to give it` };
+    if ((game.orders || []).length && tab !== 'shop' && tab !== 'orders') return { text: `${game.orders[0].name}'s ticket · tap Orders` };
     if ((game.orders || []).length && tab === 'orders') return { text: `Stock the pantry below to give ${game.orders[0].name}'s order` };
     const hireable = E.STAFF.find(r => !E.staffLevel(game, r.id) && E.staffNext(game, r.id).cost <= game.cash);
     if (hireable && tab !== 'shop') return { text: `You can hire a ${hireable.name} in the Shop` };
@@ -2155,85 +2533,64 @@ function App() {
   }, [game, tab, rush, frenzy]);
 
   return (
-    <div className="mx-auto max-w-md h-dvh flex flex-col bg-bean sm:border-x sm:border-mocha/40">
-      {/* header */}
-      <header className="px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2 bg-espresso border-b border-mocha/50 shadow-[0_4px_12px_rgba(0,0,0,.35)] z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber">
-            <Icon name="Bean" size={18} />
-            <span className="font-display font-semibold tracking-wide">Bean Baron</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {game.rp > 0 && (
-              <div className="flex items-center gap-1 text-xs text-amber bg-roast rounded-full px-2.5 py-1 border border-amber/40 tabular">
-                <Icon name="Sparkles" size={13} /> {game.rp} RP · +{game.rp * 2}%
-              </div>
-            )}
-            <button onClick={toggleMusic} aria-label={music ? 'Music off' : 'Music on'} className={"p-1 rounded-full " + (music ? 'text-amber' : 'text-latte/40')}><Icon name="Music" size={18} /></button>
-            <button onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="text-latte/60 hover:text-latte p-1 rounded-full"><Icon name={muted ? 'VolumeX' : 'Volume2'} size={18} /></button>
-          </div>
+    <div className="mx-auto max-w-md h-dvh flex flex-col bg-bean sm:border-x sm:border-mocha relative overflow-hidden">
+      {/* top bar */}
+      <header className="shrink-0 px-3 pt-[max(env(safe-area-inset-top),8px)] pb-2 bg-[#15181d] text-white z-20 flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-white rounded-full pl-1 pr-3 py-1 shadow-[0_3px_0_#0b0d10]">
+          <span className="w-7 h-7 rounded-full bg-gradient-to-b from-[#ffd54a] to-[#f2a100] border-2 border-[#c47d00] flex items-center justify-center text-[#7a4a00] font-display font-bold text-sm">$</span>
+          <span className="font-display font-bold text-xl text-foam tabular leading-none"><SmoothCash value={game.cash} /></span>
+          <span className={"text-[10px] tabular leading-none " + (rush || review ? 'text-amber font-bold' : 'text-latte')}>{rate(cps)}</span>
         </div>
-        <div className="font-display font-bold text-4xl tabular leading-tight mt-1 text-foam"><SmoothCash value={game.cash} /></div>
-        <div className="text-latte/80 text-sm tabular flex items-center gap-2 flex-wrap min-h-[26px]">
-          <span className={rush ? 'text-amber font-bold' : ''}>{rate(cps)}</span>
-          <span className="text-latte/50">·</span>
-          <span className={frenzy ? 'text-amber font-bold' : ''}>{E.fmtCash(tapV, tapV < 10 ? 1 : undefined)} per tap</span>
-          {rush && <BuffChip icon="Flame" label={'×' + E.RUSH_MULT} left={E.buffLeft(game, 'rush')} />}
-          {frenzy && <BuffChip icon="Zap" label={'×' + E.FRENZY_MULT + ' taps'} left={E.buffLeft(game, 'frenzy')} />}
-          {review && <BuffChip icon="Newspaper" label={'×' + E.REVIEW_MULT + ' review'} left={E.buffLeft(game, 'review')} />}
-        </div>
+        <div className="flex-1" />
+        {game.rp > 0 && <span className="flex items-center gap-1 text-xs bg-white/10 rounded-full px-2.5 py-1 tabular text-amber"><Icon name="Sparkles" size={13} /> {game.rp} RP</span>}
+        <button onClick={toggleMusic} aria-label={music ? 'Music off' : 'Music on'} className="p-1.5 rounded-full"><Icon name="Music" size={18} className={music ? 'text-amber' : 'text-white/40'} /></button>
+        <button onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="p-1.5 rounded-full text-white/80"><Icon name={muted ? 'VolumeX' : 'Volume2'} size={18} /></button>
+        <button onClick={() => setTab('stats')} aria-label="Settings and stats" className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center"><Icon name="Settings" size={20} /></button>
       </header>
 
-      <div className="relative flex-1 min-h-0 flex flex-col">
+      <div className="relative flex-1 min-h-0">
+        {/* the café */}
+        <div ref={heroRef} onPointerDown={onHeroTap} className="absolute inset-0 overflow-hidden bg-bean cursor-pointer">
+          <Cafe gameRef={gameRef} sceneRef={sceneRef} />
+          {floaters.map(f => (
+            <span key={f.id} className={"floater font-display font-bold text-amber " + (frenzy ? 'text-3xl' : 'text-2xl')} style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
+          ))}
+        </div>
+        {/* buffs and the hint */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[56%] flex flex-col items-center gap-1 pointer-events-none z-20">
+          {(rush || frenzy || review) && <div className="flex gap-1 flex-wrap justify-center">
+            {rush && <BuffChip icon="Flame" label={'×' + E.RUSH_MULT} left={E.buffLeft(game, 'rush')} />}
+            {frenzy && <BuffChip icon="Zap" label={'×' + E.FRENZY_MULT + ' taps'} left={E.buffLeft(game, 'frenzy')} />}
+            {review && <BuffChip icon="Newspaper" label={'×' + E.REVIEW_MULT + ' review'} left={E.buffLeft(game, 'review')} />}
+          </div>}
+          <div className={"text-[11px] text-center truncate max-w-full rounded-full px-3 py-1 bg-white/90 shadow-[0_2px_0_#c9d3de] " + (hint.hot ? 'text-ember font-bold' : hint.idle ? 'text-latte uppercase tracking-wide' : 'text-foam')}>{hint.text}</div>
+        </div>
+        {/* floating buttons */}
+        <div className="absolute left-2 top-2 flex flex-col gap-2 z-20">
+          <SideButton icon="Store" label="Shop" onClick={() => setTab('shop')} dot={E.nextCafe(game) && E.nextCafe(game).cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i))} />
+          <SideButton icon="Users" label="Staff" onClick={() => setTab('staff')} dot={E.STAFF.some(r => !E.staffLevel(game, r.id) && E.staffNext(game, r.id).cost <= game.cash)} />
+          <SideButton icon="TrendingUp" label="Boosts" onClick={() => setTab('upgrades')} dot={E.availableUpgrades(game).some(u => E.upgradeCost(game, u) <= game.cash)} />
+        </div>
+        <div className="absolute right-2 top-2 flex flex-col gap-2 z-20">
+          <SideButton icon="Receipt" label="Orders" onClick={() => setTab('orders')} badge={(game.orders || []).length} dot={(game.orders || []).some(o => E.canFill(game, o))} />
+          <SideButton icon="Sparkles" label="Sell" onClick={() => setTab('prestige')} dot={E.rpGain(game) > 0 || E.PERKS.some(p => !game.perks[p.id] && p.cost <= E.rpAvailable(game))} />
+          <SideButton icon="BarChart3" label="Stats" onClick={() => setTab('stats')} />
+        </div>
         {/* toasts */}
-        <div className="absolute bottom-2 left-3 right-3 z-30 flex flex-col gap-1.5 pointer-events-none">
+        <div className="absolute bottom-[132px] left-3 right-3 z-30 flex flex-col gap-1.5 pointer-events-none">
           {toasts.map(t => (
-            <div key={t.id} className={"toast-in flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold shadow-xl leading-tight " + (t.kind === 'gold' ? 'bg-amber text-espresso' : 'bg-foam text-espresso')}>
-              <Icon name={TOAST_ICON[t.kind]} size={15} className={"shrink-0 " + (t.kind === 'gold' ? '' : 'text-ember')} /> <span>{t.text}</span>
+            <div key={t.id} className={"toast-in flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold shadow-xl leading-tight " + (t.kind === 'gold' ? 'bg-amber text-white' : 'bg-foam text-white')}>
+              <Icon name={TOAST_ICON[t.kind]} size={15} className={"shrink-0 " + (t.kind === 'gold' ? '' : 'text-amber')} /> <span>{t.text}</span>
             </div>
           ))}
         </div>
-
-        {/* the café */}
-        <section className={"relative shrink-0 flex flex-col " + (tab === 'cafe' ? 'flex-1 min-h-0' : '')} style={tab === 'cafe' ? undefined : { height: heroH + 18 }}>
-          <div ref={heroRef} onPointerDown={onHeroTap} className="relative flex-1 min-h-0 overflow-hidden bg-bean cursor-pointer">
-            <Cafe gameRef={gameRef} sceneRef={sceneRef} />
-            {floaters.map(f => (
-              <span key={f.id} className={"floater font-display font-bold text-amber " + (frenzy ? 'text-3xl' : 'text-2xl')} style={{ left: f.x + '%', top: f.y + '%' }}>{f.text}</span>
-            ))}
-            {(tab === 'cafe' || heroH >= 120) && <div className={"absolute top-2 left-2 right-12 text-xs tracking-wide truncate rounded-full px-3 py-1 bg-bean/70 backdrop-blur-[2px] w-fit max-w-full " + (hint.hot ? 'text-amber font-bold' : hint.idle ? 'text-latte/80 uppercase' : 'text-latte/90')}>{hint.text}</div>}
-            <button onPointerDown={e => e.stopPropagation()} onClick={() => setTab(tab === 'cafe' ? 'shop' : 'cafe')} aria-label={tab === 'cafe' ? 'Back to the shop' : 'Open the café view'}
-              className="absolute top-1.5 right-2 w-8 h-8 rounded-full bg-bean/70 text-latte/80 flex items-center justify-center backdrop-blur-[2px]">
-              <Icon name={tab === 'cafe' ? 'Minimize2' : 'Maximize2'} size={16} />
-            </button>
-          </div>
-          {tab === 'cafe' && <Ticker sceneRef={sceneRef} game={game} />}
-          {tab !== 'cafe' && (
-            <div onPointerDown={onGripDown} onPointerMove={onGripMove} onPointerUp={onGripUp} onPointerCancel={onGripUp} onDoubleClick={toggleHero}
-              role="separator" aria-label="Drag to resize the café view" title="Drag to resize · double-tap to snap"
-              className="shrink-0 h-[18px] bg-espresso border-t border-mocha/50 flex items-center justify-center cursor-row-resize select-none" style={{ touchAction: 'none' }}>
-              <span className="w-12 h-1.5 rounded-full bg-latte/40" />
-            </div>
-          )}
-        </section>
-        {tab !== 'orders' && <OrderRail game={game} onFill={fillOrder} />}
-
-        {/* tab panel */}
-        {tab !== 'cafe' && <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-4">
-          {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} buyStock={buyStock} hire={hire} pulses={pulses} onMove={() => setConfirmMove(true)} />}
-          {tab === 'orders' && <Orders game={game} qty={qty} setQty={setQty} buyStock={buyStock} onFill={fillOrder} />}
-          {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
-          {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
-          {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
-        </main>}
-
         {/* golden bean */}
         {game.gold && (
           <button aria-label="Golden bean" onPointerDown={onGold}
             className="gold-bean absolute z-30 w-16 h-16 rounded-full flex items-center justify-center"
             style={{ left: game.gold.x + '%', top: game.gold.y + '%',
               background: `conic-gradient(#F2A65A ${Math.max(0, (game.gold.until - game.playtime) / game.gold.life) * 360}deg, rgba(43,23,13,.6) 0)` }}>
-            <span className="w-[52px] h-[52px] rounded-full bg-gradient-to-b from-[#ffd27a] to-[#e08a2a] text-espresso flex items-center justify-center shadow-inner">
+            <span className="w-[52px] h-[52px] rounded-full bg-gradient-to-b from-[#ffd27a] to-[#e08a2a] text-[#3a2214] flex items-center justify-center shadow-inner">
               <Icon name="Bean" size={30} strokeWidth={2.4} />
             </span>
           </button>
@@ -2241,26 +2598,21 @@ function App() {
         {bursts.map(b => b.parts.map((p, i) => (
           <span key={b.id + '-' + i} className="burst z-30" style={{ left: b.x + '%', top: b.y + '%', '--dx': p.dx + 'px', '--dy': p.dy + 'px' }} />
         )))}
-      </div>
+        <div className="absolute bottom-0 left-0 right-0 z-20"><OrderRail game={game} onFill={fillOrder} /></div>
 
-      {/* bottom tabs */}
-      <nav className="shrink-0 bg-espresso border-t border-mocha/60 pb-[env(safe-area-inset-bottom)] grid grid-cols-6">
-        {TABS.map(([id, label, icon]) => {
-          const on = tab === id;
-          const badge = (id === 'prestige' && (E.rpGain(game) > 0 || E.PERKS.some(p => !game.perks[p.id] && p.cost <= E.rpAvailable(game))))
-            || (id === 'upgrades' && tab !== 'upgrades' && E.availableUpgrades(game).some(u => E.upgradeCost(game, u) <= game.cash))
-            || (id === 'shop' && tab !== 'shop' && E.nextCafe(game) && E.nextCafe(game).cost <= game.cash && E.GENS.some((g, i) => E.cafeFull(game, i)))
-            || (id === 'orders' && tab !== 'orders' && (game.orders || []).some(o => E.canFill(game, o) || E.orderMissingCost(game, o) <= game.cash));
-          return (
-            <button key={id} onClick={() => setTab(id)} aria-current={on ? 'page' : undefined}
-              className={"relative flex flex-col items-center gap-0.5 py-2.5 text-[9px] font-bold uppercase tracking-wide transition-colors " + (on ? "text-amber" : "text-latte/60")}>
-              <span className={"rounded-full px-3 py-1 transition-colors " + (on ? "bg-roast" : "")}><Icon name={icon} size={19} /></span>
-              {label}
-              {badge && <span className="absolute top-1.5 right-1/2 translate-x-5 w-2.5 h-2.5 rounded-full bg-amber shadow-[0_0_8px_#F2A65A]" />}
-            </button>
-          );
-        })}
-      </nav>
+        {tab !== 'cafe' && (
+          <Sheet title={PANEL_TITLES[tab] || ''} onClose={() => setTab('cafe')}>
+            <main ref={mainRef} className="min-h-0 overflow-y-auto scroll-soft px-3 pt-3 pb-[max(env(safe-area-inset-bottom),20px)]">
+              {tab === 'shop' && <Shop game={game} qty={qty} setQty={setQty} buy={buyGen} buyStock={buyStock} hire={hire} pulses={pulses} onMove={() => setConfirmMove(true)} />}
+              {tab === 'staff' && <div className="flex flex-col gap-2.5"><StaffSection game={game} hire={hire} pulses={pulses} /></div>}
+              {tab === 'orders' && <Orders game={game} qty={qty} setQty={setQty} buyStock={buyStock} onFill={fillOrder} />}
+              {tab === 'upgrades' && <Upgrades game={game} buy={buyUpgrade} pulses={pulses} />}
+              {tab === 'prestige' && <Prestige game={game} onSell={() => setConfirmPrestige(true)} buyPerk={buyPerk} />}
+              {tab === 'stats' && <Stats game={game} setGame={setGame} showToast={showToast} onReset={() => setConfirmReset(true)} />}
+            </main>
+          </Sheet>
+        )}
+      </div>
 
       {game.awayReport && game.awayReport.cash > 0 && (
         <Modal onClose={() => setGame(g => ({ ...g, awayReport: null }))}>
@@ -2413,31 +2765,7 @@ function Shop({ game, qty, setQty, buy, buyStock, hire, pulses, onMove }) {
           </Card>
         );
       })}
-      <div className="flex items-center justify-between mt-2">
-        <span className="text-xs font-bold uppercase tracking-widest text-latte/60">Staff</span>
-        <span className="text-[11px] text-latte/50">they do the busywork</span>
-      </div>
-      {E.STAFF.map(r => {
-        const lv = E.staffLevel(game, r.id), cur = E.staffCfg(game, r.id), nx = E.staffNext(game, r.id);
-        const affordable = !!nx && nx.cost <= game.cash;
-        return (
-          <Card key={r.id} onClick={() => nx && hire(r.id)} affordable={affordable} disabled={!nx} pulseKey={pulses['staff_' + r.id]} className={!nx ? 'opacity-100' : ''}>
-            <div className="flex items-center gap-3 px-3 py-3 pb-4">
-              <span className={"w-12 h-12 shrink-0 rounded-xl flex items-center justify-center " + (lv ? "bg-mint text-espresso" : affordable ? "bg-amber text-espresso" : "bg-bean text-latte/70")}><Icon name={r.icon} size={24} /></span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2"><span className="font-display font-semibold text-lg text-foam truncate">{r.name}</span><span className="text-xs text-latte/60 tabular">{lv ? `Lv ${lv}/${r.levels.length}` : 'not hired'}</span></div>
-                <div className="text-xs font-bold text-mint">{cur ? r.effect(cur) : r.blurb}</div>
-                <div className="text-xs text-latte/60 leading-snug mt-0.5">{nx ? (lv ? `Promote: ${r.effect(nx)}` : r.blurb) : 'Fully trained.'}</div>
-              </div>
-              {nx && <div className="text-right shrink-0">
-                <div className={"font-bold tabular " + (affordable ? "text-amber" : "text-latte/60")}>{E.fmtCash(nx.cost)}</div>
-                <div className="text-[10px] text-latte/50 uppercase tracking-wider">{lv ? 'promote' : 'hire'}</div>
-              </div>}
-            </div>
-            {nx && <FillBar ratio={game.cash / nx.cost} />}
-          </Card>
-        );
-      })}
+      <StaffSection game={game} hire={hire} pulses={pulses} />
       <p className="text-center text-xs text-latte/40 px-6 pt-1">{E.GENS[firstUnowned < 0 ? E.GENS.length - 1 : Math.max(0, firstUnowned)].blurb}</p>
     </div>
   );

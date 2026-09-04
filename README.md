@@ -5,7 +5,12 @@ A single-file idle coffee-shop game, also in this repository: open
 icons, all pulled from jsDelivr at load, so it needs a network connection the
 first time) with the whole game in one file.
 
-- **A living 2D café** drawn on a canvas: customers walk in off the street,
+- **A low-poly 3D café** in the style of the mobile idle-restaurant games,
+  rendered with Three.js (loaded from jsDelivr): round-headed customers and
+  chefs with real shadows, coin bursts when an order is served, a black
+  coin bar, floating buttons over the room and white pop-up panels with blue
+  cost buttons. If WebGL is unavailable the page falls back to a 2D canvas
+  drawing of the same scene: customers walk in off the street,
   queue with an order bubble, get served by baristas who run to the drip
   machines and espresso bars on the back wall, sit at tables with their cup
   and leave; roasters turn, delivery vans drive the road, franchises light
