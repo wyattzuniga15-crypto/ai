@@ -1,0 +1,38 @@
+# Secrets — never commit
+.env
+*.env
+!.env.example
+*.key
+*.pem
+*.p8
+*.p12
+*.mobileprovision
+
+# The memory database and its backups — personal data, never committed
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+backups/
+
+# Local personal config (personality.yaml is committed as a default;
+# a personal override is not)
+config/personality.local.yaml
+config/settings.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Downloaded embedding model
+models/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.DS_Store
