@@ -1791,7 +1791,10 @@ const BeanBaronScene = (() => {
         const dt = Math.min(0.1, S.t - lastDrawT); lastDrawT = S.t;
         if (S.staticsDirty) { S.staticsDirty = false; R.buildStatic(); }
         // like the reference: the back wall sits near the top of the screen, a sliver of town above it
-        const top = S.L.interiorTop - 64;
+        let top = S.L.interiorTop - 64;
+        const contentBottom = S.L.roadTop + S.L.roadH + 30;
+        const slack = visH - (contentBottom - top);
+        if (slack > 0) top -= slack * 0.55;                 // a short lot sits in the middle of the view
         S.viewLeft = 0; S.viewTop = top; S.viewY = top;
         R.aim(top + visH / 2);
         R.render(dt, night, nightShift);
