@@ -28,6 +28,8 @@ export interface LoadedChunk {
   dirtyGeometry: boolean;
   /** Block entities keyed by world "x,y,z". */
   entities: Map<string, BlockEntity>;
+  /** Saved mobs (JSON) waiting to be restored by the entity manager. */
+  pendingMobs: string | null;
 }
 
 export interface RaycastHit {
@@ -50,7 +52,7 @@ export interface WorldOptions {
   models: ModelsJson;
   atlas: AtlasJson;
   /** Supplies saved chunk data, or null to generate. */
-  loadChunk: (cx: number, cz: number) => Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities?: string | null } | null>;
+  loadChunk: (cx: number, cz: number) => Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities?: string | null; mobs?: string | null } | null>;
 }
 
 const FACE_NORMALS: [number, number, number][] = [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
@@ -69,7 +71,9 @@ export class World {
   stats = { chunks: 0, pending: 0, meshed: 0, drawn: 0 };
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
   onBlockChanged: ((x: number, y: number, z: number, oldState: number, newState: number) => void) | null = null;
+  onChunkUnloaded: ((c: LoadedChunk) => void) | null = null;
   private pendingEdits: number[] = [];
+  private readonly pendingMobs = new Map<string, string | null>();
   private readonly loadChunk: WorldOptions['loadChunk'];
   private readonly dirtyColumns = new Set<string>();
   private readonly pendingEntities = new Map<string, string | null>();
@@ -310,8 +314,9 @@ export class World {
         const key = chunkKey(msg.cx, msg.cz);
         let c = this.chunks.get(key);
         if (!c) {
-          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)) };
+          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)), pendingMobs: this.pendingMobs.get(key) ?? null };
           this.pendingEntities.delete(key);
+          this.pendingMobs.delete(key);
           this.chunks.set(key, c);
         } else {
           c.blocks = msg.blocks;
@@ -348,6 +353,7 @@ export class World {
         const key = chunkKey(msg.cx, msg.cz);
         const c = this.chunks.get(key);
         if (c) {
+          this.onChunkUnloaded?.(c);
           this.removeMeshes(c);
           this.chunks.delete(key);
         }
@@ -357,6 +363,7 @@ export class World {
         for (const [cx, cz] of msg.keys) {
           this.loadChunk(cx, cz).then((data) => {
             if (data?.entities) this.pendingEntities.set(chunkKey(cx, cz), data.entities);
+            if (data?.mobs) this.pendingMobs.set(chunkKey(cx, cz), data.mobs);
             this.send({ type: 'chunkSource', cx, cz, blocks: data?.blocks ?? null, biomes: data?.biomes ?? null }, data ? [data.blocks.buffer] : []);
           });
         }

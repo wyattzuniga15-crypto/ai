@@ -1,5 +1,6 @@
 /** Evaluates vanilla-format loot tables (data/loot/*.json) for block drops and more. */
 import lootBlocks from '../../data/loot/blocks.json';
+import lootEntities from '../../data/loot/entities.json';
 import tagsJson from '../../data/tags.json';
 import type { ItemStack } from './inventory.ts';
 import { items } from './registry.ts';
@@ -7,6 +8,7 @@ import { blocks } from '../blocks/registry.ts';
 
 type Json = Record<string, unknown>;
 const blockTables = lootBlocks as Record<string, Json>;
+const entityTables = lootEntities as Record<string, Json>;
 const itemTags = (tagsJson as { item: Record<string, string[]> }).item;
 
 export interface LootContext {
@@ -15,6 +17,11 @@ export interface LootContext {
   /** explosion radius when destroyed by an explosion */
   explosion?: number;
   random: () => number;
+  killedByPlayer?: boolean;
+  /** Looting level of the killing weapon. */
+  looting?: number;
+  /** Whether the entity was on fire (cooked drops). */
+  onFire?: boolean;
 }
 
 function stripTag(v: string): string {
@@ -105,8 +112,13 @@ function checkCondition(c: Json, ctx: LootContext): boolean {
       return ((c.terms ?? []) as Json[]).some((t) => checkCondition(t, ctx));
     case 'all_of':
       return ((c.terms ?? []) as Json[]).every((t) => checkCondition(t, ctx));
-    case 'entity_properties':
     case 'killed_by_player':
+      return !!ctx.killedByPlayer;
+    case 'entity_properties': {
+      const pred = (c.predicate ?? {}) as { flags?: { is_on_fire?: boolean } };
+      if (pred.flags?.is_on_fire !== undefined) return pred.flags.is_on_fire === !!ctx.onFire;
+      return c.entity === 'this';
+    }
     case 'damage_source_properties':
       return false;
     default:
@@ -156,6 +168,8 @@ function applyFunctions(stack: ItemStack, fns: unknown, ctx: LootContext): ItemS
         }
         break;
       }
+      case 'furnace_smelt':
+        break;
       case 'enchanted_count_increase': {
         const lvl = enchantLevel(ctx.tool, stripTag(String(f.enchantment ?? '')));
         if (lvl > 0) {
@@ -243,6 +257,19 @@ export function evalTable(table: Json, ctx: LootContext): ItemStack[] {
     else merged.push(t);
   }
   return merged;
+}
+
+/** Drops for a mob death. */
+export function entityDrops(type: string, killedByPlayer: boolean, looting = 0, onFire = false, random: () => number = Math.random): ItemStack[] {
+  const table = entityTables[type];
+  if (!table) return [];
+  const ctx: LootContext = { tool: looting > 0 ? { id: 'diamond_sword', count: 1, enchantments: { looting } } : null, random, killedByPlayer, looting, onFire };
+  const drops = evalTable(table, ctx);
+  if (onFire) {
+    const cooked: Record<string, string> = { beef: 'cooked_beef', porkchop: 'cooked_porkchop', mutton: 'cooked_mutton', chicken: 'cooked_chicken', cod: 'cooked_cod', salmon: 'cooked_salmon', rabbit: 'cooked_rabbit' };
+    for (const d of drops) if (cooked[d.id]) d.id = cooked[d.id];
+  }
+  return drops;
 }
 
 /** Drops for breaking a block. */

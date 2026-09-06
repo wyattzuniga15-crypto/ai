@@ -40,6 +40,12 @@ import { BlockMeshFactory } from '../render/blockMesh.ts';
 import { FallingBlockEntity } from '../entities/fallingBlock.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
+import { EntityManager, type ManagerHost } from '../entities/manager.ts';
+import { type Mob } from '../entities/mob.ts';
+import { entityDrops } from '../items/loot.ts';
+import { explode, exposure, explosionDamage } from '../world/explosion.ts';
+import { mobStats } from '../entities/mobTypes.ts';
+import type { AABB } from '../entities/physics.ts';
 
 export interface GameAssets {
   blocks: LoadedAtlas;
@@ -101,6 +107,9 @@ export class Game {
   readonly fallingBlocks: FallingBlockEntity[] = [];
   private eating: { ticks: number; total: number; id: string } | null = null;
   private sleeping = 0;
+  entities!: EntityManager;
+  private attackTicks = 100;
+  private readonly animalChunks: Set<string>;
 
   constructor(opts: GameOptions) {
     this.meta = opts.meta;
@@ -148,6 +157,45 @@ export class Game {
     };
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
     this.world.onBlockChanged = (x, y, z, o, n) => this.simulation.onBlockChanged(x, y, z, o, n);
+    this.animalChunks = new Set(opts.meta.animalChunks ?? []);
+    const game = this;
+    const host: ManagerHost = {
+      scene: this.renderer.scene,
+      base: import.meta.env.BASE_URL,
+      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
+      isDay: () => this.isDay(),
+      getSkyLight: (x, y, z) => this.world.getSkyLight(x, y, z),
+      getBlockLight: (x, y, z) => this.world.getBlockLight(x, y, z),
+      skyDarken: () => this.skyDarken(),
+      playerPos: () => this.player.pos,
+      playerEye: () => this.player.eyePosition(1),
+      playerBox: () => this.player.aabb(),
+      playerTargetable: () => !this.player.dead && this.player.gamemode === 'survival',
+      hurtPlayer: (amount, from) => this.hurtByMob(amount, from),
+      shootArrow: (from, to, v, d) => this.entities.shootArrow(from, to, v, d),
+      explode: (x, y, z, power, source) => this.explodeAt(x, y, z, power, source),
+      lineOfSight: (a, b) => this.lineOfSight(a, b),
+      get time() { return game.time; },
+      rng: () => rng.next(),
+      isChunkLoaded: (cx, cz) => !!this.world.getChunk(cx, cz),
+      loadedChunkCount: () => this.world.chunks.size,
+      onMobDeath: (m) => this.onMobDeath(m),
+      getBiome: (x, z) => this.world.getBiome(x, z),
+      topBlock: (x, z) => this.world.topBlock(x, z),
+      arrowHitMob: (box, damage) => {
+        const hit = this.entities.mobsIntersecting(box)[0];
+        if (!hit) return false;
+        hit.hurt(damage, this.player.pos, 'player', 0.3);
+        return true;
+      },
+    };
+    this.entities = new EntityManager(host);
+    this.world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
+    this.world.onChunkUnloaded = (c) => {
+      const mobs = this.entities.serializeChunk(c.cx, c.cz);
+      for (const m of this.entities.mobs.slice()) if ((Math.floor(m.pos.x) >> 4) === c.cx && (Math.floor(m.pos.z) >> 4) === c.cz) this.entities.remove(m);
+      if (mobs.length) void this.save.saveChunks(this.meta.id, [{ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: JSON.stringify(mobs) }]);
+    };
     this.hud = new Hud(opts.container, this.icons);
     this.chat = new Chat(opts.container);
     this.chat.onSubmit = (t) => this.handleChat(t);
@@ -297,13 +345,18 @@ export class Game {
   }
 
   async saveAll(): Promise<void> {
-    const dirty: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities: string | null }[] = [];
+    const dirty: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities: string | null; mobs: string | null }[] = [];
+    const mobChunks = new Set<string>();
+    for (const m of this.entities.mobs) if (!m.dead) mobChunks.add(`${Math.floor(m.pos.x) >> 4},${Math.floor(m.pos.z) >> 4}`);
     for (const c of this.world.chunks.values()) {
-      if (c.modified) {
-        dirty.push({ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c) });
+      const key = `${c.cx},${c.cz}`;
+      if (c.modified || mobChunks.has(key)) {
+        const mobs = this.entities.serializeChunk(c.cx, c.cz);
+        dirty.push({ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: mobs.length ? JSON.stringify(mobs) : null });
         this.world.markSaved(c);
       }
     }
+    this.meta.animalChunks = [...this.animalChunks];
     this.meta.time = this.time;
     this.meta.lastPlayed = Date.now();
     this.meta.player = this.player.serialize();
@@ -332,6 +385,9 @@ export class Game {
     this.simulation.tick(this.tickCount, pcx, pcz);
     this.tickFallingBlocks();
     this.tickEffects();
+    this.attackTicks++;
+    this.entities.tick(this.player.dead ? null : this.player.aabb());
+    if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.sleeping > 0 && --this.sleeping === 0) {
       const day = Math.floor(this.time / DAY_LENGTH);
       this.time = (day + 1) * DAY_LENGTH;
@@ -490,6 +546,18 @@ export class Game {
     this.updateTarget();
     const p = this.player;
     const t = this.target;
+    // attacking mobs takes precedence over mining
+    if (this.input.tickClicked(0) && !p.dead) {
+      const eye = p.eyePosition(1, this.tmpEye);
+      const dir = p.lookDirection(this.tmpDir);
+      const hit = this.entities.raycast(eye, dir, 3);
+      if (hit && (!t || hit.distance < t.distance)) {
+        this.attackMob(hit.mob);
+        this.breaking = null;
+        this.useCooldown = 5;
+        return;
+      }
+    }
     // mining
     if (this.input.isMouseDown(0) && t && !p.dead) {
       if (!this.breaking || this.breaking.x !== t.x || this.breaking.y !== t.y || this.breaking.z !== t.z || this.breaking.state !== t.state) {
@@ -1007,6 +1075,158 @@ export class Game {
     this.sleeping = 40;
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Mobs and combat
+  // ---------------------------------------------------------------------------------------------
+  private onChunkLoaded(cx: number, cz: number): void {
+    const c = this.world.getChunk(cx, cz);
+    if (!c) return;
+    let saved: import('../entities/mob.ts').MobSave[] | null = null;
+    if (c.pendingMobs) {
+      try {
+        saved = JSON.parse(c.pendingMobs) as import('../entities/mob.ts').MobSave[];
+      } catch {
+        saved = null;
+      }
+      c.pendingMobs = null;
+    }
+    this.entities.restoreChunk(cx, cz, saved);
+    const key = `${cx},${cz}`;
+    if (!this.animalChunks.has(key)) {
+      this.animalChunks.add(key);
+      this.entities.spawnAnimalsInChunk(cx, cz);
+    }
+  }
+
+  private lineOfSight(a: THREE.Vector3, b: THREE.Vector3): boolean {
+    const dir = b.clone().sub(a);
+    const dist = dir.length();
+    if (dist < 1e-3) return true;
+    dir.divideScalar(dist);
+    const hit = this.world.raycast(a, dir, dist, false);
+    return !hit || hit.distance >= dist - 0.01 || !blocks.stateOpaque[hit.state];
+  }
+
+  /** Light-curve brightness at a block position for entity rendering. */
+  brightnessAt(x: number, y: number, z: number): number {
+    const curve = (l: number) => l / (4 - 3 * l);
+    const sky = curve(this.world.getSkyLight(x, y, z) / 15) * this.sky.dayLight;
+    const blk = curve(this.world.getBlockLight(x, y, z) / 15);
+    let b = Math.max(sky, blk);
+    const gamma = this.uniforms.gamma.value as number;
+    b = b + (1 - Math.pow(1 - b, 2) - b) * gamma * 0.6;
+    return Math.max(0.05, b);
+  }
+
+  private armorReduction(damage: number): number {
+    const p = this.player;
+    let armor = 0;
+    let toughness = 0;
+    for (const s of p.inventory.armor) {
+      if (!s) continue;
+      const def = items.byId.get(s.id);
+      if (def?.armor) {
+        armor += def.armor.points;
+        toughness += def.armor.toughness;
+      }
+    }
+    if (armor === 0) return damage;
+    const reduction = Math.min(20, Math.max(armor / 5, armor - damage / (2 + toughness / 4))) / 25;
+    return damage * (1 - reduction);
+  }
+
+  private damageArmor(): void {
+    const p = this.player;
+    for (let i = 0; i < 4; i++) {
+      const s = p.inventory.armor[i];
+      if (!s) continue;
+      const def = items.byId.get(s.id);
+      if (!def?.durability) continue;
+      s.damage = (s.damage ?? 0) + 1;
+      if (s.damage >= def.durability) p.inventory.armor[i] = null;
+    }
+    p.inventory.version++;
+  }
+
+  hurtByMob(amount: number, from: THREE.Vector3): void {
+    const p = this.player;
+    if (p.gamemode !== 'survival' || p.dead || p.hurtTime > 0) return;
+    const reduced = this.armorReduction(amount);
+    this.damage(reduced);
+    this.damageArmor();
+    // knockback
+    const dx = p.pos.x - from.x;
+    const dz = p.pos.z - from.z;
+    const len = Math.hypot(dx, dz) || 1;
+    p.vel.x += (dx / len) * 0.4;
+    p.vel.z += (dz / len) * 0.4;
+    p.vel.y = Math.max(p.vel.y, 0.36);
+    p.exhaustion += 0.1;
+  }
+
+  private attackMob(mob: Mob): void {
+    const p = this.player;
+    const held = p.heldItem();
+    const def = held ? items.byId.get(held.id) : undefined;
+    let damage = def?.attack?.damage ?? 1;
+    const speed = def?.attack?.speed ?? 4;
+    const cooldownTicks = 20 / speed;
+    const progress = Math.min(1, this.attackTicks / cooldownTicks);
+    this.attackTicks = 0;
+    const sharpness = held?.enchantments?.sharpness ?? 0;
+    if (sharpness) damage += 0.5 * (sharpness - 1) + 1;
+    damage *= 0.2 + progress * progress * 0.8;
+    let knockback = 0.4;
+    if (p.sprinting) knockback += 0.5;
+    knockback += 0.5 * (held?.enchantments?.knockback ?? 0);
+    const crit = progress > 0.9 && !p.onGround && p.vel.y < 0 && !p.inWater && !p.sprinting;
+    if (crit) damage *= 1.5;
+    if (progress > 0.9) mob.hurt(damage, p.pos, 'player', knockback);
+    else mob.hurt(damage, p.pos, 'player', 0.2);
+    if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe')) p.inventory.damageSelected(def.behavior === 'sword' ? 1 : 2);
+    p.exhaustion += 0.1;
+    if (p.gamemode === 'survival') this.hud.showToast('');
+  }
+
+  private onMobDeath(m: Mob): void {
+    const byPlayer = m.lastHurtBy === 'player';
+    const looting = byPlayer ? this.player.heldItem()?.enchantments?.looting ?? 0 : 0;
+    for (const d of entityDrops(m.def.loot, byPlayer, looting, m.fireTicks > 0)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    if (byPlayer && m.def.xp > 0) this.addXp(m.def.xp);
+  }
+
+  explodeAt(x: number, y: number, z: number, power: number, source: Mob | null): void {
+    const p = this.player;
+    const w = {
+      getBlock: (bx: number, by: number, bz: number) => this.world.getBlock(bx, by, bz),
+      destroyBlock: (bx: number, by: number, bz: number, drop: boolean) => {
+        const state = this.world.getBlock(bx, by, bz);
+        if (state === 0) return;
+        if (drop) this.breakBlock(bx, by, bz, true);
+        else this.world.setBlock(bx, by, bz, 0);
+      },
+    };
+    explode(w, x, y, z, power);
+    const centre = new THREE.Vector3(x, y, z);
+    const hurt = (box: AABB, mid: THREE.Vector3, apply: (n: number, from: THREE.Vector3) => void) => {
+      const dist = mid.distanceTo(centre);
+      if (dist > power * 2) return;
+      const dmg = explosionDamage(power, dist, exposure(w, x, y, z, box));
+      if (dmg > 0) apply(dmg, centre);
+    };
+    if (!p.dead) hurt(p.aabb(), p.pos.clone().add(new THREE.Vector3(0, p.height / 2, 0)), (n, from) => {
+      if (p.gamemode !== 'survival') return;
+      this.damage(this.armorReduction(n), true);
+      const dir = p.pos.clone().sub(from).normalize();
+      p.vel.add(dir.multiplyScalar(0.8));
+    });
+    for (const m of this.entities.mobs) {
+      if (m === source || m.dead) continue;
+      hurt(m.aabb(), m.pos.clone().add(new THREE.Vector3(0, m.height / 2, 0)), (n, from) => m.hurt(n, from, 'other', 0.6));
+    }
+    this.hud.showToast('');
+  }
+
   openInventory(): void {
     const grid = makeGrid(2, 2);
     this.openScreen(inventoryScreen(this.player.inventory, grid), () => this.returnGrid(grid));
@@ -1123,6 +1343,7 @@ export class Game {
     this.updateOutline();
     for (const e of this.itemEntities) e.updateSprite(alpha, partialTime / 20);
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
+    this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
     this.world.flush();
     this.renderer.render();
     this.hud.update(p, this.debugText(eyeBlock), dt);
@@ -1207,7 +1428,7 @@ export class Game {
       `Day ${day}, time ${tod} (${Math.floor((tod / 1000 + 6) % 24).toString().padStart(2, '0')}:${Math.floor(((tod % 1000) / 1000) * 60).toString().padStart(2, '0')})`,
       `Chunks: ${this.world.chunks.size} loaded, ${this.world.stats.chunks} in worker, ${this.world.stats.pending} sections pending`,
       `Mode: ${p.gamemode}${p.flying ? ' (flying)' : ''}${p.sprinting ? ' sprinting' : ''}${p.sneaking ? ' sneaking' : ''}  onGround ${p.onGround}  eye in: ${eyeBlock || 'air'}`,
-      `Entities: ${this.itemEntities.length} items`,
+      `Entities: ${this.entities.mobs.length} mobs (${this.entities.count('hostile')} hostile), ${this.entities.arrows.length} arrows, ${this.itemEntities.length} items, ${this.fallingBlocks.length} falling`,
     ];
     if (t) {
       const def = blocks.blockOf(t.state);
@@ -1343,6 +1564,21 @@ export class Game {
         say(`Applied effect ${id} to Player`);
         break;
       }
+      case 'summon': {
+        const type = (args[0] ?? '').replace(/^minecraft:/, '');
+        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, skeleton, creeper, spider, cow, pig, sheep, chicken)`);
+        const dir = p.lookDirection();
+        const x = args[1] ? num(args[1], p.pos.x) : p.pos.x + dir.x * 3;
+        const y = args[2] ? num(args[2], p.pos.y) : p.pos.y;
+        const z = args[3] ? num(args[3], p.pos.z) : p.pos.z + dir.z * 3;
+        const m = this.entities.spawn(type, x, y, z, p.yaw + Math.PI);
+        say(m ? `Summoned new ${m.def.name}` : 'Could not summon');
+        break;
+      }
+      case 'butcher':
+        for (const m of this.entities.mobs.slice()) this.entities.remove(m);
+        say('Removed all mobs');
+        break;
       case 'xp': {
         const n = Number(args[0] ?? 1);
         this.addXp(n);
@@ -1350,7 +1586,7 @@ export class Game {
         break;
       }
       case 'help':
-        say('Commands: /gamemode /time /tp /give /clear /seed /kill /heal /spawnpoint /setblock /xp /weather /locate');
+        say('Commands: /gamemode /time /tp /give /clear /seed /kill /heal /spawnpoint /setblock /xp /effect /summon /butcher /weather /locate');
         break;
       default:
         err(`Unknown command '${cmd}'. Try /help`);

@@ -278,31 +278,35 @@ export class WorldGenerator {
           if (chunk.get(x, y, z) !== this.air) break;
           chunk.set(x, y, z, this.water);
         }
-        // surface layers: walk down through the column and dress the top solid runs
+        // surface layers: walk down through the column and dress every solid run that sits
+        // directly under air or water (ore and dirt blobs inside the ground are not surfaces)
         let depthBudget = 0;
-        let exposedTop = true;
+        let prev: 'air' | 'water' | 'other' = 'air';
         const steep = MOUNTAIN_BIOMES.has(biome.id) && this.detail.noise2(wx / 12, wz / 12) > 0.15;
         for (let y = 319; y >= WORLD_MIN_Y + 5; y--) {
           const s = chunk.get(x, y, z);
           if (s === this.air) {
             depthBudget = 0;
-            exposedTop = true;
+            prev = 'air';
             continue;
           }
           if (s === this.water || s === this.lava) {
             depthBudget = 0;
-            exposedTop = false;
+            prev = 'water';
             continue;
           }
           if (s !== this.stone && s !== this.deepslate) {
             depthBudget = 0;
+            prev = 'other';
             continue;
           }
-          if (depthBudget === 0) {
-            // first solid block under air or water
-            const underwater = !exposedTop || y < SEA_LEVEL - 1;
+          if (prev === 'air' || prev === 'water') {
+            // first stone block under air or water
+            const exposedTop = prev === 'air';
+            const underwater = prev === 'water' || y < SEA_LEVEL - 1;
             const beachy = y <= SEA_LEVEL + 1 && y >= SEA_LEVEL - 4 && (biome.category === 'beach' || biome.category === 'ocean' || biome.category === 'river');
             depthBudget = 3 + Math.floor(hashPos(this.seed, wx, 7, wz) * 2);
+            prev = 'other';
             if (y < 0 || steep) {
               depthBudget = 0;
               continue;
@@ -325,7 +329,8 @@ export class WorldGenerator {
             const filler = surf.filler === 'terracotta' ? this.terracottaBand(y) : surf.filler;
             chunk.set(x, y, z, this.block(filler));
             depthBudget--;
-          }
+            prev = 'other';
+          } else prev = 'other';
         }
         // freeze water surface in snowy biomes
         if (surf.snow && chunk.get(x, SEA_LEVEL - 1, z) === this.water && chunk.get(x, SEA_LEVEL, z) === this.air) chunk.set(x, SEA_LEVEL - 1, z, this.block('ice'));

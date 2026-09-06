@@ -109,3 +109,21 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 
 26. **Bed placement uses the vanilla `part`/`facing`/`occupied` states** with the head one block
     further along the player's facing; sitting in it is not simulated.
+
+27. **Mobs use the vanilla entity textures on re-created classic box models.** The owner relaxed
+    the art rule to "use the real textures"; entity textures only make sense on the box models
+    they were painted for, so `src/entities/mobTypes.ts` re-creates the classic biped, quadruped,
+    creeper, spider and chicken part layouts from public knowledge of the model format. This goes
+    beyond the original "original mob designs" brief item; if that is not wanted, the model
+    definitions are the only thing to swap. The 1.21.5+ cow and pig textures are 64x64 but keep
+    the classic net in their top half, so the classic layouts map onto them.
+
+28. **Mob movement uses `speed_attribute^2 * 2.2` blocks/tick of acceleration**, which reproduces
+    vanilla's input-vector scaling (a zombie moves about 2.3 m/s, a spider about 4 m/s). Pathing is
+    straight-line steering with auto-jump; A* comes later.
+
+29. **XP from kills and furnaces is awarded directly** instead of spawning XP orb entities for now.
+
+30. **The world generator dressed fake surfaces under ore and dirt blobs** (grass blocks inside the
+    ground), which random ticks then converted to dirt hundreds of times a second. Surfaces are now
+    only stone runs directly under air or water.

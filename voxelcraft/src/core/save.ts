@@ -14,6 +14,8 @@ export interface WorldMeta {
   gamemode: 'survival' | 'creative';
   player: PlayerSave | null;
   version: number;
+  /** Chunks that already received their initial animal spawn. */
+  animalChunks?: string[];
 }
 
 interface ChunkRecord {
@@ -25,6 +27,8 @@ interface ChunkRecord {
   biomes: Uint8Array | null;
   /** JSON of block entities (containers, furnaces) keyed "x,y,z" in chunk-local coordinates. */
   entities?: string | null;
+  /** JSON list of mobs inside the chunk. */
+  mobs?: string | null;
 }
 
 const DB_NAME = 'voxelcraft';
@@ -118,14 +122,14 @@ export class SaveManager {
     });
   }
 
-  async loadChunk(world: string, cx: number, cz: number): Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities: string | null } | null> {
+  async loadChunk(world: string, cx: number, cz: number): Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities: string | null; mobs: string | null } | null> {
     const rec = await tx<ChunkRecord | undefined>('chunks', 'readonly', (s) => s.get(chunkRecordKey(world, cx, cz)));
     if (!rec) return null;
     const raw = inflateSync(rec.blocks);
-    return { blocks: new Uint16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2).slice(), biomes: rec.biomes ? rec.biomes.slice() : null, entities: rec.entities ?? null };
+    return { blocks: new Uint16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2).slice(), biomes: rec.biomes ? rec.biomes.slice() : null, entities: rec.entities ?? null, mobs: rec.mobs ?? null };
   }
 
-  async saveChunks(world: string, chunks: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities?: string | null }[]): Promise<void> {
+  async saveChunks(world: string, chunks: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities?: string | null; mobs?: string | null }[]): Promise<void> {
     if (!chunks.length) return;
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
@@ -140,6 +144,7 @@ export class SaveManager {
           blocks: deflateSync(new Uint8Array(c.blocks.buffer, c.blocks.byteOffset, c.blocks.byteLength), { level: 6 }),
           biomes: c.biomes.slice(),
           entities: c.entities ?? null,
+          mobs: c.mobs ?? null,
         };
         s.put(rec);
       }
@@ -168,6 +173,7 @@ export class SaveManager {
       files[`chunks/${r.cx}.${r.cz}.bin`] = r.blocks;
       if (r.biomes) files[`chunks/${r.cx}.${r.cz}.biomes`] = r.biomes;
       if (r.entities) files[`chunks/${r.cx}.${r.cz}.entities.json`] = new TextEncoder().encode(r.entities);
+      if (r.mobs) files[`chunks/${r.cx}.${r.cz}.mobs.json`] = new TextEncoder().encode(r.mobs);
     }
     const zip = zipSync(files, { level: 0 });
     return new Blob([zip as unknown as BlobPart], { type: 'application/zip' });
@@ -192,7 +198,8 @@ export class SaveManager {
         const cz = Number(m[2]);
         const biomes = files[`chunks/${cx}.${cz}.biomes`] ?? null;
         const ent = files[`chunks/${cx}.${cz}.entities.json`];
-        s.put({ key: chunkRecordKey(meta.id, cx, cz), world: meta.id, cx, cz, blocks: bytes, biomes, entities: ent ? new TextDecoder().decode(ent) : null } satisfies ChunkRecord);
+        const mobs = files[`chunks/${cx}.${cz}.mobs.json`];
+        s.put({ key: chunkRecordKey(meta.id, cx, cz), world: meta.id, cx, cz, blocks: bytes, biomes, entities: ent ? new TextDecoder().decode(ent) : null, mobs: mobs ? new TextDecoder().decode(mobs) : null } satisfies ChunkRecord);
       }
       t.oncomplete = () => resolve();
       t.onerror = () => reject(t.error);

@@ -44,14 +44,16 @@ coverage counts in `COVERAGE.md`.
 - [x] Furnace / blast furnace / smoker: vanilla fuel table, cook times, XP, lit block state, progress sprites
 - [x] Chest (27), double chest (54, vanilla left/right pairing), barrel, ender chest (per player), shulker box, hopper, dropper, dispenser GUIs; contents saved with the chunk and spilled on break
 - [ ] Shulker boxes keeping their contents as an item (needs item components)
-- [ ] Tools/armor/durability everywhere, armor points, attack damage/cooldown (tool durability and mining speed done; armor and attacks wait for mobs)
+- [x] Tools/armor/durability everywhere: armor points and toughness reduce mob damage (vanilla formula), armor takes durability, attack damage and attack-speed cooldown, crits, knockback, sharpness/knockback/looting enchantment hooks
 - [x] Food: eating by holding use (32 ticks, 16 for dried kelp), nutrition/saturation, food effects, containers returned; exhaustion for sprinting, jumping, mining, regen
 - [x] Status effects: regeneration, poison, wither, hunger, saturation, instant health/damage, speed/slowness, jump boost, haste/mining fatigue, resistance, fire resistance, water breathing, night vision (`/effect`); no HUD icons yet
 - [x] Block behaviors: doors, trapdoors, fence gates, buttons (timed), levers, beds (two-block placement, spawn point, sleeping skips the night), ladders (climbing), snow layers (stacking, melting), falling blocks (sand, gravel, concrete powder, anvils), leaves decay, saplings grow into trees, grass/mycelium spread and decay, crops/stems/berries/cane/cactus/bamboo growth, farmland hydration, bone meal, cake, ice melting, plants and torches losing support
 - [ ] Signs (text editing GUI and rendering)
 - [x] Water and lava flow (sources, levels, falling columns, slope preference, infinite water, obsidian/cobblestone), buckets (fill and empty), farmland hydration
-- [ ] Basic mobs with original designs: zombie, skeleton, creeper-role, spider, cow, pig, sheep, chicken; spawning by light level, despawn
-- [ ] XP orbs, levels, death drops
+- [x] Basic mobs: zombie, skeleton (bow), creeper (fuse + explosion), spider (climbs, neutral in light), cow, pig, sheep, chicken; goal-based AI (wander, look, panic, target, melee, ranged, swell); burning in sunlight; vanilla light-level spawning with mob caps, 24-block minimum and despawning; animal groups on chunk generation; loot from the entity loot tables; mobs saved per chunk
+- [ ] More mobs: villagers, wolves, cats, horses, bees, fish, drowned, husks, strays, witches, slimes, phantoms, endermen, illagers, nether and end mobs
+- [ ] XP orbs as entities (XP is currently awarded directly on kills and furnace output); levels and death drops done
+- [ ] Mob sounds, hit particles, fire rendering, baby variants, breeding, shearing and milking
 - [ ] Sound effects (synthesized)
 
 ## Phase 3 – world depth

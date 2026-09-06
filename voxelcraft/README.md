@@ -32,7 +32,7 @@ biomes, enchantments, effects, collision shapes) from the fetched sources.
 | Space | Jump · double-tap in Creative to fly |
 | Shift | Sneak (you will not walk off edges) |
 | Ctrl or double-tap W | Sprint |
-| Left mouse | Mine (hold) |
+| Left mouse | Mine (hold) · attack mobs |
 | Right mouse | Place / use (hold to eat, doors, buttons, beds at night, buckets, bone meal) |
 | Middle mouse | Pick block (Creative) |
 | 1–9, mouse wheel | Select hotbar slot |
@@ -46,7 +46,7 @@ biomes, enchantments, effects, collision shapes) from the fetched sources.
 
 Commands: `/gamemode <survival|creative|spectator>`, `/time set <day|noon|night|midnight|n>`,
 `/tp x y z`, `/give <item> [count]`, `/clear`, `/seed`, `/kill`, `/heal`, `/setblock x y z <block>`,
-`/xp n`, `/spawnpoint`, `/help`.
+`/xp n`, `/effect give @s <effect> [seconds] [amplifier]`, `/summon <mob>`, `/butcher`, `/spawnpoint`, `/help`.
 
 ## Tests
 
