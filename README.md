@@ -1,3 +1,10 @@
+# Games
+
+This repository holds a few small games. **Voxelcraft**, a browser voxel survival game
+built on Minecraft Java 1.21.11 rules, lives in [`voxelcraft/`](voxelcraft/README.md)
+(`cd voxelcraft && npm install && npm run assets && npm run dev`). The rest of this file
+describes Cube Roll.
+
 # Cube Roll
 
 A single-file 3D block-rolling puzzle game. No build step, no dependencies, no

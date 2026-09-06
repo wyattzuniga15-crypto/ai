@@ -1,0 +1,35 @@
+{
+  "name": "voxelcraft",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Browser voxel survival game modelled on Minecraft Java 1.21.11 mechanics",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "assets": "tsx tools/fetch-assets.ts",
+    "atlas": "tsx tools/build-atlas.ts",
+    "data": "tsx tools/gen-data.ts",
+    "textures:gen": "tsx tools/gen-textures.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vite build && playwright test"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.12.0",
+    "@types/three": "^0.185.4",
+    "pngjs": "^7.0.0",
+    "@types/pngjs": "^6.0.5",
+    "tsx": "^4.23.13",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

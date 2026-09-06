@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.cache/
+test-results/
+playwright-report/
+
+# Mojang-derived assets are fetched by `npm run assets`, never committed.
+assets/textures/
+assets/lang/
+assets/blockstates/
+assets/models/
+public/atlas/
+public/models.json
+public/textures/
+public/lang/
+assets/items/

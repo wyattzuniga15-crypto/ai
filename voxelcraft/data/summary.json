@@ -1,0 +1,19 @@
+{
+  "version": "1.21.11",
+  "blocks": 1166,
+  "items": 1505,
+  "recipes": {
+    "crafting": 1058,
+    "smelting": 73,
+    "blasting": 25,
+    "smoking": 9,
+    "campfire": 9,
+    "stonecutting": 254,
+    "smithing": 30,
+    "special": 12
+  },
+  "mobs": 157,
+  "biomes": 65,
+  "enchantments": 43,
+  "effects": 40
+}

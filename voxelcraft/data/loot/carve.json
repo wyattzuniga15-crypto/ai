@@ -1,0 +1,1 @@
+{"pumpkin":{"type":"block_interact","pools":[{"bonus_rolls":0,"entries":[{"type":"item","functions":[{"add":false,"count":4,"function":"set_count"}],"name":"pumpkin_seeds"}],"rolls":1}]}}
