@@ -13,7 +13,7 @@ registered (data present, no behavior). Regenerate the data counts with `npm run
 | Smelting / blasting / smoking / campfire | 73 / 25 / 9 / 9 | furnace, blast furnace, smoker fully working | – | campfire cooking |
 | Stonecutting / smithing | 254 / 30 | 0 | – | all |
 | Loot tables | 1085 blocks, 158 entities, 121 chests, gameplay/archaeology | block drops (silk touch, fortune, block-state conditions) and entity drops (killed-by-player, looting, cooked when burning) | – | chest/gameplay tables unused |
-| Mobs | 157 entity types (91 with stats) | 17 (zombie, husk, drowned, skeleton, stray, wither skeleton, creeper, spider, cave spider, slime ×3 sizes, enderman, cow, pig, sheep, chicken) with AI, spawning, loot, combat | – | 140 |
+| Mobs | 157 entity types (91 with stats) | 17 (zombie, husk, drowned, skeleton, stray, wither skeleton, creeper, spider, cave spider, slime ×3 sizes, enderman, cow, pig, sheep, chicken) with AI, spawning, loot, combat, breeding/babies for the four animals, sheep shearing and grazing, milking, eggs | – | 140 |
 | Biomes | 65 | 48 placed by the generator with surfaces, colours and vegetation | rest have colours/data only | nether/end (no dimensions yet) |
 | Enchantments | 43 | all 43 obtainable from the table/anvil with vanilla costs and exclusions; efficiency, silk touch, fortune, unbreaking, sharpness, knockback, looting have gameplay effects | – | 36 enchantments have no gameplay effect yet |
 | Status effects | 40 | 16 (regeneration, poison, wither, hunger, saturation, instant health/damage, speed, slowness, jump boost, haste, mining fatigue, resistance, fire resistance, water breathing, night vision) | – | 24 (mostly need mobs, combat or visuals) |

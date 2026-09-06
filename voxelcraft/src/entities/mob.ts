@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import type { BlockSource } from './physics.ts';
 import { aabbIntersects, boxesIn, isFluidAt, sweep, type AABB } from './physics.ts';
-import { buildModel, type BuiltModel, type ModelDef } from './boxModel.ts';
+import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './boxModel.ts';
+import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
 
@@ -43,6 +44,15 @@ export interface MobWorld extends BlockSource {
   playerTargetable(): boolean;
   /** Status effect applied to the player by a mob attack or arrow. */
   addPlayerEffect(id: string, ticks: number, amplifier?: number): void;
+  /** Sets the player on fire (burning zombies pass their flames on). */
+  ignitePlayer(ticks: number): void;
+  /** Living mobs within `range` blocks of a point. */
+  mobsNear(x: number, y: number, z: number, range: number): Mob[];
+  spawnMob(type: string, x: number, y: number, z: number, baby: boolean): Mob | null;
+  dropItem(id: string, count: number, x: number, y: number, z: number): void;
+  giveXp(amount: number, x: number, y: number, z: number): void;
+  emitParticles(kind: 'heart' | 'poof' | 'angry', x: number, y: number, z: number, count: number, w: number, h: number): void;
+  setBlock(x: number, y: number, z: number, state: number): void;
   playSound(name: string, x: number, y: number, z: number, pitch?: number): void;
   /** Deal damage to the player from a mob. */
   hurtPlayer(amount: number, from: THREE.Vector3): void;
@@ -87,6 +97,33 @@ export interface MobSave {
 
 let nextId = 1;
 
+/** Chunk material and fire tile ids used to draw burning mobs; set once by the game. */
+export const mobFireAssets: { material: THREE.Material | null; tiles: [number, number]; viewYaw: number } = { material: null, tiles: [0, 0], viewYaw: 0 };
+
+/** Camera-facing fire quads stacked over an entity's height (vanilla EntityRenderDispatcher.renderFlame). */
+function fireGeometry(width: number, height: number): THREE.BufferGeometry {
+  const w = width * 1.4;
+  const pos: number[] = [], uv: number[] = [], tile: number[] = [], color: number[] = [], light: number[] = [], idx: number[] = [];
+  let v = 0;
+  for (let k = 0; k * 1 < height; k++) {
+    const y0 = k, y1 = Math.min(height, k + 1);
+    const t = mobFireAssets.tiles[k % 2];
+    pos.push(-w / 2, y0, 0, w / 2, y0, 0, w / 2, y1, 0, -w / 2, y1, 0);
+    uv.push(0, 1, 1, 1, 1, 1 - (y1 - y0), 0, 1 - (y1 - y0));
+    for (let i = 0; i < 4; i++) { tile.push(t); color.push(1, 1, 1, 1); light.push(15, 15); }
+    idx.push(v, v + 1, v + 2, v, v + 2, v + 3);
+    v += 4;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('tile', new THREE.Float32BufferAttribute(tile, 1));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(color, 4));
+  g.setAttribute('light', new THREE.Float32BufferAttribute(light, 2));
+  g.setIndex(idx);
+  return g;
+}
+
 export class Mob {
   readonly id = nextId++;
   readonly pos = new THREE.Vector3();
@@ -130,29 +167,38 @@ export class Mob {
   private readonly tmp = new THREE.Vector3();
   /** Persistent mobs never despawn (named, bred, passive). */
   persistent: boolean;
+  private fireMesh: THREE.Mesh | null = null;
+  private woolMaterials: THREE.MeshBasicMaterial[] | null = null;
+  private readonly base: string;
 
   constructor(readonly def: MobStats, goals: Goal[], base: string, x: number, y: number, z: number) {
     this.health = def.health;
     this.goals = goals;
     this.pos.set(x, y, z);
     this.prev.copy(this.pos);
+    this.base = base;
     this.model = buildModel(def.model, base);
     if (def.scale) this.model.group.scale.setScalar(def.scale);
     this.model.group.position.copy(this.pos);
     this.persistent = def.disposition === 'passive';
   }
 
+  /** Babies are half size (vanilla AgeableMob scale 0.5). */
+  get isBaby(): boolean {
+    return this.extra.baby === true;
+  }
+
   get width(): number {
-    return this.def.width;
+    return this.def.width * (this.isBaby ? 0.5 : 1);
   }
 
   get height(): number {
-    return this.def.height;
+    return this.def.height * (this.isBaby ? 0.5 : 1);
   }
 
   aabb(pos = this.pos): AABB {
-    const h = this.def.width / 2;
-    return { minX: pos.x - h, minY: pos.y, minZ: pos.z - h, maxX: pos.x + h, maxY: pos.y + this.def.height, maxZ: pos.z + h };
+    const h = this.width / 2;
+    return { minX: pos.x - h, minY: pos.y, minZ: pos.z - h, maxX: pos.x + h, maxY: pos.y + this.height, maxZ: pos.z + h };
   }
 
   eyePos(out = new THREE.Vector3()): THREE.Vector3 {
@@ -210,10 +256,36 @@ export class Mob {
       this.fireTicks = 300;
       if (this.dead) return;
     }
+    this.ageTick(w);
     this.selectGoal(w);
     this.active?.tick(this, w);
     this.moveTick(w);
     this.animateTick();
+  }
+
+  /** Growing up, love and breeding cooldowns, chicken eggs (all kept in `extra` so saves carry them). */
+  private ageTick(w: MobWorld): void {
+    const e = this.extra;
+    if (e.baby === true) {
+      const grow = typeof e.grow === 'number' ? e.grow - 1 : 24000;
+      if (grow <= 0) {
+        delete e.baby;
+        delete e.grow;
+      } else e.grow = grow;
+    }
+    if (typeof e.love === 'number' && e.love > 0) {
+      e.love--;
+      if (this.age % 8 === 0) w.emitParticles('heart', this.pos.x, this.pos.y + this.height, this.pos.z, 1, this.width, 0.5);
+    }
+    if (typeof e.cooldown === 'number' && e.cooldown > 0) e.cooldown--;
+    if (this.def.id === 'chicken' && e.baby !== true) {
+      const egg = typeof e.egg === 'number' ? e.egg - 1 : 6000 + Math.floor(w.rng() * 6000);
+      if (egg <= 0) {
+        w.dropItem('egg', 1, this.pos.x, this.pos.y, this.pos.z);
+        w.playSound('pop', this.pos.x, this.pos.y, this.pos.z);
+        e.egg = 6000 + Math.floor(w.rng() * 6000);
+      } else e.egg = egg;
+    }
   }
 
   private selectGoal(w: MobWorld): void {
@@ -340,10 +412,45 @@ export class Mob {
     return true;
   }
 
+  /** Removes render objects that live outside the model group. */
+  destroy(): void {
+    if (this.fireMesh) {
+      this.fireMesh.parent?.remove(this.fireMesh);
+      this.fireMesh.geometry.dispose();
+      this.fireMesh = null;
+    }
+  }
+
+  private renderFire(): void {
+    const g = this.model.group;
+    const burning = this.fireTicks > 0 && !this.dead && !!mobFireAssets.material;
+    if (!burning) {
+      if (this.fireMesh) this.fireMesh.visible = false;
+      return;
+    }
+    if (!this.fireMesh) {
+      this.fireMesh = new THREE.Mesh(fireGeometry(this.def.width, this.def.height), mobFireAssets.material!);
+      this.fireMesh.frustumCulled = false;
+      g.parent?.add(this.fireMesh);
+    }
+    this.fireMesh.visible = true;
+    this.fireMesh.position.copy(g.position);
+    this.fireMesh.rotation.y = mobFireAssets.viewYaw;
+  }
+
   /** Updates the Three.js model for rendering. */
   render(alpha: number, light: number): void {
     const g = this.model.group;
     g.position.copy(this.prev).lerp(this.pos, alpha);
+    this.renderFire();
+    const baby = this.isBaby;
+    g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
+    const headPart = this.model.parts.get('head');
+    if (headPart) headPart.scale.setScalar(baby ? 2 : 1); // vanilla babies keep a full-size head
+    if (this.def.id === 'sheep') {
+      const sheared = this.extra.sheared === true;
+      for (const [name, part] of this.model.parts) if (name.startsWith('wool')) part.visible = !sheared;
+    }
     let by = this.prevBodyYaw + shortAngle(this.prevBodyYaw, this.bodyYaw) * alpha;
     g.rotation.y = by;
     const parts = this.model.parts;
@@ -432,10 +539,19 @@ export class Mob {
     const fall = this.dead ? Math.min(1, (this.deathTime + alpha) / 20) : 0;
     g.rotation.z = fall * (Math.PI / 2);
     if (fall > 0) g.position.y -= fall * 0.0;
-    // brightness and hurt flash
+    // brightness and hurt flash; sheep wool is tinted with the dye colour
     const bright = light;
-    const r = this.hurtTime > 0 || this.dead ? 1 : bright;
-    for (const m of this.model.materials) m.color.setRGB(r, this.hurtTime > 0 || this.dead ? bright * 0.5 : bright, this.hurtTime > 0 || this.dead ? bright * 0.5 : bright);
+    const flash = this.hurtTime > 0 || this.dead;
+    if (this.def.id === 'sheep' && !this.woolMaterials) {
+      const wool = entityTexture(this.base, 'sheep/sheep_wool.png');
+      this.woolMaterials = this.model.materials.filter((m) => m.map === wool);
+    }
+    const dye = this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : 0xffffff;
+    for (const m of this.model.materials) {
+      const tinted = this.woolMaterials?.includes(m);
+      const tr = tinted ? ((dye >> 16) & 255) / 255 : 1, tg = tinted ? ((dye >> 8) & 255) / 255 : 1, tb = tinted ? (dye & 255) / 255 : 1;
+      m.color.setRGB((flash ? 1 : bright) * tr, (flash ? bright * 0.5 : bright) * tg, (flash ? bright * 0.5 : bright) * tb);
+    }
   }
 
   distanceTo(v: THREE.Vector3): number {

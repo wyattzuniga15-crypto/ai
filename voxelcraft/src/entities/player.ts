@@ -41,6 +41,8 @@ export class Player {
   xp = 0;
   xpLevel = 0;
   fallDistance = 0;
+  /** Ticks left burning (vanilla: 1 damage per 20 ticks, water puts it out). */
+  fireTicks = 0;
   readonly inventory = new Inventory();
   /** Ender chest contents travel with the player. */
   enderChest: Slot[] = new Array(27).fill(null);

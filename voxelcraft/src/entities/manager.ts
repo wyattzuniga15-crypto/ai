@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, pickHostile } from './mobTypes.ts';
+import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, pickHostile, randomSheepColor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -33,20 +33,32 @@ export class EntityManager {
 
   constructor(private readonly host: ManagerHost) {}
 
-  spawn(type: string, x: number, y: number, z: number, yaw = 0): Mob | null {
+  spawn(type: string, x: number, y: number, z: number, yaw = 0, baby = false): Mob | null {
     const stats = mobStats(type);
     if (!stats) return null;
     const m = new Mob(stats, MOB_SPECS[type].goals(), this.host.base, x, y, z);
     m.yaw = m.bodyYaw = m.headYaw = yaw;
+    if (baby) {
+      m.extra.baby = true;
+      m.extra.grow = 24000;
+    }
+    if (type === 'sheep') m.extra.color = randomSheepColor(this.host.rng);
     this.mobs.push(m);
     this.host.scene.add(m.model.group);
     return m;
+  }
+
+  mobsNear(x: number, y: number, z: number, range: number): Mob[] {
+    const out: Mob[] = [];
+    for (const m of this.mobs) if (!m.dead && Math.abs(m.pos.x - x) <= range && Math.abs(m.pos.y - y) <= range && Math.abs(m.pos.z - z) <= range) out.push(m);
+    return out;
   }
 
   remove(m: Mob): void {
     const i = this.mobs.indexOf(m);
     if (i >= 0) this.mobs.splice(i, 1);
     this.host.scene.remove(m.model.group);
+    m.destroy();
   }
 
   shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number, fromPlayer = false): Arrow {
@@ -184,7 +196,7 @@ export class EntityManager {
       if (ground === 0 || blocks.blockOf(ground).id !== 'grass_block') continue;
       if (h.getSkyLight(Math.floor(px), top + 1, Math.floor(pz)) < 9) continue;
       if (!Mob.fits(h, stats, px, top + 1, pz)) continue;
-      this.spawn(type, px, top + 1, pz, h.rng() * Math.PI * 2);
+      this.spawn(type, px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05); // vanilla: 5% of a group spawns as babies
       spawned++;
     }
   }

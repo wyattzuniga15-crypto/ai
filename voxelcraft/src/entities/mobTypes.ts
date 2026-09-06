@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, MobStats } from './mob.ts';
-import { bowAttackGoal, creeperGoal, endermanGoal, floatGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, randomLookGoal, slimeGoal, targetPlayerGoal, wanderGoal } from './ai.ts';
+import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, randomLookGoal, slimeGoal, targetPlayerGoal, wanderGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -152,7 +152,24 @@ interface MobSpec {
   override?: Partial<Pick<MobStats, 'health' | 'damage' | 'width' | 'height' | 'xp' | 'speed'>>;
 }
 
-const passiveGoals = (panicSpeed = 1.25) => [floatGoal, panicGoal(panicSpeed), wanderGoal(120, 1, 10), lookAtPlayerGoal(6), randomLookGoal];
+const passiveGoals = (panicSpeed = 1.25, extra: Goal[] = []) => [floatGoal, panicGoal(panicSpeed), breedGoal(), followParentGoal(), ...extra, wanderGoal(120, 1, 10), lookAtPlayerGoal(6), randomLookGoal];
+
+/** Vanilla breeding items per animal. */
+export const BREEDING_FOODS: Record<string, string[]> = {
+  cow: ['wheat'], sheep: ['wheat'], pig: ['carrot', 'potato', 'beetroot'],
+  chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
+};
+export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
+
+/** Vanilla Sheep.getRandomSheepColor: 5% black, gray and light gray, 3% brown, 0.16% pink, else white. */
+export function randomSheepColor(rng: () => number): string {
+  const i = Math.floor(rng() * 100);
+  if (i < 5) return 'black';
+  if (i < 10) return 'gray';
+  if (i < 15) return 'light_gray';
+  if (i < 18) return 'brown';
+  return Math.floor(rng() * 500) === 0 ? 'pink' : 'white';
+}
 
 export const MOB_SPECS: Record<string, MobSpec> = {
   zombie: { model: biped('zombie/zombie.png', 64), animation: 'biped', eyeHeight: 1.74, followRange: 35, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(35), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
@@ -175,7 +192,7 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   enderman: { model: endermanModel, animation: 'biped', eyeHeight: 2.55, followRange: 64, goals: () => [endermanGoal(), loseTargetGoal(), meleeAttackGoal(0.3), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   cow: { model: cowModel, animation: 'quadruped', eyeHeight: 1.3, followRange: 16, goals: () => passiveGoals() },
   pig: { model: pigModel, animation: 'quadruped', eyeHeight: 0.8, followRange: 16, goals: () => passiveGoals() },
-  sheep: { model: sheepModel, animation: 'quadruped', eyeHeight: 1.2, followRange: 16, goals: () => passiveGoals() },
+  sheep: { model: sheepModel, animation: 'quadruped', eyeHeight: 1.2, followRange: 16, goals: () => passiveGoals(1.25, [eatGrassGoal()]) },
   chicken: { model: chickenModel, animation: 'chicken', eyeHeight: 0.644, followRange: 16, flapping: true, goals: () => passiveGoals(1.4) },
 };
 

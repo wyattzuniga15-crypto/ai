@@ -37,6 +37,7 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 #underwater { position: absolute; inset: 0; background: rgba(20, 60, 180, 0.35); }
 #lava-overlay { position: absolute; inset: 0; background: rgba(200, 60, 0, 0.6); }
 #hurt { position: absolute; inset: 0; background: rgba(255, 0, 0, 0.25); }
+#fire-overlay { position: absolute; left: 0; right: 0; bottom: -10%; height: 55%; background-repeat: repeat-x; background-size: auto 100%; image-rendering: pixelated; opacity: 0.9; pointer-events: none; }
 #toast { position: absolute; left: 50%; top: 60px; transform: translateX(-50%); font-size: 18px; text-shadow: 2px 2px 0 #000; opacity: 0; transition: opacity 0.3s; }
 
 /* ---- menus ---- */

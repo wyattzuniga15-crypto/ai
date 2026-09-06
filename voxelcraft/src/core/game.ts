@@ -50,6 +50,10 @@ import { XpOrb, splitXp } from '../entities/xpOrb.ts';
 import { AudioEngine, blockSoundGroup } from '../audio/audio.ts';
 import { anvilScreen, enchantingScreen, grindstoneScreen, stateOf, type EnchantHost } from '../ui/screens/enchanting.ts';
 import { smithingScreen, stonecutterScreen } from '../ui/screens/workstations.ts';
+import { ParticleSystem } from '../render/particles.ts';
+import { tintColor } from '../world/mesher.ts';
+import { mobFireAssets, type Mob as MobType } from '../entities/mob.ts';
+import { isBreedingFood } from '../entities/mobTypes.ts';
 import { countBookshelves } from '../items/enchanting.ts';
 import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts';
 import { PlayerPreview } from '../ui/playerPreview.ts';
@@ -128,6 +132,8 @@ export class Game {
   readonly xpOrbs: XpOrb[] = [];
   readonly audio = new AudioEngine();
   readonly signs: SignRenderer;
+  readonly particles: ParticleSystem;
+  private readonly blockAtlas: LoadedAtlas;
   private enchantSeed = (Math.random() * 0xffffffff) >>> 0;
   private signEditorClose: (() => void) | null = null;
   private stepDistance = 0;
@@ -142,6 +148,7 @@ export class Game {
     this.time = opts.meta.time ?? 1000;
     this.renderer = new GameRenderer(opts.container, opts.options.fov);
     const mats = createChunkMaterials(opts.assets.blocks);
+    this.blockAtlas = opts.assets.blocks;
     this.uniforms = mats.uniforms;
     applyMipLimit(this.renderer.renderer, opts.assets.blocks.texture, 4);
     this.sky = new Sky(import.meta.env.BASE_URL);
@@ -163,6 +170,12 @@ export class Game {
     this.input = new Input(this.renderer.canvas);
     this.input.setBindings(opts.options.bindings);
     this.blockMeshes = new BlockMeshFactory(this.baker, opts.assets.blocks);
+    this.particles = new ParticleSystem(this.renderer.scene, opts.assets.blocks, (x, y, z) => {
+      const st = this.world.getBlock(x, y, z);
+      return st !== 0 && blocks.blockOf(st).solid;
+    });
+    mobFireAssets.material = mats.solid;
+    mobFireAssets.tiles = [atlasIndex.tile('block/fire_0'), atlasIndex.tile('block/fire_1')];
     const rng = new Rng((Date.now() ^ opts.meta.seed) >>> 0);
     const blockWorld: BlockWorld = {
       rng,
@@ -202,6 +215,19 @@ export class Game {
         if (this.player.gamemode === 'survival') this.player.effects.add(id, ticks, amplifier);
       },
       playSound: (name, x, y, z, pitch = 1) => this.audio.play(name, { x, y, z, pitch }),
+      ignitePlayer: (ticks) => {
+        if (this.player.gamemode === 'survival') this.player.fireTicks = Math.max(this.player.fireTicks, ticks);
+      },
+      mobsNear: (x, y, z, range) => this.entities.mobsNear(x, y, z, range),
+      spawnMob: (type, x, y, z, baby) => this.entities.spawn(type, x, y, z, rng.next() * Math.PI * 2, baby),
+      dropItem: (id, count, x, y, z) => { this.dropStack({ id, count }, x, y + 0.3, z, true); },
+      giveXp: (amount, x, y, z) => this.spawnXp(amount, x, y + 0.5, z),
+      emitParticles: (kind, x, y, z, count, w, hh) => {
+        if (kind === 'heart') this.particles.hearts(x, y, z, count, Math.random, w, hh);
+        else if (kind === 'poof') this.particles.poof(x, y, z, count, Math.random, w, hh);
+        else for (let i = 0; i < count; i++) this.particles.spawnSprite('angry', x + (Math.random() - 0.5) * w, y + Math.random() * hh, z + (Math.random() - 0.5) * w, 0, 0.02, 0, 20, 0.3);
+      },
+      setBlock: (x, y, z, state) => this.world.setBlock(x, y, z, state),
       seed: opts.meta.seed,
       shootArrow: (from, to, v, d, effect) => {
         const arrow = this.entities.shootArrow(from, to, v, d);
@@ -283,7 +309,8 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   async start(progress: (text: string, p: number) => void): Promise<void> {
     const meta = this.meta;
-    await this.icons.preload();
+    await Promise.all([this.icons.preload(), this.particles.preload(import.meta.env.BASE_URL)]);
+    this.hud.setFireStrip(...this.fireStrip());
     if (meta.player) {
       this.player.restore(meta.player);
     } else {
@@ -443,6 +470,7 @@ export class Game {
     this.tickEffects();
     this.attackTicks++;
     this.entities.tick(this.player.dead ? null : this.player.aabb());
+    this.particles.tick();
     for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
       const orb = this.xpOrbs[i];
       const got = orb.tick(this.world, this.player.dead ? null : this.player.pos);
@@ -509,7 +537,21 @@ export class Game {
       p.landed = 0;
       if (dmg > 0 && !p.inWater) this.damage(dmg);
     }
-    if (p.inLava && !p.effects.get('fire_resistance')) this.damage(4, true);
+    const fireRes = !!p.effects.get('fire_resistance');
+    if (p.inLava) {
+      if (!fireRes) this.damage(4, true);
+      p.fireTicks = Math.max(p.fireTicks, 300);
+    }
+    const feetId = blocks.idOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y), Math.floor(p.pos.z)));
+    if (feetId === 'fire' || feetId === 'soul_fire') {
+      p.fireTicks = Math.max(p.fireTicks, 160);
+      if (this.tickCount % 20 === 0 && !fireRes) this.damage(1, true);
+    }
+    if (p.inWater) p.fireTicks = 0;
+    if (p.fireTicks > 0) {
+      p.fireTicks--;
+      if (p.fireTicks % 20 === 0 && !fireRes) this.damage(1, true);
+    }
     // void
     if (p.pos.y < WORLD_MIN_Y - 4) this.damage(4, true);
     // drowning
@@ -637,6 +679,7 @@ export class Game {
         this.breaking = { x: t.x, y: t.y, z: t.z, state: t.state, progress: 0, ticks };
       }
       const b = this.breaking;
+      if (b.ticks > 0 && this.tickCount % 2 === 0) this.blockParticles(t.x, t.y, t.z, t.state, blocks.blockOf(t.state), t.face);
       if (b.ticks === 0) {
         this.breakBlock(b.x, b.y, b.z);
         this.breaking = null;
@@ -653,6 +696,17 @@ export class Game {
       this.breaking = null;
     }
     // using: interactive blocks first (unless sneaking), then the held item, then placing
+    // right-clicking a mob (feeding, shearing, milking) comes before block use like vanilla
+    if (this.input.tickPressed('use') && !p.dead && this.useCooldown === 0) {
+      const eye = p.eyePosition(1, this.tmpEye);
+      const dir = p.lookDirection(this.tmpDir);
+      const hit = this.entities.raycast(eye, dir, 3);
+      if (hit && (!t || hit.distance < t.distance) && this.interactMob(hit.mob)) {
+        this.eating = null;
+        this.useCooldown = 4;
+        return;
+      }
+    }
     const held = p.heldItem();
     const heldDef = held ? items.byId.get(held.id) : undefined;
     if (this.input.isDown('use') && !p.dead && heldDef?.food && this.canEat(heldDef)) {
@@ -701,6 +755,7 @@ export class Game {
       return;
     }
     if (def.hardness < 0 && this.player.gamemode !== 'creative' && !byWorld) return;
+    this.blockParticles(x, y, z, state, def, null);
     const p = this.player;
     const held = byWorld ? null : p.heldItem();
     const entity = this.world.getBlockEntity(x, y, z);
@@ -1262,6 +1317,36 @@ export class Game {
   }
 
   /** Light-curve brightness at a block position for entity rendering. */
+  /** Block crumbs: a full 4×4×4 burst on break (face null) or one crack particle at the hit face. */
+  private blockParticles(x: number, y: number, z: number, state: number, def: BlockDef, face: number | null): void {
+    const model = this.baker.modelFor(state, 0);
+    if (!model.quads.length) return;
+    const q = model.quads[Math.floor(Math.random() * model.quads.length)];
+    const tint = tintColor(def, state, q.tint, this.world.getBiome(x, z));
+    if (face === null) this.particles.spawnBlockBreak(x, y, z, q.tile, tint, Math.random);
+    else this.particles.spawnCrack(x, y, z, face, q.tile, tint, Math.random);
+  }
+
+  /** Fire frames cut from the atlas as a vertical strip for the first-person burning overlay. */
+  private fireStrip(): [string, number] {
+    const atlas = this.blockAtlas;
+    const tile = atlas.index.tiles[atlas.index.tile('block/fire_0')];
+    const frames = tile.frames && tile.frames.length ? tile.frames : [[tile.x, tile.y] as [number, number]];
+    const canvas = document.createElement('canvas');
+    canvas.width = tile.w;
+    canvas.height = tile.h * frames.length;
+    const g = canvas.getContext('2d')!;
+    frames.forEach(([fx, fy], i) => {
+      const img = new ImageData(new Uint8ClampedArray(tile.w * tile.h * 4), tile.w, tile.h);
+      for (let yy = 0; yy < tile.h; yy++) {
+        const src = ((fy + yy) * atlas.width + fx) * 4;
+        img.data.set(atlas.pixels.subarray(src, src + tile.w * 4), yy * tile.w * 4);
+      }
+      g.putImageData(img, 0, i * tile.h);
+    });
+    return [canvas.toDataURL(), frames.length];
+  }
+
   brightnessAt(x: number, y: number, z: number): number {
     const curve = (l: number) => l / (4 - 3 * l);
     const sky = curve(this.world.getSkyLight(x, y, z) / 15) * this.sky.dayLight;
@@ -1337,18 +1422,69 @@ export class Game {
     if (crit) damage *= 1.5;
     if (progress > 0.9) mob.hurt(damage, p.pos, 'player', knockback);
     else mob.hurt(damage, p.pos, 'player', 0.2);
+    const mid = mob.pos.y + mob.height / 2;
+    if (crit) this.particles.crits(mob.pos.x, mid, mob.pos.z, 8, Math.random, 'crit');
+    if (damage > 2) this.particles.crits(mob.pos.x, mid, mob.pos.z, Math.floor(damage * 0.5), Math.random, 'damage');
     this.audio.play(crit ? 'anvil' : 'hurt', { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z, pitch: crit ? 1.5 : 1.2, volume: 0.6 });
     if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe')) p.inventory.damageSelected(def.behavior === 'sword' ? 1 : 2);
     p.exhaustion += 0.1;
     if (p.gamemode === 'survival') this.hud.showToast('');
   }
 
+  /** Vanilla animal interactions: breeding food, shears on sheep, buckets on cows. */
+  private interactMob(m: MobType): boolean {
+    const p = this.player;
+    const held = p.heldItem();
+    if (!held || m.dead) return false;
+    const survival = p.gamemode === 'survival';
+    const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
+    if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {
+      m.extra.sheared = true;
+      const n = 1 + Math.floor(Math.random() * 3);
+      this.dropStack({ id: `${String(m.extra.color ?? 'white')}_wool`, count: n }, m.pos.x, at.y, m.pos.z, true);
+      if (survival) p.inventory.damageSelected(1);
+      this.audio.play('shear', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held.id === 'bucket' && m.def.id === 'cow' && !m.isBaby) {
+      if (held.count === 1) {
+        held.id = 'milk_bucket';
+        p.inventory.version++;
+      } else if (survival) {
+        held.count--;
+        p.inventory.version++;
+        if (p.inventory.add({ id: 'milk_bucket', count: 1 }) > 0) this.dropStack({ id: 'milk_bucket', count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+      }
+      this.audio.play('cow', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.2 });
+      return true;
+    }
+    if (isBreedingFood(m.def.id, held.id)) {
+      if (m.isBaby) {
+        // vanilla: feeding a baby knocks 10% off the remaining growth time
+        const grow = typeof m.extra.grow === 'number' ? m.extra.grow : 24000;
+        m.extra.grow = Math.max(1, grow - Math.max(1, Math.floor(grow * 0.1)));
+      } else {
+        const love = typeof m.extra.love === 'number' ? m.extra.love : 0;
+        const cooldown = typeof m.extra.cooldown === 'number' ? m.extra.cooldown : 0;
+        if (love > 0 || cooldown > 0) return false;
+        m.extra.love = 600;
+      }
+      if (survival) p.inventory.consumeSelected();
+      this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+      this.audio.play('eat', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.1 });
+      return true;
+    }
+    return false;
+  }
+
   private onMobDeath(m: Mob): void {
     const byPlayer = m.lastHurtBy === 'player';
     const looting = byPlayer ? this.player.heldItem()?.enchantments?.looting ?? 0 : 0;
     for (const d of entityDrops(m.def.loot, byPlayer, looting, m.fireTicks > 0)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    if (m.def.id === 'sheep' && m.extra.sheared !== true && !m.isBaby) for (const d of entityDrops(`sheep/${String(m.extra.color ?? 'white')}`, byPlayer, looting)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     if (byPlayer && m.def.xp > 0) this.spawnXp(m.def.xp, m.pos.x, m.pos.y + 0.5, m.pos.z);
     this.audio.play(MOB_DEATH_SOUNDS[m.def.id] ?? m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
+    this.particles.poof(m.pos.x, m.pos.y, m.pos.z, 20, Math.random, m.def.width, m.def.height);
     // slimes split into two to four of the next size down
     const smaller = SLIME_SPLIT[m.def.id];
     if (smaller) {
@@ -1614,12 +1750,15 @@ export class Game {
     this.updateOutline();
     for (const e of this.itemEntities) e.updateSprite(alpha, partialTime / 20);
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
+    mobFireAssets.viewYaw = this.player.yaw;
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
+    this.particles.render(alpha, this.renderer.canvas.height, (x, y, z) => this.brightnessAt(x, y, z));
     for (const orb of this.xpOrbs) orb.render(alpha, partialTime / 20);
     this.audio.listener = { x: eye.x, y: eye.y, z: eye.z };
     this.world.flush();
     this.renderer.render();
     this.hud.update(p, this.debugText(eyeBlock), dt);
+    this.hud.setOnFire(p.fireTicks > 0 && p.gamemode === 'survival' && !p.dead, this.tickCount);
     this.input.endFrame();
   }
 

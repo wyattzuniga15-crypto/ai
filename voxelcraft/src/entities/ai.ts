@@ -158,6 +158,7 @@ export const meleeAttackGoal = (reachBonus = 0, onHit?: (m: Mob, w: MobWorld) =>
     const reach = m.def.width / 2 + 0.8 + reachBonus;
     if (d <= reach + 0.3 && Math.abs(p.y - m.pos.y) < 2 && m.attackCooldown === 0) {
       w.hurtPlayer(m.def.damage, m.pos);
+      if (m.fireTicks > 0) w.ignitePlayer(80); // vanilla: 2 s × difficulty
       onHit?.(m, w);
       m.attackCooldown = 20;
     }
@@ -351,5 +352,112 @@ export const endermanGoal = (): Goal => ({
     }
   },
 });
+
+/** Animals in love walk to a partner of their kind and make a baby (vanilla BreedGoal). */
+export const breedGoal = (): Goal => {
+  let partner: Mob | null = null;
+  return {
+    flags: FLAG_MOVE | FLAG_LOOK,
+    canUse: (m, w) => {
+      if (m.isBaby || !(typeof m.extra.love === 'number' && m.extra.love > 0)) return false;
+      partner = null;
+      let best = Infinity;
+      for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 8)) {
+        if (o === m || o.def.id !== m.def.id || o.isBaby || !(typeof o.extra.love === 'number' && o.extra.love > 0)) continue;
+        const d = o.distanceTo(m.pos);
+        if (d < best) { best = d; partner = o; }
+      }
+      return partner !== null;
+    },
+    canContinue: (m) => partner !== null && !partner.dead && typeof partner.extra.love === 'number' && partner.extra.love > 0 && typeof m.extra.love === 'number' && m.extra.love > 0,
+    tick: (m, w) => {
+      const o = partner!;
+      m.lookTarget = o.eyePos();
+      if (m.age % 10 === 0) {
+        m.moveTarget = o.pos.clone();
+        m.moveSpeed = 1;
+        m.moveTimeout = 40;
+      }
+      if (m.distanceTo(o.pos) < 3) {
+        const baby = w.spawnMob(m.def.id, (m.pos.x + o.pos.x) / 2, Math.max(m.pos.y, o.pos.y), (m.pos.z + o.pos.z) / 2, true);
+        if (baby && m.def.id === 'sheep') baby.extra.color = w.rng() < 0.5 ? m.extra.color ?? 'white' : o.extra.color ?? 'white';
+        for (const a of [m, o]) {
+          a.extra.love = 0;
+          a.extra.cooldown = 6000;
+          w.emitParticles('heart', a.pos.x, a.pos.y + a.height, a.pos.z, 7, a.width, 0.5);
+        }
+        w.giveXp(1 + Math.floor(w.rng() * 7), m.pos.x, m.pos.y, m.pos.z);
+        m.moveTarget = null;
+      }
+    },
+    stop: (m) => {
+      m.moveTarget = null;
+      m.lookTarget = null;
+      partner = null;
+    },
+  };
+};
+
+/** Babies keep close to the nearest adult of their kind. */
+export const followParentGoal = (): Goal => {
+  let parent: Mob | null = null;
+  return {
+    flags: FLAG_MOVE,
+    canUse: (m, w) => {
+      if (!m.isBaby || w.rng() > 0.1) return false;
+      parent = null;
+      let best = 16;
+      for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 16)) {
+        if (o === m || o.def.id !== m.def.id || o.isBaby) continue;
+        const d = o.distanceTo(m.pos);
+        if (d < best) { best = d; parent = o; }
+      }
+      return parent !== null && best > 3;
+    },
+    canContinue: (m) => parent !== null && !parent.dead && m.distanceTo(parent.pos) > 2 && m.distanceTo(parent.pos) < 16,
+    tick: (m) => {
+      if (parent && m.age % 10 === 0) {
+        m.moveTarget = parent.pos.clone();
+        m.moveSpeed = 1.1;
+        m.moveTimeout = 40;
+      }
+    },
+    stop: (m) => {
+      m.moveTarget = null;
+      parent = null;
+    },
+  };
+};
+
+/** Sheep graze: sheared sheep (and hungry lambs) eat the grass under them, which regrows wool and speeds growth. */
+export const eatGrassGoal = (): Goal => {
+  let eating = 0;
+  return {
+    flags: FLAG_MOVE | FLAG_LOOK,
+    canUse: (m, w) => {
+      const wants = m.extra.sheared === true || m.isBaby;
+      if (!wants || w.rng() > (m.isBaby ? 1 / 50 : 1 / 1000)) return false;
+      const x = Math.floor(m.pos.x), y = Math.floor(m.pos.y), z = Math.floor(m.pos.z);
+      const at = w.getBlock(x, y, z);
+      const below = w.getBlock(x, y - 1, z);
+      return (at !== 0 && blocks.blockOf(at).id === 'short_grass') || (below !== 0 && blocks.blockOf(below).id === 'grass_block');
+    },
+    canContinue: () => eating > 0,
+    start: () => { eating = 40; },
+    tick: (m, w) => {
+      m.moveTarget = null;
+      m.headPitch = 0.6;
+      if (--eating > 0) return;
+      const x = Math.floor(m.pos.x), y = Math.floor(m.pos.y), z = Math.floor(m.pos.z);
+      const at = w.getBlock(x, y, z);
+      if (at !== 0 && blocks.blockOf(at).id === 'short_grass') w.setBlock(x, y, z, 0);
+      else w.setBlock(x, y - 1, z, blocks.defaultState('dirt'));
+      m.extra.sheared = false;
+      if (m.isBaby && typeof m.extra.grow === 'number') m.extra.grow = Math.max(1, m.extra.grow - 1200);
+      w.playSound('dig_grass', m.pos.x, m.pos.y, m.pos.z);
+    },
+    stop: () => { eating = 0; },
+  };
+};
 
 export { FLAG_MOVE as _FLAG_MOVE };

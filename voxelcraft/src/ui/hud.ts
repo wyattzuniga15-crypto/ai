@@ -36,6 +36,8 @@ export class Hud {
   private readonly underwater: HTMLElement;
   private readonly lava: HTMLElement;
   private readonly hurt: HTMLElement;
+  private readonly fire: HTMLElement;
+  private fireFrames = 1;
   private readonly toast: HTMLElement;
   private readonly hotbar: HTMLElement;
   private readonly effects: HTMLElement;
@@ -74,11 +76,12 @@ export class Hud {
     this.underwater = h('div', { id: 'underwater', class: 'hidden' });
     this.lava = h('div', { id: 'lava-overlay', class: 'hidden' });
     this.hurt = h('div', { id: 'hurt', class: 'hidden' });
+    this.fire = h('div', { id: 'fire-overlay', class: 'hidden' });
     this.toast = h('div', { id: 'toast' });
     this.effects = h('div', { id: 'effects' });
     this.root = h('div', { id: 'hud' },
       this.effects,
-      this.underwater, this.lava, this.hurt,
+      this.underwater, this.lava, this.fire, this.hurt,
       h('div', { id: 'crosshair' }),
       h('div', { id: 'status' }, hearts, food),
       h('div', { id: 'xpbar' }, this.xpFill),
@@ -89,6 +92,20 @@ export class Hud {
       this.toast,
     );
     container.append(this.root);
+  }
+
+  /** Vertical strip of fire frames (data URL) drawn across the bottom of the view while burning. */
+  setFireStrip(url: string, frames: number): void {
+    this.fire.style.backgroundImage = `url('${url}')`;
+    this.fireFrames = Math.max(1, frames);
+  }
+
+  setOnFire(on: boolean, tick: number): void {
+    this.fire.classList.toggle('hidden', !on);
+    if (!on) return;
+    const frameH = this.fire.clientHeight || 300;
+    this.fire.style.backgroundSize = `auto ${frameH * this.fireFrames}px`;
+    this.fire.style.backgroundPositionY = `${-(tick % this.fireFrames) * frameH}px`;
   }
 
   setVisible(v: boolean): void {

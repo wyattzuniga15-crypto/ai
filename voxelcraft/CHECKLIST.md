@@ -54,7 +54,7 @@ coverage counts in `COVERAGE.md`.
 - [x] More mobs, first slice: husk (hunger hit), drowned (ocean/river water spawns), stray (slowness arrows), wither skeleton (wither hit, 1.2×), cave spider (poison), slimes in three sizes that split and hop (swamps at night, slime chunks below y=40 with the vanilla seed formula), enderman (stares provoke, blinks around, water hurts)
 - [ ] More mobs, next: villagers, wolves, cats, horses, bees, fish, witches, phantoms, illagers, nether and end mobs
 - [x] XP orbs as entities (vanilla value split, attraction, pickup sound), levels, death drops
-- [ ] Mob sounds, hit particles, fire rendering, baby variants, breeding, shearing and milking
+- [x] Mob sounds (ambient/hurt voices for every type), particles (block crumbs and cracks, crit and damage indicators, death poofs, hearts), fire (burning mobs draw vanilla flame billboards, player fire ticks with the first-person flame overlay, burning zombies ignite), babies (half size, big head, 24000-tick growth, follow adults, 5% of natural groups), breeding with vanilla foods/love/cooldown/XP, chicken eggs, shearing with coloured wool and grazing regrowth, milking
 - [x] Sound effects synthesized on Web Audio: digging/placing by material, footsteps, hurt/death, eating, XP, pickups, explosions, bows, doors, chests, buttons, mob ambient and hurt sounds; master volume option
 
 ## Phase 3 – world depth

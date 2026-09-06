@@ -5,7 +5,7 @@ import { Rng } from '../src/core/rng.ts';
 import { entityDrops } from '../src/items/loot.ts';
 import { mobStats, MOB_SPECS } from '../src/entities/mobTypes.ts';
 import { boxGeometry } from '../src/entities/boxModel.ts';
-import { isSlimeChunk, pickHostile } from '../src/entities/mobTypes.ts';
+import { isBreedingFood, isSlimeChunk, pickHostile, randomSheepColor } from '../src/entities/mobTypes.ts';
 import { biomes as allBiomes } from '../src/world/biomes.ts';
 
 class Grid {
@@ -141,5 +141,22 @@ describe('new mob types', () => {
     for (let i = 0; i < 500; i++) deep.add(pickHostile(rng, desert, 20, true));
     expect(deep.has('slime_big') || deep.has('slime')).toBe(true);
     for (let i = 0; i < 500; i++) expect(pickHostile(rng, desert, 20, false).startsWith('slime')).toBe(false);
+  });
+
+  it('knows vanilla breeding foods and sheep colour odds', () => {
+    expect(isBreedingFood('cow', 'wheat')).toBe(true);
+    expect(isBreedingFood('pig', 'carrot')).toBe(true);
+    expect(isBreedingFood('pig', 'wheat')).toBe(false);
+    expect(isBreedingFood('chicken', 'wheat_seeds')).toBe(true);
+    expect(isBreedingFood('zombie', 'wheat')).toBe(false);
+    let seq = 7;
+    const rng = () => { seq = (seq * 1103515245 + 12345) % 2147483648; return seq / 2147483648; };
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < 10000; i++) { const c = randomSheepColor(rng); counts[c] = (counts[c] ?? 0) + 1; }
+    expect(counts.white).toBeGreaterThan(7500);
+    for (const c of ['black', 'gray', 'light_gray']) { expect(counts[c]).toBeGreaterThan(350); expect(counts[c]).toBeLessThan(650); }
+    expect(counts.brown).toBeGreaterThan(200);
+    expect(counts.brown).toBeLessThan(400);
+    expect(counts.pink ?? 0).toBeLessThan(60);
   });
 });

@@ -212,3 +212,11 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     are provoked by the vanilla stare test and by hits, blink with a 16-try ground search, and take
     water damage, but do not yet pick up blocks or dodge projectiles. Husks and strays replace 80%
     of zombie and skeleton spawns in deserts and snowy biomes; drowned spawn in ocean and river water.
+
+45. **Particles are point sprites, not quads.** Block crumbs sample a random 4×4 texel patch of one
+    of the block's own textures straight from the block atlas (vanilla terrain particles), and the
+    sprite particles (hearts, crits, damage indicators, poofs) come from `textures/particle` packed
+    into a small runtime sheet. Burning entities draw camera-facing quads through the chunk shader so
+    the animated `fire_0`/`fire_1` tiles stay in step with block fire. Animal age, love, cooldown,
+    shearing, colour and egg timers live in the mob's `extra` map so saves carry them without new
+    fields; babies are drawn at half scale with a double-size head like vanilla's `AgeableMob`.
