@@ -50,6 +50,10 @@ export interface MobWorld extends BlockSource {
   addPlayerEffect(id: string, ticks: number, amplifier?: number): void;
   /** Sets the player on fire (burning zombies pass their flames on). */
   ignitePlayer(ticks: number): void;
+  playerHasEffect(id: string): boolean;
+  playerHealth(): number;
+  /** Witch splash potion: applies `effect` to the player within four blocks of where it lands. */
+  throwPotion(from: THREE.Vector3, to: THREE.Vector3, effect: ArrowEffect, color: number): void;
   /** Living mobs within `range` blocks of a point. */
   mobsNear(x: number, y: number, z: number, range: number): Mob[];
   spawnMob(type: string, x: number, y: number, z: number, baby: boolean): Mob | null;
@@ -342,7 +346,7 @@ export class Mob {
         dirX = dx / dist;
         dirZ = dz / dist;
         this.yaw = Math.atan2(-dirX, -dirZ);
-        accel = attr * attr * 2.2 * this.moveSpeed * (this.onGround ? 1 : 0.2);
+        accel = attr * attr * 2.2 * this.moveSpeed * (this.onGround || this.def.flying || (this.def.aquatic && this.inWater) ? 1 : 0.2);
         if (this.inWater) accel *= 0.5;
       }
     }
@@ -379,7 +383,7 @@ export class Mob {
     if (r.hitX) this.vel.x = 0;
     if (r.hitZ) this.vel.z = 0;
     // auto-jump over one-block steps, spiders climb
-    if (this.horizontalCollision && this.moveTarget) {
+    if (this.horizontalCollision && this.moveTarget && !this.def.flying) {
       if (this.def.climbs) this.vel.y = 0.2;
       else if (this.onGround) this.vel.y = 0.42;
     }

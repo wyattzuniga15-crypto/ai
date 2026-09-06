@@ -227,3 +227,11 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     player-only. Wolves pick their 1.20.5 variant skin from the spawn biome, and fish are the first
     "aquatic" mobs: no buoyancy pop, free 3D swimming to water cells, flopping and suffocation on
     land, and no persistence so schools despawn like vanilla water animals.
+
+47. **Splash potions reuse the arrow projectile.** A thrown bottle is an `Arrow` in potion mode: it
+    flies with the same arc, bursts on the first block or the player, and the game applies the
+    effect with vanilla's `1 - distance/4` falloff (instant damage 6 for harming). Witches follow
+    the vanilla potion table (slowness beyond eight blocks, poison while the target has eight or
+    more health, weakness at close range one time in four, otherwise harming) and drink to heal or
+    put themselves out. Phantoms are the first flying mobs (no gravity, 3D steering) and only
+    appear through the insomnia spawner: none before 72000 ticks without sleep, then rising odds.

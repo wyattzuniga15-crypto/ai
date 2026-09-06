@@ -11,6 +11,7 @@ import { EffectSet, speedMultiplier, type ActiveEffect } from './effects.ts';
 export type GameMode = 'survival' | 'creative' | 'spectator';
 
 export interface PlayerSave {
+  timeSinceRest?: number;
   x: number; y: number; z: number; yaw: number; pitch: number;
   health: number; food: number; saturation: number; xp: number; xpLevel: number;
   gamemode: GameMode; flying: boolean; selected: number;
@@ -43,6 +44,8 @@ export class Player {
   fallDistance = 0;
   /** Ticks left burning (vanilla: 1 damage per 20 ticks, water puts it out). */
   fireTicks = 0;
+  /** Ticks since the player last slept (vanilla TIME_SINCE_REST, drives phantom spawns). */
+  timeSinceRest = 0;
   readonly inventory = new Inventory();
   /** Ender chest contents travel with the player. */
   enderChest: Slot[] = new Array(27).fill(null);
@@ -295,6 +298,7 @@ export class Player {
       health: this.health, food: this.food, saturation: this.saturation, xp: this.xp, xpLevel: this.xpLevel,
       gamemode: this.gamemode, flying: this.flying, selected: this.inventory.selected,
       inventory: this.inventory.serialize(), spawn: this.spawn,
+      timeSinceRest: this.timeSinceRest,
       enderChest: this.enderChest.map((s) => (s ? cloneStack(s) : null)),
       effects: this.effects.serialize(),
     };
@@ -313,6 +317,7 @@ export class Player {
     this.flying = s.flying;
     this.inventory.selected = s.selected;
     this.inventory.restore(s.inventory);
+    this.timeSinceRest = s.timeSinceRest ?? 0;
     if (s.spawn) this.spawn = s.spawn;
     if (s.enderChest) this.enderChest = Array.from({ length: 27 }, (_, i) => (s.enderChest![i] && items.has(s.enderChest![i]!.id) ? cloneStack(s.enderChest![i]!) : null));
     this.effects.restore(s.effects);

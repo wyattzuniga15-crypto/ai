@@ -17,6 +17,9 @@ export class Arrow {
   fromPlayer: boolean;
   /** Status effect given to the player on hit (stray arrows: slowness). */
   effect?: { id: string; ticks: number; amplifier?: number };
+  /** Splash potions burst on anything they touch instead of sticking. */
+  kind: 'arrow' | 'potion' = 'arrow';
+  onSplash: ((pos: THREE.Vector3) => void) | null = null;
 
   constructor(base: string, from: THREE.Vector3, dir: THREE.Vector3, speed: number, readonly damage: number, fromPlayer = false) {
     this.pos.copy(from);
@@ -52,7 +55,8 @@ export class Arrow {
       const pz = this.pos.z + this.vel.z * t;
       const box: AABB = { minX: px - 0.05, minY: py - 0.05, minZ: pz - 0.05, maxX: px + 0.05, maxY: py + 0.05, maxZ: pz + 0.05 };
       if (!this.fromPlayer && playerBox && aabbIntersects(box, [playerBox.minX, playerBox.minY, playerBox.minZ, playerBox.maxX, playerBox.maxY, playerBox.maxZ])) {
-        hurtPlayer(Math.max(1, Math.ceil(this.damage * this.vel.length())), this.pos);
+        if (this.kind === 'potion') this.onSplash?.(new THREE.Vector3(px, py, pz));
+        else hurtPlayer(Math.max(1, Math.ceil(this.damage * this.vel.length())), this.pos);
         this.removed = true;
         return;
       }
@@ -65,6 +69,11 @@ export class Arrow {
         for (const b of collisionBoxes(s)) {
           if (aabbIntersects(box, [Math.floor(px) + b[0], Math.floor(py) + b[1], Math.floor(pz) + b[2], Math.floor(px) + b[3], Math.floor(py) + b[4], Math.floor(pz) + b[5]])) {
             this.pos.set(px, py, pz);
+            if (this.kind === 'potion') {
+              this.onSplash?.(this.pos.clone());
+              this.removed = true;
+              return;
+            }
             this.stuck = true;
             this.vel.set(0, 0, 0);
             this.age = 900;
@@ -78,8 +87,26 @@ export class Arrow {
     this.vel.y -= 0.05;
   }
 
+  /** Turns the projectile into a tumbling splash-potion bottle. */
+  asPotion(texture: THREE.Texture, color: number, onSplash: (pos: THREE.Vector3) => void): this {
+    this.kind = 'potion';
+    this.onSplash = onSplash;
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = new THREE.PlaneGeometry(0.4, 0.4);
+    const mat = this.mesh.material as THREE.MeshBasicMaterial;
+    mat.map = texture;
+    mat.color.setHex(color).lerp(new THREE.Color(0xffffff), 0.4);
+    mat.side = THREE.DoubleSide;
+    mat.needsUpdate = true;
+    return this;
+  }
+
   render(alpha: number): void {
     this.mesh.position.copy(this.prev).lerp(this.pos, alpha);
+    if (this.kind === 'potion') {
+      this.mesh.rotation.z += 0.3; // tumbling bottle
+      return;
+    }
     if (!this.stuck && this.vel.lengthSq() > 1e-6) {
       const dir = this.vel.clone().normalize();
       this.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);

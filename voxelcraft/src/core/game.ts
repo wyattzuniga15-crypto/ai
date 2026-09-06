@@ -84,7 +84,7 @@ const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behav
 /** Synthesized sound to play when a mob dies; variants reuse their base mob's voice. */
 const MOB_DEATH_SOUNDS: Record<string, string> = {
   creeper: 'hurt', spider: 'hurt', cave_spider: 'hurt', husk: 'zombie', drowned: 'zombie', stray: 'skeleton', wither_skeleton: 'skeleton',
-  slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', cod: 'splash', salmon: 'splash',
+  slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', cod: 'splash', salmon: 'splash', witch: 'witch', phantom: 'phantom',
 };
 const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
 
@@ -223,6 +223,9 @@ export class Game {
         if (this.player.gamemode === 'survival') this.player.effects.add(id, ticks, amplifier);
       },
       playSound: (name, x, y, z, pitch = 1) => this.audio.play(name, { x, y, z, pitch }),
+      playerHasEffect: (id) => !!this.player.effects.get(id),
+      playerHealth: () => this.player.health,
+      throwPotion: (from, to, effect, color) => this.throwPotion(from, to, effect, color),
       ignitePlayer: (ticks) => {
         if (this.player.gamemode === 'survival') this.player.fireTicks = Math.max(this.player.fireTicks, ticks);
       },
@@ -494,10 +497,13 @@ export class Game {
     this.tickSounds();
     if (this.tickCount % 20 === 0) this.syncSigns();
     if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
+    if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
+    this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
     if (this.sleeping > 0 && --this.sleeping === 0) {
       const day = Math.floor(this.time / DAY_LENGTH);
       this.time = (day + 1) * DAY_LENGTH;
       this.chat.addLine('Good morning!', '#5f5');
+      this.player.timeSinceRest = 0;
     }
     this.world.flush();
     if (this.screen) {
@@ -1325,6 +1331,32 @@ export class Game {
   }
 
   /** Light-curve brightness at a block position for entity rendering. */
+  private potionTexture: THREE.Texture | null = null;
+
+  /** Witch splash potion: a thrown bottle that applies its effect to the player within four blocks of the burst. */
+  private throwPotion(from: THREE.Vector3, to: THREE.Vector3, effect: { id: string; ticks: number; amplifier?: number }, color: number): void {
+    if (!this.potionTexture) {
+      this.potionTexture = new THREE.TextureLoader().load(this.icons.icon('splash_potion'));
+      this.potionTexture.magFilter = THREE.NearestFilter;
+      this.potionTexture.minFilter = THREE.NearestFilter;
+      this.potionTexture.colorSpace = THREE.SRGBColorSpace;
+    }
+    const arrow = this.entities.shootArrow(from, to, 0.75, 0);
+    arrow.asPotion(this.potionTexture, color, (pos) => {
+      this.particles.poof(pos.x, pos.y, pos.z, 12, Math.random, 1, 0.5);
+      this.audio.play('dig_glass', { x: pos.x, y: pos.y, z: pos.z, pitch: 1.2, volume: 0.6 });
+      const p = this.player;
+      if (p.gamemode !== 'survival' || p.dead) return;
+      const d = Math.hypot(p.pos.x - pos.x, p.pos.y + 1 - pos.y, p.pos.z - pos.z);
+      if (d > 4) return;
+      const factor = 1 - d / 4;
+      if (effect.id === 'instant_damage') this.damage(Math.max(1, Math.round(6 * factor)));
+      else if (effect.id === 'instant_health') this.player.health = Math.min(20, this.player.health + Math.round(4 * factor));
+      else p.effects.add(effect.id, Math.round(effect.ticks * factor + 0.5), effect.amplifier ?? 0);
+    });
+    this.audio.play('bow', { x: from.x, y: from.y, z: from.z, pitch: 0.6 });
+  }
+
   /** Block crumbs: a full 4×4×4 burst on break (face null) or one crack particle at the hit face. */
   private blockParticles(x: number, y: number, z: number, state: number, def: BlockDef, face: number | null): void {
     const model = this.baker.modelFor(state, 0);
@@ -2026,7 +2058,7 @@ export class Game {
       }
       case 'summon': {
         const type = (args[0] ?? '').replace(/^minecraft:/, '');
-        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, wolf, cod, salmon, cow, pig, sheep, chicken)`);
+        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, witch, phantom, wolf, cod, salmon, cow, pig, sheep, chicken)`);
         const dir = p.lookDirection();
         const x = args[1] ? num(args[1], p.pos.x) : p.pos.x + dir.x * 3;
         const y = args[2] ? num(args[2], p.pos.y) : p.pos.y;
@@ -2087,7 +2119,7 @@ export class Game {
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }

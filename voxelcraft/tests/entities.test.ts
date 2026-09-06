@@ -5,7 +5,8 @@ import { Rng } from '../src/core/rng.ts';
 import { entityDrops } from '../src/items/loot.ts';
 import { mobStats, MOB_SPECS } from '../src/entities/mobTypes.ts';
 import { boxGeometry } from '../src/entities/boxModel.ts';
-import { isBreedingFood, isSlimeChunk, pickHostile, randomSheepColor, wolfVariantFor } from '../src/entities/mobTypes.ts';
+import { isBreedingFood, isSlimeChunk, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from '../src/entities/mobTypes.ts';
+import { witchPotionFor } from '../src/entities/ai.ts';
 import { biomes as allBiomes } from '../src/world/biomes.ts';
 
 class Grid {
@@ -170,5 +171,22 @@ describe('new mob types', () => {
     expect(wolfVariantFor('bamboo_jungle')).toBe('rusty');
     expect(wolfVariantFor('plains')).toBeNull();
     expect(isBreedingFood('wolf', 'cooked_beef')).toBe(true);
+  });
+
+  it('picks witch potions and phantom odds like vanilla', () => {
+    const none = () => false;
+    expect(witchPotionFor(9, 20, none, () => 0.9).id).toBe('slowness');
+    expect(witchPotionFor(9, 20, (id) => id === 'slowness', () => 0.9).id).toBe('poison');
+    expect(witchPotionFor(5, 20, none, () => 0.9).id).toBe('poison');
+    expect(witchPotionFor(5, 6, none, () => 0.9).id).toBe('instant_damage');
+    expect(witchPotionFor(2, 6, none, () => 0.1).id).toBe('weakness');
+    expect(witchPotionFor(2, 6, none, () => 0.9).id).toBe('instant_damage');
+    expect(phantomSpawnChance(0)).toBe(0);
+    expect(phantomSpawnChance(71999)).toBe(0);
+    expect(phantomSpawnChance(72000)).toBeGreaterThan(0);
+    expect(phantomSpawnChance(200000)).toBe(1);
+    expect(mobStats('phantom')!.damage).toBe(6);
+    expect(mobStats('phantom')!.flying).toBe(true);
+    expect(mobStats('witch')!.health).toBe(26);
   });
 });

@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, MobStats } from './mob.ts';
-import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, randomLookGoal, sitGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, randomLookGoal, sitGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -91,6 +91,37 @@ const salmonModel: ModelDef = {
     { name: 'body_back', pivot: [0, 20, 8], boxes: [{ uv: [0, 13], box: [-1.5, -2.5, 0, 3, 5, 8] }] },
     { name: 'head', pivot: [0, 20, 0], boxes: [{ uv: [22, 0], box: [-1, -2, -3, 2, 4, 3] }] },
     { name: 'tail_fin', parent: 'body_back', pivot: [0, 20, 16], boxes: [{ uv: [20, 10], box: [0, -2.5, 0, 0, 5, 6] }] },
+  ],
+};
+
+const phantomModel: ModelDef = {
+  texture: 'phantom.png', texW: 64, texH: 64,
+  // vanilla PhantomModel raised 20 px so the body hovers just above the entity position
+  parts: [
+    { name: 'body', pivot: [0, 20, 0], rotation: [-0.1, 0, 0], boxes: [{ uv: [0, 8], box: [-3, -2, -8, 5, 3, 9] }] },
+    { name: 'tail1', pivot: [0, 18, 1], boxes: [{ uv: [3, 20], box: [-2, 0, 0, 3, 2, 6] }] },
+    { name: 'tail2', parent: 'tail1', pivot: [0, 18.5, 7], boxes: [{ uv: [4, 29], box: [-1, 0, 0, 1, 1, 6] }] },
+    { name: 'left_wing_base', pivot: [2, 18, -8], rotation: [0, 0, 0.1], boxes: [{ uv: [23, 12], box: [0, 0, 0, 6, 2, 9] }] },
+    { name: 'left_wing_tip', parent: 'left_wing_base', pivot: [8, 18, -8], rotation: [0, 0, 0.1], boxes: [{ uv: [16, 24], box: [0, 0, 0, 13, 1, 9] }] },
+    { name: 'right_wing_base', pivot: [-3, 18, -8], rotation: [0, 0, -0.1], boxes: [{ uv: [23, 12], box: [-6, 0, 0, 6, 2, 9], mirror: true }] },
+    { name: 'right_wing_tip', parent: 'right_wing_base', pivot: [-9, 18, -8], rotation: [0, 0, -0.1], boxes: [{ uv: [16, 24], box: [-13, 0, 0, 13, 1, 9], mirror: true }] },
+    { name: 'head', pivot: [0, 21, -7], rotation: [0.2, 0, 0], boxes: [{ uv: [0, 0], box: [-4, -2, -5, 7, 3, 5] }] },
+  ],
+};
+
+const witchModel: ModelDef = {
+  texture: 'witch.png', texW: 64, texH: 128,
+  parts: [
+    { name: 'head', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-4, -10, -4, 8, 10, 8] }] },
+    { name: 'hat', parent: 'head', pivot: [-5, -10.03, -5], boxes: [{ uv: [0, 64], box: [0, 0, 0, 10, 2, 10] }] },
+    { name: 'hat2', parent: 'hat', pivot: [-3.25, -14.03, -3], rotation: [-0.05236, 0, 0.02618], boxes: [{ uv: [0, 76], box: [0, 0, 0, 7, 4, 7] }] },
+    { name: 'hat3', parent: 'hat2', pivot: [-1.5, -18.03, -1], rotation: [-0.10472, 0, 0.05236], boxes: [{ uv: [0, 87], box: [0, 0, 0, 4, 4, 4] }] },
+    { name: 'hat4', parent: 'hat3', pivot: [0.25, -20.03, 1], rotation: [-0.20944, 0, 0.10472], boxes: [{ uv: [0, 95], box: [0, 0, 0, 1, 2, 1], inflate: 0.25 }] },
+    { name: 'nose', parent: 'head', pivot: [0, -2, 0], boxes: [{ uv: [24, 0], box: [-1, -1, -6, 2, 4, 2] }, { uv: [0, 0], box: [0, 3, -6.75, 1, 1, 1], inflate: -0.25 }] },
+    { name: 'body', pivot: [0, 0, 0], boxes: [{ uv: [16, 20], box: [-4, 0, -3, 8, 12, 6] }, { uv: [0, 38], box: [-4, 0, -3, 8, 18, 6], inflate: 0.5 }] },
+    { name: 'arms', pivot: [0, 2, 0], rotation: [-0.75, 0, 0], boxes: [{ uv: [44, 22], box: [-8, -2, -2, 4, 8, 4] }, { uv: [44, 22], box: [4, -2, -2, 4, 8, 4], mirror: true }, { uv: [40, 38], box: [-4, 2, -2, 8, 4, 4] }] },
+    { name: 'right_leg', pivot: [-2, 12, 0], boxes: [{ uv: [0, 22], box: [-2, 0, -2, 4, 12, 4] }] },
+    { name: 'left_leg', pivot: [2, 12, 0], boxes: [{ uv: [0, 22], box: [-2, 0, -2, 4, 12, 4], mirror: true }] },
   ],
 };
 
@@ -254,6 +285,9 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   chicken: { model: chickenModel, animation: 'chicken', eyeHeight: 0.644, followRange: 16, flapping: true, goals: () => passiveGoals(1.4) },
   wolf: { model: wolfModel, animation: 'quadruped', eyeHeight: 0.68, followRange: 16, goals: () => [floatGoal, sitGoal(), wolfDefendGoal(), wolfHuntGoal(), loseTargetGoal(), meleeAttackGoal(), followOwnerGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
   cod: { model: codModel, animation: 'fish', eyeHeight: 0.195, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
+  // vanilla phantom attack damage is 6
+  phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
+  witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   salmon: { model: salmonModel, animation: 'fish', eyeHeight: 0.26, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
 };
 
@@ -288,7 +322,7 @@ export function mobStats(id: string): MobStats | null {
 
 export const HOSTILE_TYPES = ['zombie', 'skeleton', 'creeper', 'spider', 'enderman'];
 /** Vanilla overworld monster spawn weights. */
-const HOSTILE_WEIGHTS: [string, number][] = [['zombie', 95], ['skeleton', 100], ['creeper', 100], ['spider', 100], ['enderman', 10]];
+const HOSTILE_WEIGHTS: [string, number][] = [['zombie', 95], ['skeleton', 100], ['creeper', 100], ['spider', 100], ['enderman', 10], ['witch', 5]];
 const SLIME_SIZES = ['slime', 'slime_medium', 'slime_big'];
 
 /**
@@ -325,3 +359,9 @@ export function pickHostile(rng: () => number, biome: BiomeDef | undefined, y: n
   return type;
 }
 export const ANIMAL_TYPES = ['cow', 'pig', 'sheep', 'chicken'];
+
+/** Vanilla PhantomSpawner: no phantoms before three sleepless days, then odds grow with insomnia. */
+export function phantomSpawnChance(timeSinceRest: number): number {
+  if (timeSinceRest < 72000) return 0;
+  return Math.min(1, (timeSinceRest - 72000) / 24000 + 0.05);
+}

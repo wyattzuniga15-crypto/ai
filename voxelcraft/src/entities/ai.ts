@@ -583,4 +583,113 @@ export const swimGoal = (): Goal => ({
   },
 });
 
+// ---------------------------------------------------------------------------------------------
+// Phantoms
+// ---------------------------------------------------------------------------------------------
+/** Phantoms circle high above the player and swoop at their head (vanilla PhantomCircleAroundAnchorGoal / SweepAttackGoal). */
+export const phantomGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    const e = m.extra;
+    let angle = typeof e.angle === 'number' ? e.angle : (e.angle = w.rng() * Math.PI * 2);
+    let mode = typeof e.mode === 'string' ? e.mode : (e.mode = 'circle');
+    let timer = typeof e.timer === 'number' ? e.timer : (e.timer = 60 + Math.floor(w.rng() * 140));
+    const canAttack = w.playerTargetable() && m.fireTicks === 0;
+    if (mode === 'swoop' && (!canAttack || timer <= 0)) mode = 'circle';
+    if (mode === 'circle') {
+      angle += 0.06;
+      const radius = 6 + Math.sin(m.age * 0.01) * 4;
+      const height = m.fireTicks > 0 ? 30 : 20 + Math.sin(m.age * 0.007) * 6;
+      m.moveTarget = new THREE.Vector3(p.x + Math.cos(angle) * radius, p.y + height, p.z + Math.sin(angle) * radius);
+      m.moveSpeed = 1.2;
+      m.moveTimeout = 40;
+      m.lookTarget = null;
+      if (--timer <= 0 && canAttack) {
+        mode = 'swoop';
+        timer = 100;
+        w.playSound('phantom', m.pos.x, m.pos.y, m.pos.z);
+      }
+    } else {
+      const eye = w.playerEye();
+      m.moveTarget = eye.clone();
+      m.moveSpeed = 1.8;
+      m.moveTimeout = 40;
+      m.lookTarget = eye;
+      timer--;
+      if (m.distanceTo(eye) < 1.6 && m.attackCooldown === 0) {
+        w.hurtPlayer(m.def.damage, m.pos, m);
+        m.attackCooldown = 20;
+        mode = 'circle';
+        timer = 80 + Math.floor(w.rng() * 120);
+      }
+    }
+    e.angle = angle;
+    e.mode = mode;
+    e.timer = timer;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// Witches
+// ---------------------------------------------------------------------------------------------
+export const POTION_COLORS: Record<string, number> = { slowness: 0x5a6c81, poison: 0x4e9331, weakness: 0x484d48, instant_damage: 0x430a09, instant_health: 0xf82423 };
+
+/** Vanilla Witch.performRangedAttack potion selection. */
+export function witchPotionFor(distance: number, targetHealth: number, has: (id: string) => boolean, rng: () => number): ArrowEffect {
+  if (distance >= 8 && !has('slowness')) return { id: 'slowness', ticks: 1800 };
+  if (targetHealth >= 8 && !has('poison')) return { id: 'poison', ticks: 900 };
+  if (distance <= 3 && !has('weakness') && rng() < 0.25) return { id: 'weakness', ticks: 1800 };
+  return { id: 'instant_damage', ticks: 1, amplifier: 0 };
+}
+
+/** Witch: keeps within ten blocks, throws a splash potion every 60 ticks, drinks healing when hurt. */
+export const witchGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => m.target === 'player' && w.playerTargetable(),
+  canContinue: (m, w) => m.target === 'player' && w.playerTargetable() && m.distanceTo(w.playerPos()) < m.def.followRange * 1.2,
+  tick: (m, w) => {
+    const e = m.extra;
+    const drinking = typeof e.drinking === 'number' ? e.drinking : 0;
+    if (drinking > 0) {
+      m.moveTarget = null;
+      e.drinking = drinking - 1;
+      if (drinking === 1) {
+        if (m.fireTicks > 0) m.fireTicks = 0;
+        else m.health = Math.min(m.maxHealth, m.health + 4);
+        w.playSound('burp', m.pos.x, m.pos.y + 1, m.pos.z);
+      }
+      return;
+    }
+    if ((m.health < m.maxHealth || m.fireTicks > 0) && w.rng() < 0.05) {
+      e.drinking = 32;
+      w.playSound('eat', m.pos.x, m.pos.y + 1, m.pos.z);
+      return;
+    }
+    const p = w.playerPos();
+    const eye = w.playerEye();
+    m.lookTarget = eye;
+    const d = m.distanceTo(p);
+    const los = w.lineOfSight(m.eyePos(), eye);
+    if (d > 10 || !los) {
+      if (!m.moveTarget || m.age % 10 === 0) {
+        m.moveTarget = p.clone();
+        m.moveSpeed = 1;
+        m.moveTimeout = 40;
+      }
+    } else m.moveTarget = null;
+    if (los && d <= 10 && m.attackCooldown === 0) {
+      const effect = witchPotionFor(d, w.playerHealth(), (id) => w.playerHasEffect(id), w.rng);
+      w.throwPotion(m.eyePos(), eye, effect, POTION_COLORS[effect.id] ?? 0xffffff);
+      m.attackCooldown = 60;
+    }
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.lookTarget = null;
+    m.target = null;
+  },
+});
+
 export { FLAG_MOVE as _FLAG_MOVE };

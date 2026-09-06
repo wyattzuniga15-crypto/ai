@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -30,6 +30,7 @@ export class EntityManager {
   readonly stashed = new Map<string, MobSave[]>();
   hostileCapBase = 70;
   passiveCap = 10;
+  private phantomTimer = 1200;
 
   constructor(private readonly host: ManagerHost) {}
 
@@ -224,6 +225,29 @@ export class EntityManager {
       if (!Mob.fits(h, stats, px, py, pz)) continue;
       this.spawn(type, px, py + 0.2, pz, h.rng() * Math.PI * 2);
       spawned++;
+    }
+  }
+
+  /**
+   * Vanilla PhantomSpawner: every 60–120 s at night, a player who has not slept for three days may
+   * get one to three phantoms 20–35 blocks overhead when the sky is visible above them.
+   */
+  phantomSpawnTick(timeSinceRest: number, night: boolean): void {
+    if (--this.phantomTimer > 0) return;
+    const h = this.host;
+    this.phantomTimer = 1200 + Math.floor(h.rng() * 1200);
+    if (!night || !h.playerTargetable()) return;
+    if (h.rng() >= phantomSpawnChance(timeSinceRest)) return;
+    const p = h.playerPos();
+    if (p.y < 63 || h.getSkyLight(Math.floor(p.x), Math.floor(p.y) + 1, Math.floor(p.z)) < 15) return;
+    if (this.mobs.filter((m) => m.def.id === 'phantom' && !m.dead).length >= 6) return;
+    const n = 1 + Math.floor(h.rng() * 3);
+    for (let i = 0; i < n; i++) {
+      const x = p.x + (h.rng() * 2 - 1) * 10;
+      const z = p.z + (h.rng() * 2 - 1) * 10;
+      const y = p.y + 20 + h.rng() * 15;
+      if (h.getBlock(Math.floor(x), Math.floor(y), Math.floor(z)) !== 0) continue;
+      this.spawn('phantom', x, y, z, h.rng() * Math.PI * 2);
     }
   }
 
