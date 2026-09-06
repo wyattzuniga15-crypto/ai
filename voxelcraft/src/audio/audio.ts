@@ -94,7 +94,10 @@ const SOUNDS: Record<string, Synth> = {
   fizz: (c, o, p, t) => burst(c, o, t, 'highpass', 4000, 0.5, 0.05, 0.6, 0.4, p),
   lava_pop: (c, o, p, t) => tone(c, o, t, 'sine', 300, 120, 0.15, 0.3, p),
   anvil: (c, o, p, t) => { tone(c, o, t, 'square', 1200, 1150, 0.4, 0.2, p); burst(c, o, t, 'highpass', 4000, 1, 0.002, 0.1, 0.3, p); },
-  enchant: (c, o, p, t) => { [880, 1108, 1318, 1760].forEach((f, i) => tone(c, o, t + i * 0.06, 'sine', f, f * 1.01, 0.4, 0.15, p)); },
+  enchant: (c, o, p, t) => { [880, 1108, 1318, 1760].forEach((f, i) => tone(c, o, t + i * 0.06, 'sine', f, f * 1.01, 0.4, 0.15, p)); },  // ui.stonecutter.take_result / select_recipe and block.smithing_table.use
+  stonecutter: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1800, 1.5, 0.002, 0.16, 0.5, p); tone(c, o, t, 'square', 900, 400, 0.12, 0.08, p); },
+  stonecutter_select: (c, o, p, t) => burst(c, o, t, 'bandpass', 2600, 2, 0.002, 0.06, 0.35, p),
+  smithing: (c, o, p, t) => { tone(c, o, t, 'square', 700, 650, 0.25, 0.15, p); burst(c, o, t, 'highpass', 3000, 1, 0.002, 0.12, 0.3, p); },
 };
 
 export class AudioEngine {

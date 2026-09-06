@@ -6,6 +6,7 @@
 import { h } from '../dom.ts';
 import { renderSlot } from '../hud.ts';
 import type { ItemIcons } from '../icons.ts';
+import { trimMaterial, trimPattern } from '../../items/trims.ts';
 import { cloneStack, stackable, type ItemStack, type Slot } from '../../items/inventory.ts';
 import { items } from '../../items/registry.ts';
 
@@ -23,6 +24,8 @@ export interface SlotDef {
   onTake?(taken: ItemStack): void;
   /** Result slots can't receive items and craft on take. */
   result?: boolean;
+  /** For result slots: whether the player may take the item right now (level costs). */
+  canTake?(): boolean;
   /** Sprite drawn in the empty slot (e.g. armor silhouettes). */
   icon?: string;
   maxCount?: number;
@@ -58,7 +61,7 @@ const T = (p: string) => `url('${import.meta.env.BASE_URL}textures/gui/${p}')`;
 
 export class ContainerScreen {
   readonly root: HTMLElement;
-  private readonly gui: HTMLElement;
+  readonly gui: HTMLElement;
   private readonly slotEls: HTMLElement[] = [];
   private readonly cursorEl: HTMLElement;
   private readonly tooltip: HTMLElement;
@@ -201,6 +204,7 @@ export class ContainerScreen {
     const cur = this.cursor;
     if (slot.result) {
       if (!st) return;
+      if (slot.canTake && !slot.canTake()) return;
       if (cur && (!stackable(cur, st) || cur.count + st.count > items.maxStack(st.id))) return;
       const taken = cloneStack(st);
       slot.onTake?.(taken);
@@ -304,6 +308,7 @@ export class ContainerScreen {
       // craft as many as possible
       let guard = 0;
       while (st && guard++ < 64) {
+        if (slot.canTake && !slot.canTake()) break;
         const targets = this.def.quickMove?.(slot, st) ?? [];
         const taken = cloneStack(st);
         if (!this.insertInto(taken, targets)) break;
@@ -367,7 +372,7 @@ export class ContainerScreen {
         slot.set(b);
         hot.set(a);
         this.changed();
-      } else if (hot && slot?.result && slot.get() && !hot.get()) {
+      } else if (hot && slot?.result && slot.get() && !hot.get() && (!slot.canTake || slot.canTake())) {
         const taken = cloneStack(slot.get()!);
         slot.onTake?.(taken);
         hot.set(taken);
@@ -384,7 +389,7 @@ export class ContainerScreen {
         st.count -= n;
         slot.set(st.count > 0 ? st : null);
         this.changed();
-      } else if (st && slot.result) {
+      } else if (st && slot.result && (!slot.canTake || slot.canTake())) {
         const taken = cloneStack(st);
         slot.onTake?.(taken);
         this.host.drop(taken);
@@ -428,6 +433,30 @@ export class ContainerScreen {
     if (def?.food) this.tooltip.append(h('div', { class: 'sub', text: `Nutrition ${def.food.nutrition}, saturation ${def.food.saturation}` }));
     if (def?.attack) this.tooltip.append(h('div', { class: 'sub', text: `${def.attack.damage} Attack Damage · ${def.attack.speed} Attack Speed` }));
     if (def?.armor) this.tooltip.append(h('div', { class: 'sub', text: `+${def.armor.points} Armor${def.armor.toughness ? ` · +${def.armor.toughness} Toughness` : ''}` }));
+    if (st.trim) {
+      const pattern = trimPattern(st.trim.pattern);
+      const material = trimMaterial(st.trim.material);
+      this.tooltip.append(h('div', { class: 'sub', text: 'Upgrade: ' }));
+      const line = (text: string) => {
+        const el = h('div', { text: `\u00a0${text}` });
+        el.style.color = material?.color ?? '#a0a0a0';
+        this.tooltip.append(el);
+      };
+      line(pattern?.name ?? st.trim.pattern);
+      line(material?.name ?? st.trim.material);
+    }
+    if (def?.behavior === 'smithing_template') {
+      const upgrade = st.id === 'netherite_upgrade_smithing_template';
+      this.tooltip.append(h('div', { class: 'sub', text: 'Smithing Template' }));
+      const pair = (label: string, value: string) => {
+        this.tooltip.append(h('div', { class: 'sub', text: label }));
+        const el = h('div', { text: `\u00a0${value}` });
+        el.style.color = '#5555ff';
+        this.tooltip.append(el);
+      };
+      pair('Applies to:', upgrade ? 'Diamond Equipment' : 'Armor');
+      pair('Ingredients:', upgrade ? 'Netherite Ingot' : 'Ingots & Crystals');
+    }
     if (def?.durability && st.damage) this.tooltip.append(h('div', { class: 'sub', text: `Durability: ${def.durability - st.damage} / ${def.durability}` }));
     if (this.host.advancedTooltips) this.tooltip.append(h('div', { class: 'sub', text: `minecraft:${st.id}` }));
     this.tooltip.classList.remove('hidden');

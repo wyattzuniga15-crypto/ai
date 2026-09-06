@@ -19,7 +19,15 @@ export interface FurnaceEntity {
   xp: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity;
+export interface SignEntity {
+  type: 'sign';
+  lines: string[];
+  /** Text on the back of a standing sign (vanilla `back_text`); absent means blank. */
+  backLines?: string[];
+  color?: string;
+}
+
+export type BlockEntity = ContainerEntity | FurnaceEntity | SignEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -39,6 +47,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   }
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
+  if (blockId.endsWith('_sign') && !blockId.includes('hanging')) return { type: 'sign', lines: ['', '', '', ''] };
   return null;
 }
 
@@ -59,7 +68,7 @@ export function deserializeEntities(json: string | null | undefined): Map<string
   try {
     const obj = JSON.parse(json) as Record<string, BlockEntity>;
     for (const [k, v] of Object.entries(obj)) {
-      if (Array.isArray(v.items)) v.items = v.items.map((s) => (s && items.has(s.id) ? cloneStack(s) : null));
+      if ('items' in v && Array.isArray(v.items)) v.items = v.items.map((s) => (s && items.has(s.id) ? cloneStack(s) : null));
       map.set(k, v);
     }
   } catch (e) {

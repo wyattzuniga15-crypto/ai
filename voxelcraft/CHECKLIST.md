@@ -38,9 +38,9 @@ coverage counts in `COVERAGE.md`.
 - [ ] Options: keybinding editor, volume (audio not started)
 
 ## Phase 2 – survival core
-- [x] Inventory screen (E): 27 + 9 slots, armor, offhand, 2x2 crafting, shift-click, drag-split, number-key swap, double-click collect, Q drop, tooltips (player preview still missing)
+- [x] Inventory screen (E): 27 + 9 slots, armor, offhand, 2x2 crafting, player preview (default skin, follows the mouse), shift-click, drag-split, number-key swap, double-click collect, Q drop, tooltips
 - [x] Crafting table 3x3 using `data/recipes/crafting.json` (shaped with mirroring/trimming, shapeless, transmute, repair)
-- [ ] Recipe book
+- [x] Recipe book in the inventory and crafting table: search, craftable-only filter, pages, click to fill the grid from the inventory
 - [x] Furnace / blast furnace / smoker: vanilla fuel table, cook times, XP, lit block state, progress sprites
 - [x] Chest (27), double chest (54, vanilla left/right pairing), barrel, ender chest (per player), shulker box, hopper, dropper, dispenser GUIs; contents saved with the chunk and spilled on break
 - [ ] Shulker boxes keeping their contents as an item (needs item components)
@@ -48,7 +48,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Food: eating by holding use (32 ticks, 16 for dried kelp), nutrition/saturation, food effects, containers returned; exhaustion for sprinting, jumping, mining, regen
 - [x] Status effects: regeneration, poison, wither, hunger, saturation, instant health/damage, speed/slowness, jump boost, haste/mining fatigue, resistance, fire resistance, water breathing, night vision (`/effect`), HUD icons with timers
 - [x] Block behaviors: doors, trapdoors, fence gates, buttons (timed), levers, beds (two-block placement, spawn point, sleeping skips the night), ladders (climbing), snow layers (stacking, melting), falling blocks (sand, gravel, concrete powder, anvils), leaves decay, saplings grow into trees, grass/mycelium spread and decay, crops/stems/berries/cane/cactus/bamboo growth, farmland hydration, bone meal, cake, ice melting, plants and torches losing support
-- [ ] Signs (text editing GUI and rendering)
+- [x] Signs: standing and wall placement, four-line editor on placement and on use, board/post meshes with text on the real sign textures
 - [x] Water and lava flow (sources, levels, falling columns, slope preference, infinite water, obsidian/cobblestone), buckets (fill and empty), farmland hydration
 - [x] Basic mobs: zombie, skeleton (bow), creeper (fuse + explosion), spider (climbs, neutral in light), cow, pig, sheep, chicken; goal-based AI (wander, look, panic, target, melee, ranged, swell); burning in sunlight; vanilla light-level spawning with mob caps, 24-block minimum and despawning; animal groups on chunk generation; loot from the entity loot tables; mobs saved per chunk
 - [ ] More mobs: villagers, wolves, cats, horses, bees, fish, drowned, husks, strays, witches, slimes, phantoms, endermen, illagers, nether and end mobs
@@ -62,7 +62,10 @@ coverage counts in `COVERAGE.md`.
 - [ ] Structures: villages (jobs, trading), mineshafts, strongholds, temples, outposts, ruined portals, shipwrecks, monuments, mansions, trial chambers, ancient cities, igloos, witch huts
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
-- [ ] Enchanting table, anvil, grindstone, smithing table, brewing, loom, cartography, stonecutter, beacon
+- [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
+- [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)
+- [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)
+- [ ] Brewing stand, loom, cartography table, beacon, lectern, crafter
 - [ ] Weather, moon phases affecting spawns, raids
 - [ ] Every enchantment and status effect
 

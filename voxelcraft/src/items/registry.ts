@@ -17,6 +17,7 @@ export interface ItemDef {
   armor?: { slot: string; points: number; toughness: number; knockbackResistance: number };
   food?: { nutrition: number; saturation: number; alwaysEdible?: boolean; eatTicks?: number; effects?: { effect: string; duration: number; amplifier?: number; chance?: number }[]; container?: string };
   block?: string;
+  enchantability?: number;
 }
 
 export class ItemRegistry {

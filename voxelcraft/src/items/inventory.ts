@@ -8,19 +8,25 @@ export interface ItemStack {
   damage?: number;
   enchantments?: Record<string, number>;
   name?: string;
+  /** Anvil prior-work penalty. */
+  repairCost?: number;
+  /** Armor trim applied at a smithing table. */
+  trim?: { pattern: string; material: string };
 }
 
 export type Slot = ItemStack | null;
 
 export function stackable(a: ItemStack, b: ItemStack): boolean {
-  return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '');
+  return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null);
 }
 
 export function cloneStack(s: ItemStack, count = s.count): ItemStack {
   const c: ItemStack = { id: s.id, count };
   if (s.damage) c.damage = s.damage;
-  if (s.enchantments) c.enchantments = { ...s.enchantments };
+  if (s.enchantments && Object.keys(s.enchantments).length) c.enchantments = { ...s.enchantments };
   if (s.name) c.name = s.name;
+  if (s.repairCost) c.repairCost = s.repairCost;
+  if (s.trim) c.trim = { ...s.trim };
   return c;
 }
 

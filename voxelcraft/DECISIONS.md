@@ -134,3 +134,28 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 
 32. **Falling-block entities are not saved**; they land within a second, and a save in that
     window loses at most the block. Dropped items are saved with their chunk.
+
+33. **Enchanting options are generated from a per-table seed with a small xorshift generator** so
+    the preview and the applied result agree exactly, mirroring vanilla's seeded `EnchantmentMenu`.
+    The obfuscated glyph text on the buttons is decorative; the tooltip reveals one enchantment
+    like vanilla.
+
+34. **Sign boards and posts are entity meshes** (the vanilla sign block models have no elements),
+    rendered with the box-model builder on the real `entity/signs/*.png` textures, with the text
+    on a canvas plane. Hanging signs are not placeable yet.
+
+35. **Armor trims are stored on the stack as `{ pattern, material }` registry ids** (`bolt`,
+    `lapis`), generated into `data/trims.json` from the data pack's `trim_pattern` and
+    `trim_material` folders with the vanilla names and material colours. Vanilla maps ingredient
+    items to materials through the `provides_trim_material` item component, which minecraft-data
+    does not expose, so that eleven-entry table is hand-encoded in `tools/gen-data.ts`. Trimmed
+    armor still uses the plain item icon; the tooltip shows the vanilla "Upgrade:" lines in the
+    material colour.
+
+36. **Every workstation screen hands its own slots back on close** (`returnSlots`), like vanilla's
+    `removed()`; leftovers that do not fit are dropped at the player's feet. The anvil and
+    grindstone screens were missing this and silently lost their inputs.
+
+37. **Standing signs carry separate front and back text** like vanilla's `front_text`/`back_text`;
+    right-clicking edits the side the player stands on (`SignBlock.isFacingFrontText`). A blank
+    back draws no text plane. Glowing/dyed text is stored (`color`) but not yet editable in-game.

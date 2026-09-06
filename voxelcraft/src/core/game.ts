@@ -48,6 +48,14 @@ import { mobStats } from '../entities/mobTypes.ts';
 import type { AABB } from '../entities/physics.ts';
 import { XpOrb, splitXp } from '../entities/xpOrb.ts';
 import { AudioEngine, blockSoundGroup } from '../audio/audio.ts';
+import { anvilScreen, enchantingScreen, grindstoneScreen, stateOf, type EnchantHost } from '../ui/screens/enchanting.ts';
+import { smithingScreen, stonecutterScreen } from '../ui/screens/workstations.ts';
+import { countBookshelves } from '../items/enchanting.ts';
+import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts';
+import { PlayerPreview } from '../ui/playerPreview.ts';
+import { SignRenderer, isSignBlock } from '../blocks/signs.ts';
+import { openSignEditor } from '../ui/signEditor.ts';
+import type { SignEntity } from '../blocks/blockEntity.ts';
 
 export interface GameAssets {
   blocks: LoadedAtlas;
@@ -112,6 +120,9 @@ export class Game {
   entities!: EntityManager;
   readonly xpOrbs: XpOrb[] = [];
   readonly audio = new AudioEngine();
+  readonly signs: SignRenderer;
+  private enchantSeed = (Math.random() * 0xffffffff) >>> 0;
+  private signEditorClose: (() => void) | null = null;
   private stepDistance = 0;
   private attackTicks = 100;
   private readonly animalChunks: Set<string>;
@@ -240,6 +251,7 @@ export class Game {
     this.input.onLockChange = (locked) => {
       if (!locked && this.state === 'playing') this.pause();
     };
+    this.signs = new SignRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.audio.setVolume(opts.options.volume);
     const unlock = () => this.audio.unlock();
     this.renderer.canvas.addEventListener('mousedown', unlock);
@@ -345,6 +357,8 @@ export class Game {
 
   async quit(): Promise<void> {
     this.closeScreen();
+    this.signEditorClose?.();
+    this.signs.clear();
     this.loop.stop();
     window.removeEventListener('beforeunload', this.unloadHandler);
     await this.saveAll();
@@ -424,6 +438,7 @@ export class Game {
       }
     }
     this.tickSounds();
+    if (this.tickCount % 20 === 0) this.syncSigns();
     if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.sleeping > 0 && --this.sleeping === 0) {
       const day = Math.floor(this.time / DAY_LENGTH);
@@ -682,7 +697,8 @@ export class Game {
     // containers spill their contents (ender chests keep theirs with the player)
     const entity = this.world.getBlockEntity(x, y, z);
     if (entity) {
-      for (const s of entity.items) if (s) this.dropStack(s, x + 0.5, y + 0.5, z + 0.5, true);
+      if ('items' in entity) for (const s of entity.items) if (s) this.dropStack(s, x + 0.5, y + 0.5, z + 0.5, true);
+      if (entity.type === 'sign') this.signs.remove(x, y, z);
       this.world.setBlockEntity(x, y, z, null);
       if (def.id === 'chest' || def.id === 'trapped_chest') this.unpairChest(x, y, z, state);
     }
@@ -760,6 +776,7 @@ export class Game {
     const entity = createBlockEntity(def.id);
     if (entity) this.world.setBlockEntity(x, y, z, entity);
     if (def.id === 'chest' || def.id === 'trapped_chest') this.pairChest(x, y, z, state);
+    if (entity?.type === 'sign') this.editSign(x, y, z, entity);
     if (blocks.prop(state, 'half') === 'lower') {
       const upper = blocks.withProp(state, 'half', 'upper');
       if (this.world.getBlock(x, y + 1, z) === 0) this.world.setBlock(x, y + 1, z, upper);
@@ -808,6 +825,13 @@ export class Game {
     if (id === 'ladder') {
       if (t.face < 2) return null;
       return blocks.stateWith(def, { facing: faceName, waterlogged: 'false' });
+    }
+    if (isSignBlock(id) && !id.endsWith('_wall_sign')) {
+      if (t.face === 0) return null;
+      if (t.face >= 2) {
+        const wall = id.replace(/_sign$/, '_wall_sign');
+        if (blocks.has(wall)) return blocks.stateWith(wall, { facing: faceName, waterlogged: props.waterlogged ?? 'false' });
+      }
     }
     if (names.has('hanging')) props.hanging = t.face === 0 ? 'true' : 'false';
     if (names.has('axis')) props.axis = t.face < 2 ? 'y' : t.face < 4 ? 'z' : 'x';
@@ -899,11 +923,58 @@ export class Game {
     }
     if (def.id === 'crafting_table') {
       const grid = makeGrid(3, 3);
-      this.openScreen(craftingTableScreen(inv, grid), () => this.returnGrid(grid));
+      const screen = craftingTableScreen(inv, grid);
+      let book: ReturnType<typeof attachRecipeBook> | null = null;
+      screen.overlay = (root) => {
+        if (!book) {
+          book = attachRecipeBook(root, { icons: this.icons, inventory: inv, grid, guiScale: this.options.guiScale, refresh: () => this.screen?.refresh() }, 3);
+          recipeBookButton(root, 5, 35, this.options.guiScale, () => book?.toggle());
+        }
+      };
+      this.openScreen(screen, () => {
+        book?.destroy();
+        this.returnGrid(grid);
+      });
       return true;
     }
     if (def.id === 'ender_chest') {
       this.openScreen(chestScreen(inv, p.enderChest, 3, 'Ender Chest'));
+      return true;
+    }
+    if (def.id === 'enchanting_table') {
+      const shelves = countBookshelves((x, y, z) => blocks.idOf(this.world.getBlock(x, y, z)), t.x, t.y, t.z);
+      const seedRef = { seed: this.enchantSeed };
+      const screen = enchantingScreen(this.enchantHost(), shelves, seedRef);
+      this.openScreen(screen, () => {
+        this.enchantSeed = seedRef.seed;
+        (screen as ScreenDef & { cleanup?: () => void }).cleanup?.();
+        this.returnSlots(stateOf(screen));
+      });
+      return true;
+    }
+    if (def.id === 'anvil' || def.id === 'chipped_anvil' || def.id === 'damaged_anvil') {
+      const screen = anvilScreen(this.enchantHost());
+      this.openScreen(screen, () => this.returnSlots(stateOf(screen)));
+      return true;
+    }
+    if (def.id === 'grindstone') {
+      const screen = grindstoneScreen(this.enchantHost(), new Rng((Math.random() * 1e9) >>> 0));
+      this.openScreen(screen, () => this.returnSlots(stateOf(screen)));
+      return true;
+    }
+    if (def.id === 'stonecutter') {
+      const screen = stonecutterScreen({ ...this.enchantHost(), icons: this.icons, refresh: () => this.screen?.refresh() });
+      this.openScreen(screen, () => this.returnSlots(stateOf(screen)));
+      return true;
+    }
+    if (def.id === 'smithing_table') {
+      const screen = smithingScreen({ ...this.enchantHost(), icons: this.icons, refresh: () => this.screen?.refresh() });
+      this.openScreen(screen, () => this.returnSlots(stateOf(screen)));
+      return true;
+    }
+    if (isSignBlock(def.id)) {
+      const entity = this.world.getBlockEntity(t.x, t.y, t.z) as SignEntity | undefined;
+      if (entity?.type === 'sign') this.editSign(t.x, t.y, t.z, entity, this.signSide(def.id, t.state, t.x, t.z));
       return true;
     }
     if (def.behavior === 'workstation') {
@@ -1294,9 +1365,98 @@ export class Game {
     this.hud.showToast('');
   }
 
+  private enchantHost(): EnchantHost & { giveXp: (n: number) => void } {
+    const p = this.player;
+    return {
+      inventory: p.inventory,
+      level: () => p.xpLevel,
+      spendLevels: (n) => {
+        p.xpLevel = Math.max(0, p.xpLevel - n);
+      },
+      creative: () => p.gamemode === 'creative',
+      guiScale: this.options.guiScale,
+      playSound: (name) => this.audio.play(name),
+      giveXp: (n) => this.spawnXp(n, p.pos.x, p.pos.y + 1, p.pos.z),
+    };
+  }
+
+  /** Returns any items left in a workstation's own slots when it closes. */
+  private returnSlots(state: Record<string, Slot> | undefined): void {
+    if (!state) return;
+    for (const [k, v] of Object.entries(state)) {
+      if (!v || typeof v !== 'object' || !('id' in v)) continue;
+      const left = this.player.inventory.add(v);
+      if (left > 0) this.dropStack({ ...v, count: left }, this.player.pos.x, this.player.pos.y + 1, this.player.pos.z, true);
+      state[k] = null;
+    }
+  }
+
+  /** Vanilla `SignBlock.isFacingFrontText`: a standing sign is edited on the side the player stands on. */
+  private signSide(id: string, state: number, x: number, z: number): 'front' | 'back' {
+    if (id.endsWith('_wall_sign')) return 'front';
+    const a = (Number(blocks.prop(state, 'rotation') ?? 0) * Math.PI) / 8;
+    const dx = this.player.pos.x - (x + 0.5);
+    const dz = this.player.pos.z - (z + 0.5);
+    return dx * -Math.sin(a) + dz * Math.cos(a) >= 0 ? 'front' : 'back';
+  }
+
+  private editSign(x: number, y: number, z: number, entity: SignEntity, side: 'front' | 'back' = 'front'): void {
+    if (this.state !== 'playing') return;
+    this.state = 'gui';
+    this.input.enabled = false;
+    this.input.exitLock();
+    const container = this.renderer.canvas.parentElement ?? document.body;
+    const current = side === 'front' ? entity.lines : entity.backLines ?? ['', '', '', ''];
+    this.signEditorClose = openSignEditor(container, current, (lines) => {
+      if (side === 'front') entity.lines = lines;
+      else entity.backLines = lines;
+      this.world.markModifiedAt(x, z);
+      const st = this.world.getBlock(x, y, z);
+      if (st !== 0 && isSignBlock(blocks.idOf(st))) this.signs.update(x, y, z, st, entity);
+      this.signEditorClose = null;
+      this.input.endFrame();
+      this.input.endTick();
+      if (this.state === 'gui') {
+        this.state = 'playing';
+        this.input.enabled = true;
+        this.input.requestLock();
+      }
+    });
+  }
+
+  /** Keeps sign meshes in step with loaded sign block entities. */
+  private syncSigns(): void {
+    const seen = new Set<string>();
+    this.world.forEachBlockEntity((x, y, z, e) => {
+      if (e.type !== 'sign') return;
+      const st = this.world.getBlock(x, y, z);
+      if (st === 0 || !isSignBlock(blocks.idOf(st))) return;
+      seen.add(`${x},${y},${z}`);
+      this.signs.update(x, y, z, st, e);
+    });
+    this.signs.prune(seen);
+  }
+
   openInventory(): void {
     const grid = makeGrid(2, 2);
-    this.openScreen(inventoryScreen(this.player.inventory, grid), () => this.returnGrid(grid));
+    const def = inventoryScreen(this.player.inventory, grid);
+    let preview: PlayerPreview | null = null;
+    let book: ReturnType<typeof attachRecipeBook> | null = null;
+    def.overlay = (root) => {
+      const s = this.options.guiScale;
+      if (!preview) {
+        preview = new PlayerPreview(import.meta.env.BASE_URL, 49 * s, 70 * s);
+        preview.canvas.style.cssText = `position:absolute;left:${26 * s}px;top:${8 * s}px;width:${49 * s}px;height:${70 * s}px;pointer-events:none;`;
+        root.append(preview.canvas);
+        book = attachRecipeBook(root, { icons: this.icons, inventory: this.player.inventory, grid, guiScale: s, refresh: () => this.screen?.refresh() }, 2);
+        recipeBookButton(root, 104, 61, s, () => book?.toggle());
+      }
+    };
+    this.openScreen(def, () => {
+      preview?.destroy();
+      book?.destroy();
+      this.returnGrid(grid);
+    });
   }
 
   private returnGrid(grid: CraftingGrid): void {
@@ -1341,6 +1501,9 @@ export class Game {
     screen.destroy();
     this.screenCleanup?.();
     this.screenCleanup = null;
+    // the key that closed the screen (Escape / E) must not also pause or reopen
+    this.input.endFrame();
+    this.input.endTick();
     if (this.state === 'gui') {
       this.state = 'playing';
       this.input.enabled = true;

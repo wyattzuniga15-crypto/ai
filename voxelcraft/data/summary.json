@@ -15,5 +15,9 @@
   "mobs": 157,
   "biomes": 65,
   "enchantments": 43,
-  "effects": 40
+  "effects": 40,
+  "trims": {
+    "patterns": 18,
+    "materials": 11
+  }
 }

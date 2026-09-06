@@ -102,13 +102,19 @@ class GeometryBuilder {
 
 const LEAF_CONST: Record<string, number> = { birch_leaves: 0x80a755, spruce_leaves: 0x619961 };
 
+// Vanilla `BlockColors`: only these blocks have a colour provider; every other face keeps its
+// texture colour even when the model declares a tintindex (the stonecutter saw does).
+const GRASS_TINTED = new Set(['grass_block', 'short_grass', 'fern', 'tall_grass', 'large_fern', 'potted_fern', 'sugar_cane', 'pink_petals', 'wildflowers', 'bush']);
+const FOLIAGE_TINTED = new Set(['oak_leaves', 'jungle_leaves', 'acacia_leaves', 'dark_oak_leaves', 'mangrove_leaves', 'vine']);
+const WATER_TINTED = new Set(['water', 'water_cauldron', 'bubble_column']);
+
 export function tintColor(def: BlockDef, state: number, tintIndex: number, biomeIdx: number): number {
   if (tintIndex < 0) return 0xffffff;
   const b = biomes[biomeIdx];
   const id = def.id;
-  if (id === 'water' || id === 'water_cauldron' || id === 'bubble_column') return b?.waterColor ?? DEFAULT_WATER;
-  if (id.endsWith('_leaves')) return LEAF_CONST[id] ?? b?.foliageColor ?? DEFAULT_FOLIAGE;
-  if (id === 'vine') return b?.foliageColor ?? DEFAULT_FOLIAGE;
+  if (WATER_TINTED.has(id)) return b?.waterColor ?? DEFAULT_WATER;
+  if (LEAF_CONST[id]) return LEAF_CONST[id];
+  if (FOLIAGE_TINTED.has(id)) return b?.foliageColor ?? DEFAULT_FOLIAGE;
   if (id === 'lily_pad') return 0x208030;
   if (id === 'attached_melon_stem' || id === 'attached_pumpkin_stem') return 0xe0c71c;
   if (id === 'melon_stem' || id === 'pumpkin_stem') {
@@ -121,7 +127,8 @@ export function tintColor(def: BlockDef, state: number, tintIndex: number, biome
     const g = Math.round(Math.max(0, p * p * 0.7 - 0.5) * 255);
     return (r << 16) | (g << 8) | 0;
   }
-  return b?.grassColor ?? DEFAULT_GRASS;
+  if (GRASS_TINTED.has(id)) return b?.grassColor ?? DEFAULT_GRASS;
+  return 0xffffff;
 }
 
 export class SectionMesher {

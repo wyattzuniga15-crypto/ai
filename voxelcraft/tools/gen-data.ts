@@ -554,6 +554,7 @@ const items = itemsMd.map((i) => {
       out.tier = mat;
       out.tierLevel = tier.level;
       out.miningSpeed = tier.speed;
+      out.enchantability = tier.enchantability;
       out.durability = i.maxDurability ?? tier.durability;
       const spec = TOOL_KINDS[kind];
       let damage = spec.base + tier.damageBonus;
@@ -563,13 +564,17 @@ const items = itemsMd.map((i) => {
     } else if (kind in ARMOR_SLOTS && ARMOR[mat]) {
       const a = ARMOR[mat];
       out.armor = { slot: kind, points: a.points[ARMOR_SLOTS[kind]], toughness: a.toughness, knockbackResistance: a.kb };
+      out.enchantability = a.enchantability;
     }
   }
   const cm = /^(leather|chainmail)_(helmet|chestplate|leggings|boots)$/.exec(i.name);
   if (cm) {
     const a = ARMOR[cm[1]];
     out.armor = { slot: cm[2], points: a.points[ARMOR_SLOTS[cm[2]]], toughness: 0, knockbackResistance: 0 };
+    out.enchantability = a.enchantability;
   }
+  const ENCHANTABILITY: Record<string, number> = { book: 1, bow: 1, crossbow: 1, fishing_rod: 1, trident: 1, shield: 1, elytra: 15, turtle_helmet: 9, mace: 15, shears: 1, flint_and_steel: 1, carrot_on_a_stick: 1, warped_fungus_on_a_stick: 1, brush: 1, compass: 1, recovery_compass: 1, spyglass: 1 };
+  if (ENCHANTABILITY[i.name] !== undefined) out.enchantability = ENCHANTABILITY[i.name];
   if (i.name === 'turtle_helmet') out.armor = { slot: 'helmet', points: 2, toughness: 0, knockbackResistance: 0 };
   if (i.name === 'elytra') out.armor = { slot: 'chestplate', points: 0, toughness: 0, knockbackResistance: 0 };
   if (i.name === 'trident') out.attack = { damage: 9, speed: 1.1 };
@@ -622,6 +627,7 @@ interface RawRecipe {
   experience?: number; cookingtime?: number; template?: unknown; base?: unknown; addition?: unknown;
   input?: unknown; material?: unknown; pattern_id?: string;
 }
+const trimPatternOf = (r: RawRecipe) => (typeof r.pattern === 'string' ? stripNs(r.pattern) : r.pattern_id ? stripNs(r.pattern_id) : undefined);
 const result = (r: RawRecipe) => {
   if (!r.result) return undefined;
   if (typeof r.result === 'string') return { item: stripNs(r.result), count: 1 };
@@ -659,7 +665,7 @@ for (const f of listFiles(recipeDir, '.json')) {
       smithing.push({ ...common, type: 'transform', template: ingredient(r.template), base: ingredient(r.base), addition: ingredient(r.addition), result: result(r) });
       break;
     case 'smithing_trim':
-      smithing.push({ ...common, type: 'trim', template: ingredient(r.template), base: ingredient(r.base), addition: ingredient(r.addition), pattern: r.pattern_id ? stripNs(r.pattern_id) : undefined });
+      smithing.push({ ...common, type: 'trim', template: ingredient(r.template), base: ingredient(r.base), addition: ingredient(r.addition), pattern: trimPatternOf(r) });
       break;
     default:
       if (type.startsWith('crafting_special_') || type === 'crafting_decorated_pot') special.push({ ...common, type: type.replace('crafting_special_', '').replace('crafting_', '') });
@@ -843,6 +849,32 @@ const effects = effectsMd.map((e) => ({
 writeJson(path.join(DATA, 'effects.json'), effects);
 
 // ------------------------------------------------------------------------------------------------
+// Armor trims: patterns and materials from the data pack. Vanilla maps ingredient items to materials
+// with the `provides_trim_material` item component; that table is hand-encoded here.
+// ------------------------------------------------------------------------------------------------
+const TRIM_MATERIAL_ITEMS: Record<string, string> = {
+  amethyst: 'amethyst_shard', copper: 'copper_ingot', diamond: 'diamond', emerald: 'emerald', gold: 'gold_ingot',
+  iron: 'iron_ingot', lapis: 'lapis_lazuli', netherite: 'netherite_ingot', quartz: 'quartz', redstone: 'redstone', resin: 'resin_brick',
+};
+const langFile = [path.join(ASSETS, 'lang', 'en_us.json'), path.join(jar, 'assets', 'minecraft', 'lang', 'en_us.json')].find((f) => fs.existsSync(f));
+const lang: Record<string, string> = langFile ? readJson<Record<string, string>>(langFile) : {};
+const titleCase = (s: string) => s.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+const dataFiles = (dir: string) => (fs.existsSync(dir) ? listFiles(dir, '.json').filter((f) => !f.startsWith('_')) : []);
+const trimPatterns = dataFiles(path.join(pack, 'trim_pattern')).map((f) => {
+  const id = f.slice(0, -5);
+  const raw = readJson<{ decal?: boolean }>(path.join(pack, 'trim_pattern', f));
+  return { id, name: lang[`trim_pattern.minecraft.${id}`] ?? `${titleCase(id)} Armor Trim`, template: `${id}_armor_trim_smithing_template`, decal: !!raw.decal };
+});
+const trimMaterials = dataFiles(path.join(pack, 'trim_material')).map((f) => {
+  const id = f.slice(0, -5);
+  const raw = readJson<{ description?: { color?: string } }>(path.join(pack, 'trim_material', f));
+  return { id, name: lang[`trim_material.minecraft.${id}`] ?? `${titleCase(id)} Material`, item: TRIM_MATERIAL_ITEMS[id] ?? id, color: raw.description?.color ?? '#ffffff' };
+});
+for (const p of trimPatterns) if (!itemNames.has(p.template)) console.warn(`trim pattern ${p.id}: no template item ${p.template}`);
+for (const m of trimMaterials) if (!itemNames.has(m.item)) console.warn(`trim material ${m.id}: no ingredient item ${m.item}`);
+writeJson(path.join(DATA, 'trims.json'), { patterns: trimPatterns, materials: trimMaterials });
+
+// ------------------------------------------------------------------------------------------------
 // Summary
 // ------------------------------------------------------------------------------------------------
 const summary = {
@@ -863,6 +895,7 @@ const summary = {
   biomes: biomes.length,
   enchantments: enchantments.length,
   effects: effects.length,
+  trims: { patterns: trimPatterns.length, materials: trimMaterials.length },
 };
 writeJson(path.join(DATA, 'summary.json'), summary, true);
 console.log(JSON.stringify(summary, null, 1));
