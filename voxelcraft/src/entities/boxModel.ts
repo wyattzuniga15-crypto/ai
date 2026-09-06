@@ -12,6 +12,8 @@ export interface BoxDef {
   box: [number, number, number, number, number, number];
   inflate?: number;
   mirror?: boolean;
+  /** Mirror every face vertically (chest-style models that vanilla renders without the y flip). */
+  flipV?: boolean;
 }
 
 export interface PartDef {
@@ -41,23 +43,36 @@ export interface BuiltModel {
 
 const textureCache = new Map<string, THREE.Texture>();
 
-export function entityTexture(base: string, path: string): THREE.Texture {
-  let t = textureCache.get(path);
-  if (!t) {
-    t = new THREE.TextureLoader().load(`${base}textures/entity/${path}`);
-    t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
-    t.colorSpace = THREE.SRGBColorSpace;
-    textureCache.set(path, t);
-  }
+function prepare(t: THREE.Texture, path: string): THREE.Texture {
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set(path, t);
   return t;
+}
+
+export function entityTexture(base: string, path: string): THREE.Texture {
+  return textureCache.get(path) ?? prepare(new THREE.TextureLoader().load(`${base}textures/entity/${path}`), path);
+}
+
+/** Loads entity textures ahead of synchronous use (item icons); missing files are skipped. */
+export async function preloadEntityTextures(base: string, paths: Iterable<string>): Promise<void> {
+  const loader = new THREE.TextureLoader();
+  await Promise.all([...new Set(paths)].filter((p) => !textureCache.has(p)).map(async (p) => {
+    try {
+      prepare(await loader.loadAsync(`${base}textures/entity/${p}`), p);
+    } catch {
+      /* missing texture: the model falls back to the loader's empty texture */
+    }
+  }));
 }
 
 /**
  * Sets one BoxGeometry face's uvs from a pixel rectangle (v grows downward in the texture).
  * Faces in BoxGeometry order: px, nx, py, ny, pz, nz. `rot` rotates the rectangle in 90° steps.
  */
-function setFace(uv: THREE.BufferAttribute, face: number, u1: number, v1: number, u2: number, v2: number, texW: number, texH: number, rot = 0, mirror = false): void {
+function setFace(uv: THREE.BufferAttribute, face: number, u1: number, v1: number, u2: number, v2: number, texW: number, texH: number, rot = 0, mirror = false, flipV = false): void {
+  if (flipV) [v1, v2] = [v2, v1];
   let corners: [number, number][] = [[u1, v1], [u2, v1], [u1, v2], [u2, v2]]; // TL, TR, BL, BR
   if (mirror) corners = [corners[1], corners[0], corners[3], corners[2]];
   for (let r = 0; r < rot; r++) corners = [corners[2], corners[0], corners[3], corners[1]];
@@ -73,17 +88,18 @@ export function boxGeometry(def: BoxDef, texW: number, texH: number): THREE.Buff
   geo.translate(-(x + w / 2), -(y + h / 2), z + d / 2);
   const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
   const m = def.mirror ?? false;
+  const fv = def.flipV ?? false;
   // net: [top][bottom] over [right][front][left][back]; "right" is the mob's right (-x in MC space -> +x here)
-  setFace(uv, 0, u, v + d, u + d, v + d + h, texW, texH, 0, m); // px  <- right
-  setFace(uv, 1, u + d + w, v + d, u + 2 * d + w, v + d + h, texW, texH, 0, m); // nx  <- left
-  setFace(uv, 2, u + d, v, u + d + w, v + d, texW, texH, 2, m); // py  <- top (rotated: the front edge is the lower texture row)
-  setFace(uv, 3, u + d + w, v, u + d + 2 * w, v + d, texW, texH, 2, m); // ny  <- bottom
-  setFace(uv, 4, u + 2 * d + w, v + d, u + 2 * d + 2 * w, v + d + h, texW, texH, 0, m); // pz  <- back
-  setFace(uv, 5, u + d, v + d, u + d + w, v + d + h, texW, texH, 0, m); // nz  <- front
+  setFace(uv, 0, u, v + d, u + d, v + d + h, texW, texH, 0, m, fv); // px  <- right
+  setFace(uv, 1, u + d + w, v + d, u + 2 * d + w, v + d + h, texW, texH, 0, m, fv); // nx  <- left
+  setFace(uv, 2, u + d, v, u + d + w, v + d, texW, texH, 2, m, fv); // py  <- top (rotated: the front edge is the lower texture row)
+  setFace(uv, 3, u + d + w, v, u + d + 2 * w, v + d, texW, texH, 2, m, fv); // ny  <- bottom
+  setFace(uv, 4, u + 2 * d + w, v + d, u + 2 * d + 2 * w, v + d + h, texW, texH, 0, m, fv); // pz  <- back
+  setFace(uv, 5, u + d, v + d, u + d + w, v + d + h, texW, texH, 0, m, fv); // nz  <- front
   if (m) {
     // mirrored parts swap left/right nets
-    setFace(uv, 0, u + d + w, v + d, u + 2 * d + w, v + d + h, texW, texH, 0, true);
-    setFace(uv, 1, u, v + d, u + d, v + d + h, texW, texH, 0, true);
+    setFace(uv, 0, u + d + w, v + d, u + 2 * d + w, v + d + h, texW, texH, 0, true, fv);
+    setFace(uv, 1, u, v + d, u + d, v + d + h, texW, texH, 0, true, fv);
   }
   uv.needsUpdate = true;
   return geo;

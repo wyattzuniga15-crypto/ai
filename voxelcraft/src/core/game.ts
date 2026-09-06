@@ -269,6 +269,7 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   async start(progress: (text: string, p: number) => void): Promise<void> {
     const meta = this.meta;
+    await this.icons.preload();
     if (meta.player) {
       this.player.restore(meta.player);
     } else {

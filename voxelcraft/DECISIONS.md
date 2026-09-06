@@ -197,3 +197,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     compares them structurally. Shulker boxes with anything inside drop as one item carrying the
     27 slots in every game mode, exactly like vanilla's `copy_components` loot function, and hand
     them back on placement. Shulker boxes refuse other shulker boxes.
+
+43. **Items vanilla draws with block-entity renderers get box-model icons.** Shulker boxes, chests
+    (all wood/copper variants), beds, banners (tinted `banner/base` flag), shields, mob and player
+    heads and the conduit are built with the mob box-model builder on their entity textures and
+    rendered with the item's GUI display transform; chests use a vertical UV flip because vanilla
+    draws them without the model y flip. Anything still without a drawable model (dragon head,
+    decorated pot, copper golem statues) shows the magenta/black checker instead of a broken image.

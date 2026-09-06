@@ -9,6 +9,8 @@ import { blocks } from '../blocks/registry.ts';
 import { items } from '../items/registry.ts';
 import { tintColor } from '../world/mesher.ts';
 import { biomeIndex } from '../world/biomes.ts';
+import { buildModel, entityTexture, preloadEntityTextures } from '../entities/boxModel.ts';
+import { specialIcon, type SpecialIcon } from './specialIcons.ts';
 
 const SIZE = 48;
 
@@ -37,17 +39,31 @@ export class ItemIcons {
     this.sprite.height = SIZE;
   }
 
-  /** Data URL for an item id (or empty string when nothing can be drawn). */
+  /** Loads the entity textures that special (block-entity rendered) item icons draw from. */
+  async preload(): Promise<void> {
+    const paths = new Set<string>();
+    for (const id of items.byId.keys()) {
+      const sp = specialIcon(id);
+      if (!sp) continue;
+      paths.add(sp.model.texture);
+      for (const p of sp.model.parts) if (p.texture) paths.add(p.texture);
+    }
+    await preloadEntityTextures(import.meta.env.BASE_URL, paths);
+  }
+
+  /** Data URL for an item id; items without any drawable model get the magenta/black checker. */
   icon(id: string): string {
     const cached = this.cache.get(id);
     if (cached !== undefined) return cached;
     let url = '';
     try {
       const def = items.byId.get(id);
-      const model = this.baker.itemModel(id, def?.block);
+      const special = specialIcon(id);
+      if (special) url = this.drawSpecial(special);
+      const model = url ? null : this.baker.itemModel(id, def?.block);
       if (model?.kind === 'sprite') url = this.drawSprite(model.textures);
       else if (model?.kind === 'model') url = this.drawModel(id, model.model, model.display?.gui);
-      else if (def?.block && blocks.has(def.block)) {
+      else if (!url && def?.block && blocks.has(def.block)) {
         const bm = this.baker.modelFor(blocks.defaultState(def.block), 0);
         url = this.drawModel(id, bm, undefined);
       }
@@ -55,8 +71,54 @@ export class ItemIcons {
     } catch (e) {
       console.warn('icon failed for', id, e);
     }
+    if (!url) url = this.drawChecker();
     this.cache.set(id, url);
     return url;
+  }
+
+  private drawChecker(): string {
+    const g = this.sprite.getContext('2d')!;
+    g.clearRect(0, 0, SIZE, SIZE);
+    for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) {
+      g.fillStyle = (x + y) % 2 ? '#000' : '#f800f8';
+      g.fillRect(x * SIZE / 2, y * SIZE / 2, SIZE / 2, SIZE / 2);
+    }
+    return this.sprite.toDataURL();
+  }
+
+  /** Renders a block-entity style box model (chest, shulker box, bed, banner, shield, head). */
+  private drawSpecial(sp: SpecialIcon): string {
+    const base = import.meta.env.BASE_URL;
+    const built = buildModel(sp.model, base);
+    const shades = [0.6, 0.6, 1.0, 0.5, 0.8, 0.8]; // BoxGeometry face order px, nx, py, ny, pz, nz
+    const tintTex = sp.tint ? entityTexture(base, sp.tint.texture) : null;
+    built.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const geo = o.geometry as THREE.BufferGeometry;
+      const n = geo.getAttribute('position').count;
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = shades[Math.floor(i / 4)] ?? 1;
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const mat = o.material as THREE.MeshBasicMaterial;
+      mat.vertexColors = true;
+      if (tintTex && mat.map === tintTex) mat.color.setHex(sp.tint!.color);
+      mat.needsUpdate = true;
+    });
+    // centre the model, then apply the item's GUI display transform like drawModel
+    const center = new THREE.Box3().setFromObject(built.group).getCenter(new THREE.Vector3());
+    built.group.position.sub(center);
+    const holder = new THREE.Group();
+    holder.add(built.group);
+    const [rx, ry, rz] = sp.gui.rotation;
+    holder.rotation.set(THREE.MathUtils.degToRad(rx), THREE.MathUtils.degToRad(ry), THREE.MathUtils.degToRad(rz), 'XYZ');
+    holder.scale.setScalar(sp.gui.scale * 1.6);
+    holder.position.set(sp.gui.translation[0] / 16, sp.gui.translation[1] / 16, sp.gui.translation[2] / 16);
+    this.scene.add(holder);
+    this.renderer.render(this.scene, this.camera);
+    this.scene.remove(holder);
+    built.group.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+    for (const m of built.materials) m.dispose();
+    return this.renderer.domElement.toDataURL();
   }
 
   private drawSprite(textures: string[]): string {
