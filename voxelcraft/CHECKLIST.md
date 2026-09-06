@@ -60,7 +60,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Sound effects synthesized on Web Audio: digging/placing by material, footsteps, hurt/death, eating, XP, pickups, explosions, bows, doors, chests, buttons, mob ambient and hurt sounds; master volume option
 
 ## Phase 3 – world depth
-- [ ] All biome features (bamboo, mangrove roots, azalea, dripstone, lush caves, deep dark), 3D biomes
+- [x] Cave biomes as 3D noise regions (lush caves with moss, azaleas, glow berry vines and spore blossoms; dripstone caves with stalactites and stalagmites; deep dark with sculk, sensors, shriekers and catalysts), glow lichen in every cave, azalea trees above lush caves, mangrove trees on stilt roots with propagules, bamboo
+- [ ] Remaining biome features: cherry/pale garden details, coral reefs, icebergs, badlands mineshaft-free terracotta bands polish
 - [ ] Aquifers, ravines, lakes
 - [ ] Structures: villages (jobs, trading), mineshafts, strongholds, temples, outposts, ruined portals, shipwrecks, monuments, mansions, trial chambers, ancient cities, igloos, witch huts
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts

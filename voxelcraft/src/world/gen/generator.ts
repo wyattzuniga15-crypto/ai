@@ -60,6 +60,16 @@ const ORES: OreConfig[] = [
 
 const MOUNTAIN_BIOMES = new Set(['snowy_slopes', 'jagged_peaks', 'frozen_peaks', 'stony_peaks', 'grove', 'meadow', 'windswept_hills', 'windswept_forest', 'windswept_gravelly_hills']);
 
+export type CaveBiome = 'lush' | 'dripstone' | 'deep_dark';
+
+/** Vanilla pointed dripstone thickness for piece `index` (0 = attached end) of a column `length` long. */
+export function dripstoneThickness(length: number, index: number): 'tip' | 'frustum' | 'middle' | 'base' {
+  const fromTip = length - 1 - index;
+  if (fromTip === 0) return 'tip';
+  if (fromTip === 1) return 'frustum';
+  return index === 0 ? 'base' : 'middle';
+}
+
 export interface ColumnInfo {
   height: number;
   biome: number;
@@ -81,6 +91,7 @@ export class WorldGenerator {
   private readonly spagB: Noise;
   private readonly noodle: Noise;
   private readonly detail: Noise;
+  private readonly caveBiome: Noise;
 
   private readonly S: Record<string, number>;
   private readonly stone: number;
@@ -106,6 +117,7 @@ export class WorldGenerator {
     this.spagB = n(11);
     this.noodle = n(12);
     this.detail = n(13);
+    this.caveBiome = n(14);
     this.S = {};
     this.stone = st('stone');
     this.deepslate = st('deepslate');
@@ -119,6 +131,22 @@ export class WorldGenerator {
     let s = this.S[id];
     if (s === undefined) s = this.S[id] = st(id);
     return s;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Cave biomes (3D): computed from noise wherever caves are decorated, never stored per column
+  // ---------------------------------------------------------------------------------------------
+  caveBiomeAt(wx: number, y: number, wz: number, surface: number): CaveBiome | null {
+    if (y > surface - 8) return null;
+    const v = this.caveBiome.fbm2(wx / 300, wz / 300, 2);
+    if (y < -8) {
+      // deep dark sits under eroded, mountainous land like vanilla's low-erosion depth band
+      const e = this.erosion.fbm2(wx / 700, wz / 700, 3);
+      if (e < -0.35 && v > -0.15) return 'deep_dark';
+    }
+    if (v > 0.38 && y > -40) return 'dripstone';
+    if (v < -0.38 && y > -24 && y < 64 && this.humidity.fbm2(wx / 1100, wz / 1100 + 100, 3) > -0.25) return 'lush';
+    return null;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -446,6 +474,17 @@ export class WorldGenerator {
     };
     const biomeAt = (lx: number, lz: number) => biomes[chunk.biomes[lz * 16 + lx]];
 
+    this.decorateCaves(chunk, world, rng);
+    // azalea trees mark lush caves below
+    for (let i = 0; i < 3; i++) {
+      const lx = rng.range(2, 13);
+      const lz = rng.range(2, 13);
+      const { y, block } = surfaceAt(lx, lz);
+      const id = blocks.blockOf(block).id;
+      if (y < SEA_LEVEL || (id !== 'grass_block' && id !== 'dirt' && id !== 'moss_block')) continue;
+      if (this.caveBiomeAt(ox + lx, y - 30, oz + lz, y) === 'lush' && rng.chance(0.35)) placeTree(world, rng, 'azalea', ox + lx, y + 1, oz + lz);
+    }
+
     // trees
     const centre = biomeAt(8, 8);
     const trees = centre.surface.trees ?? [];
@@ -509,6 +548,94 @@ export class WorldGenerator {
       }
     }
     chunk.status = 'decorated';
+  }
+
+  /**
+   * Lush, dripstone and deep dark cave features: floors and ceilings of cave air inside a cave biome
+   * get their biome blocks, plus glow lichen in every cave.
+   */
+  private decorateCaves(chunk: ChunkData, world: BlockAccess, rng: Rng): void {
+    const ox = chunk.cx * 16;
+    const oz = chunk.cz * 16;
+    const AIR = this.air;
+    const isRock = (s: number) => s === this.stone || s === this.deepslate;
+    const B = (id: string) => this.block(id);
+    for (let lz = 0; lz < 16; lz++)
+      for (let lx = 0; lx < 16; lx++) {
+        const wx = ox + lx;
+        const wz = oz + lz;
+        const surface = chunk.topBlock(lx, lz);
+        const start = Math.min(surface - 8, 200);
+        for (let y = start; y > WORLD_MIN_Y + 6; y--) {
+          if (chunk.get(lx, y, lz) !== AIR) continue;
+          const below = chunk.get(lx, y - 1, lz);
+          const above = chunk.get(lx, y + 1, lz);
+          const floor = isRock(below);
+          const ceiling = isRock(above);
+          if (!floor && !ceiling) continue;
+          if (ceiling && rng.chance(0.012)) world.set(wx, y, wz, blocks.stateWith('glow_lichen', { up: 'true' }));
+          const biome = this.caveBiomeAt(wx, y, wz, surface);
+          if (!biome) continue;
+          if (biome === 'lush') {
+            if (floor) {
+              world.set(wx, y - 1, wz, B(rng.chance(0.9) ? 'moss_block' : 'clay'));
+              const r = rng.next();
+              if (r < 0.22) world.set(wx, y, wz, B('short_grass'));
+              else if (r < 0.3) placeTallPlant(world, 'tall_grass', wx, y, wz);
+              else if (r < 0.42) world.set(wx, y, wz, B('moss_carpet'));
+              else if (r < 0.46) world.set(wx, y, wz, B('azalea'));
+              else if (r < 0.485) world.set(wx, y, wz, B('flowering_azalea'));
+            }
+            if (ceiling) {
+              if (rng.chance(0.6)) world.set(wx, y + 1, wz, B('moss_block'));
+              if (rng.chance(0.1)) {
+                const len = rng.range(1, 7);
+                let yy = y;
+                for (let i = 0; i < len && chunk.get(lx, yy, lz) === AIR && yy > WORLD_MIN_Y + 6; i++, yy--) {
+                  const last = i === len - 1 || chunk.get(lx, yy - 1, lz) !== AIR;
+                  world.set(wx, yy, wz, blocks.stateWith(last ? 'cave_vines' : 'cave_vines_plant', last ? { age: '0', berries: rng.chance(0.11) ? 'true' : 'false' } : { berries: rng.chance(0.11) ? 'true' : 'false' }));
+                  if (last) break;
+                }
+              } else if (rng.chance(0.02)) world.set(wx, y, wz, B('spore_blossom'));
+            }
+          } else if (biome === 'dripstone') {
+            if (floor) {
+              if (rng.chance(0.7)) world.set(wx, y - 1, wz, B('dripstone_block'));
+              if (rng.chance(0.07)) {
+                const len = rng.range(1, 4);
+                for (let i = 0; i < len && chunk.get(lx, y + i, lz) === AIR; i++) {
+                  const l = Math.min(len, this.airRun(chunk, lx, y, lz, 1, len));
+                  world.set(wx, y + i, wz, blocks.stateWith('pointed_dripstone', { thickness: dripstoneThickness(l, i), vertical_direction: 'up', waterlogged: 'false' }));
+                }
+              }
+            }
+            if (ceiling) {
+              if (rng.chance(0.7)) world.set(wx, y + 1, wz, B('dripstone_block'));
+              if (rng.chance(0.09)) {
+                const len = rng.range(1, 5);
+                const l = Math.min(len, this.airRun(chunk, lx, y, lz, -1, len));
+                for (let i = 0; i < l; i++) world.set(wx, y - i, wz, blocks.stateWith('pointed_dripstone', { thickness: dripstoneThickness(l, i), vertical_direction: 'down', waterlogged: 'false' }));
+              }
+            }
+          } else {
+            if (floor) {
+              if (rng.chance(0.85)) world.set(wx, y - 1, wz, B('sculk'));
+              const r = rng.next();
+              if (r < 0.015) world.set(wx, y, wz, blocks.stateWith('sculk_sensor', { power: '0', sculk_sensor_phase: 'inactive', waterlogged: 'false' }));
+              else if (r < 0.02) world.set(wx, y, wz, blocks.stateWith('sculk_shrieker', { can_summon: 'false', shrieking: 'false', waterlogged: 'false' }));
+              else if (r < 0.028) world.set(wx, y, wz, B('sculk_catalyst'));
+            }
+            if (ceiling && rng.chance(0.08)) world.set(wx, y, wz, blocks.stateWith('sculk_vein', { up: 'true' }));
+          }
+        }
+      }
+  }
+
+  /** Number of consecutive air cells from y in direction dir (1 up, -1 down), capped. */
+  private airRun(chunk: ChunkData, lx: number, y: number, lz: number, dir: number, cap: number): number {
+    let n = 0;
+    while (n < cap && y + dir * n > WORLD_MIN_Y && y + dir * n < 319 && chunk.get(lx, y + dir * n, lz) === this.air) n++;
+    return n;
   }
 
   private nearWater(world: BlockAccess, x: number, y: number, z: number): boolean {

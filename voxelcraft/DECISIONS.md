@@ -235,3 +235,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     more health, weakness at close range one time in four, otherwise harming) and drink to heal or
     put themselves out. Phantoms are the first flying mobs (no gravity, 3D steering) and only
     appear through the insomnia spawner: none before 72000 ticks without sleep, then rising odds.
+
+48. **Cave biomes are computed, not stored.** Lush, dripstone and deep dark regions come from a
+    300-block noise field (deep dark additionally needs low erosion below y −8, lush needs mild
+    humidity between y −24 and 64) and are evaluated at decoration time, while the chunk keeps one
+    surface biome per column for tints, spawning and saves. Cave floors and ceilings inside a region
+    get the biome's blocks; pointed dripstone columns use vanilla's tip/frustum/middle/base order.
+    Sculk sensors and shriekers are placed but inert until redstone and the warden arrive.

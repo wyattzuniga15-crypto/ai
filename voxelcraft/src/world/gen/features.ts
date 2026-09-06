@@ -230,6 +230,71 @@ export function placeMegaSpruce(w: BlockAccess, rng: Rng, x: number, y: number, 
   return true;
 }
 
+/** Mangrove: trunk on stilt roots that reach down into mud or water, wide canopy, hanging propagules. */
+export function placeMangrove(w: BlockAccess, rng: Rng, x: number, y: number, z: number): boolean {
+  const water = st('water');
+  const mud = st('mud');
+  const base = y + rng.range(1, 2);
+  const height = rng.range(4, 7);
+  for (let i = 0; i < height + 2; i++) if (!isReplaceable(w.get(x, base + i, z)) && w.get(x, base + i, z) !== water) return false;
+  const roots = st('mangrove_roots');
+  const wetRoots = blocks.stateWith('mangrove_roots', { waterlogged: 'true' });
+  const legs = rng.pick([[[1, 0], [-1, 0], [0, 1], [0, -1]], [[1, 0], [-1, 1], [0, -1]], [[1, 1], [-1, 0], [0, -1], [-1, -1], [1, -1]]]);
+  for (const [dx, dz] of legs) {
+    for (let yy = base; yy >= y - 3; yy--) {
+      const cur = w.get(x + dx, yy, z + dz);
+      if (cur === mud) {
+        w.set(x + dx, yy, z + dz, st('muddy_mangrove_roots'));
+        break;
+      }
+      if (cur === water) w.set(x + dx, yy, z + dz, wetRoots);
+      else if (isReplaceable(cur)) w.set(x + dx, yy, z + dz, roots);
+      else break;
+    }
+  }
+  for (let yy = y - 1; yy < base; yy++) {
+    const cur = w.get(x, yy, z);
+    if (cur === water) w.set(x, yy, z, wetRoots);
+    else if (isReplaceable(cur)) w.set(x, yy, z, roots);
+  }
+  for (let i = 0; i < height; i++) w.set(x, base + i, z, log('mangrove'));
+  const top = base + height - 1;
+  const leaf = leaves('mangrove');
+  placeLeafBlob(w, x, top - 1, z, 3, leaf, rng, false);
+  placeLeafBlob(w, x, top, z, 2, leaf, rng, false);
+  placeLeafBlob(w, x, top + 1, z, 1, leaf, rng, true);
+  // propagules dangle from the underside of the canopy
+  for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+    const ly = top - 1;
+    if (w.get(x + dx, ly, z + dz) !== leaf || w.get(x + dx, ly - 1, z + dz) !== AIR || !rng.chance(0.12)) continue;
+    w.set(x + dx, ly - 1, z + dz, blocks.stateWith('mangrove_propagule', { age: '4', hanging: 'true', stage: '0', waterlogged: 'false' }));
+  }
+  return true;
+}
+
+/** Azalea tree: oak trunk on rooted dirt with an azalea canopy, grown above lush caves. */
+export function placeAzalea(w: BlockAccess, rng: Rng, x: number, y: number, z: number): boolean {
+  const height = rng.range(4, 5);
+  if (!canGrow(w, x, y, z, height, 2)) return false;
+  w.set(x, y - 1, z, st('rooted_dirt'));
+  if (w.get(x, y - 2, z) === AIR) w.set(x, y - 2, z, st('hanging_roots'));
+  for (let i = 0; i < height; i++) w.set(x, y + i, z, log('oak'));
+  const top = y + height - 1;
+  const leaf = st('azalea_leaves');
+  const flowering = st('flowering_azalea_leaves');
+  const blob = (cy: number, r: number, corners: boolean) => {
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      if (!corners && Math.abs(dx) === r && Math.abs(dz) === r) continue;
+      if (isReplaceable(w.get(x + dx, cy, z + dz))) w.set(x + dx, cy, z + dz, rng.chance(0.25) ? flowering : leaf);
+    }
+  };
+  blob(top - 1, 2, false);
+  blob(top, 2, false);
+  blob(top + 1, 1, true);
+  if (isReplaceable(w.get(x, top + 2, z))) w.set(x, top + 2, z, leaf);
+  return true;
+}
+
 export function placeTree(w: BlockAccess, rng: Rng, type: string, x: number, y: number, z: number): boolean {
   switch (type) {
     case 'oak': return placeOak(w, rng, x, y, z);
@@ -247,7 +312,8 @@ export function placeTree(w: BlockAccess, rng: Rng, type: string, x: number, y: 
     case 'dark_oak': return placeDarkOak(w, rng, x, y, z);
     case 'pale_oak': return placeDarkOak(w, rng, x, y, z, 'pale_oak');
     case 'cherry': return placeCherry(w, rng, x, y, z);
-    case 'mangrove': return placeOak(w, rng, x, y, z, 'mangrove');
+    case 'mangrove': return placeMangrove(w, rng, x, y, z);
+    case 'azalea': return placeAzalea(w, rng, x, y, z);
     default: return placeOak(w, rng, x, y, z);
   }
 }
