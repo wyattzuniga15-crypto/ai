@@ -26,7 +26,9 @@ export interface MobStats {
   flapping?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime';
+  /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
+  scale?: number;
 }
 
 export interface MobWorld extends BlockSource {
@@ -37,16 +39,22 @@ export interface MobWorld extends BlockSource {
   playerPos(): THREE.Vector3;
   playerEye(): THREE.Vector3;
   playerBox(): AABB;
+  playerLookDir(): THREE.Vector3;
   playerTargetable(): boolean;
+  /** Status effect applied to the player by a mob attack or arrow. */
+  addPlayerEffect(id: string, ticks: number, amplifier?: number): void;
+  playSound(name: string, x: number, y: number, z: number, pitch?: number): void;
   /** Deal damage to the player from a mob. */
   hurtPlayer(amount: number, from: THREE.Vector3): void;
   /** Spawn an arrow flying from `from` toward `to`. */
-  shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number): void;
+  shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number, effect?: ArrowEffect): void;
   explode(x: number, y: number, z: number, power: number, source: Mob): void;
   lineOfSight(from: THREE.Vector3, to: THREE.Vector3): boolean;
   time: number;
   rng: () => number;
 }
+
+export interface ArrowEffect { id: string; ticks: number; amplifier?: number }
 
 export interface Goal {
   /** Whether the goal wants to run this tick. */
@@ -97,6 +105,8 @@ export class Mob {
   invulnerable = 0;
   deathTime = 0;
   dead = false;
+  /** Set once the manager has handled drops and XP for this death. */
+  deathHandled = false;
   removed = false;
   age = 0;
   fireTicks = 0;
@@ -127,6 +137,7 @@ export class Mob {
     this.pos.set(x, y, z);
     this.prev.copy(this.pos);
     this.model = buildModel(def.model, base);
+    if (def.scale) this.model.group.scale.setScalar(def.scale);
     this.model.group.position.copy(this.pos);
     this.persistent = def.disposition === 'passive';
   }
@@ -407,6 +418,13 @@ export class Mob {
         const lw = parts.get('left_wing');
         if (rw) rw.rotation.z = -flap;
         if (lw) lw.rotation.z = flap;
+        break;
+      }
+      case 'slime': {
+        // stretch while airborne, squash on landing (vanilla squish factor, simplified)
+        const stretch = this.onGround ? 1 - Math.min(0.25, this.limbAmount) : 1 + Math.min(0.5, Math.abs(this.vel.y) * 1.2);
+        const side = 1 / Math.sqrt(stretch);
+        for (const p of parts.values()) p.scale.set(side, stretch, side);
         break;
       }
     }

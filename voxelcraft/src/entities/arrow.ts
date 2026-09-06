@@ -15,6 +15,8 @@ export class Arrow {
   readonly mesh: THREE.Mesh;
   /** True when shot by the player (can hurt mobs, never the player). */
   fromPlayer: boolean;
+  /** Status effect given to the player on hit (stray arrows: slowness). */
+  effect?: { id: string; ticks: number; amplifier?: number };
 
   constructor(base: string, from: THREE.Vector3, dir: THREE.Vector3, speed: number, readonly damage: number, fromPlayer = false) {
     this.pos.copy(from);

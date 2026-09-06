@@ -204,3 +204,11 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     rendered with the item's GUI display transform; chests use a vertical UV flip because vanilla
     draws them without the model y flip. Anything still without a drawable model (dragon head,
     decorated pot, copper golem statues) shows the magenta/black checker instead of a broken image.
+
+44. **Mob variants share their base mob's model and voice.** Husk, drowned and stray are the zombie
+    and skeleton bipeds with the vanilla overlay skins; slimes are one cube model at scale 1, 2 and 4
+    (`slime`, `slime_medium`, `slime_big`) with vanilla health size², damage size and splitting on
+    death; slime chunks use vanilla's Java `Random` seed mix with int32 overflow reproduced. Endermen
+    are provoked by the vanilla stare test and by hits, blink with a 16-try ground search, and take
+    water damage, but do not yet pick up blocks or dodge projectiles. Husks and strays replace 80%
+    of zombie and skeleton spawns in deserts and snowy biomes; drowned spawn in ocean and river water.

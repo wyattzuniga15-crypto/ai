@@ -5,6 +5,8 @@ import { Rng } from '../src/core/rng.ts';
 import { entityDrops } from '../src/items/loot.ts';
 import { mobStats, MOB_SPECS } from '../src/entities/mobTypes.ts';
 import { boxGeometry } from '../src/entities/boxModel.ts';
+import { isSlimeChunk, pickHostile } from '../src/entities/mobTypes.ts';
+import { biomes as allBiomes } from '../src/world/biomes.ts';
 
 class Grid {
   map = new Map<string, number>();
@@ -91,5 +93,53 @@ describe('mobs', () => {
     for (let i = 0; i < pos.count; i++) { minY = Math.min(minY, pos.getY(i)); maxY = Math.max(maxY, pos.getY(i)); }
     expect(minY).toBeCloseTo(0);
     expect(maxY).toBeCloseTo(8);
+  });
+});
+
+describe('new mob types', () => {
+  it('derives slime sizes and scaled variants from shared data', () => {
+    const small = mobStats('slime')!, medium = mobStats('slime_medium')!, big = mobStats('slime_big')!;
+    expect([small.health, medium.health, big.health]).toEqual([1, 4, 16]);
+    expect([small.width, medium.width, big.width]).toEqual([0.51, 1.02, 2.04]);
+    expect([small.scale, medium.scale, big.scale]).toEqual([1, 2, 4]);
+    expect(small.loot).toBe('slime');
+    expect(big.loot).toBe('slime_big');
+    expect(mobStats('wither_skeleton')!.scale).toBe(1.2);
+    expect(mobStats('husk')!.burnsInSun).toBeFalsy();
+    expect(mobStats('drowned')!.burnsInSun).toBe(true);
+    expect(mobStats('enderman')!.health).toBe(40);
+    for (const id of ['husk', 'drowned', 'stray', 'wither_skeleton', 'cave_spider', 'slime', 'slime_medium', 'slime_big', 'enderman']) expect(mobStats(id), id).toBeTruthy();
+  });
+
+  it('marks about one chunk in ten as a slime chunk, deterministically', () => {
+    let n = 0;
+    for (let cx = -20; cx < 20; cx++) for (let cz = -25; cz < 25; cz++) if (isSlimeChunk(cx, cz, 12345)) n++;
+    expect(n).toBeGreaterThan(140); // 2000 chunks, 10% expected
+    expect(n).toBeLessThan(260);
+    expect(isSlimeChunk(3, -7, 12345)).toBe(isSlimeChunk(3, -7, 12345));
+    expect(isSlimeChunk(3, -7, 12345)).toBe(isSlimeChunk(3, -7, 12345));
+    expect(isSlimeChunk(3, -7, 12345) === isSlimeChunk(3, -7, 99)).toBe(isSlimeChunk(3, -7, 12345) === isSlimeChunk(3, -7, 99)); // seeds differ, values may too
+  });
+
+  it('follows vanilla biome substitutions when picking monsters', () => {
+    let seq = 0;
+    const rng = () => { seq = (seq * 1103515245 + 12345) % 2147483648; return seq / 2147483648; };
+    const desert = allBiomes.find((b) => b.category === 'desert');
+    const snowy = allBiomes.find((b) => b.precipitation === 'snow');
+    const swamp = allBiomes.find((b) => b.category === 'swamp');
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < 2000; i++) { const t = pickHostile(rng, desert, 64, false); counts[t] = (counts[t] ?? 0) + 1; }
+    expect(counts.husk).toBeGreaterThan(counts.zombie ?? 0);
+    expect(counts.stray).toBeUndefined();
+    const snow: Record<string, number> = {};
+    for (let i = 0; i < 2000; i++) { const t = pickHostile(rng, snowy, 64, false); snow[t] = (snow[t] ?? 0) + 1; }
+    expect(snow.stray).toBeGreaterThan(snow.skeleton ?? 0);
+    const swampy = new Set<string>();
+    for (let i = 0; i < 500; i++) swampy.add(pickHostile(rng, swamp, 60, false));
+    expect(swampy.has('slime') || swampy.has('slime_medium') || swampy.has('slime_big')).toBe(true);
+    const deep = new Set<string>();
+    for (let i = 0; i < 500; i++) deep.add(pickHostile(rng, desert, 20, true));
+    expect(deep.has('slime_big') || deep.has('slime')).toBe(true);
+    for (let i = 0; i < 500; i++) expect(pickHostile(rng, desert, 20, false).startsWith('slime')).toBe(false);
   });
 });

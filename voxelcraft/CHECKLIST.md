@@ -51,7 +51,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Signs: standing and wall placement, four-line editor on placement and on use, board/post meshes with text on the real sign textures
 - [x] Water and lava flow (sources, levels, falling columns, slope preference, infinite water, obsidian/cobblestone), buckets (fill and empty), farmland hydration
 - [x] Basic mobs: zombie, skeleton (bow), creeper (fuse + explosion), spider (climbs, neutral in light), cow, pig, sheep, chicken; goal-based AI (wander, look, panic, target, melee, ranged, swell); burning in sunlight; vanilla light-level spawning with mob caps, 24-block minimum and despawning; animal groups on chunk generation; loot from the entity loot tables; mobs saved per chunk
-- [ ] More mobs: villagers, wolves, cats, horses, bees, fish, drowned, husks, strays, witches, slimes, phantoms, endermen, illagers, nether and end mobs
+- [x] More mobs, first slice: husk (hunger hit), drowned (ocean/river water spawns), stray (slowness arrows), wither skeleton (wither hit, 1.2×), cave spider (poison), slimes in three sizes that split and hop (swamps at night, slime chunks below y=40 with the vanilla seed formula), enderman (stares provoke, blinks around, water hurts)
+- [ ] More mobs, next: villagers, wolves, cats, horses, bees, fish, witches, phantoms, illagers, nether and end mobs
 - [x] XP orbs as entities (vanilla value split, attraction, pickup sound), levels, death drops
 - [ ] Mob sounds, hit particles, fire rendering, baby variants, breeding, shearing and milking
 - [x] Sound effects synthesized on Web Audio: digging/placing by material, footsteps, hurt/death, eating, XP, pickups, explosions, bows, doors, chests, buttons, mob ambient and hurt sounds; master volume option

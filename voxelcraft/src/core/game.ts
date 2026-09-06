@@ -76,6 +76,13 @@ type State = 'loading' | 'playing' | 'paused' | 'chat' | 'dead' | 'gui';
 
 const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behavior === 'air';
 
+/** Synthesized sound to play when a mob dies; variants reuse their base mob's voice. */
+const MOB_DEATH_SOUNDS: Record<string, string> = {
+  creeper: 'hurt', spider: 'hurt', cave_spider: 'hurt', husk: 'zombie', drowned: 'zombie', stray: 'skeleton', wither_skeleton: 'skeleton',
+  slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman',
+};
+const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
+
 export class Game {
   readonly renderer: GameRenderer;
   readonly world: World;
@@ -188,10 +195,17 @@ export class Game {
       playerPos: () => this.player.pos,
       playerEye: () => this.player.eyePosition(1),
       playerBox: () => this.player.aabb(),
+      playerLookDir: () => this.player.lookDirection(),
       playerTargetable: () => !this.player.dead && this.player.gamemode === 'survival',
       hurtPlayer: (amount, from) => this.hurtByMob(amount, from),
-      shootArrow: (from, to, v, d) => {
-        this.entities.shootArrow(from, to, v, d);
+      addPlayerEffect: (id, ticks, amplifier = 0) => {
+        if (this.player.gamemode === 'survival') this.player.effects.add(id, ticks, amplifier);
+      },
+      playSound: (name, x, y, z, pitch = 1) => this.audio.play(name, { x, y, z, pitch }),
+      seed: opts.meta.seed,
+      shootArrow: (from, to, v, d, effect) => {
+        const arrow = this.entities.shootArrow(from, to, v, d);
+        arrow.effect = effect;
         this.audio.play('bow', { x: from.x, y: from.y, z: from.z });
       },
       explode: (x, y, z, power, source) => this.explodeAt(x, y, z, power, source),
@@ -1334,7 +1348,20 @@ export class Game {
     const looting = byPlayer ? this.player.heldItem()?.enchantments?.looting ?? 0 : 0;
     for (const d of entityDrops(m.def.loot, byPlayer, looting, m.fireTicks > 0)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     if (byPlayer && m.def.xp > 0) this.spawnXp(m.def.xp, m.pos.x, m.pos.y + 0.5, m.pos.z);
-    this.audio.play(m.def.id === 'creeper' || m.def.id === 'spider' ? 'hurt' : m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
+    this.audio.play(MOB_DEATH_SOUNDS[m.def.id] ?? m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
+    // slimes split into two to four of the next size down
+    const smaller = SLIME_SPLIT[m.def.id];
+    if (smaller) {
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const child = this.entities.spawn(smaller, m.pos.x + Math.cos(a) * m.def.width * 0.35, m.pos.y + 0.5, m.pos.z + Math.sin(a) * m.def.width * 0.35, a);
+        if (child) {
+          child.vel.set(Math.cos(a) * 0.2, 0.3, Math.sin(a) * 0.2);
+          if (byPlayer) child.target = 'player';
+        }
+      }
+    }
   }
 
   spawnXp(amount: number, x: number, y: number, z: number): void {
@@ -1812,7 +1839,7 @@ export class Game {
       }
       case 'summon': {
         const type = (args[0] ?? '').replace(/^minecraft:/, '');
-        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, skeleton, creeper, spider, cow, pig, sheep, chicken)`);
+        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, cow, pig, sheep, chicken)`);
         const dir = p.lookDirection();
         const x = args[1] ? num(args[1], p.pos.x) : p.pos.x + dir.x * 3;
         const y = args[2] ? num(args[2], p.pos.y) : p.pos.y;

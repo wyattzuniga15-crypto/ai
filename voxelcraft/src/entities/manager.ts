@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, HOSTILE_TYPES, MOB_SPECS, mobStats } from './mobTypes.ts';
+import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, pickHostile } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -12,6 +12,8 @@ import { biomes } from '../world/biomes.ts';
 export interface ManagerHost extends MobWorld {
   scene: THREE.Scene;
   base: string;
+  /** World seed (slime chunks). */
+  seed: number;
   isChunkLoaded(cx: number, cz: number): boolean;
   loadedChunkCount(): number;
   /** Called when a mob dies: drops and XP. */
@@ -47,13 +49,14 @@ export class EntityManager {
     this.host.scene.remove(m.model.group);
   }
 
-  shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number, fromPlayer = false): void {
+  shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number, fromPlayer = false): Arrow {
     const dir = to.clone().sub(from);
     const dist = Math.hypot(dir.x, dir.z);
     dir.y += dist * 0.2 * 0.5; // vanilla arc compensation
     const a = new Arrow(this.host.base, from, dir, velocity, damage, fromPlayer);
     this.arrows.push(a);
     this.host.scene.add(a.mesh);
+    return a;
   }
 
   count(disposition: 'hostile' | 'passive' | 'neutral'): number {
@@ -78,9 +81,12 @@ export class EntityManager {
         this.remove(m);
         continue;
       }
-      const wasDead = m.dead;
       m.tick(h);
-      if (m.dead && !wasDead) h.onMobDeath(m);
+      // deaths can happen between ticks (player attacks, arrows), so check the flag rather than a snapshot
+      if (m.dead && !m.deathHandled) {
+        m.deathHandled = true;
+        h.onMobDeath(m);
+      }
       if (m.removed) {
         this.remove(m);
         continue;
@@ -96,7 +102,10 @@ export class EntityManager {
     }
     for (let i = this.arrows.length - 1; i >= 0; i--) {
       const a = this.arrows[i];
-      a.tick(h, playerBox, (amount, from) => h.hurtPlayer(amount, from), a.fromPlayer && h.arrowHitMob ? (box) => h.arrowHitMob!(box, Math.max(1, Math.ceil(a.damage * Math.max(1, a.vel.length())))) : undefined);
+      a.tick(h, playerBox, (amount, from) => {
+        h.hurtPlayer(amount, from);
+        if (a.effect) h.addPlayerEffect(a.effect.id, a.effect.ticks, a.effect.amplifier ?? 0);
+      }, a.fromPlayer && h.arrowHitMob ? (box) => h.arrowHitMob!(box, Math.max(1, Math.ceil(a.damage * Math.max(1, a.vel.length())))) : undefined);
       if (a.removed) {
         h.scene.remove(a.mesh);
         this.arrows.splice(i, 1);
@@ -193,9 +202,14 @@ export class EntityManager {
     const top = h.topBlock(x, z);
     if (top < WORLD_MIN_Y) return;
     const y = WORLD_MIN_Y + 1 + Math.floor(h.rng() * (top + 2 - WORLD_MIN_Y));
-    const type = HOSTILE_TYPES[Math.floor(h.rng() * HOSTILE_TYPES.length)];
+    const biome = biomes[h.getBiome(x, z)];
+    const centre = h.getBlock(x, y, z);
+    // drowned spawn inside water in ocean and river biomes; everything else needs air on solid ground
+    const inWater = centre !== 0 && blocks.blockOf(centre).id === 'water';
+    if (inWater && biome?.category !== 'ocean' && biome?.category !== 'river') return;
+    const type = inWater ? 'drowned' : pickHostile(h.rng, biome, y, isSlimeChunk(cx, cz, h.seed));
     const stats = mobStats(type)!;
-    const packSize = type === 'creeper' ? 1 : 1 + Math.floor(h.rng() * 4);
+    const packSize = type === 'creeper' || type === 'enderman' ? 1 : 1 + Math.floor(h.rng() * 4);
     const p = h.playerPos();
     let spawned = 0;
     for (let i = 0; i < packSize * 3 && spawned < packSize; i++) {
@@ -204,8 +218,16 @@ export class EntityManager {
       const py = y;
       if (Math.hypot(px - p.x, py - p.y, pz - p.z) < 24) continue;
       const below = h.getBlock(Math.floor(px), py - 1, Math.floor(pz));
-      if (below === 0 || !blocks.blockOf(below).solid || blocks.blockOf(below).behavior === 'fluid') continue;
-      if (h.getBlock(Math.floor(px), py, Math.floor(pz)) !== 0 || h.getBlock(Math.floor(px), py + 1, Math.floor(pz)) !== 0) continue;
+      if (below === 0) continue;
+      const at = h.getBlock(Math.floor(px), py, Math.floor(pz));
+      const above = h.getBlock(Math.floor(px), py + 1, Math.floor(pz));
+      const isWater = (s: number) => s !== 0 && blocks.blockOf(s).id === 'water';
+      if (inWater) {
+        if (!isWater(at) || (above !== 0 && !isWater(above))) continue;
+      } else {
+        if (!blocks.blockOf(below).solid || blocks.blockOf(below).behavior === 'fluid') continue;
+        if (at !== 0 || above !== 0) continue;
+      }
       const bx = Math.floor(px);
       const bz = Math.floor(pz);
       if (h.getBlockLight(bx, py, bz) > 0) continue;

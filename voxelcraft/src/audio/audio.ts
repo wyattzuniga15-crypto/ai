@@ -98,6 +98,12 @@ const SOUNDS: Record<string, Synth> = {
   stonecutter: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1800, 1.5, 0.002, 0.16, 0.5, p); tone(c, o, t, 'square', 900, 400, 0.12, 0.08, p); },
   stonecutter_select: (c, o, p, t) => burst(c, o, t, 'bandpass', 2600, 2, 0.002, 0.06, 0.35, p),
   smithing: (c, o, p, t) => { tone(c, o, t, 'square', 700, 650, 0.25, 0.15, p); burst(c, o, t, 'highpass', 3000, 1, 0.002, 0.12, 0.3, p); },
+  // wet squelch for slime hops and deaths
+  slime: (c, o, p, t) => { burst(c, o, t, 'lowpass', 500, 1.5, 0.01, 0.18, 0.5, p); tone(c, o, t, 'sine', 260, 120, 0.15, 0.25, p); },
+  // enderman: low rumbling voice, a hiss and pop for teleports, a long scream when provoked
+  enderman: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 90, 160, 0.5, 0.25, p); burst(c, o, t, 'lowpass', 300, 1, 0.05, 0.5, 0.2, p); },
+  enderman_teleport: (c, o, p, t) => { burst(c, o, t, 'highpass', 2500, 0.7, 0.005, 0.3, 0.35, p); tone(c, o, t, 'sine', 400, 1400, 0.25, 0.15, p); },
+  enderman_scream: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 220, 110, 1.2, 0.3, p); tone(c, o, t + 0.1, 'square', 330, 140, 1.0, 0.12, p); },
 };
 
 export class AudioEngine {
