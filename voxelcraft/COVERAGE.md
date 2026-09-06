@@ -19,5 +19,6 @@ registered (data present, no behavior). Regenerate the data counts with `npm run
 | Status effects | 40 | 16 (regeneration, poison, wither, hunger, saturation, instant health/damage, speed, slowness, jump boost, haste, mining fatigue, resistance, fire resistance, water breathing, night vision) | – | 24 (mostly need mobs, combat or visuals) |
 | Structures | 0 | – | – | – |
 | Dimensions | 3 | overworld | – | nether, end |
+| Sounds | – | 35 synthesized effects (blocks, player, mobs, GUI) | – | music, ambient loops, records |
 | GUI screens | – | title, world select/create, pause, options, death, chat, HUD, inventory, crafting table, furnace family, chest/double chest/ender chest/barrel/shulker/hopper/dropper/dispenser | – | anvil, enchanting, grindstone, smithing, brewing, cartography, loom, stonecutter, beacon, trading, recipe book, creative tabs |
 | Commands | – | gamemode, time, tp, give, clear, seed, kill, heal, setblock, xp, spawnpoint, effect, summon, butcher | weather, locate (messages only) | – |

@@ -38,6 +38,8 @@ export class Hud {
   private readonly hurt: HTMLElement;
   private readonly toast: HTMLElement;
   private readonly hotbar: HTMLElement;
+  private readonly effects: HTMLElement;
+  private lastEffectKey = '';
   private lastInventoryVersion = -1;
   private lastHeld = '';
   private heldTimer = 0;
@@ -73,7 +75,9 @@ export class Hud {
     this.lava = h('div', { id: 'lava-overlay', class: 'hidden' });
     this.hurt = h('div', { id: 'hurt', class: 'hidden' });
     this.toast = h('div', { id: 'toast' });
+    this.effects = h('div', { id: 'effects' });
     this.root = h('div', { id: 'hud' },
+      this.effects,
       this.underwater, this.lava, this.hurt,
       h('div', { id: 'crosshair' }),
       h('div', { id: 'status' }, hearts, food),
@@ -141,6 +145,22 @@ export class Hud {
     this.f3.classList.toggle('hidden', !this.showDebug);
     if (this.showDebug) this.f3.textContent = debugText;
     this.hurt.classList.toggle('hidden', player.hurtTime <= 0);
+    // active effect icons (top right, vanilla mob_effect sprites)
+    const list = [...player.effects.active.values()];
+    const key = list.map((e) => `${e.id}:${e.amplifier}:${Math.ceil(e.duration / 20)}`).join('|');
+    if (key !== this.lastEffectKey) {
+      this.lastEffectKey = key;
+      this.effects.replaceChildren();
+      for (const e of list) {
+        const secs = Math.ceil(e.duration / 20);
+        const el = h('div', { class: 'effect' },
+          h('div', { class: 'effect-icon pixel' }),
+          h('div', { class: 'effect-time', text: `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` }),
+        );
+        (el.firstChild as HTMLElement).style.backgroundImage = `url('${import.meta.env.BASE_URL}textures/mob_effect/${e.id}.png')`;
+        this.effects.append(el);
+      }
+    }
   }
 
   setUnderwater(v: boolean): void {

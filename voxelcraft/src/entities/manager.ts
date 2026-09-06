@@ -136,11 +136,18 @@ export class EntityManager {
     return out;
   }
 
+  /** Called for saved entries that are items rather than mobs. */
+  onRestoreItem: ((s: MobSave) => void) | null = null;
+
   restoreChunk(cx: number, cz: number, saved: MobSave[] | null): void {
     const key = chunkKey(cx, cz);
     const list = [...(saved ?? []), ...(this.stashed.get(key) ?? [])];
     this.stashed.delete(key);
     for (const s of list) {
+      if (s.type === 'item') {
+        this.onRestoreItem?.(s);
+        continue;
+      }
       const m = this.spawn(s.type, s.x, s.y, s.z, s.yaw);
       m?.restore(s);
     }

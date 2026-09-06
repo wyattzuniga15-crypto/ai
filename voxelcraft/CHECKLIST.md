@@ -34,7 +34,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Playwright smoke test: load world, break a block, place a block, run a command, open inventory, craft planks
 - [ ] Greedy meshing for opaque full cubes (currently culled per-face meshing)
 - [ ] Worker pool for terrain generation (currently one world worker)
-- [ ] Item and falling-block entities persisted in the save
+- [x] Dropped items persisted with their chunk (falling blocks finish falling before a save)
 - [ ] Options: keybinding editor, volume (audio not started)
 
 ## Phase 2 – survival core
@@ -46,15 +46,15 @@ coverage counts in `COVERAGE.md`.
 - [ ] Shulker boxes keeping their contents as an item (needs item components)
 - [x] Tools/armor/durability everywhere: armor points and toughness reduce mob damage (vanilla formula), armor takes durability, attack damage and attack-speed cooldown, crits, knockback, sharpness/knockback/looting enchantment hooks
 - [x] Food: eating by holding use (32 ticks, 16 for dried kelp), nutrition/saturation, food effects, containers returned; exhaustion for sprinting, jumping, mining, regen
-- [x] Status effects: regeneration, poison, wither, hunger, saturation, instant health/damage, speed/slowness, jump boost, haste/mining fatigue, resistance, fire resistance, water breathing, night vision (`/effect`); no HUD icons yet
+- [x] Status effects: regeneration, poison, wither, hunger, saturation, instant health/damage, speed/slowness, jump boost, haste/mining fatigue, resistance, fire resistance, water breathing, night vision (`/effect`), HUD icons with timers
 - [x] Block behaviors: doors, trapdoors, fence gates, buttons (timed), levers, beds (two-block placement, spawn point, sleeping skips the night), ladders (climbing), snow layers (stacking, melting), falling blocks (sand, gravel, concrete powder, anvils), leaves decay, saplings grow into trees, grass/mycelium spread and decay, crops/stems/berries/cane/cactus/bamboo growth, farmland hydration, bone meal, cake, ice melting, plants and torches losing support
 - [ ] Signs (text editing GUI and rendering)
 - [x] Water and lava flow (sources, levels, falling columns, slope preference, infinite water, obsidian/cobblestone), buckets (fill and empty), farmland hydration
 - [x] Basic mobs: zombie, skeleton (bow), creeper (fuse + explosion), spider (climbs, neutral in light), cow, pig, sheep, chicken; goal-based AI (wander, look, panic, target, melee, ranged, swell); burning in sunlight; vanilla light-level spawning with mob caps, 24-block minimum and despawning; animal groups on chunk generation; loot from the entity loot tables; mobs saved per chunk
 - [ ] More mobs: villagers, wolves, cats, horses, bees, fish, drowned, husks, strays, witches, slimes, phantoms, endermen, illagers, nether and end mobs
-- [ ] XP orbs as entities (XP is currently awarded directly on kills and furnace output); levels and death drops done
+- [x] XP orbs as entities (vanilla value split, attraction, pickup sound), levels, death drops
 - [ ] Mob sounds, hit particles, fire rendering, baby variants, breeding, shearing and milking
-- [ ] Sound effects (synthesized)
+- [x] Sound effects synthesized on Web Audio: digging/placing by material, footsteps, hurt/death, eating, XP, pickups, explosions, bows, doors, chests, buttons, mob ambient and hurt sounds; master volume option
 
 ## Phase 3 – world depth
 - [ ] All biome features (bamboo, mangrove roots, azalea, dripstone, lush caves, deep dark), 3D biomes

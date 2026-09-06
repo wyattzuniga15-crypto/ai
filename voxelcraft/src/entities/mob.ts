@@ -73,6 +73,8 @@ export interface MobSave {
   health: number;
   age: number;
   extra?: Record<string, unknown>;
+  /** Present for dropped item stacks saved alongside mobs. */
+  item?: { id: string; count: number; damage?: number; enchantments?: Record<string, number>; name?: string };
 }
 
 let nextId = 1;

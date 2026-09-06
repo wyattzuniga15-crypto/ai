@@ -46,6 +46,8 @@ import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
 import { mobStats } from '../entities/mobTypes.ts';
 import type { AABB } from '../entities/physics.ts';
+import { XpOrb, splitXp } from '../entities/xpOrb.ts';
+import { AudioEngine, blockSoundGroup } from '../audio/audio.ts';
 
 export interface GameAssets {
   blocks: LoadedAtlas;
@@ -108,6 +110,9 @@ export class Game {
   private eating: { ticks: number; total: number; id: string } | null = null;
   private sleeping = 0;
   entities!: EntityManager;
+  readonly xpOrbs: XpOrb[] = [];
+  readonly audio = new AudioEngine();
+  private stepDistance = 0;
   private attackTicks = 100;
   private readonly animalChunks: Set<string>;
 
@@ -172,7 +177,10 @@ export class Game {
       playerBox: () => this.player.aabb(),
       playerTargetable: () => !this.player.dead && this.player.gamemode === 'survival',
       hurtPlayer: (amount, from) => this.hurtByMob(amount, from),
-      shootArrow: (from, to, v, d) => this.entities.shootArrow(from, to, v, d),
+      shootArrow: (from, to, v, d) => {
+        this.entities.shootArrow(from, to, v, d);
+        this.audio.play('bow', { x: from.x, y: from.y, z: from.z });
+      },
       explode: (x, y, z, power, source) => this.explodeAt(x, y, z, power, source),
       lineOfSight: (a, b) => this.lineOfSight(a, b),
       get time() { return game.time; },
@@ -192,8 +200,15 @@ export class Game {
     this.entities = new EntityManager(host);
     this.world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
     this.world.onChunkUnloaded = (c) => {
-      const mobs = this.entities.serializeChunk(c.cx, c.cz);
+      const mobs = this.serializeChunkEntities(c.cx, c.cz);
       for (const m of this.entities.mobs.slice()) if ((Math.floor(m.pos.x) >> 4) === c.cx && (Math.floor(m.pos.z) >> 4) === c.cz) this.entities.remove(m);
+      for (let i = this.itemEntities.length - 1; i >= 0; i--) {
+        const e = this.itemEntities[i];
+        if ((Math.floor(e.pos.x) >> 4) === c.cx && (Math.floor(e.pos.z) >> 4) === c.cz) {
+          this.renderer.scene.remove(e.sprite);
+          this.itemEntities.splice(i, 1);
+        }
+      }
       if (mobs.length) void this.save.saveChunks(this.meta.id, [{ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: JSON.stringify(mobs) }]);
     };
     this.hud = new Hud(opts.container, this.icons);
@@ -224,6 +239,13 @@ export class Game {
     this.loop = new GameLoop(() => this.tick(), (a, dt) => this.render(a, dt));
     this.input.onLockChange = (locked) => {
       if (!locked && this.state === 'playing') this.pause();
+    };
+    this.audio.setVolume(opts.options.volume);
+    const unlock = () => this.audio.unlock();
+    this.renderer.canvas.addEventListener('mousedown', unlock);
+    window.addEventListener('keydown', unlock);
+    this.entities.onRestoreItem = (s) => {
+      if (s.item) this.dropStack({ ...s.item }, s.x, s.y, s.z, false).pickupDelay = 0;
     };
     window.addEventListener('beforeunload', this.unloadHandler);
   }
@@ -342,16 +364,18 @@ export class Game {
       this.world.update(this.player.pos.x, this.player.pos.z);
     }
     this.uniforms.gamma.value = o.gamma;
+    this.audio.setVolume(o.volume);
   }
 
   async saveAll(): Promise<void> {
     const dirty: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities: string | null; mobs: string | null }[] = [];
     const mobChunks = new Set<string>();
     for (const m of this.entities.mobs) if (!m.dead) mobChunks.add(`${Math.floor(m.pos.x) >> 4},${Math.floor(m.pos.z) >> 4}`);
+    for (const e of this.itemEntities) if (!e.dead) mobChunks.add(`${Math.floor(e.pos.x) >> 4},${Math.floor(e.pos.z) >> 4}`);
     for (const c of this.world.chunks.values()) {
       const key = `${c.cx},${c.cz}`;
       if (c.modified || mobChunks.has(key)) {
-        const mobs = this.entities.serializeChunk(c.cx, c.cz);
+        const mobs = this.serializeChunkEntities(c.cx, c.cz);
         dirty.push({ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: mobs.length ? JSON.stringify(mobs) : null });
         this.world.markSaved(c);
       }
@@ -387,6 +411,19 @@ export class Game {
     this.tickEffects();
     this.attackTicks++;
     this.entities.tick(this.player.dead ? null : this.player.aabb());
+    for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
+      const orb = this.xpOrbs[i];
+      const got = orb.tick(this.world, this.player.dead ? null : this.player.pos);
+      if (got > 0) {
+        this.addXp(got);
+        this.audio.play('orb', { pitch: 0.8 + Math.random() * 0.4 });
+      }
+      if (orb.dead) {
+        this.renderer.scene.remove(orb.sprite);
+        this.xpOrbs.splice(i, 1);
+      }
+    }
+    this.tickSounds();
     if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.sleeping > 0 && --this.sleeping === 0) {
       const day = Math.floor(this.time / DAY_LENGTH);
@@ -409,6 +446,7 @@ export class Game {
         const d = e.pos.distanceTo(p.pos.clone().add(new THREE.Vector3(0, 0.9, 0)));
         if (d < 1.6) {
           const left = p.inventory.add(e.stack);
+          if (left < e.stack.count) this.audio.play('pop', { pitch: 0.9 + Math.random() * 0.4, volume: 0.5 });
           if (left === 0) e.dead = true;
           else e.stack.count = left;
         }
@@ -474,6 +512,7 @@ export class Game {
     if (resistance) amount = Math.max(0, amount * (1 - 0.2 * resistance));
     p.health = Math.max(0, p.health - amount);
     p.hurtTime = 10;
+    this.audio.play(p.health <= 0 ? 'death' : 'hurt', { pitch: 0.9 + Math.random() * 0.2 });
     if (p.health <= 0) {
       this.closeScreen();
       p.dead = true;
@@ -651,6 +690,7 @@ export class Game {
     const half = blocks.prop(state, 'half');
     if (half === 'lower' && this.world.getBlock(x, y + 1, z) !== 0 && blocks.stateBlock[this.world.getBlock(x, y + 1, z)] === blocks.stateBlock[state]) this.world.setBlock(x, y + 1, z, 0);
     if (half === 'upper' && blocks.stateBlock[this.world.getBlock(x, y - 1, z)] === blocks.stateBlock[state]) this.world.setBlock(x, y - 1, z, 0);
+    if (!byWorld) this.audio.play(`dig_${blockSoundGroup(def.id, def.tool, def.behavior)}`, { x: x + 0.5, y: y + 0.5, z: z + 0.5, pitch: 0.8 });
     this.world.setBlock(x, y, z, 0);
     // let unsupported decorations above fall off
     const above = this.world.getBlock(x, y + 1, z);
@@ -716,6 +756,7 @@ export class Game {
       if (below === 0 || !blocks.blockOf(below).solid) return false;
     }
     this.world.setBlock(x, y, z, state);
+    this.audio.play(`dig_${blockSoundGroup(def.id, def.tool, def.behavior)}`, { x: x + 0.5, y: y + 0.5, z: z + 0.5, pitch: 1.0 });
     const entity = createBlockEntity(def.id);
     if (entity) this.world.setBlockEntity(x, y, z, entity);
     if (def.id === 'chest' || def.id === 'trapped_chest') this.pairChest(x, y, z, state);
@@ -851,7 +892,11 @@ export class Game {
     const inv = p.inventory;
     const mark = () => this.world.markModifiedAt(t.x, t.z);
     const behavior = behaviorFor(def);
-    if (behavior?.onUse && behavior.onUse({ w: this.simulationWorld(), x: t.x, y: t.y, z: t.z, state: t.state, def })) return true;
+    if (behavior?.onUse && behavior.onUse({ w: this.simulationWorld(), x: t.x, y: t.y, z: t.z, state: t.state, def })) {
+      if (def.behavior === 'door' || def.behavior === 'trapdoor' || def.behavior === 'fence_gate') this.audio.play('door', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+      else if (def.behavior === 'button' || def.id === 'lever') this.audio.play('click', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+      return true;
+    }
     if (def.id === 'crafting_table') {
       const grid = makeGrid(3, 3);
       this.openScreen(craftingTableScreen(inv, grid), () => this.returnGrid(grid));
@@ -873,7 +918,7 @@ export class Game {
         this.world.setBlockEntity(t.x, t.y, t.z, entity);
       }
       if (entity.type === 'furnace' || entity.type === 'blast_furnace' || entity.type === 'smoker') {
-        const screen = furnaceScreen(inv, entity as FurnaceEntity, (n) => this.addXp(n));
+        const screen = furnaceScreen(inv, entity as FurnaceEntity, (n) => this.spawnXp(n, p.pos.x, p.pos.y + 1, p.pos.z));
         screen.onChange = mark;
         this.openScreen(screen);
         return true;
@@ -990,6 +1035,7 @@ export class Game {
     const p = this.player;
     const f = def.food!;
     this.feed(f.nutrition, f.saturation);
+    this.audio.play('burp', { volume: 0.6 });
     for (const e of f.effects ?? []) if (e.chance === undefined || Math.random() < e.chance) p.effects.add(e.effect, e.duration, e.amplifier ?? 0);
     if (def.id === 'milk_bucket') p.effects.clear();
     if (def.id === 'honey_bottle') p.effects.remove('poison');
@@ -1078,6 +1124,16 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   // Mobs and combat
   // ---------------------------------------------------------------------------------------------
+  /** Mobs plus dropped items inside a chunk, for saving. */
+  private serializeChunkEntities(cx: number, cz: number): import('../entities/mob.ts').MobSave[] {
+    const list = this.entities.serializeChunk(cx, cz);
+    for (const e of this.itemEntities) {
+      if (e.dead || (Math.floor(e.pos.x) >> 4) !== cx || (Math.floor(e.pos.z) >> 4) !== cz) continue;
+      list.push({ type: 'item', x: e.pos.x, y: e.pos.y, z: e.pos.z, yaw: 0, health: 0, age: e.age, item: { ...e.stack } });
+    }
+    return list;
+  }
+
   private onChunkLoaded(cx: number, cz: number): void {
     const c = this.world.getChunk(cx, cz);
     if (!c) return;
@@ -1183,6 +1239,7 @@ export class Game {
     if (crit) damage *= 1.5;
     if (progress > 0.9) mob.hurt(damage, p.pos, 'player', knockback);
     else mob.hurt(damage, p.pos, 'player', 0.2);
+    this.audio.play(crit ? 'anvil' : 'hurt', { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z, pitch: crit ? 1.5 : 1.2, volume: 0.6 });
     if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe')) p.inventory.damageSelected(def.behavior === 'sword' ? 1 : 2);
     p.exhaustion += 0.1;
     if (p.gamemode === 'survival') this.hud.showToast('');
@@ -1192,7 +1249,16 @@ export class Game {
     const byPlayer = m.lastHurtBy === 'player';
     const looting = byPlayer ? this.player.heldItem()?.enchantments?.looting ?? 0 : 0;
     for (const d of entityDrops(m.def.loot, byPlayer, looting, m.fireTicks > 0)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
-    if (byPlayer && m.def.xp > 0) this.addXp(m.def.xp);
+    if (byPlayer && m.def.xp > 0) this.spawnXp(m.def.xp, m.pos.x, m.pos.y + 0.5, m.pos.z);
+    this.audio.play(m.def.id === 'creeper' || m.def.id === 'spider' ? 'hurt' : m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
+  }
+
+  spawnXp(amount: number, x: number, y: number, z: number): void {
+    for (const v of splitXp(amount)) {
+      const orb = new XpOrb(import.meta.env.BASE_URL, v, x, y, z);
+      this.xpOrbs.push(orb);
+      this.renderer.scene.add(orb.sprite);
+    }
   }
 
   explodeAt(x: number, y: number, z: number, power: number, source: Mob | null): void {
@@ -1207,6 +1273,7 @@ export class Game {
       },
     };
     explode(w, x, y, z, power);
+    this.audio.play('explosion', { x, y, z, volume: 2 });
     const centre = new THREE.Vector3(x, y, z);
     const hurt = (box: AABB, mid: THREE.Vector3, apply: (n: number, from: THREE.Vector3) => void) => {
       const dist = mid.distanceTo(centre);
@@ -1244,6 +1311,7 @@ export class Game {
   openScreen(def: ScreenDef, cleanup?: () => void): void {
     if (this.state !== 'playing') return;
     this.closeScreen();
+    if (def.texture.includes('generic_54') || def.texture.includes('shulker') || def.texture.includes('hopper')) this.audio.play('chest', { volume: 0.6 });
     this.state = 'gui';
     this.input.enabled = false;
     this.input.exitLock();
@@ -1344,6 +1412,8 @@ export class Game {
     for (const e of this.itemEntities) e.updateSprite(alpha, partialTime / 20);
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
+    for (const orb of this.xpOrbs) orb.render(alpha, partialTime / 20);
+    this.audio.listener = { x: eye.x, y: eye.y, z: eye.z };
     this.world.flush();
     this.renderer.render();
     this.hud.update(p, this.debugText(eyeBlock), dt);
@@ -1596,9 +1666,41 @@ export class Game {
   addXp(n: number): void {
     const p = this.player;
     p.xp += n;
+    let leveled = false;
     while (p.xp >= xpForLevel(p.xpLevel)) {
       p.xp -= xpForLevel(p.xpLevel);
       p.xpLevel++;
+      leveled = true;
+    }
+    if (leveled && p.xpLevel % 5 === 0) this.audio.play('levelup');
+  }
+
+  /** Footsteps, ambient mob noises, creeper fuses. */
+  private tickSounds(): void {
+    const p = this.player;
+    if (p.onGround && !p.dead) {
+      const moved = Math.hypot(p.pos.x - p.prevPos.x, p.pos.z - p.prevPos.z);
+      this.stepDistance += moved;
+      if (this.stepDistance > (p.sprinting ? 1.6 : 1.4) && moved > 0.01) {
+        this.stepDistance = 0;
+        const below = this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y - 0.1), Math.floor(p.pos.z));
+        if (below !== 0) {
+          const d = blocks.blockOf(below);
+          this.audio.play('step', { pitch: 0.9 + Math.random() * 0.2, volume: 0.6 + (blockSoundGroup(d.id, d.tool, d.behavior) === 'grass' ? 0 : 0.2) });
+        }
+      }
+    }
+    if (this.eating && this.eating.ticks % 6 === 1) this.audio.play('eat', { pitch: 0.9 + Math.random() * 0.2, volume: 0.5 });
+    for (const m of this.entities.mobs) {
+      if (m.dead) continue;
+      if (m.hurtTime === 9) this.audio.play(m.def.disposition === 'passive' ? m.def.id : 'hurt', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.1 });
+      const swell = Number(m.extra.swell ?? 0);
+      if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
+        const ambient: Record<string, string> = { zombie: 'zombie', skeleton: 'skeleton', spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken' };
+        const snd = ambient[m.def.id];
+        if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
+      }
     }
   }
 }

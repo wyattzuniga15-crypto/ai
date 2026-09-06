@@ -127,3 +127,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 30. **The world generator dressed fake surfaces under ore and dirt blobs** (grass blocks inside the
     ground), which random ticks then converted to dirt hundreds of times a second. Surfaces are now
     only stone runs directly under air or water.
+
+31. **All sound is synthesized in code** (`src/audio/audio.ts`, Web Audio noise bursts and
+    oscillators) as the brief asked; the texture exception the owner granted does not cover
+    Mojang's sound files. Sounds are spatialised by simple distance falloff (16 blocks).
+
+32. **Falling-block entities are not saved**; they land within a second, and a save in that
+    window loses at most the block. Dropped items are saved with their chunk.

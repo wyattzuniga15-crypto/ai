@@ -96,3 +96,9 @@ h2 { font-size: 18px; margin: 0 0 16px; text-shadow: 2px 2px 0 #3f3f3f; font-wei
 #tooltip .ench { color: #a0a0ff; }
 .death { background: rgba(120, 0, 0, 0.6); }
 .death h1 { font-size: 48px; text-shadow: 4px 4px 0 #3f3f3f; }
+
+/* ---- status effects ---- */
+#effects { position: absolute; right: 4px; top: 4px; display: flex; flex-direction: column; gap: 4px; }
+.effect { width: calc(24px * var(--gui)); height: calc(24px * var(--gui)); background: url('/textures/gui/sprites/hud/effect_background.png') no-repeat; background-size: 100% 100%; position: relative; }
+.effect-icon { position: absolute; left: calc(3px * var(--gui)); top: calc(3px * var(--gui)); width: calc(18px * var(--gui)); height: calc(18px * var(--gui)); background-size: 100% 100%; background-repeat: no-repeat; }
+.effect-time { position: absolute; left: 0; right: 0; bottom: calc(1px * var(--gui)); text-align: center; font-size: calc(5px * var(--gui)); text-shadow: 1px 1px 0 #000; }
