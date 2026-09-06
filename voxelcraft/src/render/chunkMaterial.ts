@@ -67,8 +67,10 @@ varying vec3 vColor;
 varying float vFogDepth;
 
 void main() {
-  vec2 uv = vRect.xy + clamp(vUv, 0.0, 1.0) * vRect.zw;
-  vec4 tex = texture2D(atlas, uv);
+  // greedy-merged quads carry uv in block units and repeat the tile; the gradients of the
+  // unwrapped uv keep mip selection continuous across the repeats
+  vec2 uv = vRect.xy + fract(vUv) * vRect.zw;
+  vec4 tex = textureGrad(atlas, uv, dFdx(vUv) * vRect.zw, dFdy(vUv) * vRect.zw);
   if (tex.a < alphaTest) discard;
   vec3 c = tex.rgb * vColor;
   float f = smoothstep(fogNear, fogFar, vFogDepth);

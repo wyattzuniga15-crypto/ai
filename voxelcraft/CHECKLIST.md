@@ -32,7 +32,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Title screen, world list, create world (name, seed, game mode), pause menu, options (render distance, FOV, sensitivity, GUI scale, brightness)
 - [x] Save/load in IndexedDB (modified chunks + player + time), autosave, export/import world as .zip
 - [x] Playwright smoke test: load world, break a block, place a block, run a command, open inventory, craft planks
-- [ ] Greedy meshing for opaque full cubes (currently culled per-face meshing)
+- [x] Greedy meshing for opaque full cubes with uniform light/AO (exact vanilla look; `greedyOptions.mergeVariants` for more merging)
 - [ ] Worker pool for terrain generation (currently one world worker)
 - [x] Dropped items persisted with their chunk (falling blocks finish falling before a save)
 - [ ] Options: keybinding editor, volume (audio not started)

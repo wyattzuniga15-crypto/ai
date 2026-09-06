@@ -165,3 +165,12 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     the texture name: planks, logs, bricks, ores, leaves, plants, liquids, glass, tools, items) for
     every texture `public/models.json` references, so an offline checkout renders readable blocks
     instead of the checker. It never overwrites a real texture unless `--force` is passed.
+
+39. **Greedy meshing only merges faces whose four vertices share the same light and AO**, since a
+    merged quad interpolates linearly and cannot reproduce vanilla's per-corner AO. On natural
+    terrain that removes only a few percent of the vertices (AO touches almost every face), but
+    flat builds, plains and cave floors collapse to a handful of quads. Vanilla's random
+    blockstate variants (stone, dirt, sand, netherrack rotate or mirror their textures) are kept
+    exact by default; `greedyOptions.mergeVariants` trades that variation for larger merges and is
+    reserved for a future "fast graphics" option. The chunk shader repeats the tile with `fract`
+    and samples through `textureGrad` so mip selection stays continuous across the repeats.

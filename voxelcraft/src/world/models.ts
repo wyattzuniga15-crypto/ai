@@ -89,6 +89,8 @@ export interface BakedModel {
   ao: boolean;
   /** Bitmask of directions covered by a full opaque face. */
   fullFaces: number;
+  /** Cached by the mesher: exactly six unit faces, so the greedy pass may merge them. */
+  greedy?: boolean;
 }
 
 const EMPTY_MODEL: BakedModel = { quads: [], ao: true, fullFaces: 0 };

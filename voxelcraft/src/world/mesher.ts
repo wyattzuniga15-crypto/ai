@@ -8,7 +8,7 @@ import { hashPos } from '../core/rng.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { DEFAULT_FOLIAGE, DEFAULT_GRASS, DEFAULT_WATER, biomes } from './biomes.ts';
 import type { ChunkProvider } from './light.ts';
-import { DIR_OFFSETS, FACE_SHADE, type BakedQuad, type ModelBaker } from './models.ts';
+import { DIR_OFFSETS, FACE_SHADE, type BakedModel, type BakedQuad, type ModelBaker } from './models.ts';
 import type { AtlasIndex } from '../render/atlasIndex.ts';
 
 export interface MeshBuffers {
@@ -131,7 +131,73 @@ export function tintColor(def: BlockDef, state: number, tintIndex: number, biome
   return 0xffffff;
 }
 
+// ------------------------------------------------------------------------------------------------
+// Greedy meshing helpers: opaque full cubes whose face has uniform light/AO are merged into larger
+// quads per direction and layer. Everything else keeps the per-face path.
+// ------------------------------------------------------------------------------------------------
+/** [normal axis, first tangent axis, second tangent axis] per direction (x=0, y=1, z=2). */
+const G_AXES: readonly (readonly [number, number, number])[] = [[1, 0, 2], [1, 0, 2], [2, 0, 1], [2, 0, 1], [0, 1, 2], [0, 1, 2]];
+const GM_LAYER = 256;
+const GM_DIR = 16 * GM_LAYER;
+const axisCoord = (axis: number, x: number, y: number, z: number) => (axis === 0 ? x : axis === 1 ? y : z);
+
+/**
+ * Greedy meshing options. `mergeVariants` lets faces of the same texture merge even when vanilla's
+ * random blockstate variants rotate or mirror them differently; merged rectangles then repeat the
+ * first face's orientation while single faces keep their own. Off = exact vanilla look.
+ */
+export const greedyOptions = { mergeVariants: false };
+
+/** True when a model is exactly six unit faces on the block boundary (a plain cube). */
+export function greedyEligible(m: BakedModel): boolean {
+  if (m.quads.length !== 6) return false;
+  let mask = 0;
+  for (const q of m.quads) {
+    if (!q.full || q.cull < 0 || q.cull !== q.dir || mask & (1 << q.dir)) return false;
+    mask |= 1 << q.dir;
+    // rotated variants carry float noise (1e-16) from the rotation matrix
+    for (let i = 0; i < 12; i++) if (Math.abs(q.pos[i]) > 1e-6 && Math.abs(q.pos[i] - 1) > 1e-6) return false;
+  }
+  return mask === 63;
+}
+
+/**
+ * How a unit face's uv maps onto its tangent axes (a, b): bit 2 = u runs along a, bit 1 = u at
+ * the (0,0) corner, bit 0 = v at the (0,0) corner. Faces with the same code tile seamlessly when
+ * merged. Returns -1 for anything but a plain 0/1 mapping.
+ */
+export function faceOrientation(q: BakedQuad, a: number, b: number): number {
+  let u00 = -1, v00 = -1, u10 = -1, u01 = -1;
+  for (let i = 0; i < 4; i++) {
+    const u = q.uv[i * 2], v = q.uv[i * 2 + 1];
+    if ((u !== 0 && u !== 1) || (v !== 0 && v !== 1)) return -1;
+    const pa = q.pos[i * 3 + a] > 0.5, pb = q.pos[i * 3 + b] > 0.5;
+    if (!pa && !pb) { u00 = u; v00 = v; }
+    else if (pa && !pb) u10 = u;
+    else if (!pa && pb) u01 = u;
+  }
+  if (u00 < 0 || u10 < 0 || u01 < 0) return -1;
+  const uAlongA = u10 !== u00;
+  if (uAlongA ? u01 !== u00 : u01 === u00) return -1;
+  return (uAlongA ? 4 : 0) | (u00 << 1) | v00;
+}
+
 export class SectionMesher {
+  // per-vertex results of lightFace(): shade×AO (0..255), sky and block light
+  private readonly lv = new Uint8Array(4);
+  private readonly ls = new Uint8Array(4);
+  private readonly lb = new Uint8Array(4);
+  // greedy pass state
+  private readonly gmask = new Int32Array(6 * GM_DIR);
+  private readonly gcell: (BakedQuad | null)[] = new Array<BakedQuad | null>(6 * GM_DIR).fill(null);
+  private readonly gclasses = new Map<number, number>();
+  private readonly gtints = new Map<number, number>();
+  private readonly gq: BakedQuad[] = [];
+  private readonly gtint: number[] = [];
+  private readonly galpha: number[] = [];
+  private readonly gsky: number[] = [];
+  private readonly gblk: number[] = [];
+  private readonly guA: boolean[] = [];
   private readonly pad = new Uint16Array(P * P * P);
   private readonly padLight = new Uint8Array(P * P * P);
   private readonly padBiome = new Uint8Array(P * P);
@@ -208,6 +274,24 @@ export class SectionMesher {
           }
           const model = this.baker.modelFor(state, hashPos(0x5eed, ox + x, y0 + y, oz + z));
           if (model.quads.length === 0) continue;
+          if (opaque[state] && (model.greedy ??= greedyEligible(model))) {
+            for (const q of model.quads) {
+              const o = DIR_OFFSETS[q.cull];
+              if (opaque[pad[pidx(x + o[0], y + o[1], z + o[2])]]) continue;
+              const tint = tintColor(def, state, q.tint, biome);
+              const flip = this.lightFace(q, model.ao, x, y, z);
+              const lv = this.lv, ls = this.ls, lb = this.lb;
+              const axes = G_AXES[q.dir];
+              const orient = faceOrientation(q, axes[1], axes[2]);
+              if (orient >= 0 && lv[0] === lv[1] && lv[0] === lv[2] && lv[0] === lv[3] && ls[0] === ls[1] && ls[0] === ls[2] && ls[0] === ls[3] && lb[0] === lb[1] && lb[0] === lb[2] && lb[0] === lb[3]) {
+                const cls = this.greedyClass(q, greedyOptions.mergeVariants ? 0 : orient, (orient & 4) !== 0, tint, lv[0], ls[0], lb[0]);
+                const cell = q.dir * GM_DIR + axisCoord(axes[0], x, y, z) * GM_LAYER + axisCoord(axes[2], x, y, z) * 16 + axisCoord(axes[1], x, y, z);
+                this.gmask[cell] = cls;
+                this.gcell[cell] = q;
+              } else this.emitLit(solid, q, x, y, z, tint, flip);
+            }
+            continue;
+          }
           const translucentLayer = blocks.isTranslucent(def);
           const gb = translucentLayer ? translucent : solid;
           for (const q of model.quads) {
@@ -221,29 +305,45 @@ export class SectionMesher {
             this.emitQuad(gb, q, model.ao, def, state, x, y, z, biome);
           }
         }
+    this.emitGreedy(solid);
     return { solid: solid.build(), translucent: translucent.build() };
   }
 
   private emitQuad(gb: GeometryBuilder, q: BakedQuad, ao: boolean, def: BlockDef, state: number, x: number, y: number, z: number, biome: number): void {
     const tint = tintColor(def, state, q.tint, biome);
+    const flip = this.lightFace(q, ao, x, y, z);
+    this.emitLit(gb, q, x, y, z, tint, flip);
+  }
+
+  /** Emits a quad with the per-vertex light computed by the last `lightFace()` call. */
+  private emitLit(gb: GeometryBuilder, q: BakedQuad, x: number, y: number, z: number, tint: number, flip: boolean): void {
     const tr = (tint >> 16) & 255;
     const tg = (tint >> 8) & 255;
     const tb = tint & 255;
+    for (let i = 0; i < 4; i++) {
+      gb.vertex(x + q.pos[i * 3], y + q.pos[i * 3 + 1], z + q.pos[i * 3 + 2], q.uv[i * 2], q.uv[i * 2 + 1], q.tile, tr, tg, tb, this.lv[i], this.ls[i], this.lb[i]);
+    }
+    gb.quadIndices(flip);
+  }
+
+  /**
+   * Computes shade×AO and sky/block light for the four vertices of a quad into lv/ls/lb (vanilla
+   * smooth lighting for full culled faces of AO models, flat lighting otherwise). Returns whether
+   * the quad's diagonal should be flipped for better AO interpolation.
+   */
+  private lightFace(q: BakedQuad, ao: boolean, x: number, y: number, z: number): boolean {
     const shade = q.shade ? FACE_SHADE[q.dir] : 1;
     const pad = this.pad;
     const pl = this.padLight;
     const opaque = blocks.stateOpaque;
     const d = q.dir;
     const o = DIR_OFFSETS[d];
-    const smooth = ao && q.full && q.cull === d;
-    let flip = false;
-    if (smooth) {
+    const lv = this.lv, ls = this.ls, lb = this.lb;
+    if (ao && q.full && q.cull === d) {
       // tangent axes for this face
-      const a = d < 2 ? 0 : d < 4 ? 0 : 1; // axis index: x=0,y=1,z=2 -> first tangent
+      const a = d < 2 ? 0 : d < 4 ? 0 : 1;
       const b = d < 2 ? 2 : d < 4 ? 1 : 2;
       const aoVals = [0, 0, 0, 0];
-      const skyVals = [0, 0, 0, 0];
-      const blkVals = [0, 0, 0, 0];
       const nx = x + o[0], ny = y + o[1], nz = z + o[2];
       const nl = pl[pidx(nx, ny, nz)];
       for (let i = 0; i < 4; i++) {
@@ -266,15 +366,11 @@ export class SectionMesher {
           blk += l & 15;
           n++;
         }
-        skyVals[i] = sky / n;
-        blkVals[i] = blk / n;
+        lv[i] = Math.round(shade * aoVals[i] * 255);
+        ls[i] = Math.round(sky / n);
+        lb[i] = Math.round(blk / n);
       }
-      flip = aoVals[0] + aoVals[2] < aoVals[1] + aoVals[3];
-      for (let i = 0; i < 4; i++) {
-        gb.vertex(x + q.pos[i * 3], y + q.pos[i * 3 + 1], z + q.pos[i * 3 + 2], q.uv[i * 2], q.uv[i * 2 + 1], q.tile, tr, tg, tb, Math.round(shade * aoVals[i] * 255), Math.round(skyVals[i]), Math.round(blkVals[i]));
-      }
-      gb.quadIndices(flip);
-      return;
+      return aoVals[0] + aoVals[2] < aoVals[1] + aoVals[3];
     }
     // flat lighting: sample the neighbour in the face direction when it is not opaque, else self
     let li = pidx(x + o[0], y + o[1], z + o[2]);
@@ -283,8 +379,95 @@ export class SectionMesher {
     const self = pl[pidx(x, y, z)];
     const sky = Math.max(l >> 4, self >> 4);
     const blk = Math.max(l & 15, self & 15);
+    const alpha = Math.round(shade * 255);
     for (let i = 0; i < 4; i++) {
-      gb.vertex(x + q.pos[i * 3], y + q.pos[i * 3 + 1], z + q.pos[i * 3 + 2], q.uv[i * 2], q.uv[i * 2 + 1], q.tile, tr, tg, tb, Math.round(shade * 255), sky, blk);
+      lv[i] = alpha;
+      ls[i] = sky;
+      lb[i] = blk;
+    }
+    return false;
+  }
+
+  /** Interns a mergeable face (tile, orientation, tint, uniform light) and returns its 1-based class id. */
+  private greedyClass(q: BakedQuad, orient: number, uAlongA: boolean, tint: number, alpha: number, sky: number, blk: number): number {
+    let ti = this.gtints.get(tint);
+    if (ti === undefined) {
+      ti = this.gtints.size;
+      this.gtints.set(tint, ti);
+    }
+    // tile, orientation, face direction, shade×AO, sky/block light and tint must all match
+    const key = ((((q.tile * 8 + orient) * 6 + q.dir) * 256 + alpha) * 256 + sky * 16 + blk) * 1024 + ti;
+    let cls = this.gclasses.get(key);
+    if (cls === undefined) {
+      cls = this.gq.length + 1;
+      this.gclasses.set(key, cls);
+      this.gq.push(q);
+      this.gtint.push(tint);
+      this.galpha.push(alpha);
+      this.gsky.push(sky);
+      this.gblk.push(blk);
+      this.guA.push(uAlongA);
+    }
+    return cls;
+  }
+
+  /** Merges the masked faces into maximal rectangles per direction and layer, emitting one quad each. */
+  private emitGreedy(gb: GeometryBuilder): void {
+    const mask = this.gmask;
+    if (this.gq.length === 0) return;
+    for (let d = 0; d < 6; d++) {
+      const [n, a, b] = G_AXES[d];
+      for (let layer = 0; layer < 16; layer++) {
+        const base = d * GM_DIR + layer * GM_LAYER;
+        for (let cb = 0; cb < 16; cb++) {
+          for (let ca = 0; ca < 16; ca++) {
+            const idx = base + cb * 16 + ca;
+            const c = mask[idx];
+            if (c === 0) continue;
+            let w = 1;
+            while (ca + w < 16 && mask[idx + w] === c) w++;
+            let h = 1;
+            outer: while (cb + h < 16) {
+              const row = base + (cb + h) * 16 + ca;
+              for (let k = 0; k < w; k++) if (mask[row + k] !== c) break outer;
+              h++;
+            }
+            for (let j = 0; j < h; j++) mask.fill(0, base + (cb + j) * 16 + ca, base + (cb + j) * 16 + ca + w);
+            this.emitMerged(gb, c - 1, w === 1 && h === 1 ? this.gcell[idx]! : this.gq[c - 1], n, a, b, layer, ca, cb, w, h);
+          }
+        }
+      }
+    }
+    this.gclasses.clear();
+    this.gtints.clear();
+    this.gq.length = 0;
+    this.gtint.length = 0;
+    this.galpha.length = 0;
+    this.gsky.length = 0;
+    this.gblk.length = 0;
+    this.guA.length = 0;
+  }
+
+  private emitMerged(gb: GeometryBuilder, cls: number, q: BakedQuad, n: number, a: number, b: number, layer: number, ca: number, cb: number, w: number, h: number): void {
+    const tint = this.gtint[cls];
+    const tr = (tint >> 16) & 255;
+    const tg = (tint >> 8) & 255;
+    const tb = tint & 255;
+    const alpha = this.galpha[cls], sky = this.gsky[cls], blk = this.gblk[cls];
+    // u runs along the first tangent axis when it changes between the (0,0) and (1,0) corners
+    let uAlongA = this.guA[cls];
+    if (w === 1 && h === 1) {
+      const axes = G_AXES[q.dir];
+      uAlongA = (faceOrientation(q, axes[1], axes[2]) & 4) !== 0;
+    }
+    const p = [0, 0, 0];
+    for (let i = 0; i < 4; i++) {
+      p[n] = layer + (q.pos[i * 3 + n] > 0.5 ? 1 : 0);
+      p[a] = ca + (q.pos[i * 3 + a] > 0.5 ? w : 0);
+      p[b] = cb + (q.pos[i * 3 + b] > 0.5 ? h : 0);
+      const u = q.uv[i * 2] * (uAlongA ? w : h);
+      const v = q.uv[i * 2 + 1] * (uAlongA ? h : w);
+      gb.vertex(p[0], p[1], p[2], u, v, q.tile, tr, tg, tb, alpha, sky, blk);
     }
     gb.quadIndices(false);
   }
