@@ -191,3 +191,9 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     each row and the whole table can be reset. Attack/Use/Pick Block are actions bound to mouse
     buttons by default, so they are rebindable too. The pause key cannot be unbound so the menu
     always stays reachable. Only overrides are stored in `options.bindings`.
+
+42. **Item components are plain optional fields on `ItemStack`** (`damage`, `enchantments`,
+    `name`, `repairCost`, `trim`, now `contents`) rather than a generic component map; `stackable`
+    compares them structurally. Shulker boxes with anything inside drop as one item carrying the
+    27 slots in every game mode, exactly like vanilla's `copy_components` loot function, and hand
+    them back on placement. Shulker boxes refuse other shulker boxes.

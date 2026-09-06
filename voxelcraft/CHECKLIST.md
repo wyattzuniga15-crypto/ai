@@ -43,7 +43,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Recipe book in the inventory and crafting table: search, craftable-only filter, pages, click to fill the grid from the inventory
 - [x] Furnace / blast furnace / smoker: vanilla fuel table, cook times, XP, lit block state, progress sprites
 - [x] Chest (27), double chest (54, vanilla left/right pairing), barrel, ender chest (per player), shulker box, hopper, dropper, dispenser GUIs; contents saved with the chunk and spilled on break
-- [ ] Shulker boxes keeping their contents as an item (needs item components)
+- [x] Shulker boxes keep their contents as an item (drop with contents, place them back, tooltip lists contents, no boxes inside boxes)
 - [x] Tools/armor/durability everywhere: armor points and toughness reduce mob damage (vanilla formula), armor takes durability, attack damage and attack-speed cooldown, crits, knockback, sharpness/knockback/looting enchantment hooks
 - [x] Food: eating by holding use (32 ticks, 16 for dried kelp), nutrition/saturation, food effects, containers returned; exhaustion for sprinting, jumping, mining, regen
 - [x] Status effects: regeneration, poison, wither, hunger, saturation, instant health/damage, speed/slowness, jump boost, haste/mining fatigue, resistance, fire resistance, water breathing, night vision (`/effect`), HUD icons with timers

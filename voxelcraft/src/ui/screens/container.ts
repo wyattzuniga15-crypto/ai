@@ -333,6 +333,7 @@ export class ContainerScreen {
     const start = stack.count;
     const max = items.maxStack(stack.id);
     for (const t of targets) {
+      if (t.accepts && !t.accepts(stack)) continue;
       if (stack.count <= 0) break;
       const st = t.get();
       if (!st || !stackable(st, stack) || t.result) continue;
@@ -444,6 +445,15 @@ export class ContainerScreen {
       };
       line(pattern?.name ?? st.trim.pattern);
       line(material?.name ?? st.trim.material);
+    }
+    if (st.contents) {
+      const inside = st.contents.filter((s): s is ItemStack => !!s);
+      for (const s of inside.slice(0, 5)) this.tooltip.append(h('div', { text: `${items.byId.get(s.id)?.name ?? s.id} x${s.count}` }));
+      if (inside.length > 5) {
+        const more = h('div', { class: 'sub', text: `and ${inside.length - 5} more...` });
+        more.style.fontStyle = 'italic';
+        this.tooltip.append(more);
+      }
     }
     if (def?.behavior === 'smithing_template') {
       const upgrade = st.id === 'netherite_upgrade_smithing_template';

@@ -33,7 +33,7 @@ import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid } from '../ui/screens/screens.ts';
 import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
-import type { Slot } from '../items/inventory.ts';
+import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
 import { BlockMeshFactory } from '../render/blockMesh.ts';
@@ -688,7 +688,13 @@ export class Game {
     if (def.hardness < 0 && this.player.gamemode !== 'creative' && !byWorld) return;
     const p = this.player;
     const held = byWorld ? null : p.heldItem();
-    if (byWorld) {
+    const entity = this.world.getBlockEntity(x, y, z);
+    // a shulker box with anything inside always drops as one item carrying its contents (vanilla copy_components)
+    const keepsContents = containerKind(def.id) === 'shulker_box' && entity && 'items' in entity && entity.items.some(Boolean);
+    if (keepsContents) {
+      this.dropStack({ id: def.id, count: 1, contents: entity.items.map((s) => (s ? cloneStack(s) : null)) }, x + 0.5, y + 0.5, z + 0.5, true);
+      if (!byWorld && p.gamemode === 'survival') p.exhaustion += 0.005;
+    } else if (byWorld) {
       for (const drop of blockDrops(state, null)) this.dropStack(drop, x + 0.5, y + 0.5, z + 0.5, true);
     } else if (p.gamemode === 'survival') {
       if (canHarvest(state, held)) {
@@ -698,9 +704,8 @@ export class Game {
       p.exhaustion += 0.005;
     }
     // containers spill their contents (ender chests keep theirs with the player)
-    const entity = this.world.getBlockEntity(x, y, z);
     if (entity) {
-      if ('items' in entity) for (const s of entity.items) if (s) this.dropStack(s, x + 0.5, y + 0.5, z + 0.5, true);
+      if ('items' in entity && !keepsContents) for (const s of entity.items) if (s) this.dropStack(s, x + 0.5, y + 0.5, z + 0.5, true);
       if (entity.type === 'sign') this.signs.remove(x, y, z);
       this.world.setBlockEntity(x, y, z, null);
       if (def.id === 'chest' || def.id === 'trapped_chest') this.unpairChest(x, y, z, state);
@@ -777,6 +782,10 @@ export class Game {
     this.world.setBlock(x, y, z, state);
     this.audio.play(`dig_${blockSoundGroup(def.id, def.tool, def.behavior)}`, { x: x + 0.5, y: y + 0.5, z: z + 0.5, pitch: 1.0 });
     const entity = createBlockEntity(def.id);
+    if (entity && 'items' in entity) {
+      const carried = p.heldItem()?.contents;
+      if (carried) entity.items = carried.map((s) => (s ? cloneStack(s) : null));
+    }
     if (entity) this.world.setBlockEntity(x, y, z, entity);
     if (def.id === 'chest' || def.id === 'trapped_chest') this.pairChest(x, y, z, state);
     if (entity?.type === 'sign') this.editSign(x, y, z, entity);
@@ -1020,7 +1029,7 @@ export class Game {
         return true;
       }
       const title = def.name;
-      const screen = c.type === 'hopper' ? hopperScreen(inv, c.items, mark) : c.type === 'dispenser' || c.type === 'dropper' ? dispenserScreen(inv, c.items, title, mark) : chestScreen(inv, c.items, 3, c.type === 'shulker_box' ? 'Shulker Box' : title, mark);
+      const screen = c.type === 'hopper' ? hopperScreen(inv, c.items, mark) : c.type === 'dispenser' || c.type === 'dropper' ? dispenserScreen(inv, c.items, title, mark) : chestScreen(inv, c.items, 3, c.type === 'shulker_box' ? 'Shulker Box' : title, mark, c.type === 'shulker_box' ? (s) => !s.id.endsWith('shulker_box') : undefined);
       screen.onChange = mark;
       this.openScreen(screen);
       return true;

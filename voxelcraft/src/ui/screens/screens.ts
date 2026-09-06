@@ -168,12 +168,12 @@ export function furnaceScreen(inv: Inventory, e: FurnaceEntity, onXp: (n: number
 }
 
 /** Generic chest-style screen for `rows` rows of nine slots. */
-export function chestScreen(inv: Inventory, contents: Slot[], rows: number, title: string, onChange?: () => void): ScreenDef {
+export function chestScreen(inv: Inventory, contents: Slot[], rows: number, title: string, onChange?: () => void, accepts?: (s: ItemStack) => boolean): ScreenDef {
   const container: SlotDef[] = [];
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < 9; c++) {
       const i = r * 9 + c;
-      container.push({ x: 8 + c * 18, y: 18 + r * 18, group: 'container', get: () => contents[i], set: (s) => { contents[i] = s; onChange?.(); } });
+      container.push({ x: 8 + c * 18, y: 18 + r * 18, group: 'container', get: () => contents[i], set: (s) => { contents[i] = s; onChange?.(); }, accepts });
     }
   const player = playerSlots(inv, 8, rows * 18 + 31, rows * 18 + 89);
   const height = rows * 18 + 114;

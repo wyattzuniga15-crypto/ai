@@ -12,12 +12,14 @@ export interface ItemStack {
   repairCost?: number;
   /** Armor trim applied at a smithing table. */
   trim?: { pattern: string; material: string };
+  /** Container contents carried by the item (shulker boxes), 27 slots. */
+  contents?: (ItemStack | null)[];
 }
 
 export type Slot = ItemStack | null;
 
 export function stackable(a: ItemStack, b: ItemStack): boolean {
-  return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null);
+  return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null) && JSON.stringify(a.contents ?? null) === JSON.stringify(b.contents ?? null);
 }
 
 export function cloneStack(s: ItemStack, count = s.count): ItemStack {
@@ -27,6 +29,7 @@ export function cloneStack(s: ItemStack, count = s.count): ItemStack {
   if (s.name) c.name = s.name;
   if (s.repairCost) c.repairCost = s.repairCost;
   if (s.trim) c.trim = { ...s.trim };
+  if (s.contents) c.contents = s.contents.map((x) => (x ? cloneStack(x) : null));
   return c;
 }
 
