@@ -217,6 +217,8 @@ export interface Options {
   volume: number;
   /** Terrain generation worker count; unset = cores minus two (1..4), 0 = generate in the world worker. */
   genWorkers?: number;
+  /** Key binding overrides by action (see `DEFAULT_BINDINGS`); missing actions use the defaults. */
+  bindings?: Partial<Record<string, string>>;
 }
 
 export const DEFAULT_OPTIONS: Options = { renderDistance: 8, fov: 70, sensitivity: 1, guiScale: 3, gamma: 0.5, volume: 1 };

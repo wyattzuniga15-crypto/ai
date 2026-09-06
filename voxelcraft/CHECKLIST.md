@@ -35,7 +35,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Greedy meshing for opaque full cubes with uniform light/AO (exact vanilla look; `greedyOptions.mergeVariants` for more merging)
 - [x] Worker pool for terrain generation (`genWorker.ts` pool fed over MessagePorts; the world worker keeps decoration, lighting and meshing)
 - [x] Dropped items persisted with their chunk (falling blocks finish falling before a save)
-- [ ] Options: keybinding editor, volume (audio not started)
+- [x] Options: key binds screen (vanilla categories, click-to-rebind, Escape = Not Bound, duplicates in red, per-key and global reset), master volume
 
 ## Phase 2 – survival core
 - [x] Inventory screen (E): 27 + 9 slots, armor, offhand, 2x2 crafting, player preview (default skin, follows the mouse), shift-click, drag-split, number-key swap, double-click collect, Q drop, tooltips

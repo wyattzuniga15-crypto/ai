@@ -1,16 +1,90 @@
 /** Keyboard, mouse and pointer-lock state with rebindable actions. */
 export type Action =
   | 'forward' | 'back' | 'left' | 'right' | 'jump' | 'sneak' | 'sprint' | 'inventory' | 'drop' | 'chat'
-  | 'command' | 'debug' | 'swapHands' | 'pause' | 'perspective' | 'pick'
+  | 'command' | 'debug' | 'swapHands' | 'pause' | 'perspective' | 'pick' | 'attack' | 'use'
   | 'hotbar1' | 'hotbar2' | 'hotbar3' | 'hotbar4' | 'hotbar5' | 'hotbar6' | 'hotbar7' | 'hotbar8' | 'hotbar9';
+
+/** Key codes are `KeyboardEvent.code` values; mouse buttons are `Mouse0` (left), `Mouse1` (middle), `Mouse2` (right). */
+export const UNBOUND = 'Unbound';
 
 export const DEFAULT_BINDINGS: Record<Action, string> = {
   forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', sneak: 'ShiftLeft', sprint: 'ControlLeft',
   inventory: 'KeyE', drop: 'KeyQ', chat: 'KeyT', command: 'Slash', debug: 'F3', swapHands: 'KeyF', pause: 'Escape',
-  perspective: 'F5', pick: 'MouseMiddle',
+  perspective: 'F5', pick: 'Mouse1', attack: 'Mouse0', use: 'Mouse2',
   hotbar1: 'Digit1', hotbar2: 'Digit2', hotbar3: 'Digit3', hotbar4: 'Digit4', hotbar5: 'Digit5', hotbar6: 'Digit6',
   hotbar7: 'Digit7', hotbar8: 'Digit8', hotbar9: 'Digit9',
 };
+
+/** Vanilla "Controls" screen order, names and categories. */
+export const ACTION_INFO: { action: Action; name: string; category: string }[] = [
+  { action: 'forward', name: 'Walk Forwards', category: 'Movement' },
+  { action: 'back', name: 'Walk Backwards', category: 'Movement' },
+  { action: 'left', name: 'Strafe Left', category: 'Movement' },
+  { action: 'right', name: 'Strafe Right', category: 'Movement' },
+  { action: 'jump', name: 'Jump', category: 'Movement' },
+  { action: 'sneak', name: 'Sneak', category: 'Movement' },
+  { action: 'sprint', name: 'Sprint', category: 'Movement' },
+  { action: 'attack', name: 'Attack/Destroy', category: 'Gameplay' },
+  { action: 'pick', name: 'Pick Block', category: 'Gameplay' },
+  { action: 'use', name: 'Use Item/Place Block', category: 'Gameplay' },
+  { action: 'drop', name: 'Drop Selected Item', category: 'Inventory' },
+  { action: 'hotbar1', name: 'Hotbar Slot 1', category: 'Inventory' },
+  { action: 'hotbar2', name: 'Hotbar Slot 2', category: 'Inventory' },
+  { action: 'hotbar3', name: 'Hotbar Slot 3', category: 'Inventory' },
+  { action: 'hotbar4', name: 'Hotbar Slot 4', category: 'Inventory' },
+  { action: 'hotbar5', name: 'Hotbar Slot 5', category: 'Inventory' },
+  { action: 'hotbar6', name: 'Hotbar Slot 6', category: 'Inventory' },
+  { action: 'hotbar7', name: 'Hotbar Slot 7', category: 'Inventory' },
+  { action: 'hotbar8', name: 'Hotbar Slot 8', category: 'Inventory' },
+  { action: 'hotbar9', name: 'Hotbar Slot 9', category: 'Inventory' },
+  { action: 'inventory', name: 'Open/Close Inventory', category: 'Inventory' },
+  { action: 'swapHands', name: 'Swap Item With Offhand', category: 'Inventory' },
+  { action: 'chat', name: 'Open Chat', category: 'Multiplayer' },
+  { action: 'command', name: 'Open Command', category: 'Multiplayer' },
+  { action: 'pause', name: 'Pause/Open Menu', category: 'Miscellaneous' },
+  { action: 'perspective', name: 'Toggle Perspective', category: 'Miscellaneous' },
+  { action: 'debug', name: 'Toggle Debug Screen', category: 'Miscellaneous' },
+];
+
+/** Mouse button index for a binding code, or -1 for keyboard codes. */
+export function mouseButtonOf(code: string): number {
+  if (code === 'MouseMiddle') return 1; // legacy saves
+  const m = /^Mouse(\d+)$/.exec(code);
+  return m ? Number(m[1]) : -1;
+}
+
+const KEY_NAMES: Record<string, string> = {
+  Space: 'Space', Escape: 'Escape', Tab: 'Tab', Enter: 'Enter', Backspace: 'Backspace', CapsLock: 'Caps Lock', Slash: '/', Backslash: '\\',
+  Period: '.', Comma: ',', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Backquote: '`',
+  ArrowUp: 'Up Arrow', ArrowDown: 'Down Arrow', ArrowLeft: 'Left Arrow', ArrowRight: 'Right Arrow', Insert: 'Insert', Delete: 'Delete',
+  Home: 'Home', End: 'End', PageUp: 'Page Up', PageDown: 'Page Down', ContextMenu: 'Menu', PrintScreen: 'Print Screen', ScrollLock: 'Scroll Lock',
+  Pause: 'Pause', NumLock: 'Num Lock', NumpadEnter: 'Keypad Enter', NumpadAdd: 'Keypad +', NumpadSubtract: 'Keypad -', NumpadMultiply: 'Keypad *',
+  NumpadDivide: 'Keypad /', NumpadDecimal: 'Keypad .',
+};
+
+/** Vanilla-style display name for a binding code ("W", "Left Shift", "Middle Button", "Not Bound"). */
+export function keyName(code: string): string {
+  if (!code || code === UNBOUND) return 'Not Bound';
+  const mb = mouseButtonOf(code);
+  if (mb >= 0) return mb === 0 ? 'Left Button' : mb === 1 ? 'Middle Button' : mb === 2 ? 'Right Button' : `Button ${mb + 1}`;
+  if (KEY_NAMES[code]) return KEY_NAMES[code];
+  if (code.startsWith('Key') && code.length === 4) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return `Keypad ${code.slice(6)}`;
+  const side = /^(Shift|Control|Alt|Meta)(Left|Right)$/.exec(code);
+  if (side) return `${side[2]} ${side[1]}`;
+  return code.replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+
+/** Full binding table from saved overrides (unknown actions ignored, legacy mouse codes normalised). */
+export function mergeBindings(overrides?: Partial<Record<string, string>> | null): Record<Action, string> {
+  const out: Record<Action, string> = { ...DEFAULT_BINDINGS };
+  for (const [k, v] of Object.entries(overrides ?? {})) {
+    if (!(k in DEFAULT_BINDINGS) || typeof v !== 'string' || !v) continue;
+    out[k as Action] = v === 'MouseMiddle' ? 'Mouse1' : v;
+  }
+  return out;
+}
 
 export class Input {
   readonly down = new Set<string>();
@@ -88,17 +162,24 @@ export class Input {
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
+  /** Replaces the binding table with defaults plus the given overrides. */
+  setBindings(overrides?: Partial<Record<string, string>> | null): void {
+    this.bindings = mergeBindings(overrides);
+  }
+
   isDown(action: Action): boolean {
     if (!this.enabled) return false;
     const code = this.bindings[action];
-    if (code === 'MouseMiddle') return this.mouseDown.has(1);
+    const mb = mouseButtonOf(code);
+    if (mb >= 0) return this.mouseDown.has(mb);
     return this.down.has(code);
   }
 
   wasPressed(action: Action): boolean {
     if (!this.enabled) return false;
     const code = this.bindings[action];
-    if (code === 'MouseMiddle') return this.mouseClicked.has(1);
+    const mb = mouseButtonOf(code);
+    if (mb >= 0) return this.mouseClicked.has(mb);
     return this.pressedNow.has(code);
   }
 
@@ -106,7 +187,8 @@ export class Input {
   tickPressed(action: Action): boolean {
     if (!this.enabled) return false;
     const code = this.bindings[action];
-    if (code === 'MouseMiddle') return this.mouseClickedTick.has(1);
+    const mb = mouseButtonOf(code);
+    if (mb >= 0) return this.mouseClickedTick.has(mb);
     return this.pressedTick.has(code);
   }
 

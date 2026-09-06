@@ -102,3 +102,13 @@ h2 { font-size: 18px; margin: 0 0 16px; text-shadow: 2px 2px 0 #3f3f3f; font-wei
 .effect { width: calc(24px * var(--gui)); height: calc(24px * var(--gui)); background: url('/textures/gui/sprites/hud/effect_background.png') no-repeat; background-size: 100% 100%; position: relative; }
 .effect-icon { position: absolute; left: calc(3px * var(--gui)); top: calc(3px * var(--gui)); width: calc(18px * var(--gui)); height: calc(18px * var(--gui)); background-size: 100% 100%; background-repeat: no-repeat; }
 .effect-time { position: absolute; left: 0; right: 0; bottom: calc(1px * var(--gui)); text-align: center; font-size: calc(5px * var(--gui)); text-shadow: 1px 1px 0 #000; }
+
+/* key binds screen */
+.controls { max-height: 60vh; overflow-y: auto; width: 460px; padding: 0 8px; }
+.controls .category { color: #fff; font-weight: 700; text-align: center; margin: 10px 0 4px; text-shadow: 2px 2px 0 #3f3f3f; }
+.keyrow { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.keyrow .name { flex: 1; color: #fff; font-size: 14px; text-shadow: 2px 2px 0 #3f3f3f; }
+.btn.key { width: 150px; height: 32px; margin: 0; font-size: 14px; }
+.btn.reset { width: 70px; height: 32px; margin: 0; font-size: 14px; }
+.btn.waiting { color: #ffff55; }
+.btn.dup { color: #ff5555; }

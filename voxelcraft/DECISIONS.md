@@ -185,3 +185,9 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     Measured in the software-rendered test sandbox (4 cores): time to a playable world 2.8 s → 1.9 s
     and the full render-distance-4 chunk set arrives about two seconds earlier; `options.genWorkers`
     overrides the pool size (0 generates in the world worker).
+
+41. **Key binds follow vanilla's Controls screen**: same action names and categories, click a key
+    then press the new key or mouse button, Escape leaves it "Not Bound", duplicates show in red,
+    each row and the whole table can be reset. Attack/Use/Pick Block are actions bound to mouse
+    buttons by default, so they are rebindable too. The pause key cannot be unbound so the menu
+    always stays reachable. Only overrides are stored in `options.bindings`.

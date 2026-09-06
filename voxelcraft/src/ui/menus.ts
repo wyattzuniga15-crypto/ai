@@ -1,6 +1,7 @@
 /** Title screen, world list, world creation, pause menu, options and death screen. */
 import { button, h, slider, textField } from './dom.ts';
 import type { WorldMeta, Options } from '../core/save.ts';
+import { ACTION_INFO, DEFAULT_BINDINGS, UNBOUND, keyName, mergeBindings, mouseButtonOf, type Action } from '../core/input.ts';
 import { parseSeed } from '../core/rng.ts';
 
 export interface MenuCallbacks {
@@ -161,9 +162,94 @@ export class Menus {
       slider((v) => `GUI Scale: ${v}`, 1, 4, 1, o.guiScale, (v) => { o.guiScale = v; change(); }),
       slider((v) => `Brightness: ${v <= 0 ? 'Moody' : v >= 1 ? 'Bright' : Math.round(v * 100) + '%'}`, 0, 1, 0.05, o.gamma, (v) => { o.gamma = v; change(); }),
       slider((v) => `Master Volume: ${Math.round(v * 100)}%`, 0, 1, 0.05, o.volume, (v) => { o.volume = v; change(); }),
-      h('div', { style: 'font-size:12px;color:#aaa;margin:8px;text-align:center', text: 'Controls: WASD move · Space jump · Shift sneak · Ctrl sprint · E inventory · Q drop · T chat · / command · F3 debug · F5 view · Esc menu' }),
+      button('Controls...', () => this.showControls(() => this.showOptions(back))),
       button('Done', back),
     ));
+  }
+
+  /** Vanilla "Key Binds" screen: click a key button, press the new key (Escape = Not Bound). */
+  showControls(back: () => void): void {
+    const o = this.options;
+    const bindings = mergeBindings(o.bindings);
+    const keyButtons = new Map<Action, HTMLButtonElement>();
+    let waiting: Action | null = null;
+    const commit = () => {
+      const overrides: Partial<Record<string, string>> = {};
+      for (const [k, v] of Object.entries(bindings)) if (DEFAULT_BINDINGS[k as Action] !== v) overrides[k] = v;
+      o.bindings = Object.keys(overrides).length ? overrides : undefined;
+      this.cb.onOptionsChanged(o);
+      refresh();
+    };
+    const refresh = () => {
+      const counts = new Map<string, number>();
+      for (const v of Object.values(bindings)) if (v !== UNBOUND) counts.set(v, (counts.get(v) ?? 0) + 1);
+      for (const [action, btn] of keyButtons) {
+        const code = bindings[action];
+        const dup = (counts.get(code) ?? 0) > 1;
+        btn.textContent = waiting === action ? `> ${keyName(code)} <` : keyName(code);
+        btn.classList.toggle('waiting', waiting === action);
+        btn.classList.toggle('dup', dup && waiting !== action);
+        btn.title = dup ? 'Also bound to another action' : '';
+      }
+      resetAll.disabled = Object.entries(bindings).every(([k, v]) => DEFAULT_BINDINGS[k as Action] === v);
+    };
+    const assign = (code: string) => {
+      if (!waiting) return;
+      // the pause key must stay reachable, everything else may be unbound like vanilla
+      bindings[waiting] = code === UNBOUND && waiting === 'pause' ? bindings[waiting] : code;
+      waiting = null;
+      commit();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (!waiting) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      assign(e.code === 'Escape' ? UNBOUND : e.code);
+    };
+    const onMouse = (e: MouseEvent) => {
+      if (!waiting) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      assign(`Mouse${e.button}`);
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onMouse, true);
+    const cleanup = () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('mousedown', onMouse, true);
+    };
+    const list = h('div', { class: 'controls' });
+    let lastCategory = '';
+    for (const info of ACTION_INFO) {
+      if (info.category !== lastCategory) {
+        lastCategory = info.category;
+        list.append(h('div', { class: 'category', text: info.category }));
+      }
+      const keyBtn = button(keyName(bindings[info.action]), () => {
+        waiting = waiting === info.action ? null : info.action;
+        refresh();
+      }, 'key');
+      keyBtn.addEventListener('mousedown', (e) => e.stopPropagation()); // clicking a key button never binds a mouse button
+      keyButtons.set(info.action, keyBtn);
+      const resetBtn = button('Reset', () => {
+        bindings[info.action] = DEFAULT_BINDINGS[info.action];
+        waiting = null;
+        commit();
+      }, 'reset');
+      list.append(h('div', { class: 'keyrow' }, h('span', { class: 'name', text: info.name }), keyBtn, resetBtn));
+    }
+    const resetAll = button('Reset Keys', () => {
+      for (const k of Object.keys(bindings) as Action[]) bindings[k] = DEFAULT_BINDINGS[k];
+      waiting = null;
+      commit();
+    }, 'small');
+    void mouseButtonOf;
+    this.show(h('div', { class: `screen ${this.inGame ? '' : 'dirt'}` },
+      h('h2', { text: 'Key Binds' }),
+      list,
+      h('div', { class: 'row' }, resetAll, button('Done', () => { cleanup(); back(); }, 'small')),
+    ));
+    refresh();
   }
 
   showDeath(): void {

@@ -154,6 +154,7 @@ export class Game {
       genWorkers: opts.options.genWorkers,
     });
     this.input = new Input(this.renderer.canvas);
+    this.input.setBindings(opts.options.bindings);
     this.blockMeshes = new BlockMeshFactory(this.baker, opts.assets.blocks);
     const rng = new Rng((Date.now() ^ opts.meta.seed) >>> 0);
     const blockWorld: BlockWorld = {
@@ -373,6 +374,7 @@ export class Game {
 
   applyOptions(o: Options): void {
     this.options = o;
+    this.input.setBindings(o.bindings);
     this.renderer.setFov(o.fov);
     if (o.renderDistance !== this.world.renderDistance) {
       this.world.setRenderDistance(o.renderDistance);
@@ -602,7 +604,7 @@ export class Game {
     const p = this.player;
     const t = this.target;
     // attacking mobs takes precedence over mining
-    if (this.input.tickClicked(0) && !p.dead) {
+    if (this.input.tickPressed('attack') && !p.dead) {
       const eye = p.eyePosition(1, this.tmpEye);
       const dir = p.lookDirection(this.tmpDir);
       const hit = this.entities.raycast(eye, dir, 3);
@@ -614,7 +616,7 @@ export class Game {
       }
     }
     // mining
-    if (this.input.isMouseDown(0) && t && !p.dead) {
+    if (this.input.isDown('attack') && t && !p.dead) {
       if (!this.breaking || this.breaking.x !== t.x || this.breaking.y !== t.y || this.breaking.z !== t.z || this.breaking.state !== t.state) {
         const ticks = breakTicks(t.state, p.heldItem(), { onGround: p.onGround, inWater: p.inWater, creative: p.gamemode === 'creative', haste: p.effects.level('haste'), miningFatigue: p.effects.level('mining_fatigue') });
         this.breaking = { x: t.x, y: t.y, z: t.z, state: t.state, progress: 0, ticks };
@@ -638,7 +640,7 @@ export class Game {
     // using: interactive blocks first (unless sneaking), then the held item, then placing
     const held = p.heldItem();
     const heldDef = held ? items.byId.get(held.id) : undefined;
-    if (this.input.isMouseDown(2) && !p.dead && heldDef?.food && this.canEat(heldDef)) {
+    if (this.input.isDown('use') && !p.dead && heldDef?.food && this.canEat(heldDef)) {
       if (!this.eating || this.eating.id !== held!.id) this.eating = { ticks: 0, total: heldDef.food.eatTicks ?? 32, id: held!.id };
       if (++this.eating.ticks >= this.eating.total) {
         this.eat(heldDef);
@@ -647,9 +649,9 @@ export class Game {
       }
     } else {
       this.eating = null;
-      if (this.input.tickClicked(2) && t && !p.dead && !p.sneaking && this.useBlock(t)) {
+      if (this.input.tickPressed('use') && t && !p.dead && !p.sneaking && this.useBlock(t)) {
         this.useCooldown = 4;
-      } else if (this.input.isMouseDown(2) && this.useCooldown === 0 && !p.dead) {
+      } else if (this.input.isDown('use') && this.useCooldown === 0 && !p.dead) {
         if (t) {
           const def = blocks.blockOf(t.state);
           const interactive = !p.sneaking && (def.behavior === 'container' || def.behavior === 'workstation' || !!behaviorFor(def)?.onUse);
@@ -659,7 +661,7 @@ export class Game {
       }
     }
     // pick block (creative)
-    if (this.input.tickClicked(1) && t && p.gamemode === 'creative') {
+    if (this.input.tickPressed('pick') && t && p.gamemode === 'creative') {
       const def = blocks.blockOf(t.state);
       const item = items.byBlock.get(def.id) ?? items.byId.get(def.id);
       if (item) {
