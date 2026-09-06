@@ -34,7 +34,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Playwright smoke test: load world, break a block, place a block, run a command, open inventory, craft planks
 - [ ] Greedy meshing for opaque full cubes (currently culled per-face meshing)
 - [ ] Worker pool for terrain generation (currently one world worker)
-- [ ] Item entities persisted in the save
+- [ ] Item and falling-block entities persisted in the save
 - [ ] Options: keybinding editor, volume (audio not started)
 
 ## Phase 2 – survival core
@@ -44,10 +44,12 @@ coverage counts in `COVERAGE.md`.
 - [x] Furnace / blast furnace / smoker: vanilla fuel table, cook times, XP, lit block state, progress sprites
 - [x] Chest (27), double chest (54, vanilla left/right pairing), barrel, ender chest (per player), shulker box, hopper, dropper, dispenser GUIs; contents saved with the chunk and spilled on break
 - [ ] Shulker boxes keeping their contents as an item (needs item components)
-- [ ] Tools/armor/durability everywhere, armor points, attack damage/cooldown
-- [ ] Food, saturation, exhaustion by activity (vanilla values), eating animation/time
-- [ ] Block behaviors: doors, trapdoors, fence gates, beds (sleep/spawn), signs, ladders, snow layers, falling blocks, leaves decay, saplings, grass spread
-- [ ] Water and lava flow, buckets, farmland hydration
+- [ ] Tools/armor/durability everywhere, armor points, attack damage/cooldown (tool durability and mining speed done; armor and attacks wait for mobs)
+- [x] Food: eating by holding use (32 ticks, 16 for dried kelp), nutrition/saturation, food effects, containers returned; exhaustion for sprinting, jumping, mining, regen
+- [x] Status effects: regeneration, poison, wither, hunger, saturation, instant health/damage, speed/slowness, jump boost, haste/mining fatigue, resistance, fire resistance, water breathing, night vision (`/effect`); no HUD icons yet
+- [x] Block behaviors: doors, trapdoors, fence gates, buttons (timed), levers, beds (two-block placement, spawn point, sleeping skips the night), ladders (climbing), snow layers (stacking, melting), falling blocks (sand, gravel, concrete powder, anvils), leaves decay, saplings grow into trees, grass/mycelium spread and decay, crops/stems/berries/cane/cactus/bamboo growth, farmland hydration, bone meal, cake, ice melting, plants and torches losing support
+- [ ] Signs (text editing GUI and rendering)
+- [x] Water and lava flow (sources, levels, falling columns, slope preference, infinite water, obsidian/cobblestone), buckets (fill and empty), farmland hydration
 - [ ] Basic mobs with original designs: zombie, skeleton, creeper-role, spider, cow, pig, sheep, chicken; spawning by light level, despawn
 - [ ] XP orbs, levels, death drops
 - [ ] Sound effects (synthesized)

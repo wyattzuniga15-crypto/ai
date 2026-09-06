@@ -34,6 +34,12 @@ import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hoppe
 import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import type { Slot } from '../items/inventory.ts';
+import { Simulation } from '../world/simulation.ts';
+import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
+import { BlockMeshFactory } from '../render/blockMesh.ts';
+import { FallingBlockEntity } from '../entities/fallingBlock.ts';
+import { Rng } from './rng.ts';
+import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
 
 export interface GameAssets {
   blocks: LoadedAtlas;
@@ -52,7 +58,7 @@ export interface GameOptions {
 
 type State = 'loading' | 'playing' | 'paused' | 'chat' | 'dead' | 'gui';
 
-const REPLACEABLE = new Set(['plant', 'fluid', 'fire', 'snow_layer', 'air']);
+const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behavior === 'air';
 
 export class Game {
   readonly renderer: GameRenderer;
@@ -90,6 +96,11 @@ export class Game {
   screen: ContainerScreen | null = null;
   private screenCleanup: (() => void) | null = null;
   private screenTicks = 0;
+  readonly simulation: Simulation;
+  readonly blockMeshes: BlockMeshFactory;
+  readonly fallingBlocks: FallingBlockEntity[] = [];
+  private eating: { ticks: number; total: number; id: string } | null = null;
+  private sleeping = 0;
 
   constructor(opts: GameOptions) {
     this.meta = opts.meta;
@@ -117,6 +128,26 @@ export class Game {
       loadChunk: (cx, cz) => this.save.loadChunk(this.meta.id, cx, cz),
     });
     this.input = new Input(this.renderer.canvas);
+    this.blockMeshes = new BlockMeshFactory(this.baker, opts.assets.blocks);
+    const rng = new Rng((Date.now() ^ opts.meta.seed) >>> 0);
+    const blockWorld: BlockWorld = {
+      rng,
+      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
+      setBlock: (x, y, z, state) => { this.world.setBlock(x, y, z, state); },
+      breakBlock: (x, y, z) => this.breakBlock(x, y, z, true),
+      schedule: (x, y, z, delay) => this.simulation.schedule(x, y, z, delay, this.tickCount),
+      getLight: (x, y, z) => this.world.getLight(x, y, z, this.skyDarken()),
+      getSkyLight: (x, y, z) => this.world.getSkyLight(x, y, z),
+      startFalling: (x, y, z, state) => this.startFalling(x, y, z, state),
+      isDay: () => this.isDay(),
+      message: (text) => this.chat.addLine(text, '#fa5'),
+      sleep: (x, y, z) => this.sleepInBed(x, y, z),
+      addXp: (n) => this.addXp(n),
+      feed: (n, sat) => this.feed(n, sat),
+      dropItem: (id, count, x, y, z) => { this.dropStack({ id, count }, x, y, z, true); },
+    };
+    this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
+    this.world.onBlockChanged = (x, y, z, o, n) => this.simulation.onBlockChanged(x, y, z, o, n);
     this.hud = new Hud(opts.container, this.icons);
     this.chat = new Chat(opts.container);
     this.chat.onSubmit = (t) => this.handleChat(t);
@@ -296,6 +327,17 @@ export class Game {
       return;
     }
     this.tickBlockEntities();
+    const pcx = Math.floor(this.player.pos.x) >> 4;
+    const pcz = Math.floor(this.player.pos.z) >> 4;
+    this.simulation.tick(this.tickCount, pcx, pcz);
+    this.tickFallingBlocks();
+    this.tickEffects();
+    if (this.sleeping > 0 && --this.sleeping === 0) {
+      const day = Math.floor(this.time / DAY_LENGTH);
+      this.time = (day + 1) * DAY_LENGTH;
+      this.chat.addLine('Good morning!', '#5f5');
+    }
+    this.world.flush();
     if (this.screen) {
       this.screen.tick();
       if (++this.screenTicks % 5 === 0) this.screen.refresh();
@@ -328,6 +370,7 @@ export class Game {
       this.autosaveTimer = 0;
       void this.saveAll();
     }
+    this.input.endTick();
   }
 
   private survivalTick(): void {
@@ -339,7 +382,7 @@ export class Game {
       p.landed = 0;
       if (dmg > 0 && !p.inWater) this.damage(dmg);
     }
-    if (p.inLava) this.damage(4, true);
+    if (p.inLava && !p.effects.get('fire_resistance')) this.damage(4, true);
     // void
     if (p.pos.y < WORLD_MIN_Y - 4) this.damage(4, true);
     // drowning
@@ -347,7 +390,7 @@ export class Game {
     eye.y += p.eyeHeight;
     const eyeState = this.world.getBlock(Math.floor(eye.x), Math.floor(eye.y), Math.floor(eye.z));
     const submerged = eyeState !== 0 && blocks.blockOf(eyeState).id === 'water';
-    if (submerged) {
+    if (submerged && !p.effects.get('water_breathing')) {
       p.air--;
       if (p.air <= -20) {
         p.air = 0;
@@ -371,6 +414,8 @@ export class Game {
     const p = this.player;
     if (p.gamemode !== 'survival' || p.dead) return;
     if (!ignoreCooldown && p.hurtTime > 0) return;
+    const resistance = p.effects.level('resistance');
+    if (resistance) amount = Math.max(0, amount * (1 - 0.2 * resistance));
     p.health = Math.max(0, p.health - amount);
     p.hurtTime = 10;
     if (p.health <= 0) {
@@ -392,10 +437,10 @@ export class Game {
 
   private handleHotbarKeys(): void {
     const inv = this.player.inventory;
-    for (let i = 1; i <= 9; i++) if (this.input.wasPressed(`hotbar${i}` as 'hotbar1')) inv.selected = i - 1;
+    for (let i = 1; i <= 9; i++) if (this.input.tickPressed(`hotbar${i}` as 'hotbar1')) inv.selected = i - 1;
     const wheel = this.input.consumeWheel();
     if (wheel !== 0) inv.selected = (((inv.selected + wheel) % 9) + 9) % 9;
-    if (this.input.wasPressed('drop')) {
+    if (this.input.tickPressed('drop')) {
       const s = inv.selectedStack;
       if (s) {
         const n = this.input.isDown('sprint') ? s.count : 1;
@@ -411,7 +456,7 @@ export class Game {
         e.pickupDelay = 40;
       }
     }
-    if (this.input.wasPressed('swapHands')) {
+    if (this.input.tickPressed('swapHands')) {
       const s = inv.selectedStack;
       inv.slots[inv.selected] = inv.offhand;
       inv.offhand = s;
@@ -448,7 +493,7 @@ export class Game {
     // mining
     if (this.input.isMouseDown(0) && t && !p.dead) {
       if (!this.breaking || this.breaking.x !== t.x || this.breaking.y !== t.y || this.breaking.z !== t.z || this.breaking.state !== t.state) {
-        const ticks = breakTicks(t.state, p.heldItem(), { onGround: p.onGround, inWater: p.inWater, creative: p.gamemode === 'creative' });
+        const ticks = breakTicks(t.state, p.heldItem(), { onGround: p.onGround, inWater: p.inWater, creative: p.gamemode === 'creative', haste: p.effects.level('haste'), miningFatigue: p.effects.level('mining_fatigue') });
         this.breaking = { x: t.x, y: t.y, z: t.z, state: t.state, progress: 0, ticks };
       }
       const b = this.breaking;
@@ -467,17 +512,31 @@ export class Game {
     } else {
       this.breaking = null;
     }
-    // using interactive blocks (unless sneaking), otherwise placing
-    if (this.input.clicked(2) && t && !p.dead && !p.sneaking && this.useBlock(t)) {
-      this.useCooldown = 4;
-    } else if (this.input.isMouseDown(2) && this.useCooldown === 0 && t && !p.dead) {
-      const def = blocks.blockOf(t.state);
-      const interactive = !p.sneaking && (def.behavior === 'container' || def.behavior === 'workstation');
-      if (!interactive) this.placeBlock(t);
-      this.useCooldown = 4;
+    // using: interactive blocks first (unless sneaking), then the held item, then placing
+    const held = p.heldItem();
+    const heldDef = held ? items.byId.get(held.id) : undefined;
+    if (this.input.isMouseDown(2) && !p.dead && heldDef?.food && this.canEat(heldDef)) {
+      if (!this.eating || this.eating.id !== held!.id) this.eating = { ticks: 0, total: heldDef.food.eatTicks ?? 32, id: held!.id };
+      if (++this.eating.ticks >= this.eating.total) {
+        this.eat(heldDef);
+        this.eating = null;
+        this.useCooldown = 8;
+      }
+    } else {
+      this.eating = null;
+      if (this.input.tickClicked(2) && t && !p.dead && !p.sneaking && this.useBlock(t)) {
+        this.useCooldown = 4;
+      } else if (this.input.isMouseDown(2) && this.useCooldown === 0 && !p.dead) {
+        if (t) {
+          const def = blocks.blockOf(t.state);
+          const interactive = !p.sneaking && (def.behavior === 'container' || def.behavior === 'workstation' || !!behaviorFor(def)?.onUse);
+          if (!interactive) this.useItem(t);
+        } else this.useItem(null);
+        this.useCooldown = 4;
+      }
     }
     // pick block (creative)
-    if (this.input.clicked(1) && t && p.gamemode === 'creative') {
+    if (this.input.tickClicked(1) && t && p.gamemode === 'creative') {
       const def = blocks.blockOf(t.state);
       const item = items.byBlock.get(def.id) ?? items.byId.get(def.id);
       if (item) {
@@ -492,14 +551,21 @@ export class Game {
     }
   }
 
-  breakBlock(x: number, y: number, z: number): void {
+  /** Breaks a block: drops (unless creative or `byWorld` with no harvest tool), block entity cleanup. */
+  breakBlock(x: number, y: number, z: number, byWorld = false): void {
     const state = this.world.getBlock(x, y, z);
     if (state === 0) return;
     const def = blocks.blockOf(state);
-    if (def.hardness < 0 && this.player.gamemode !== 'creative') return;
+    if (def.behavior === 'fluid' || def.behavior === 'air') {
+      this.world.setBlock(x, y, z, 0);
+      return;
+    }
+    if (def.hardness < 0 && this.player.gamemode !== 'creative' && !byWorld) return;
     const p = this.player;
-    const held = p.heldItem();
-    if (p.gamemode === 'survival') {
+    const held = byWorld ? null : p.heldItem();
+    if (byWorld) {
+      for (const drop of blockDrops(state, null)) this.dropStack(drop, x + 0.5, y + 0.5, z + 0.5, true);
+    } else if (p.gamemode === 'survival') {
       if (canHarvest(state, held)) {
         for (const drop of blockDrops(state, held)) this.dropStack(drop, x + 0.5, y + 0.5, z + 0.5, true);
       }
@@ -540,6 +606,15 @@ export class Game {
     let y = t.y;
     let z = t.z;
     let replacing = false;
+    // snow layers stack up to 8
+    if (def.id === 'snow' && targetDef.id === 'snow') {
+      const layers = Number(blocks.prop(t.state, 'layers') ?? 1);
+      if (layers < 8) {
+        this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'layers', String(layers + 1)));
+        if (p.gamemode === 'survival') p.inventory.consumeSelected();
+        return true;
+      }
+    }
     // slab merging
     if (def.behavior === 'slab' && targetDef.id === def.id) {
       const type = blocks.prop(t.state, 'type');
@@ -549,7 +624,7 @@ export class Game {
         return true;
       }
     }
-    if (REPLACEABLE.has(targetDef.behavior) && targetDef.behavior !== 'air') {
+    if (isReplaceable(targetDef) && targetDef.behavior !== 'air') {
       replacing = true;
     } else {
       const n = FACE_NORMALS[t.face];
@@ -559,7 +634,8 @@ export class Game {
     }
     if (y < WORLD_MIN_Y || y > WORLD_MAX_Y) return false;
     const existing = this.world.getBlock(x, y, z);
-    if (!replacing && existing !== 0 && !REPLACEABLE.has(blocks.blockOf(existing).behavior)) return false;
+    if (!replacing && existing !== 0 && !isReplaceable(blocks.blockOf(existing))) return false;
+    if (def.behavior === 'bed') return this.placeBed(def, x, y, z);
     const state = this.placementState(def, t, existing);
     if (state === null) return false;
     // don't place inside the player
@@ -581,6 +657,25 @@ export class Game {
     }
     if (p.gamemode === 'survival') p.inventory.consumeSelected();
     p.exhaustion += 0.005;
+    return true;
+  }
+
+  private placeBed(def: BlockDef, x: number, y: number, z: number): boolean {
+    const p = this.player;
+    const facing = ['', '', 'north', 'south', 'west', 'east'][p.horizontalFacing()];
+    const dir: Record<string, [number, number]> = { north: [0, -1], south: [0, 1], west: [-1, 0], east: [1, 0] };
+    const [dx, dz] = dir[facing];
+    const hx = x + dx;
+    const hz = z + dz;
+    const head = this.world.getBlock(hx, y, hz);
+    if (head !== 0 && !isReplaceable(blocks.blockOf(head))) return false;
+    const foot = blocks.stateWith(def, { facing, part: 'foot', occupied: 'false' });
+    const headState = blocks.stateWith(def, { facing, part: 'head', occupied: 'false' });
+    const boxes = [[x, y, z, x + 1, y + 0.5625, z + 1], [hx, y, hz, hx + 1, y + 0.5625, hz + 1]];
+    if (p.intersectsBoxes(boxes)) return false;
+    this.world.setBlock(x, y, z, foot);
+    this.world.setBlock(hx, y, hz, headState);
+    if (p.gamemode === 'survival') p.inventory.consumeSelected();
     return true;
   }
 
@@ -630,7 +725,6 @@ export class Game {
       props.rotation = String(Math.round(((yaw % 16) + 16) % 16) % 16);
     }
     if (names.has('half') && def.behavior === 'door') props.half = 'lower';
-    if (def.behavior === 'bed') return null; // beds need two blocks and sleeping – next phase
     return blocks.stateWith(def, props);
   }
 
@@ -688,6 +782,8 @@ export class Game {
     const p = this.player;
     const inv = p.inventory;
     const mark = () => this.world.markModifiedAt(t.x, t.z);
+    const behavior = behaviorFor(def);
+    if (behavior?.onUse && behavior.onUse({ w: this.simulationWorld(), x: t.x, y: t.y, z: t.z, state: t.state, def })) return true;
     if (def.id === 'crafting_table') {
       const grid = makeGrid(3, 3);
       this.openScreen(craftingTableScreen(inv, grid), () => this.returnGrid(grid));
@@ -743,6 +839,172 @@ export class Game {
       return true;
     }
     return false;
+  }
+
+  private simulationWorld(): BlockWorld {
+    return (this.simulation as unknown as { w: BlockWorld }).w;
+  }
+
+  skyDarken(): number {
+    return Math.round(((1 - this.sky.dayLight) / 0.73) * 11);
+  }
+
+  isDay(): boolean {
+    const t = this.time % DAY_LENGTH;
+    return t < 12542 || t > 23459;
+  }
+
+  /** Right-click with an item on a block (or into the air). */
+  private useItem(t: RaycastHit | null): void {
+    const p = this.player;
+    const held = p.heldItem();
+    if (!held) return;
+    const def = items.byId.get(held.id);
+    if (!def) return;
+    if (def.behavior === 'bucket') {
+      this.useBucket(held.id);
+      return;
+    }
+    if (held.id === 'bone_meal' && t) {
+      if (applyBoneMeal(this.simulationWorld(), t.x, t.y, t.z, t.state)) {
+        if (p.gamemode === 'survival') p.inventory.consumeSelected();
+      }
+      return;
+    }
+    if (t) this.placeBlock(t);
+  }
+
+  private useBucket(id: string): void {
+    const p = this.player;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir);
+    if (id === 'bucket') {
+      const hit = this.world.raycast(eye, dir, BLOCK_REACH, true);
+      if (!hit) return;
+      const def = blocks.blockOf(hit.state);
+      if (def.behavior !== 'fluid' || blocks.prop(hit.state, 'level') !== '0') return;
+      this.world.setBlock(hit.x, hit.y, hit.z, 0);
+      const filled = def.id === 'water' ? 'water_bucket' : 'lava_bucket';
+      if (p.gamemode === 'survival') {
+        p.inventory.consumeSelected();
+        if (p.inventory.add({ id: filled, count: 1 }) > 0) this.dropStack({ id: filled, count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+      }
+      return;
+    }
+    const fluid = id === 'water_bucket' ? 'water' : id === 'lava_bucket' ? 'lava' : id === 'powder_snow_bucket' ? 'powder_snow' : null;
+    if (!fluid) return;
+    const hit = this.world.raycast(eye, dir, BLOCK_REACH, false);
+    if (!hit) return;
+    const targetDef = blocks.blockOf(hit.state);
+    let x = hit.x, y = hit.y, z = hit.z;
+    if (!isReplaceable(targetDef)) {
+      const n = FACE_NORMALS[hit.face];
+      x += n[0];
+      y += n[1];
+      z += n[2];
+    }
+    const existing = this.world.getBlock(x, y, z);
+    if (existing !== 0 && !isReplaceable(blocks.blockOf(existing))) return;
+    this.world.setBlock(x, y, z, blocks.defaultState(fluid));
+    if (fluid !== 'powder_snow') this.simulation.schedule(x, y, z, fluid === 'water' ? WATER_DELAY : LAVA_DELAY, this.tickCount);
+    if (p.gamemode === 'survival') {
+      p.inventory.consumeSelected();
+      if (p.inventory.add({ id: 'bucket', count: 1 }) > 0) this.dropStack({ id: 'bucket', count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+    }
+  }
+
+  private canEat(def: { food?: { alwaysEdible?: boolean } }): boolean {
+    const p = this.player;
+    return p.gamemode === 'creative' || p.food < 20 || !!def.food?.alwaysEdible;
+  }
+
+  private eat(def: { id: string; food?: { nutrition: number; saturation: number; effects?: { effect: string; duration: number; amplifier?: number; chance?: number }[]; container?: string } }): void {
+    const p = this.player;
+    const f = def.food!;
+    this.feed(f.nutrition, f.saturation);
+    for (const e of f.effects ?? []) if (e.chance === undefined || Math.random() < e.chance) p.effects.add(e.effect, e.duration, e.amplifier ?? 0);
+    if (def.id === 'milk_bucket') p.effects.clear();
+    if (def.id === 'honey_bottle') p.effects.remove('poison');
+    if (p.gamemode !== 'creative') {
+      p.inventory.consumeSelected();
+      if (f.container && p.inventory.add({ id: f.container, count: 1 }) > 0) this.dropStack({ id: f.container, count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+    }
+  }
+
+  feed(nutrition: number, saturation: number): void {
+    const p = this.player;
+    p.food = Math.min(20, p.food + nutrition);
+    p.saturation = Math.min(p.food, p.saturation + saturation);
+  }
+
+  private tickEffects(): void {
+    const p = this.player;
+    if (p.dead) return;
+    p.effects.tick();
+    for (const e of p.effects.active.values()) {
+      const lvl = e.amplifier + 1;
+      switch (e.id) {
+        case 'regeneration':
+          if (this.tickCount % Math.max(1, 50 >> e.amplifier) === 0 && p.health < 20) p.health = Math.min(20, p.health + 1);
+          break;
+        case 'poison':
+          if (this.tickCount % Math.max(1, 25 >> e.amplifier) === 0 && p.health > 1) this.damage(1, true);
+          break;
+        case 'wither':
+          if (this.tickCount % Math.max(1, 40 >> e.amplifier) === 0) this.damage(1, true);
+          break;
+        case 'hunger':
+          p.exhaustion += 0.005 * lvl;
+          break;
+        case 'saturation':
+          this.feed(lvl, 2 * lvl);
+          p.effects.remove('saturation');
+          break;
+        case 'instant_health':
+          p.health = Math.min(20, p.health + 4 * 2 ** e.amplifier);
+          p.effects.remove('instant_health');
+          break;
+        case 'instant_damage':
+          this.damage(6 * 2 ** e.amplifier, true);
+          p.effects.remove('instant_damage');
+          break;
+      }
+    }
+    this.uniforms.gamma.value = Math.max(this.options.gamma, p.effects.level('night_vision') ? 1 : 0);
+  }
+
+  private startFalling(x: number, y: number, z: number, state: number): void {
+    this.world.setBlock(x, y, z, 0);
+    const e = new FallingBlockEntity(state, x, y, z, this.blockMeshes.mesh(state));
+    this.fallingBlocks.push(e);
+    this.renderer.scene.add(e.mesh);
+  }
+
+  private tickFallingBlocks(): void {
+    for (let i = this.fallingBlocks.length - 1; i >= 0; i--) {
+      const e = this.fallingBlocks[i];
+      e.tick(this.world);
+      if (!e.dead) continue;
+      this.renderer.scene.remove(e.mesh);
+      this.fallingBlocks.splice(i, 1);
+      if (e.landed) {
+        const cur = this.world.getBlock(e.landed.x, e.landed.y, e.landed.z);
+        if (cur === 0 || isReplaceable(blocks.blockOf(cur))) this.world.setBlock(e.landed.x, e.landed.y, e.landed.z, e.state);
+        else for (const d of blockDrops(e.state, null)) this.dropStack(d, e.pos.x + 0.5, e.pos.y, e.pos.z + 0.5, true);
+      }
+    }
+  }
+
+  private sleepInBed(x: number, y: number, z: number): void {
+    const p = this.player;
+    p.spawn = [x + 0.5, y + 0.6, z + 0.5];
+    if (this.isDay()) {
+      this.chat.addLine('You can only sleep at night', '#fa5');
+      return;
+    }
+    if (this.sleeping) return;
+    this.chat.addLine('Sleeping... (spawn point set)', '#5f5');
+    this.sleeping = 40;
   }
 
   openInventory(): void {
@@ -860,6 +1122,8 @@ export class Game {
     if (this.state === 'playing') this.updateTarget();
     this.updateOutline();
     for (const e of this.itemEntities) e.updateSprite(alpha, partialTime / 20);
+    for (const e of this.fallingBlocks) e.updateMesh(alpha);
+    this.world.flush();
     this.renderer.render();
     this.hud.update(p, this.debugText(eyeBlock), dt);
     this.input.endFrame();
@@ -1062,6 +1326,21 @@ export class Game {
         if (!blocks.has(id)) return err(`Unknown block '${id}'`);
         this.world.setBlock(x, y, z, blocks.defaultState(id));
         say(`Changed the block at ${x}, ${y}, ${z}`);
+        break;
+      }
+      case 'effect': {
+        if (args[0] === 'clear') {
+          p.effects.clear();
+          say('Removed every effect');
+          break;
+        }
+        const id = (args[0] === 'give' ? args[2] ?? args[1] : args[0])?.replace(/^minecraft:/, '');
+        const rest = args[0] === 'give' ? args.slice(3) : args.slice(1);
+        if (!id) return err('Usage: /effect give @s <effect> [seconds] [amplifier]');
+        const seconds = Number(rest[0] ?? 30);
+        const amp = Number(rest[1] ?? 0);
+        p.effects.add(id, seconds * 20, amp);
+        say(`Applied effect ${id} to Player`);
         break;
       }
       case 'xp': {

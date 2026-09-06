@@ -68,6 +68,8 @@ export class World {
   ready = false;
   stats = { chunks: 0, pending: 0, meshed: 0, drawn: 0 };
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
+  onBlockChanged: ((x: number, y: number, z: number, oldState: number, newState: number) => void) | null = null;
+  private pendingEdits: number[] = [];
   private readonly loadChunk: WorldOptions['loadChunk'];
   private readonly dirtyColumns = new Set<string>();
   private readonly pendingEntities = new Map<string, string | null>();
@@ -138,11 +140,28 @@ export class World {
     const c = this.chunks.get(chunkKey(x >> 4, z >> 4));
     if (!c) return false;
     const i = ((y - WORLD_MIN_Y) * CHUNK_SIZE + (z & 15)) * CHUNK_SIZE + (x & 15);
-    if (c.blocks[i] === state) return false;
+    const old = c.blocks[i];
+    if (old === state) return false;
     c.blocks[i] = state;
     c.modified = true;
-    this.send({ type: 'setBlock', x, y, z, state });
+    if (old !== 0 && c.entities.size && blocks.stateBlock[old] !== blocks.stateBlock[state]) c.entities.delete(`${x},${y},${z}`);
+    this.pendingEdits.push(x, y, z, state);
+    if (this.pendingEdits.length >= 4 * 512) this.flush();
+    this.onBlockChanged?.(x, y, z, old, state);
     return true;
+  }
+
+  /** Sends batched edits to the worker; called every tick and frame. */
+  flush(): void {
+    if (!this.pendingEdits.length) return;
+    const edits = Int32Array.from(this.pendingEdits);
+    this.pendingEdits = [];
+    this.send({ type: 'setBlocks', edits }, [edits.buffer]);
+  }
+
+  /** Combined light level with the sky contribution darkened at night (vanilla raw brightness). */
+  getLight(x: number, y: number, z: number, skyDarken = 0): number {
+    return Math.max(this.getBlockLight(x, y, z), this.getSkyLight(x, y, z) - skyDarken);
   }
 
   getBlockEntity(x: number, y: number, z: number): BlockEntity | undefined {
@@ -251,6 +270,7 @@ export class World {
   // ---------------------------------------------------------------------------------------------
   /** Call every frame with the player position. */
   update(px: number, pz: number): void {
+    this.flush();
     const cx = Math.floor(px) >> 4;
     const cz = Math.floor(pz) >> 4;
     if (cx !== this.viewCx || cz !== this.viewCz) {

@@ -14,12 +14,16 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
 
 export class Input {
   readonly down = new Set<string>();
+  /** Keys pressed since the last frame (render-side edges). */
   private readonly pressedNow = new Set<string>();
+  /** Keys pressed since the last simulation tick (tick-side edges). */
+  private readonly pressedTick = new Set<string>();
   private mouseDX = 0;
   private mouseDY = 0;
   wheel = 0;
   readonly mouseDown = new Set<number>();
   private readonly mouseClicked = new Set<number>();
+  private readonly mouseClickedTick = new Set<number>();
   locked = false;
   /** When false, game actions are ignored (a menu or text field has focus). */
   enabled = true;
@@ -31,7 +35,10 @@ export class Input {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'F3' || e.code === 'F5' || e.code === 'F11' || (e.code === 'Tab' && this.locked)) e.preventDefault();
       if (isTextTarget(e.target)) return;
-      if (!this.down.has(e.code)) this.pressedNow.add(e.code);
+      if (!this.down.has(e.code)) {
+        this.pressedNow.add(e.code);
+        this.pressedTick.add(e.code);
+      }
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -46,6 +53,7 @@ export class Input {
       e.preventDefault();
       this.mouseDown.add(e.button);
       this.mouseClicked.add(e.button);
+      this.mouseClickedTick.add(e.button);
     });
     window.addEventListener('mouseup', (e) => this.mouseDown.delete(e.button));
     element.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -94,6 +102,18 @@ export class Input {
     return this.pressedNow.has(code);
   }
 
+  /** Edge-triggered press as seen by the 20 TPS simulation (cleared by `endTick`). */
+  tickPressed(action: Action): boolean {
+    if (!this.enabled) return false;
+    const code = this.bindings[action];
+    if (code === 'MouseMiddle') return this.mouseClickedTick.has(1);
+    return this.pressedTick.has(code);
+  }
+
+  tickClicked(button: number): boolean {
+    return this.enabled && this.mouseClickedTick.has(button);
+  }
+
   /** Raw key press check that ignores `enabled` (for menus). */
   keyPressed(code: string): boolean {
     return this.pressedNow.has(code);
@@ -120,10 +140,16 @@ export class Input {
     return w;
   }
 
-  /** Call at the end of every frame to clear edge-triggered state. */
+  /** Call at the end of every frame to clear frame-side edge state. */
   endFrame(): void {
     this.pressedNow.clear();
     this.mouseClicked.clear();
+  }
+
+  /** Call at the end of every simulation tick to clear tick-side edge state. */
+  endTick(): void {
+    this.pressedTick.clear();
+    this.mouseClickedTick.clear();
   }
 }
 

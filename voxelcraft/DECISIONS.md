@@ -89,3 +89,23 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 
 21. **The furnace lighting tick does not consume fuel time**, matching vanilla (`litTime` is
     decremented only when the furnace was already lit at the start of the tick).
+
+22. **Block simulation runs on the main thread** (`src/world/simulation.ts`): scheduled ticks in a
+    binary heap, vanilla random ticks (3 per section per tick within a 6-chunk simulation distance)
+    and neighbour updates, dispatched to `src/blocks/behaviors.ts`. The worker only lights and
+    meshes; edits are batched per tick into one message.
+
+23. **Fluids follow the vanilla level rules** (amount 8 source, drop-off 1 for water and 2 for
+    lava, falling columns, slope search up to 4 blocks, infinite water from two sources, lava +
+    water interactions) but render as still surfaces with the level-based height; per-corner
+    heights and flow-direction texture rotation are still to do.
+
+24. **Input edges are latched per simulation tick as well as per frame.** Rendering runs faster
+    than the 20 TPS simulation, so frame-cleared key/mouse edges could be missed by the tick; a
+    second set (`tickPressed`, `tickClicked`) fixes that.
+
+25. **Sleeping skips to morning after a two-second delay** without the vanilla monster check
+    (there are no mobs yet) and without the wake-up animation.
+
+26. **Bed placement uses the vanilla `part`/`facing`/`occupied` states** with the head one block
+    further along the player's facing; sitting in it is not simulated.

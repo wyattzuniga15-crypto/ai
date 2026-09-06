@@ -33,6 +33,8 @@ export interface BlockDef {
   shearsSpeed?: number;
   swordSpeed?: number;
   shape?: number | number[];
+  /** In the vanilla `replaceable` tag: placing a block into it overwrites it. */
+  replaceable?: boolean;
 }
 
 /** Blocks rendered with alpha blending instead of alpha testing. */

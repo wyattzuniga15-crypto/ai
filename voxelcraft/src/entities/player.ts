@@ -6,6 +6,7 @@ import { Inventory, cloneStack, type Slot } from '../items/inventory.ts';
 import { items } from '../items/registry.ts';
 import { blocks } from '../blocks/registry.ts';
 import { aabbIntersects, boxesIn, hasGroundBelow, isFluidAt, sweep, type AABB, type BlockSource } from './physics.ts';
+import { EffectSet, speedMultiplier, type ActiveEffect } from './effects.ts';
 
 export type GameMode = 'survival' | 'creative' | 'spectator';
 
@@ -16,6 +17,7 @@ export interface PlayerSave {
   inventory: ReturnType<Inventory['serialize']>;
   spawn?: [number, number, number];
   enderChest?: Slot[];
+  effects?: ActiveEffect[];
 }
 
 export class Player {
@@ -42,6 +44,10 @@ export class Player {
   readonly inventory = new Inventory();
   /** Ender chest contents travel with the player. */
   enderChest: Slot[] = new Array(27).fill(null);
+  readonly effects = new EffectSet();
+  onLadder = false;
+  /** Absorption hearts from effects. */
+  absorption = 0;
   eyeHeight = PLAYER_EYE_HEIGHT;
   private eyeTarget = PLAYER_EYE_HEIGHT;
   private lastJumpPress = -1;
@@ -113,7 +119,7 @@ export class Player {
     const creative = this.gamemode === 'creative' || this.gamemode === 'spectator';
 
     // fly toggle: double-tap jump in creative
-    if (input.wasPressed('jump')) {
+    if (input.tickPressed('jump')) {
       if (creative && tickCount - this.lastJumpPress < 7 && tickCount - this.lastJumpPress > 0) {
         this.flying = !this.flying;
         this.lastJumpPress = -100;
@@ -122,7 +128,7 @@ export class Player {
     if (!creative) this.flying = false;
 
     // sprint: hold key or double-tap forward
-    if (input.wasPressed('forward')) {
+    if (input.tickPressed('forward')) {
       if (tickCount - this.sprintDoubleTap < 7 && tickCount - this.sprintDoubleTap > 0) this.sprinting = true;
       this.sprintDoubleTap = tickCount;
     }
@@ -145,6 +151,11 @@ export class Player {
     this.inLava = isFluidAt(world, feet.x, feet.y + 0.4, feet.z, 'lava');
     const eyeInWater = isFluidAt(world, feet.x, feet.y + this.eyeHeight, feet.z, 'water');
     if (this.jumpCooldown > 0) this.jumpCooldown--;
+    const climbAt = (y: number) => {
+      const s = world.getBlock(Math.floor(feet.x), Math.floor(y), Math.floor(feet.z));
+      return s !== 0 && blocks.blockOf(s).behavior === 'climbable';
+    };
+    this.onLadder = climbAt(feet.y + 0.1) || climbAt(feet.y + 1.0);
 
     // movement input relative to yaw
     let mx = strafe;
@@ -193,14 +204,22 @@ export class Player {
     let speed = this.onGround ? 0.1 : 0.02;
     if (this.sprinting) speed *= 1.3;
     if (this.sneaking) speed *= 0.3;
+    speed *= speedMultiplier(this.effects);
     if (this.onGround) {
       const friction = 0.6 * 0.91; // default block slipperiness
       speed = speed * (0.16277136 / (friction * friction * friction));
     }
     this.vel.x += wx * speed;
     this.vel.z += wz * speed;
+    if (this.onLadder) {
+      // ladders: slow slide, climb when pushing into them or jumping, hold still while sneaking
+      if (this.vel.y < -0.15) this.vel.y = -0.15;
+      if (forward !== 0 || strafe !== 0 || jump) this.vel.y = 0.2;
+      else if (this.sneaking) this.vel.y = 0;
+      this.fallDistance = 0;
+    }
     if (jump && this.onGround && this.jumpCooldown === 0) {
-      this.vel.y = 0.42;
+      this.vel.y = 0.42 + 0.1 * this.effects.level('jump_boost');
       if (this.sprinting) {
         this.vel.x += -sin * 0.2;
         this.vel.z += -cos * 0.2;
@@ -275,6 +294,7 @@ export class Player {
       gamemode: this.gamemode, flying: this.flying, selected: this.inventory.selected,
       inventory: this.inventory.serialize(), spawn: this.spawn,
       enderChest: this.enderChest.map((s) => (s ? cloneStack(s) : null)),
+      effects: this.effects.serialize(),
     };
   }
 
@@ -293,6 +313,7 @@ export class Player {
     this.inventory.restore(s.inventory);
     if (s.spawn) this.spawn = s.spawn;
     if (s.enderChest) this.enderChest = Array.from({ length: 27 }, (_, i) => (s.enderChest![i] && items.has(s.enderChest![i]!.id) ? cloneStack(s.enderChest![i]!) : null));
+    this.effects.restore(s.effects);
     this.dead = this.health <= 0;
   }
 }

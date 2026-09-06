@@ -33,7 +33,7 @@ biomes, enchantments, effects, collision shapes) from the fetched sources.
 | Shift | Sneak (you will not walk off edges) |
 | Ctrl or double-tap W | Sprint |
 | Left mouse | Mine (hold) |
-| Right mouse | Place / use |
+| Right mouse | Place / use (hold to eat, doors, buttons, beds at night, buckets, bone meal) |
 | Middle mouse | Pick block (Creative) |
 | 1–9, mouse wheel | Select hotbar slot |
 | Q | Drop item (Ctrl+Q whole stack) |

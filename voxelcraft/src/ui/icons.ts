@@ -100,7 +100,7 @@ export class ItemIcons {
       const s = q.shade ? shades[q.dir] : 1;
       for (let i = 0; i < 4; i++) {
         pos.push(q.pos[i * 3] - 0.5, q.pos[i * 3 + 1] - 0.5, q.pos[i * 3 + 2] - 0.5);
-        uv.push((tile.x + q.uv[i * 2] * tile.w) / this.blockAtlas.width, 1 - (tile.y + q.uv[i * 2 + 1] * tile.h) / this.blockAtlas.height);
+        uv.push((tile.x + q.uv[i * 2] * tile.w) / this.blockAtlas.width, (tile.y + q.uv[i * 2 + 1] * tile.h) / this.blockAtlas.height);
         col.push(((tint >> 16) & 255) / 255 * s, ((tint >> 8) & 255) / 255 * s, (tint & 255) / 255 * s);
       }
       idx.push(v, v + 1, v + 2, v, v + 2, v + 3);
