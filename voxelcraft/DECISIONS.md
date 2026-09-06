@@ -159,3 +159,9 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 37. **Standing signs carry separate front and back text** like vanilla's `front_text`/`back_text`;
     right-clicking edits the side the player stands on (`SignBlock.isFacingFrontText`). A blank
     back draws no text plane. Glowing/dyed text is stored (`color`) but not yet editable in-game.
+
+38. **`tools/gen-textures.ts` only fills gaps.** With the fetched assets present it generates
+    nothing; without them it paints deterministic 16×16 placeholders (pattern family chosen from
+    the texture name: planks, logs, bricks, ores, leaves, plants, liquids, glass, tools, items) for
+    every texture `public/models.json` references, so an offline checkout renders readable blocks
+    instead of the checker. It never overwrites a real texture unless `--force` is passed.

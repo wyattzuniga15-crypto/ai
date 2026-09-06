@@ -11,7 +11,7 @@ coverage counts in `COVERAGE.md`.
 - [x] `tools/build-models.ts`: merged `public/models.json`
 - [x] `tools/gen-data.ts`: `data/blocks.json` (1166 blocks), `data/items.json` (1505 items), all recipe files, loot tables, tags, mobs, biomes, enchantments, effects, collision shapes
 - [x] Vitest: worldgen determinism, model baking of every block state, data integrity (recipes resolve to real items)
-- [ ] `tools/gen-textures.ts`: original placeholder art generator for offline use (checker fallback exists at runtime)
+- [x] `tools/gen-textures.ts`: deterministic original placeholder art for every texture the models reference (`npm run textures:gen` fills only missing files; `--force --out dir --sheet preview.png` for a full set)
 
 ## Phase 1 – engine (playable)
 - [x] Chunk storage 16x384x16 (y -64..319), global block-state palette identical to vanilla ids
