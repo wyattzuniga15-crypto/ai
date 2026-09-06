@@ -92,6 +92,10 @@ export class WorldGenerator {
   private readonly noodle: Noise;
   private readonly detail: Noise;
   private readonly caveBiome: Noise;
+  private readonly aquiferMask: Noise;
+  private readonly aquiferLevelNoise: Noise;
+  /** Cells removed by ravines in the last generateTerrain (tests). */
+  lastRavineCells = 0;
 
   private readonly S: Record<string, number>;
   private readonly stone: number;
@@ -118,6 +122,8 @@ export class WorldGenerator {
     this.noodle = n(12);
     this.detail = n(13);
     this.caveBiome = n(14);
+    this.aquiferMask = n(15);
+    this.aquiferLevelNoise = n(16);
     this.S = {};
     this.stone = st('stone');
     this.deepslate = st('deepslate');
@@ -292,6 +298,7 @@ export class WorldGenerator {
         chunk.set(x, WORLD_MIN_Y, z, this.bedrock);
         for (let y = WORLD_MIN_Y + 1; y <= WORLD_MIN_Y + 4; y++) if (hashPos(this.seed, wx, y, wz ^ 0x55) < 1 - (y - WORLD_MIN_Y) / 5) chunk.set(x, y, z, this.bedrock);
       }
+    this.carveRavines(chunk, heights);
     this.placeOres(chunk);
     // surface + water
     for (let z = 0; z < CHUNK_SIZE; z++)
@@ -306,6 +313,9 @@ export class WorldGenerator {
           if (chunk.get(x, y, z) !== this.air) break;
           chunk.set(x, y, z, this.water);
         }
+        // aquifers: enclosed cave air below the local water table floods (lava keeps the deep band)
+        const table = Math.min(this.aquiferLevel(wx, wz), SEA_LEVEL - 2, Math.floor(info.height) - 5);
+        for (let y = table; y > -54; y--) if (chunk.get(x, y, z) === this.air) chunk.set(x, y, z, this.water);
         // surface layers: walk down through the column and dress every solid run that sits
         // directly under air or water (ore and dirt blobs inside the ground are not surfaces)
         let depthBudget = 0;
@@ -365,6 +375,120 @@ export class WorldGenerator {
       }
     chunk.updateHeightmapAll();
     chunk.status = 'terrain';
+  }
+
+  /**
+   * Local aquifer water level: about half the map is dry (no underground water), the rest floods
+   * caves up to a level between y −35 and 55 that varies smoothly over ~200 blocks.
+   */
+  aquiferLevel(wx: number, wz: number): number {
+    if (this.aquiferMask.fbm2(wx / 150, wz / 150, 2) > 0.05) return WORLD_MIN_Y - 1;
+    return Math.round(10 + this.aquiferLevelNoise.fbm2(wx / 220, wz / 220, 2) * 45);
+  }
+
+  /** Whether a ravine starts in chunk (cx, cz): vanilla canyon probability 0.02 per chunk. */
+  ravineStartsIn(cx: number, cz: number): boolean {
+    return new Rng(mix(this.seed, cx, cz, 0xca7e)).chance(0.02);
+  }
+
+  /**
+   * Vanilla-style canyon carver: each chunk within four chunks may seed a random walk of up to
+   * 112 steps carving tall thin ellipsoids; only the cells inside this chunk are removed, so
+   * generation stays independent per chunk and deterministic.
+   */
+  private carveRavines(chunk: ChunkData, heights: Float32Array): void {
+    this.lastRavineCells = 0;
+    const x0 = chunk.cx * 16;
+    const z0 = chunk.cz * 16;
+    for (let dcx = -4; dcx <= 4; dcx++)
+      for (let dcz = -4; dcz <= 4; dcz++) {
+        const scx = chunk.cx + dcx;
+        const scz = chunk.cz + dcz;
+        const rng = new Rng(mix(this.seed, scx, scz, 0xca7e));
+        if (!rng.chance(0.02)) continue;
+        let x = scx * 16 + rng.int(16);
+        let z = scz * 16 + rng.int(16);
+        let y = rng.range(20, 67);
+        let yaw = rng.next() * Math.PI * 2;
+        let pitch = (rng.next() - 0.5) * 0.25;
+        let yawDelta = 0;
+        let pitchDelta = 0;
+        const thickness = (rng.next() * 2 + rng.next()) * 2;
+        const steps = 112 - rng.int(28);
+        for (let i = 0; i < steps; i++) {
+          const rh = 1.5 + Math.sin((i * Math.PI) / steps) * thickness;
+          const rv = rh * 3;
+          x += Math.cos(yaw) * Math.cos(pitch);
+          z += Math.sin(yaw) * Math.cos(pitch);
+          y += Math.sin(pitch);
+          pitch = pitch * 0.7 + pitchDelta * 0.05;
+          yaw += yawDelta * 0.05;
+          yawDelta = yawDelta * 0.75 + (rng.next() - rng.next()) * rng.next() * 4;
+          pitchDelta = pitchDelta * 0.9 + (rng.next() - rng.next()) * rng.next() * 2;
+          if (rng.int(4) === 0) continue;
+          // clip the ellipsoid to this chunk
+          const minX = Math.max(x0, Math.floor(x - rh)), maxX = Math.min(x0 + 15, Math.ceil(x + rh));
+          const minZ = Math.max(z0, Math.floor(z - rh)), maxZ = Math.min(z0 + 15, Math.ceil(z + rh));
+          if (minX > maxX || minZ > maxZ) continue;
+          const minY = Math.max(WORLD_MIN_Y + 6, Math.floor(y - rv)), maxY = Math.min(250, Math.ceil(y + rv));
+          for (let bx = minX; bx <= maxX; bx++)
+            for (let bz = minZ; bz <= maxZ; bz++) {
+              const lx = bx - x0, lz = bz - z0;
+              const surface = heights[lz * 16 + lx];
+              const dx = (bx + 0.5 - x) / rh, dz = (bz + 0.5 - z) / rh;
+              // jagged walls like vanilla's per-layer width table
+              const wobble = 0.85 + this.detail.noise2(bx / 7, bz / 7) * 0.3;
+              if (dx * dx + dz * dz > wobble) continue;
+              for (let by = minY; by <= maxY; by++) {
+                const dy = (by + 0.5 - y) / rv;
+                if (dx * dx + dz * dz + dy * dy >= wobble) continue;
+                if (surface < SEA_LEVEL && by >= SEA_LEVEL - 2) continue; // do not breach ocean floors
+                const cur = chunk.get(lx, by, lz);
+                if (cur === this.air || cur === this.bedrock) continue;
+                chunk.set(lx, by, lz, by <= -54 ? this.lava : this.air);
+                this.lastRavineCells++;
+              }
+            }
+        }
+      }
+  }
+
+  /**
+   * Underground lava lake (vanilla lake_lava, 1 in 8 chunks): a blob of a few ellipsoids filled
+   * with lava below its centre and air above, walled with stone wherever it would spill into caves.
+   */
+  placeLavaLake(world: BlockAccess, rng: Rng, x: number, y: number, z: number): boolean {
+    const cells = new Set<string>();
+    const blobs = rng.range(4, 6);
+    for (let b = 0; b < blobs; b++) {
+      const cx = x + rng.range(-3, 3), cy = y + rng.range(-1, 1), cz = z + rng.range(-3, 3);
+      const rx = 2 + rng.next() * 2, ry = 1 + rng.next() * 2, rz = 2 + rng.next() * 2;
+      for (let dx = -4; dx <= 4; dx++) for (let dy = -3; dy <= 3; dy++) for (let dz = -4; dz <= 4; dz++) {
+        if ((dx / rx) ** 2 + (dy / ry) ** 2 + (dz / rz) ** 2 < 1) cells.add(`${cx + dx},${cy + dy},${cz + dz}`);
+      }
+    }
+    const parse = (k: string) => k.split(',').map(Number) as [number, number, number];
+    // abort when the lake would open into the sky like vanilla's containment check
+    for (const k of cells) {
+      const [px, py, pz] = parse(k);
+      if (py > y && world.get(px, py, pz) === this.air) return false;
+    }
+    for (const k of cells) {
+      const [px, py, pz] = parse(k);
+      world.set(px, py, pz, py <= y ? this.lava : this.air);
+    }
+    const stone = this.block('stone');
+    for (const k of cells) {
+      const [px, py, pz] = parse(k);
+      if (py > y) continue;
+      for (const [ox, oy, oz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0]]) {
+        const nk = `${px + ox},${py + oy},${pz + oz}`;
+        if (cells.has(nk)) continue;
+        const cur = world.get(px + ox, py + oy, pz + oz);
+        if (cur === this.air || cur === this.water) world.set(px + ox, py + oy, pz + oz, stone);
+      }
+    }
+    return true;
   }
 
   private terracottaBand(y: number): string {
@@ -474,6 +598,12 @@ export class WorldGenerator {
     };
     const biomeAt = (lx: number, lz: number) => biomes[chunk.biomes[lz * 16 + lx]];
 
+    if (rng.chance(1 / 8)) {
+      const lx = rng.range(3, 12), lz = rng.range(3, 12);
+      const ly = rng.range(-50, 30);
+      const rock = (y: number) => { const s = chunk.get(lx, y, lz); return s === this.stone || s === this.deepslate; };
+      if (rock(ly) && rock(ly + 3) && rock(ly - 3)) this.placeLavaLake(world, rng, ox + lx, ly, oz + lz);
+    }
     this.decorateCaves(chunk, world, rng);
     // azalea trees mark lush caves below
     for (let i = 0; i < 3; i++) {

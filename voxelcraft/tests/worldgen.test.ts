@@ -3,7 +3,7 @@ import { WorldGenerator, dripstoneThickness } from '../src/world/gen/generator.t
 import { ChunkData } from '../src/world/chunk.ts';
 import { blocks } from '../src/blocks/registry.ts';
 import { biomes } from '../src/world/biomes.ts';
-import { hashString, parseSeed } from '../src/core/rng.ts';
+import { Rng, hashString, parseSeed } from '../src/core/rng.ts';
 import { SEA_LEVEL, WORLD_MIN_Y } from '../src/core/constants.ts';
 
 function hashChunk(c: ChunkData): number {
@@ -153,5 +153,46 @@ describe('world generation', () => {
     const access2 = { get: (x: number, y: number, z: number) => (y < WORLD_MIN_Y || y > 319 ? 0 : at2(x >> 4, z >> 4).get(x & 15, y, z & 15)), set: (x: number, y: number, z: number, st: number) => { if (y >= WORLD_MIN_Y && y <= 319) at2(x >> 4, z >> 4).set(x & 15, y, z & 15, st); } };
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const c = at2(probe[0] + dx, probe[1] + dz); if (c.status === 'terrain') again.decorate(c, access2); }
     expect(Buffer.from(at2(probe[0], probe[1]).blocks.buffer).equals(Buffer.from(at(probe[0], probe[1]).blocks.buffer))).toBe(true);
+  });
+
+  it('carves ravines and floods aquifers deterministically', () => {
+    const gen = new WorldGenerator(777);
+    let seeded: [number, number] | null = null;
+    let n = 0;
+    for (let cx = -20; cx <= 20 && !seeded; cx++) for (let cz = -20; cz <= 20; cz++) { n++; if (gen.ravineStartsIn(cx, cz)) { seeded = [cx, cz]; break; } }
+    expect(seeded, 'a ravine seed within 1681 chunks').not.toBeNull();
+    const c = new ChunkData(seeded![0], seeded![1]);
+    gen.generateTerrain(c);
+    expect(gen.lastRavineCells).toBeGreaterThan(50);
+    const again = new ChunkData(seeded![0], seeded![1]);
+    new WorldGenerator(777).generateTerrain(again);
+    expect(Buffer.from(again.blocks.buffer).equals(Buffer.from(c.blocks.buffer))).toBe(true);
+    // aquifer levels: some regions dry, others between -35 and 61
+    let wet = 0, dry = 0;
+    for (let i = 0; i < 400; i++) {
+      const lvl = gen.aquiferLevel(i * 37 - 7000, (i * 91) % 5000 - 2500);
+      if (lvl < WORLD_MIN_Y) dry++;
+      else { wet++; expect(lvl).toBeGreaterThanOrEqual(-40); expect(lvl).toBeLessThanOrEqual(61); }
+    }
+    expect(wet).toBeGreaterThan(40);
+    expect(dry).toBeGreaterThan(40);
+    void n;
+  });
+
+  it('places a contained lava lake', () => {
+    const gen = new WorldGenerator(9);
+    const c = new ChunkData(0, 0);
+    gen.generateTerrain(c);
+    // solid rock cube around the lake site
+    for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = -30; y < -10; y++) c.set(x, y, z, blocks.defaultState('stone'));
+    const access = { get: (x: number, y: number, z: number) => (x >> 4 === 0 && z >> 4 === 0 && y >= WORLD_MIN_Y && y <= 319 ? c.get(x & 15, y, z & 15) : blocks.defaultState('stone')), set: (x: number, y: number, z: number, st: number) => { if (x >> 4 === 0 && z >> 4 === 0) c.set(x & 15, y, z & 15, st); } };
+    const rng = new Rng(5);
+    expect(gen.placeLavaLake(access, rng, 8, -20, 8)).toBe(true);
+    let lava = 0, air = 0;
+    for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = -30; y < -10; y++) { const id = blocks.idOf(c.get(x, y, z)); if (id === 'lava') lava++; else if (c.get(x, y, z) === 0) air++; }
+    expect(lava).toBeGreaterThan(10);
+    expect(air).toBeGreaterThan(5);
+    // every lava cell rests on something solid
+    for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = -29; y < -10; y++) if (blocks.idOf(c.get(x, y, z)) === 'lava') expect(c.get(x, y - 1, z)).not.toBe(0);
   });
 });

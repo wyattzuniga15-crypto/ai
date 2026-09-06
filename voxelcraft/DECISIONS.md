@@ -247,3 +247,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     Moody and up to 13% at full brightness (vanilla's `0.96 × light + 0.03` lightmap term and the
     gamma lift), so caves read as dark rock instead of a black screen; mobs and particles use the same
     floor through `brightnessAt`.
+
+50. **Carvers are re-derived per chunk instead of shared.** Every chunk replays the ravine walks
+    seeded in the 9×9 chunks around it and keeps only the cells inside its own bounds, so the
+    terrain workers never need neighbours (vanilla does the same with an 8-chunk carver radius).
+    Aquifers are a simplified version of vanilla's: a mask noise leaves about half the map dry and
+    a level noise floods enclosed cave air below the local table, no barrier noise. Lava lakes are
+    the only remaining vanilla lake feature and are placed underground during decoration.

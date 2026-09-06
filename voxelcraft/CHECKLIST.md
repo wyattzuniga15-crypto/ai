@@ -62,7 +62,7 @@ coverage counts in `COVERAGE.md`.
 ## Phase 3 – world depth
 - [x] Cave biomes as 3D noise regions (lush caves with moss, azaleas, glow berry vines and spore blossoms; dripstone caves with stalactites and stalagmites; deep dark with sculk, sensors, shriekers and catalysts), glow lichen in every cave, azalea trees above lush caves, mangrove trees on stilt roots with propagules, bamboo
 - [ ] Remaining biome features: cherry/pale garden details, coral reefs, icebergs, badlands mineshaft-free terracotta bands polish
-- [ ] Aquifers, ravines, lakes
+- [x] Aquifers (noise water table floods enclosed caves below sea level in about half the map; lava keeps the y ≤ −54 band), ravines (vanilla canyon random walk, 2% of chunks, carved per chunk so generation stays parallel and deterministic), underground lava lakes (1 in 8 chunks, walled where they would spill)
 - [ ] Structures: villages (jobs, trading), mineshafts, strongholds, temples, outposts, ruined portals, shipwrecks, monuments, mansions, trial chambers, ancient cities, igloos, witch huts
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
