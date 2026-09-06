@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_SNEAK_EYE_HEIGHT, PLAYER_SNEAK_HEIGHT, PLAYER_WIDTH } from '../core/constants.ts';
 import type { Input } from '../core/input.ts';
-import { Inventory } from '../items/inventory.ts';
+import { Inventory, cloneStack, type Slot } from '../items/inventory.ts';
+import { items } from '../items/registry.ts';
 import { blocks } from '../blocks/registry.ts';
 import { aabbIntersects, boxesIn, hasGroundBelow, isFluidAt, sweep, type AABB, type BlockSource } from './physics.ts';
 
@@ -14,6 +15,7 @@ export interface PlayerSave {
   gamemode: GameMode; flying: boolean; selected: number;
   inventory: ReturnType<Inventory['serialize']>;
   spawn?: [number, number, number];
+  enderChest?: Slot[];
 }
 
 export class Player {
@@ -38,6 +40,8 @@ export class Player {
   xpLevel = 0;
   fallDistance = 0;
   readonly inventory = new Inventory();
+  /** Ender chest contents travel with the player. */
+  enderChest: Slot[] = new Array(27).fill(null);
   eyeHeight = PLAYER_EYE_HEIGHT;
   private eyeTarget = PLAYER_EYE_HEIGHT;
   private lastJumpPress = -1;
@@ -270,6 +274,7 @@ export class Player {
       health: this.health, food: this.food, saturation: this.saturation, xp: this.xp, xpLevel: this.xpLevel,
       gamemode: this.gamemode, flying: this.flying, selected: this.inventory.selected,
       inventory: this.inventory.serialize(), spawn: this.spawn,
+      enderChest: this.enderChest.map((s) => (s ? cloneStack(s) : null)),
     };
   }
 
@@ -287,6 +292,7 @@ export class Player {
     this.inventory.selected = s.selected;
     this.inventory.restore(s.inventory);
     if (s.spawn) this.spawn = s.spawn;
+    if (s.enderChest) this.enderChest = Array.from({ length: 27 }, (_, i) => (s.enderChest![i] && items.has(s.enderChest![i]!.id) ? cloneStack(s.enderChest![i]!) : null));
     this.dead = this.health <= 0;
   }
 }

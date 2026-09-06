@@ -29,6 +29,11 @@ import { ItemIcons } from '../ui/icons.ts';
 import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
+import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
+import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid } from '../ui/screens/screens.ts';
+import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity } from '../blocks/blockEntity.ts';
+import { tickFurnace } from '../blocks/furnace.ts';
+import type { Slot } from '../items/inventory.ts';
 
 export interface GameAssets {
   blocks: LoadedAtlas;
@@ -45,7 +50,7 @@ export interface GameOptions {
   menus: Menus;
 }
 
-type State = 'loading' | 'playing' | 'paused' | 'chat' | 'dead';
+type State = 'loading' | 'playing' | 'paused' | 'chat' | 'dead' | 'gui';
 
 const REPLACEABLE = new Set(['plant', 'fluid', 'fire', 'snow_layer', 'air']);
 
@@ -82,6 +87,9 @@ export class Game {
   private lastCrackStage = -1;
   private unloadHandler = () => void this.saveAll();
   thirdPerson = 0;
+  screen: ContainerScreen | null = null;
+  private screenCleanup: (() => void) | null = null;
+  private screenTicks = 0;
 
   constructor(opts: GameOptions) {
     this.meta = opts.meta;
@@ -235,6 +243,7 @@ export class Game {
   }
 
   async quit(): Promise<void> {
+    this.closeScreen();
     this.loop.stop();
     window.removeEventListener('beforeunload', this.unloadHandler);
     await this.saveAll();
@@ -257,10 +266,10 @@ export class Game {
   }
 
   async saveAll(): Promise<void> {
-    const dirty: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array }[] = [];
+    const dirty: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities: string | null }[] = [];
     for (const c of this.world.chunks.values()) {
       if (c.modified) {
-        dirty.push({ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes });
+        dirty.push({ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c) });
         this.world.markSaved(c);
       }
     }
@@ -281,10 +290,15 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   private tick(): void {
     this.tickCount++;
-    if (this.state === 'playing' || this.state === 'chat' || this.state === 'dead') this.time++;
-    if (this.state !== 'playing' && this.state !== 'chat') {
+    if (this.state === 'playing' || this.state === 'chat' || this.state === 'dead' || this.state === 'gui') this.time++;
+    if (this.state !== 'playing' && this.state !== 'chat' && this.state !== 'gui') {
       this.player.prevPos.copy(this.player.pos);
       return;
+    }
+    this.tickBlockEntities();
+    if (this.screen) {
+      this.screen.tick();
+      if (++this.screenTicks % 5 === 0) this.screen.refresh();
     }
     const p = this.player;
     if (this.state === 'playing') this.handleHotbarKeys();
@@ -360,6 +374,7 @@ export class Game {
     p.health = Math.max(0, p.health - amount);
     p.hurtTime = 10;
     if (p.health <= 0) {
+      this.closeScreen();
       p.dead = true;
       this.state = 'dead';
       this.input.enabled = false;
@@ -452,10 +467,14 @@ export class Game {
     } else {
       this.breaking = null;
     }
-    // placing / using
-    if (this.input.isMouseDown(2) && this.useCooldown === 0 && t && !p.dead) {
-      if (this.placeBlock(t)) this.useCooldown = 4;
-      else this.useCooldown = 4;
+    // using interactive blocks (unless sneaking), otherwise placing
+    if (this.input.clicked(2) && t && !p.dead && !p.sneaking && this.useBlock(t)) {
+      this.useCooldown = 4;
+    } else if (this.input.isMouseDown(2) && this.useCooldown === 0 && t && !p.dead) {
+      const def = blocks.blockOf(t.state);
+      const interactive = !p.sneaking && (def.behavior === 'container' || def.behavior === 'workstation');
+      if (!interactive) this.placeBlock(t);
+      this.useCooldown = 4;
     }
     // pick block (creative)
     if (this.input.clicked(1) && t && p.gamemode === 'creative') {
@@ -486,6 +505,13 @@ export class Game {
       }
       if (held && items.byId.get(held.id)?.durability && def.hardness > 0) p.inventory.damageSelected(1);
       p.exhaustion += 0.005;
+    }
+    // containers spill their contents (ender chests keep theirs with the player)
+    const entity = this.world.getBlockEntity(x, y, z);
+    if (entity) {
+      for (const s of entity.items) if (s) this.dropStack(s, x + 0.5, y + 0.5, z + 0.5, true);
+      this.world.setBlockEntity(x, y, z, null);
+      if (def.id === 'chest' || def.id === 'trapped_chest') this.unpairChest(x, y, z, state);
     }
     // remove the other half of two-block plants / doors
     const half = blocks.prop(state, 'half');
@@ -546,6 +572,9 @@ export class Game {
       if (below === 0 || !blocks.blockOf(below).solid) return false;
     }
     this.world.setBlock(x, y, z, state);
+    const entity = createBlockEntity(def.id);
+    if (entity) this.world.setBlockEntity(x, y, z, entity);
+    if (def.id === 'chest' || def.id === 'trapped_chest') this.pairChest(x, y, z, state);
     if (blocks.prop(state, 'half') === 'lower') {
       const upper = blocks.withProp(state, 'half', 'upper');
       if (this.world.getBlock(x, y + 1, z) === 0) this.world.setBlock(x, y + 1, z, upper);
@@ -606,6 +635,170 @@ export class Game {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Block entities, chests and GUI screens
+  // ---------------------------------------------------------------------------------------------
+  private tickBlockEntities(): void {
+    this.world.forEachBlockEntity((x, y, z, e) => {
+      if (e.type !== 'furnace' && e.type !== 'blast_furnace' && e.type !== 'smoker') return;
+      const r = tickFurnace(e as FurnaceEntity);
+      if (r.changed) this.world.markModifiedAt(x, z);
+      if (r.litChanged) {
+        const st = this.world.getBlock(x, y, z);
+        if (st && blocks.blockOf(st).id === e.type) this.world.setBlock(x, y, z, blocks.withProp(st, 'lit', (e as FurnaceEntity).burnTime > 0 ? 'true' : 'false'));
+      }
+    });
+  }
+
+  private static readonly CLOCKWISE: Record<string, [number, number, string]> = { north: [1, 0, 'east'], east: [0, 1, 'south'], south: [-1, 0, 'west'], west: [0, -1, 'north'] };
+  private static readonly COUNTER: Record<string, [number, number, string]> = { north: [-1, 0, 'west'], west: [0, 1, 'south'], south: [1, 0, 'east'], east: [0, -1, 'north'] };
+
+  /** Joins a freshly placed chest with a single neighbour of the same facing (vanilla double chest). */
+  private pairChest(x: number, y: number, z: number, state: number): void {
+    const def = blocks.blockOf(state);
+    const facing = blocks.prop(state, 'facing') ?? 'north';
+    for (const [side, type, partnerType] of [['cw', 'left', 'right'], ['ccw', 'right', 'left']] as const) {
+      const [dx, dz] = (side === 'cw' ? Game.CLOCKWISE : Game.COUNTER)[facing];
+      const ns = this.world.getBlock(x + dx, y, z + dz);
+      if (!ns || blocks.blockOf(ns).id !== def.id) continue;
+      if (blocks.prop(ns, 'facing') !== facing || blocks.prop(ns, 'type') !== 'single') continue;
+      this.world.setBlock(x, y, z, blocks.withProp(state, 'type', type));
+      this.world.setBlock(x + dx, y, z + dz, blocks.withProp(ns, 'type', partnerType));
+      return;
+    }
+  }
+
+  private chestPartner(x: number, y: number, z: number, state: number): [number, number, number] | null {
+    const type = blocks.prop(state, 'type');
+    const facing = blocks.prop(state, 'facing') ?? 'north';
+    if (type !== 'left' && type !== 'right') return null;
+    const [dx, dz] = (type === 'left' ? Game.CLOCKWISE : Game.COUNTER)[facing];
+    return [x + dx, y, z + dz];
+  }
+
+  private unpairChest(x: number, y: number, z: number, state: number): void {
+    const partner = this.chestPartner(x, y, z, state);
+    if (!partner) return;
+    const ps = this.world.getBlock(...partner);
+    if (ps && blocks.blockOf(ps).id === blocks.blockOf(state).id) this.world.setBlock(partner[0], partner[1], partner[2], blocks.withProp(ps, 'type', 'single'));
+  }
+
+  /** Right-click on a block with a GUI or behavior. Returns true when handled. */
+  private useBlock(t: RaycastHit): boolean {
+    const def = blocks.blockOf(t.state);
+    const p = this.player;
+    const inv = p.inventory;
+    const mark = () => this.world.markModifiedAt(t.x, t.z);
+    if (def.id === 'crafting_table') {
+      const grid = makeGrid(3, 3);
+      this.openScreen(craftingTableScreen(inv, grid), () => this.returnGrid(grid));
+      return true;
+    }
+    if (def.id === 'ender_chest') {
+      this.openScreen(chestScreen(inv, p.enderChest, 3, 'Ender Chest'));
+      return true;
+    }
+    if (def.behavior === 'workstation') {
+      this.hud.showToast(`${def.name}: coming in a later phase`);
+      return true;
+    }
+    const kind = containerKind(def.id);
+    if (kind || def.id === 'furnace' || def.id === 'blast_furnace' || def.id === 'smoker') {
+      let entity = this.world.getBlockEntity(t.x, t.y, t.z);
+      if (!entity) {
+        entity = createBlockEntity(def.id)!;
+        this.world.setBlockEntity(t.x, t.y, t.z, entity);
+      }
+      if (entity.type === 'furnace' || entity.type === 'blast_furnace' || entity.type === 'smoker') {
+        const screen = furnaceScreen(inv, entity as FurnaceEntity, (n) => this.addXp(n));
+        screen.onChange = mark;
+        this.openScreen(screen);
+        return true;
+      }
+      const c = entity as ContainerEntity;
+      if ((def.id === 'chest' || def.id === 'trapped_chest') && this.chestPartner(t.x, t.y, t.z, t.state)) {
+        const partner = this.chestPartner(t.x, t.y, t.z, t.state)!;
+        let other = this.world.getBlockEntity(...partner) as ContainerEntity | undefined;
+        if (!other) {
+          other = createBlockEntity(def.id) as ContainerEntity;
+          this.world.setBlockEntity(partner[0], partner[1], partner[2], other);
+        }
+        const left = blocks.prop(t.state, 'type') === 'left' ? c : other;
+        const right = left === c ? other : c;
+        const merged: Slot[] = [...left.items, ...right.items];
+        const sync = () => {
+          left.items = merged.slice(0, 27);
+          right.items = merged.slice(27);
+          mark();
+          this.world.markModifiedAt(partner[0], partner[2]);
+        };
+        const screen = chestScreen(inv, merged, 6, 'Large Chest', sync);
+        screen.onChange = sync;
+        this.openScreen(screen);
+        return true;
+      }
+      const title = def.name;
+      const screen = c.type === 'hopper' ? hopperScreen(inv, c.items, mark) : c.type === 'dispenser' || c.type === 'dropper' ? dispenserScreen(inv, c.items, title, mark) : chestScreen(inv, c.items, 3, c.type === 'shulker_box' ? 'Shulker Box' : title, mark);
+      screen.onChange = mark;
+      this.openScreen(screen);
+      return true;
+    }
+    return false;
+  }
+
+  openInventory(): void {
+    const grid = makeGrid(2, 2);
+    this.openScreen(inventoryScreen(this.player.inventory, grid), () => this.returnGrid(grid));
+  }
+
+  private returnGrid(grid: CraftingGrid): void {
+    for (const s of grid.cells) {
+      if (!s) continue;
+      const left = this.player.inventory.add(s);
+      if (left > 0) this.dropStack({ ...s, count: left }, this.player.pos.x, this.player.pos.y + 1, this.player.pos.z, true);
+    }
+    grid.cells.fill(null);
+  }
+
+  openScreen(def: ScreenDef, cleanup?: () => void): void {
+    if (this.state !== 'playing') return;
+    this.closeScreen();
+    this.state = 'gui';
+    this.input.enabled = false;
+    this.input.exitLock();
+    const host = {
+      icons: this.icons,
+      guiScale: this.options.guiScale,
+      drop: (stack: ItemStack) => {
+        const eye = this.player.eyePosition(1);
+        const dir = this.player.lookDirection();
+        const e = this.dropStack(stack, eye.x, eye.y - 0.3, eye.z, false);
+        e.vel.copy(dir).multiplyScalar(0.3);
+        e.pickupDelay = 40;
+      },
+      creative: this.player.gamemode === 'creative',
+      advancedTooltips: this.hud.showDebug,
+    };
+    this.screen = new ContainerScreen(def, host, this.renderer.canvas.parentElement ?? document.body);
+    this.screen.onClose = () => this.closeScreen();
+    this.screenCleanup = cleanup ?? null;
+  }
+
+  closeScreen(): void {
+    if (!this.screen) return;
+    const screen = this.screen;
+    this.screen = null;
+    screen.releaseCursor((s) => this.player.inventory.add(s));
+    screen.destroy();
+    this.screenCleanup?.();
+    this.screenCleanup = null;
+    if (this.state === 'gui') {
+      this.state = 'playing';
+      this.input.enabled = true;
+      this.input.requestLock();
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Rendering
   // ---------------------------------------------------------------------------------------------
   private render(alpha: number, dt: number): void {
@@ -618,7 +811,7 @@ export class Game {
       else if (this.input.wasPressed('command')) this.openChat('/');
       if (this.input.wasPressed('debug')) this.hud.showDebug = !this.hud.showDebug;
       if (this.input.wasPressed('perspective')) this.thirdPerson = (this.thirdPerson + 1) % 3;
-      if (this.input.wasPressed('inventory')) this.hud.showToast('Inventory screen: next checklist item');
+      if (this.input.wasPressed('inventory')) this.openInventory();
     } else if (this.state === 'chat') {
       this.input.consumeMouse();
     } else {

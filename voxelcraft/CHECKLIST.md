@@ -31,17 +31,19 @@ coverage counts in `COVERAGE.md`.
 - [x] Chat and commands: `/gamemode`, `/time`, `/tp`, `/give`, `/clear`, `/seed`, `/kill`, `/heal`, `/setblock`, `/xp`, `/spawnpoint` (`/weather`, `/locate` stubbed)
 - [x] Title screen, world list, create world (name, seed, game mode), pause menu, options (render distance, FOV, sensitivity, GUI scale, brightness)
 - [x] Save/load in IndexedDB (modified chunks + player + time), autosave, export/import world as .zip
-- [x] Playwright smoke test: load world, break a block, place a block, run a command
+- [x] Playwright smoke test: load world, break a block, place a block, run a command, open inventory, craft planks
 - [ ] Greedy meshing for opaque full cubes (currently culled per-face meshing)
 - [ ] Worker pool for terrain generation (currently one world worker)
 - [ ] Item entities persisted in the save
 - [ ] Options: keybinding editor, volume (audio not started)
 
 ## Phase 2 – survival core
-- [ ] Inventory screen (E): 27 + 9 slots, armor, offhand, 2x2 crafting, player preview, shift-click, drag-split, number-key swap, double-click collect, tooltips
-- [ ] Crafting table 3x3 with recipe book, using `data/recipes/crafting.json`
-- [ ] Furnace / blast furnace / smoker with fuel list and progress
-- [ ] Chest (27), double chest (54), barrel, ender chest, shulker box, hopper, dropper, dispenser GUIs
+- [x] Inventory screen (E): 27 + 9 slots, armor, offhand, 2x2 crafting, shift-click, drag-split, number-key swap, double-click collect, Q drop, tooltips (player preview still missing)
+- [x] Crafting table 3x3 using `data/recipes/crafting.json` (shaped with mirroring/trimming, shapeless, transmute, repair)
+- [ ] Recipe book
+- [x] Furnace / blast furnace / smoker: vanilla fuel table, cook times, XP, lit block state, progress sprites
+- [x] Chest (27), double chest (54, vanilla left/right pairing), barrel, ender chest (per player), shulker box, hopper, dropper, dispenser GUIs; contents saved with the chunk and spilled on break
+- [ ] Shulker boxes keeping their contents as an item (needs item components)
 - [ ] Tools/armor/durability everywhere, armor points, attack damage/cooldown
 - [ ] Food, saturation, exhaustion by activity (vanilla values), eating animation/time
 - [ ] Block behaviors: doors, trapdoors, fence gates, beds (sleep/spawn), signs, ladders, snow layers, falling blocks, leaves decay, saplings, grass spread

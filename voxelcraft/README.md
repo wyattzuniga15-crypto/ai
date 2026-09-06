@@ -38,7 +38,7 @@ biomes, enchantments, effects, collision shapes) from the fetched sources.
 | 1–9, mouse wheel | Select hotbar slot |
 | Q | Drop item (Ctrl+Q whole stack) |
 | F | Swap with off-hand |
-| E | Inventory (next up on the checklist) |
+| E | Inventory (2x2 crafting) · right-click a crafting table, furnace or chest to open it |
 | T | Chat · `/` opens a command |
 | F3 | Debug overlay |
 | F5 | Toggle third person |
@@ -52,7 +52,7 @@ Commands: `/gamemode <survival|creative|spectator>`, `/time set <day|noon|night|
 
 ```sh
 npm test           # vitest: worldgen determinism, model baking of every block state, data integrity
-npm run test:e2e   # builds, then Playwright: load a world, break and place a block, run a command
+npm run test:e2e   # builds, then Playwright: load a world, break and place a block, run a command, craft planks
 npm run typecheck
 ```
 

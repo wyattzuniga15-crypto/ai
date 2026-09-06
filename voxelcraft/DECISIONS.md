@@ -76,3 +76,16 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     glyphs.
 
 17. **The title splash is "Voxels ahoy!"** – nothing from Mojang's splash list.
+
+18. **GUI screens are one generic slot engine plus per-screen layouts** (`src/ui/screens/`), with the
+    vanilla slot coordinates from the container textures. Shift-click routing follows vanilla
+    (`quickMove`), including the reversed hotbar-first fill when taking from containers.
+
+19. **Block entities live on the main thread** (`LoadedChunk.entities`, keyed by world position)
+    and are saved as JSON inside the chunk record. The worker never needs them.
+
+20. **Shulker boxes spill their contents when broken** for now; keeping contents inside the item
+    needs item components, which come with the anvil/enchanting work.
+
+21. **The furnace lighting tick does not consume fuel time**, matching vanilla (`litTime` is
+    decremented only when the furnace was already lit at the start of the tick).

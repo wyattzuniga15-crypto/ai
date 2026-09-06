@@ -23,6 +23,8 @@ interface ChunkRecord {
   cz: number;
   blocks: Uint8Array;
   biomes: Uint8Array | null;
+  /** JSON of block entities (containers, furnaces) keyed "x,y,z" in chunk-local coordinates. */
+  entities?: string | null;
 }
 
 const DB_NAME = 'voxelcraft';
@@ -116,14 +118,14 @@ export class SaveManager {
     });
   }
 
-  async loadChunk(world: string, cx: number, cz: number): Promise<{ blocks: Uint16Array; biomes: Uint8Array | null } | null> {
+  async loadChunk(world: string, cx: number, cz: number): Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities: string | null } | null> {
     const rec = await tx<ChunkRecord | undefined>('chunks', 'readonly', (s) => s.get(chunkRecordKey(world, cx, cz)));
     if (!rec) return null;
     const raw = inflateSync(rec.blocks);
-    return { blocks: new Uint16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2).slice(), biomes: rec.biomes ? rec.biomes.slice() : null };
+    return { blocks: new Uint16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2).slice(), biomes: rec.biomes ? rec.biomes.slice() : null, entities: rec.entities ?? null };
   }
 
-  async saveChunks(world: string, chunks: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array }[]): Promise<void> {
+  async saveChunks(world: string, chunks: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities?: string | null }[]): Promise<void> {
     if (!chunks.length) return;
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
@@ -137,6 +139,7 @@ export class SaveManager {
           cz: c.cz,
           blocks: deflateSync(new Uint8Array(c.blocks.buffer, c.blocks.byteOffset, c.blocks.byteLength), { level: 6 }),
           biomes: c.biomes.slice(),
+          entities: c.entities ?? null,
         };
         s.put(rec);
       }
@@ -164,6 +167,7 @@ export class SaveManager {
     for (const r of recs) {
       files[`chunks/${r.cx}.${r.cz}.bin`] = r.blocks;
       if (r.biomes) files[`chunks/${r.cx}.${r.cz}.biomes`] = r.biomes;
+      if (r.entities) files[`chunks/${r.cx}.${r.cz}.entities.json`] = new TextEncoder().encode(r.entities);
     }
     const zip = zipSync(files, { level: 0 });
     return new Blob([zip as unknown as BlobPart], { type: 'application/zip' });
@@ -187,7 +191,8 @@ export class SaveManager {
         const cx = Number(m[1]);
         const cz = Number(m[2]);
         const biomes = files[`chunks/${cx}.${cz}.biomes`] ?? null;
-        s.put({ key: chunkRecordKey(meta.id, cx, cz), world: meta.id, cx, cz, blocks: bytes, biomes } satisfies ChunkRecord);
+        const ent = files[`chunks/${cx}.${cz}.entities.json`];
+        s.put({ key: chunkRecordKey(meta.id, cx, cz), world: meta.id, cx, cz, blocks: bytes, biomes, entities: ent ? new TextDecoder().decode(ent) : null } satisfies ChunkRecord);
       }
       t.oncomplete = () => resolve();
       t.onerror = () => reject(t.error);

@@ -12,6 +12,7 @@ import type { FromWorker, ToWorker } from './protocol.ts';
 import type { ModelsJson } from './models.ts';
 import type { AtlasJson } from '../render/atlasIndex.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
+import { deserializeEntities, entityKey, serializeEntities, type BlockEntity } from '../blocks/blockEntity.ts';
 
 export interface LoadedChunk {
   cx: number;
@@ -25,6 +26,8 @@ export interface LoadedChunk {
   solidMesh: THREE.Mesh | null;
   translucentMesh: THREE.Mesh | null;
   dirtyGeometry: boolean;
+  /** Block entities keyed by world "x,y,z". */
+  entities: Map<string, BlockEntity>;
 }
 
 export interface RaycastHit {
@@ -47,7 +50,7 @@ export interface WorldOptions {
   models: ModelsJson;
   atlas: AtlasJson;
   /** Supplies saved chunk data, or null to generate. */
-  loadChunk: (cx: number, cz: number) => Promise<{ blocks: Uint16Array; biomes: Uint8Array | null } | null>;
+  loadChunk: (cx: number, cz: number) => Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities?: string | null } | null>;
 }
 
 const FACE_NORMALS: [number, number, number][] = [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
@@ -67,6 +70,7 @@ export class World {
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
   private readonly loadChunk: WorldOptions['loadChunk'];
   private readonly dirtyColumns = new Set<string>();
+  private readonly pendingEntities = new Map<string, string | null>();
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;
@@ -139,6 +143,37 @@ export class World {
     c.modified = true;
     this.send({ type: 'setBlock', x, y, z, state });
     return true;
+  }
+
+  getBlockEntity(x: number, y: number, z: number): BlockEntity | undefined {
+    return this.chunks.get(chunkKey(x >> 4, z >> 4))?.entities.get(entityKey(x, y, z));
+  }
+
+  setBlockEntity(x: number, y: number, z: number, e: BlockEntity | null): void {
+    const c = this.chunks.get(chunkKey(x >> 4, z >> 4));
+    if (!c) return;
+    if (e) c.entities.set(entityKey(x, y, z), e);
+    else c.entities.delete(entityKey(x, y, z));
+    c.modified = true;
+  }
+
+  /** Flags the chunk holding (x, z) for saving (container contents changed). */
+  markModifiedAt(x: number, z: number): void {
+    const c = this.chunks.get(chunkKey(x >> 4, z >> 4));
+    if (c) c.modified = true;
+  }
+
+  forEachBlockEntity(cb: (x: number, y: number, z: number, e: BlockEntity) => void): void {
+    for (const c of this.chunks.values()) {
+      for (const [k, e] of c.entities) {
+        const [x, y, z] = k.split(',').map(Number);
+        cb(x, y, z, e);
+      }
+    }
+  }
+
+  serializeEntities(c: LoadedChunk): string | null {
+    return serializeEntities(c.entities);
   }
 
   /** Highest non-air block in a column, or WORLD_MIN_Y - 1. */
@@ -255,7 +290,8 @@ export class World {
         const key = chunkKey(msg.cx, msg.cz);
         let c = this.chunks.get(key);
         if (!c) {
-          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false };
+          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)) };
+          this.pendingEntities.delete(key);
           this.chunks.set(key, c);
         } else {
           c.blocks = msg.blocks;
@@ -300,6 +336,7 @@ export class World {
       case 'needChunk':
         for (const [cx, cz] of msg.keys) {
           this.loadChunk(cx, cz).then((data) => {
+            if (data?.entities) this.pendingEntities.set(chunkKey(cx, cz), data.entities);
             this.send({ type: 'chunkSource', cx, cz, blocks: data?.blocks ?? null, biomes: data?.biomes ?? null }, data ? [data.blocks.buffer] : []);
           });
         }
