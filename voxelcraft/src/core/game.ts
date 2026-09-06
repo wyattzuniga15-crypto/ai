@@ -81,6 +81,9 @@ type State = 'loading' | 'playing' | 'paused' | 'chat' | 'dead' | 'gui';
 
 const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behavior === 'air';
 
+/** Vanilla's lightmap never reaches black: about 0.03 at Moody, lifted further by the brightness slider. */
+const lightFloor = (gamma: number): number => 0.03 + gamma * 0.1;
+
 /** Synthesized sound to play when a mob dies; variants reuse their base mob's voice. */
 const MOB_DEATH_SOUNDS: Record<string, string> = {
   creeper: 'hurt', spider: 'hurt', cave_spider: 'hurt', husk: 'zombie', drowned: 'zombie', stray: 'skeleton', wither_skeleton: 'skeleton',
@@ -178,6 +181,8 @@ export class Game {
       return st !== 0 && blocks.blockOf(st).solid;
     });
     mobFireAssets.material = mats.solid;
+    this.uniforms.gamma.value = opts.options.gamma;
+    this.uniforms.ambient.value = lightFloor(opts.options.gamma);
     mobFireAssets.tiles = [atlasIndex.tile('block/fire_0'), atlasIndex.tile('block/fire_1')];
     const rng = new Rng((Date.now() ^ opts.meta.seed) >>> 0);
     const blockWorld: BlockWorld = {
@@ -434,6 +439,7 @@ export class Game {
       this.world.update(this.player.pos.x, this.player.pos.z);
     }
     this.uniforms.gamma.value = o.gamma;
+    this.uniforms.ambient.value = lightFloor(o.gamma);
     this.audio.setVolume(o.volume);
   }
 
@@ -1394,6 +1400,8 @@ export class Game {
     let b = Math.max(sky, blk);
     const gamma = this.uniforms.gamma.value as number;
     b = b + (1 - Math.pow(1 - b, 2) - b) * gamma * 0.6;
+    const floor = lightFloor(gamma);
+    b = floor + b * (1 - floor);
     return Math.max(0.05, b);
   }
 

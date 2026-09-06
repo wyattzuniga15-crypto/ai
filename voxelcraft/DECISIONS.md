@@ -242,3 +242,8 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     surface biome per column for tints, spawning and saves. Cave floors and ceilings inside a region
     get the biome's blocks; pointed dripstone columns use vanilla's tip/frustum/middle/base order.
     Sculk sensors and shriekers are placed but inert until redstone and the warden arrive.
+
+49. **The lightmap keeps vanilla's brightness floor.** Fully dark cells render at 3% brightness on
+    Moody and up to 13% at full brightness (vanilla's `0.96 × light + 0.03` lightmap term and the
+    gamma lift), so caves read as dark rock instead of a black screen; mobs and particles use the same
+    floor through `brightnessAt`.
