@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, pickHostile, randomSheepColor } from './mobTypes.ts';
+import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -184,8 +184,14 @@ export class EntityManager {
     const x = cx * 16 + Math.floor(h.rng() * 16);
     const z = cz * 16 + Math.floor(h.rng() * 16);
     const biome = biomes[h.getBiome(x, z)];
-    if (!biome || biome.surface.top !== 'grass_block' || biome.category === 'mushroom') return;
-    const type = ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    if (!biome) return;
+    if (biome.category === 'ocean' || biome.category === 'river') {
+      this.spawnFishSchool(x, z, biome.category === 'river' || biome.id.includes('cold') || biome.id.includes('frozen') ? 'salmon' : 'cod');
+      return;
+    }
+    if (biome.surface.top !== 'grass_block' || biome.category === 'mushroom') return;
+    const wolfVariant = wolfVariantFor(biome.id);
+    const type = wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
     let spawned = 0;
     for (let i = 0; i < 12 && spawned < 4; i++) {
@@ -196,7 +202,27 @@ export class EntityManager {
       if (ground === 0 || blocks.blockOf(ground).id !== 'grass_block') continue;
       if (h.getSkyLight(Math.floor(px), top + 1, Math.floor(pz)) < 9) continue;
       if (!Mob.fits(h, stats, px, top + 1, pz)) continue;
-      this.spawn(type, px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05); // vanilla: 5% of a group spawns as babies
+      const m = this.spawn(type, px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05); // vanilla: 5% of a group spawns as babies
+      if (m && type === 'wolf') m.extra.variant = wolfVariant!;
+      spawned++;
+    }
+  }
+
+  /** Cod and salmon schools in ocean and river water. */
+  private spawnFishSchool(x: number, z: number, type: 'cod' | 'salmon'): void {
+    const h = this.host;
+    const stats = mobStats(type)!;
+    const want = 3 + Math.floor(h.rng() * 4);
+    let spawned = 0;
+    for (let i = 0; i < 16 && spawned < want; i++) {
+      const px = x + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const pz = z + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const top = h.topBlock(Math.floor(px), Math.floor(pz));
+      const py = top - Math.floor(h.rng() * 6);
+      const at = h.getBlock(Math.floor(px), py, Math.floor(pz));
+      if (at === 0 || blocks.blockOf(at).id !== 'water') continue;
+      if (!Mob.fits(h, stats, px, py, pz)) continue;
+      this.spawn(type, px, py + 0.2, pz, h.rng() * Math.PI * 2);
       spawned++;
     }
   }

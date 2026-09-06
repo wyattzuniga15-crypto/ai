@@ -25,9 +25,13 @@ export interface MobStats {
   burnsInSun?: boolean;
   climbs?: boolean;
   flapping?: boolean;
+  /** Fish: swim freely in water, suffocate and flop on land, never float up. */
+  aquatic?: boolean;
+  /** Phantoms: no gravity, fly toward 3D move targets. */
+  flying?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -55,7 +59,10 @@ export interface MobWorld extends BlockSource {
   setBlock(x: number, y: number, z: number, state: number): void;
   playSound(name: string, x: number, y: number, z: number, pitch?: number): void;
   /** Deal damage to the player from a mob. */
-  hurtPlayer(amount: number, from: THREE.Vector3): void;
+  hurtPlayer(amount: number, from: THREE.Vector3, source?: Mob): void;
+  /** The mob that last hurt the player and the one the player last attacked (tamed wolves defend). */
+  playerAttacker(): Mob | null;
+  playerVictim(): Mob | null;
   /** Spawn an arrow flying from `from` toward `to`. */
   shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number, effect?: ArrowEffect): void;
   explode(x: number, y: number, z: number, power: number, source: Mob): void;
@@ -155,7 +162,9 @@ export class Mob {
   moveSpeed = 1;
   moveTimeout = 0;
   lookTarget: THREE.Vector3 | null = null;
-  target: 'player' | null = null;
+  target: 'player' | Mob | null = null;
+  /** Tamed wolves get 40; everything else keeps its stats' health. */
+  maxHealth: number;
   attackCooldown = 0;
   lastHurtBy: 'player' | 'other' | null = null;
   lastHurtTime = -1000;
@@ -173,6 +182,7 @@ export class Mob {
 
   constructor(readonly def: MobStats, goals: Goal[], base: string, x: number, y: number, z: number) {
     this.health = def.health;
+    this.maxHealth = def.health;
     this.goals = goals;
     this.pos.set(x, y, z);
     this.prev.copy(this.pos);
@@ -180,7 +190,7 @@ export class Mob {
     this.model = buildModel(def.model, base);
     if (def.scale) this.model.group.scale.setScalar(def.scale);
     this.model.group.position.copy(this.pos);
-    this.persistent = def.disposition === 'passive';
+    this.persistent = def.disposition === 'passive' && !def.aquatic;
   }
 
   /** Babies are half size (vanilla AgeableMob scale 0.5). */
@@ -256,6 +266,8 @@ export class Mob {
       this.fireTicks = 300;
       if (this.dead) return;
     }
+    if (this.def.aquatic && !this.inWater && this.age % 20 === 0) this.hurt(1, null, 'other', 0);
+    if (this.dead) return;
     this.ageTick(w);
     this.selectGoal(w);
     this.active?.tick(this, w);
@@ -336,7 +348,21 @@ export class Mob {
     }
     this.vel.x += dirX * accel;
     this.vel.z += dirZ * accel;
-    if (this.inWater) {
+    if (this.def.flying) {
+      // steer in three dimensions, drift when idle
+      if (this.moveTarget) this.vel.y += Math.max(-0.05, Math.min(0.05, (this.moveTarget.y - this.pos.y) * 0.05));
+      this.vel.multiplyScalar(0.91);
+    } else if (this.def.aquatic) {
+      if (this.inWater) {
+        if (this.moveTarget) this.vel.y += Math.max(-0.03, Math.min(0.03, (this.moveTarget.y - this.pos.y) * 0.1));
+        this.vel.multiplyScalar(0.9);
+      } else if (this.onGround && w.rng() < 0.1) {
+        // flopping on land
+        this.vel.y = 0.3;
+        this.vel.x += (w.rng() - 0.5) * 0.2;
+        this.vel.z += (w.rng() - 0.5) * 0.2;
+      }
+    } else if (this.inWater) {
       if (this.moveTarget || w.rng() < 0.8) this.vel.y += 0.04;
       this.vel.multiplyScalar(0.8);
       this.vel.y -= 0.02;
@@ -357,7 +383,7 @@ export class Mob {
       if (this.def.climbs) this.vel.y = 0.2;
       else if (this.onGround) this.vel.y = 0.42;
     }
-    if (!this.inWater) {
+    if (!this.inWater && !this.def.flying) {
       this.vel.y -= 0.08;
       this.vel.y *= 0.98;
       const friction = this.onGround ? 0.6 * 0.91 : 0.91;
@@ -411,6 +437,19 @@ export class Mob {
     for (const b of boxesIn(w, box)) if (aabbIntersects(box, b)) return false;
     return true;
   }
+
+  /** Swaps the main model texture (wolf tame/angry skins). */
+  setTexture(path: string): void {
+    if (this.currentTexture === path) return;
+    this.currentTexture = path;
+    const tex = entityTexture(this.base, path);
+    const main = this.model.materials[0];
+    if (main) {
+      main.map = tex;
+      main.needsUpdate = true;
+    }
+  }
+  private currentTexture: string | null = null;
 
   /** Removes render objects that live outside the model group. */
   destroy(): void {
@@ -534,6 +573,39 @@ export class Mob {
         for (const p of parts.values()) p.scale.set(side, stretch, side);
         break;
       }
+      case 'fish': {
+        const t = this.inWater ? Math.sin(this.age * 0.6 + alpha) * 0.3 : Math.sin(this.age * 1.5) * 0.6;
+        const tail = parts.get('tail_fin') ?? parts.get('body_back');
+        if (tail) tail.rotation.y = t;
+        g.rotation.z = this.inWater || this.onGround === false ? 0 : Math.PI / 2; // fish lie on their side on land
+        break;
+      }
+      case 'phantom': {
+        const flap = Math.cos((this.age + alpha) * 0.13);
+        const lb = parts.get('left_wing_base'), lt = parts.get('left_wing_tip'), rb = parts.get('right_wing_base'), rt = parts.get('right_wing_tip');
+        if (lb) lb.rotation.z = 0.1 + flap * 0.2;
+        if (lt) lt.rotation.z = 0.1 + flap * 0.3;
+        if (rb) rb.rotation.z = -(0.1 + flap * 0.2);
+        if (rt) rt.rotation.z = -(0.1 + flap * 0.3);
+        break;
+      }
+    }
+    if (this.def.id === 'wolf') {
+      const tamed = this.extra.tamed === true;
+      const angry = this.target !== null && !tamed;
+      const variant = String(this.extra.variant ?? 'pale');
+      const baseName = variant === 'pale' ? 'wolf/wolf' : `wolf/wolf_${variant}`;
+      this.setTexture(`${baseName}${tamed ? '_tame' : angry ? '_angry' : ''}.png`);
+      const collar = parts.get('collar');
+      if (collar) collar.visible = tamed;
+      if (tamed && this.extra.sitting === true) {
+        // vanilla sitting pose: body upright, hind legs folded, front legs straight down
+        set('body', Math.PI / 2 - 0.9);
+        set('right_hind_leg', 1.3);
+        set('left_hind_leg', 1.3);
+        set('right_front_leg', -0.35);
+        set('left_front_leg', -0.35);
+      }
     }
     // death fall-over
     const fall = this.dead ? Math.min(1, (this.deathTime + alpha) / 20) : 0;
@@ -542,11 +614,11 @@ export class Mob {
     // brightness and hurt flash; sheep wool is tinted with the dye colour
     const bright = light;
     const flash = this.hurtTime > 0 || this.dead;
-    if (this.def.id === 'sheep' && !this.woolMaterials) {
-      const wool = entityTexture(this.base, 'sheep/sheep_wool.png');
-      this.woolMaterials = this.model.materials.filter((m) => m.map === wool);
+    if (!this.woolMaterials && (this.def.id === 'sheep' || this.def.id === 'wolf')) {
+      const layer = entityTexture(this.base, this.def.id === 'sheep' ? 'sheep/sheep_wool.png' : 'wolf/wolf_collar.png');
+      this.woolMaterials = this.model.materials.filter((m) => m.map === layer);
     }
-    const dye = this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : 0xffffff;
+    const dye = this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : this.def.id === 'wolf' ? DYE_COLORS[String(this.extra.collar ?? 'red')] ?? 0xff0000 : 0xffffff;
     for (const m of this.model.materials) {
       const tinted = this.woolMaterials?.includes(m);
       const tr = tinted ? ((dye >> 16) & 255) / 255 : 1, tg = tinted ? ((dye >> 8) & 255) / 255 : 1, tb = tinted ? (dye & 255) / 255 : 1;

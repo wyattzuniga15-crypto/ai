@@ -53,7 +53,8 @@ import { smithingScreen, stonecutterScreen } from '../ui/screens/workstations.ts
 import { ParticleSystem } from '../render/particles.ts';
 import { tintColor } from '../world/mesher.ts';
 import { mobFireAssets, type Mob as MobType } from '../entities/mob.ts';
-import { isBreedingFood } from '../entities/mobTypes.ts';
+import { WOLF_FOODS, isBreedingFood } from '../entities/mobTypes.ts';
+import { DYE_COLORS } from '../ui/specialIcons.ts';
 import { countBookshelves } from '../items/enchanting.ts';
 import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts';
 import { PlayerPreview } from '../ui/playerPreview.ts';
@@ -83,7 +84,7 @@ const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behav
 /** Synthesized sound to play when a mob dies; variants reuse their base mob's voice. */
 const MOB_DEATH_SOUNDS: Record<string, string> = {
   creeper: 'hurt', spider: 'hurt', cave_spider: 'hurt', husk: 'zombie', drowned: 'zombie', stray: 'skeleton', wither_skeleton: 'skeleton',
-  slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman',
+  slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', cod: 'splash', salmon: 'splash',
 };
 const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
 
@@ -133,6 +134,8 @@ export class Game {
   readonly audio = new AudioEngine();
   readonly signs: SignRenderer;
   readonly particles: ParticleSystem;
+  private lastAttacker: MobType | null = null;
+  private lastVictim: MobType | null = null;
   private readonly blockAtlas: LoadedAtlas;
   private enchantSeed = (Math.random() * 0xffffffff) >>> 0;
   private signEditorClose: (() => void) | null = null;
@@ -210,7 +213,12 @@ export class Game {
       playerBox: () => this.player.aabb(),
       playerLookDir: () => this.player.lookDirection(),
       playerTargetable: () => !this.player.dead && this.player.gamemode === 'survival',
-      hurtPlayer: (amount, from) => this.hurtByMob(amount, from),
+      hurtPlayer: (amount, from, source) => {
+        this.hurtByMob(amount, from);
+        if (source) this.lastAttacker = source;
+      },
+      playerAttacker: () => (this.lastAttacker && !this.lastAttacker.dead && !this.lastAttacker.removed ? this.lastAttacker : null),
+      playerVictim: () => (this.lastVictim && !this.lastVictim.dead && !this.lastVictim.removed ? this.lastVictim : null),
       addPlayerEffect: (id, ticks, amplifier = 0) => {
         if (this.player.gamemode === 'survival') this.player.effects.add(id, ticks, amplifier);
       },
@@ -1422,6 +1430,7 @@ export class Game {
     if (crit) damage *= 1.5;
     if (progress > 0.9) mob.hurt(damage, p.pos, 'player', knockback);
     else mob.hurt(damage, p.pos, 'player', 0.2);
+    if (mob.def.id !== 'wolf' || mob.extra.tamed !== true) this.lastVictim = mob;
     const mid = mob.pos.y + mob.height / 2;
     if (crit) this.particles.crits(mob.pos.x, mid, mob.pos.z, 8, Math.random, 'crit');
     if (damage > 2) this.particles.crits(mob.pos.x, mid, mob.pos.z, Math.floor(damage * 0.5), Math.random, 'damage');
@@ -1431,13 +1440,52 @@ export class Game {
     if (p.gamemode === 'survival') this.hud.showToast('');
   }
 
+  /** Vanilla wolf handling: bones tame (1 in 3), meat heals, dye recolours the collar, anything else toggles sitting. */
+  private interactWolf(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
+    const tamed = m.extra.tamed === true;
+    if (!tamed) {
+      if (held?.id !== 'bone' || m.isBaby) return false;
+      if (survival) this.player.inventory.consumeSelected();
+      if (Math.random() < 1 / 3) {
+        m.extra.tamed = true;
+        m.extra.sitting = true;
+        m.extra.collar = 'red';
+        m.maxHealth = 40;
+        m.health = 40;
+        m.target = null;
+        this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+        this.audio.play('wolf', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.3 });
+      } else this.particles.poof(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+      return true;
+    }
+    const dye = held && held.id.endsWith('_dye') ? held.id.slice(0, -4) : null;
+    if (dye && DYE_COLORS[dye] !== undefined && m.extra.collar !== dye) {
+      m.extra.collar = dye;
+      if (survival) this.player.inventory.consumeSelected();
+      return true;
+    }
+    if (held && WOLF_FOODS.includes(held.id) && m.health < m.maxHealth) {
+      const def = items.byId.get(held.id);
+      m.health = Math.min(m.maxHealth, m.health + (def?.food?.nutrition ?? 2));
+      if (survival) this.player.inventory.consumeSelected();
+      this.audio.play('eat', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held && WOLF_FOODS.includes(held.id)) return false; // full health: fall through to breeding
+    m.extra.sitting = m.extra.sitting !== true;
+    m.moveTarget = null;
+    return true;
+  }
+
   /** Vanilla animal interactions: breeding food, shears on sheep, buckets on cows. */
   private interactMob(m: MobType): boolean {
     const p = this.player;
     const held = p.heldItem();
-    if (!held || m.dead) return false;
+    if (m.dead) return false;
     const survival = p.gamemode === 'survival';
     const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
+    if (m.def.id === 'wolf' && this.interactWolf(m, held, survival, at)) return true;
+    if (!held) return false;
     if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {
       m.extra.sheared = true;
       const n = 1 + Math.floor(Math.random() * 3);
@@ -1978,7 +2026,7 @@ export class Game {
       }
       case 'summon': {
         const type = (args[0] ?? '').replace(/^minecraft:/, '');
-        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, cow, pig, sheep, chicken)`);
+        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, wolf, cod, salmon, cow, pig, sheep, chicken)`);
         const dir = p.lookDirection();
         const x = args[1] ? num(args[1], p.pos.x) : p.pos.x + dir.x * 3;
         const y = args[2] ? num(args[2], p.pos.y) : p.pos.y;
@@ -2039,7 +2087,7 @@ export class Game {
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', skeleton: 'skeleton', spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }

@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, MobStats } from './mob.ts';
-import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, randomLookGoal, slimeGoal, targetPlayerGoal, wanderGoal } from './ai.ts';
+import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, randomLookGoal, sitGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -53,6 +53,44 @@ const endermanModel: ModelDef = {
     { name: 'left_arm', pivot: [5, -16, 0], boxes: [{ uv: [56, 0], box: [-1, -2, -1, 2, 30, 2], mirror: true }] },
     { name: 'right_leg', pivot: [-2, -6, 0], boxes: [{ uv: [56, 0], box: [-1, 0, -1, 2, 30, 2] }] },
     { name: 'left_leg', pivot: [2, -6, 0], boxes: [{ uv: [56, 0], box: [-1, 0, -1, 2, 30, 2], mirror: true }] },
+  ],
+};
+
+const wolfModel: ModelDef = {
+  texture: 'wolf/wolf.png', texW: 64, texH: 32,
+  parts: [
+    { name: 'head', pivot: [-1, 13.5, -7], boxes: [{ uv: [0, 0], box: [-2, -3, -2, 6, 6, 4] }, { uv: [16, 14], box: [-2, -5, 0, 2, 2, 1] }, { uv: [16, 14], box: [2, -5, 0, 2, 2, 1] }, { uv: [0, 10], box: [-0.5, 0, -5, 3, 3, 4] }] },
+    { name: 'body', pivot: [0, 14, 2], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [18, 14], box: [-3, -2, -3, 6, 9, 6] }] },
+    { name: 'mane', pivot: [-1, 14, -3], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [21, 0], box: [-3, -3, -3, 8, 6, 7] }] },
+    { name: 'right_hind_leg', pivot: [-2.5, 16, 7], boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2] }] },
+    { name: 'left_hind_leg', pivot: [0.5, 16, 7], boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2] }] },
+    { name: 'right_front_leg', pivot: [-2.5, 16, -4], boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2] }] },
+    { name: 'left_front_leg', pivot: [0.5, 16, -4], boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2] }] },
+    { name: 'tail', pivot: [-1, 12, 8], rotation: [1.0, 0, 0], boxes: [{ uv: [9, 18], box: [0, 0, 0, 2, 8, 2] }] },
+    // collar layer (tinted with the collar dye, shown when tamed)
+    { name: 'collar', parent: 'mane', pivot: [-1, 14, -3], texture: 'wolf/wolf_collar.png', hidden: true, boxes: [{ uv: [21, 0], box: [-3, -3, -3, 8, 6, 7], inflate: 0.15 }] },
+  ],
+};
+
+const codModel: ModelDef = {
+  texture: 'fish/cod.png', texW: 32, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 22, 0], boxes: [{ uv: [0, 0], box: [-1, -2, 0, 2, 4, 7] }] },
+    { name: 'head', pivot: [0, 22, 0], boxes: [{ uv: [11, 0], box: [-1, -2, -3, 2, 4, 3] }] },
+    { name: 'nose', pivot: [0, 22, -3], boxes: [{ uv: [0, 0], box: [-1, -2, -1, 2, 3, 1] }] },
+    { name: 'right_fin', pivot: [-1, 23, 0], rotation: [0, 0, -0.7854], boxes: [{ uv: [22, 1], box: [-2, 0, -1, 2, 0, 2] }] },
+    { name: 'left_fin', pivot: [1, 23, 0], rotation: [0, 0, 0.7854], boxes: [{ uv: [22, 1], box: [0, 0, -1, 2, 0, 2] }] },
+    { name: 'tail_fin', pivot: [0, 22, 7], boxes: [{ uv: [20, 1], box: [0, -2, 0, 0, 4, 6] }] },
+  ],
+};
+
+const salmonModel: ModelDef = {
+  texture: 'fish/salmon.png', texW: 32, texH: 32,
+  parts: [
+    { name: 'body_front', pivot: [0, 20, 0], boxes: [{ uv: [0, 0], box: [-1.5, -2.5, 0, 3, 5, 8] }] },
+    { name: 'body_back', pivot: [0, 20, 8], boxes: [{ uv: [0, 13], box: [-1.5, -2.5, 0, 3, 5, 8] }] },
+    { name: 'head', pivot: [0, 20, 0], boxes: [{ uv: [22, 0], box: [-1, -2, -3, 2, 4, 3] }] },
+    { name: 'tail_fin', parent: 'body_back', pivot: [0, 20, 16], boxes: [{ uv: [20, 10], box: [0, -2.5, 0, 0, 5, 6] }] },
   ],
 };
 
@@ -147,6 +185,8 @@ interface MobSpec {
   flapping?: boolean;
   loot?: string;
   scale?: number;
+  aquatic?: boolean;
+  flying?: boolean;
   /** mobs.json entry to read stats from when it differs from the spec id (slime sizes). */
   data?: string;
   override?: Partial<Pick<MobStats, 'health' | 'damage' | 'width' | 'height' | 'xp' | 'speed'>>;
@@ -160,6 +200,24 @@ export const BREEDING_FOODS: Record<string, string[]> = {
   chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
 };
 export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
+
+/** Meat a wolf eats (heals a hurt tamed wolf, otherwise breeds). */
+export const WOLF_FOODS = ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit', 'rotten_flesh'];
+BREEDING_FOODS.wolf = WOLF_FOODS;
+
+/** Vanilla 1.20.5 wolf variants by spawn biome; null where wolves do not spawn naturally. */
+export function wolfVariantFor(biomeId: string): string | null {
+  if (biomeId === 'taiga') return 'pale';
+  if (biomeId === 'snowy_taiga') return 'ashen';
+  if (biomeId === 'old_growth_pine_taiga') return 'black';
+  if (biomeId === 'old_growth_spruce_taiga') return 'chestnut';
+  if (biomeId === 'grove') return 'snowy';
+  if (biomeId === 'forest') return 'woods';
+  if (biomeId.includes('jungle')) return 'rusty';
+  if (biomeId.includes('savanna')) return 'spotted';
+  if (biomeId.includes('badlands')) return 'striped';
+  return null;
+}
 
 /** Vanilla Sheep.getRandomSheepColor: 5% black, gray and light gray, 3% brown, 0.16% pink, else white. */
 export function randomSheepColor(rng: () => number): string {
@@ -194,6 +252,9 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   pig: { model: pigModel, animation: 'quadruped', eyeHeight: 0.8, followRange: 16, goals: () => passiveGoals() },
   sheep: { model: sheepModel, animation: 'quadruped', eyeHeight: 1.2, followRange: 16, goals: () => passiveGoals(1.25, [eatGrassGoal()]) },
   chicken: { model: chickenModel, animation: 'chicken', eyeHeight: 0.644, followRange: 16, flapping: true, goals: () => passiveGoals(1.4) },
+  wolf: { model: wolfModel, animation: 'quadruped', eyeHeight: 0.68, followRange: 16, goals: () => [floatGoal, sitGoal(), wolfDefendGoal(), wolfHuntGoal(), loseTargetGoal(), meleeAttackGoal(), followOwnerGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  cod: { model: codModel, animation: 'fish', eyeHeight: 0.195, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
+  salmon: { model: salmonModel, animation: 'fish', eyeHeight: 0.26, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
 };
 
 export function mobStats(id: string): MobStats | null {
@@ -217,6 +278,8 @@ export function mobStats(id: string): MobStats | null {
     burnsInSun: spec.burnsInSun,
     climbs: spec.climbs,
     flapping: spec.flapping,
+    aquatic: spec.aquatic,
+    flying: spec.flying,
     model: spec.model,
     animation: spec.animation,
     scale: spec.scale,

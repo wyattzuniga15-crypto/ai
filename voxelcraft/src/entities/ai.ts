@@ -120,6 +120,22 @@ export const randomLookGoal: Goal = (() => {
   } as Goal;
 })();
 
+/** Whether the current target can still be attacked. */
+export function targetAlive(m: Mob, w: MobWorld): boolean {
+  if (m.target === 'player') return w.playerTargetable();
+  return m.target !== null && !m.target.dead && !m.target.removed;
+}
+export function targetPos(m: Mob, w: MobWorld): THREE.Vector3 {
+  return m.target === 'player' ? w.playerPos() : (m.target as Mob).pos;
+}
+export function targetEye(m: Mob, w: MobWorld): THREE.Vector3 {
+  return m.target === 'player' ? w.playerEye() : (m.target as Mob).eyePos();
+}
+function hurtTarget(m: Mob, w: MobWorld, damage: number): void {
+  if (m.target === 'player') w.hurtPlayer(damage, m.pos, m);
+  else (m.target as Mob).hurt(damage, m.pos, 'other', 0.4);
+}
+
 /** Acquire the player as target when within range with line of sight (hostile mobs). */
 export const targetPlayerGoal = (range: number, requireDark = false): Goal => ({
   flags: FLAG_TARGET,
@@ -139,14 +155,14 @@ export const targetPlayerGoal = (range: number, requireDark = false): Goal => ({
   },
 });
 
-/** Chase and hit the player. */
+/** Chase and hit the target (the player, or another mob for wolves). */
 export const meleeAttackGoal = (reachBonus = 0, onHit?: (m: Mob, w: MobWorld) => void): Goal => ({
   flags: FLAG_MOVE | FLAG_LOOK,
-  canUse: (m, w) => m.target === 'player' && w.playerTargetable(),
-  canContinue: (m, w) => m.target === 'player' && w.playerTargetable() && m.distanceTo(w.playerPos()) < m.def.followRange * 1.2,
+  canUse: (m, w) => targetAlive(m, w),
+  canContinue: (m, w) => targetAlive(m, w) && m.distanceTo(targetPos(m, w)) < m.def.followRange * 1.2,
   tick: (m, w) => {
-    const p = w.playerPos();
-    m.lookTarget = w.playerEye();
+    const p = targetPos(m, w);
+    m.lookTarget = targetEye(m, w);
     const d = Math.hypot(p.x - m.pos.x, p.z - m.pos.z);
     if (d > 1.5) {
       if (!m.moveTarget || m.age % 10 === 0) {
@@ -155,11 +171,13 @@ export const meleeAttackGoal = (reachBonus = 0, onHit?: (m: Mob, w: MobWorld) =>
         m.moveTimeout = 40;
       }
     } else m.moveTarget = null;
-    const reach = m.def.width / 2 + 0.8 + reachBonus;
+    const reach = m.width / 2 + 0.8 + reachBonus;
     if (d <= reach + 0.3 && Math.abs(p.y - m.pos.y) < 2 && m.attackCooldown === 0) {
-      w.hurtPlayer(m.def.damage, m.pos);
-      if (m.fireTicks > 0) w.ignitePlayer(80); // vanilla: 2 s × difficulty
-      onHit?.(m, w);
+      hurtTarget(m, w, m.def.damage);
+      if (m.target === 'player') {
+        if (m.fireTicks > 0) w.ignitePlayer(80); // vanilla: 2 s × difficulty
+        onHit?.(m, w);
+      }
       m.attackCooldown = 20;
     }
   },
@@ -251,7 +269,7 @@ export const bowAttackGoal = (effect?: ArrowEffect): Goal => {
 /** Drop the target when far away or the player is untargetable. */
 export const loseTargetGoal = (): Goal => ({
   flags: 0,
-  canUse: (m, w) => m.target === 'player' && (!w.playerTargetable() || m.distanceTo(w.playerPos()) > m.def.followRange * 1.5),
+  canUse: (m, w) => m.target !== null && (!targetAlive(m, w) || m.distanceTo(targetPos(m, w)) > m.def.followRange * 1.5),
   tick: (m) => {
     m.target = null;
   },
@@ -459,5 +477,110 @@ export const eatGrassGoal = (): Goal => {
     stop: () => { eating = 0; },
   };
 };
+
+// ---------------------------------------------------------------------------------------------
+// Wolves
+// ---------------------------------------------------------------------------------------------
+const isTamed = (m: Mob) => m.extra.tamed === true;
+const isSitting = (m: Mob) => isTamed(m) && m.extra.sitting === true;
+
+/** A sitting tamed wolf holds the move slot so nothing walks it away. */
+export const sitGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m) => isSitting(m),
+  tick: (m) => {
+    m.moveTarget = null;
+  },
+});
+
+/** Wild wolves fight back as a pack; tamed wolves fight whatever hurts or is hit by their owner. */
+export const wolfDefendGoal = (): Goal => ({
+  flags: 0,
+  canUse: (m, w) => {
+    if (m.target !== null || isSitting(m)) return false;
+    if (isTamed(m)) {
+      const foe = w.playerAttacker() ?? w.playerVictim();
+      return !!foe && foe !== m && !foe.dead && foe.def.id !== 'wolf' && m.distanceTo(foe.pos) < 16;
+    }
+    return m.lastHurtBy === 'player' && m.age - m.lastHurtTime < 100 && w.playerTargetable();
+  },
+  tick: (m, w) => {
+    if (isTamed(m)) {
+      m.target = w.playerAttacker() ?? w.playerVictim();
+      return;
+    }
+    m.target = 'player';
+    for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 16)) if (o.def.id === 'wolf' && !isTamed(o) && o.target === null) o.target = 'player';
+    w.playSound('wolf_growl', m.pos.x, m.pos.y, m.pos.z);
+  },
+});
+
+/** Wild wolves hunt skeletons and sheep they notice (vanilla NonTameRandomTargetGoal). */
+export const wolfHuntGoal = (): Goal => ({
+  flags: 0,
+  canUse: (m, w) => !isTamed(m) && m.target === null && w.rng() < 0.02,
+  tick: (m, w) => {
+    let best: Mob | null = null;
+    let bestD = 16;
+    for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 16)) {
+      if (o === m || o.dead || (o.def.id !== 'sheep' && o.def.id !== 'skeleton' && o.def.id !== 'stray')) continue;
+      const d = m.distanceTo(o.pos);
+      if (d < bestD && w.lineOfSight(m.eyePos(), o.eyePos())) { bestD = d; best = o; }
+    }
+    if (best) m.target = best;
+  },
+});
+
+/** Tamed wolves keep up with their owner and blink to them when left behind. */
+export const followOwnerGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => isTamed(m) && !isSitting(m) && m.target === null && m.distanceTo(w.playerPos()) > 6,
+  canContinue: (m, w) => isTamed(m) && !isSitting(m) && m.target === null && m.distanceTo(w.playerPos()) > 3,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    m.lookTarget = w.playerEye();
+    if (m.distanceTo(p) > 12) {
+      teleportRandom(m, w, 3, p);
+      return;
+    }
+    if (m.age % 10 === 0) {
+      m.moveTarget = p.clone();
+      m.moveSpeed = 1.2;
+      m.moveTimeout = 40;
+    }
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.lookTarget = null;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// Fish
+// ---------------------------------------------------------------------------------------------
+const isWaterAt = (w: MobWorld, x: number, y: number, z: number) => {
+  const s = w.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+  return s !== 0 && blocks.blockOf(s).id === 'water';
+};
+
+/** Fish wander to random water cells nearby and dart away when hurt. */
+export const swimGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m) => m.inWater,
+  tick: (m, w) => {
+    const scared = m.age - m.lastHurtTime < 40;
+    if (m.moveTarget && !scared && w.rng() > 0.02) return;
+    for (let i = 0; i < 8; i++) {
+      const x = m.pos.x + (w.rng() * 2 - 1) * 8;
+      const y = m.pos.y + (w.rng() * 2 - 1) * 4;
+      const z = m.pos.z + (w.rng() * 2 - 1) * 8;
+      if (!isWaterAt(w, x, y, z) || !isWaterAt(w, x, y + 0.5, z)) continue;
+      m.moveTarget = new THREE.Vector3(x, y, z);
+      m.moveSpeed = scared ? 2 : 1;
+      m.moveTimeout = 60;
+      break;
+    }
+  },
+});
 
 export { FLAG_MOVE as _FLAG_MOVE };

@@ -103,6 +103,8 @@ const SOUNDS: Record<string, Synth> = {
   // enderman: low rumbling voice, a hiss and pop for teleports, a long scream when provoked
   enderman: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 90, 160, 0.5, 0.25, p); burst(c, o, t, 'lowpass', 300, 1, 0.05, 0.5, 0.2, p); },
   enderman_teleport: (c, o, p, t) => { burst(c, o, t, 'highpass', 2500, 0.7, 0.005, 0.3, 0.35, p); tone(c, o, t, 'sine', 400, 1400, 0.25, 0.15, p); },
+  wolf: (c, o, p, t) => { tone(c, o, t, 'square', 420, 300, 0.12, 0.25, p); burst(c, o, t, 'bandpass', 900, 1.5, 0.005, 0.1, 0.3, p); },
+  wolf_growl: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 110, 90, 0.6, 0.2, p); burst(c, o, t, 'lowpass', 400, 1, 0.05, 0.5, 0.15, p); },
   shear: (c, o, p, t) => { burst(c, o, t, 'highpass', 3500, 1.5, 0.002, 0.12, 0.4, p); burst(c, o, t + 0.08, 'highpass', 3000, 1.5, 0.002, 0.1, 0.3, p); },
   enderman_scream: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 220, 110, 1.2, 0.3, p); tone(c, o, t + 0.1, 'square', 330, 140, 1.0, 0.12, p); },
 };

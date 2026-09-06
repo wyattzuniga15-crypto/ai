@@ -5,7 +5,7 @@ import { Rng } from '../src/core/rng.ts';
 import { entityDrops } from '../src/items/loot.ts';
 import { mobStats, MOB_SPECS } from '../src/entities/mobTypes.ts';
 import { boxGeometry } from '../src/entities/boxModel.ts';
-import { isBreedingFood, isSlimeChunk, pickHostile, randomSheepColor } from '../src/entities/mobTypes.ts';
+import { isBreedingFood, isSlimeChunk, pickHostile, randomSheepColor, wolfVariantFor } from '../src/entities/mobTypes.ts';
 import { biomes as allBiomes } from '../src/world/biomes.ts';
 
 class Grid {
@@ -158,5 +158,17 @@ describe('new mob types', () => {
     expect(counts.brown).toBeGreaterThan(200);
     expect(counts.brown).toBeLessThan(400);
     expect(counts.pink ?? 0).toBeLessThan(60);
+  });
+
+  it('has wolves and fish with vanilla stats and biome variants', () => {
+    expect(mobStats('wolf')!.health).toBe(8);
+    expect(mobStats('cod')!.aquatic).toBe(true);
+    expect(mobStats('salmon')!.width).toBe(0.7);
+    expect(wolfVariantFor('taiga')).toBe('pale');
+    expect(wolfVariantFor('snowy_taiga')).toBe('ashen');
+    expect(wolfVariantFor('forest')).toBe('woods');
+    expect(wolfVariantFor('bamboo_jungle')).toBe('rusty');
+    expect(wolfVariantFor('plains')).toBeNull();
+    expect(isBreedingFood('wolf', 'cooked_beef')).toBe(true);
   });
 });

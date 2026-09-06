@@ -220,3 +220,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     the animated `fire_0`/`fire_1` tiles stay in step with block fire. Animal age, love, cooldown,
     shearing, colour and egg timers live in the mob's `extra` map so saves carry them without new
     fields; babies are drawn at half scale with a double-size head like vanilla's `AgeableMob`.
+
+46. **Mob targets are either the player or another mob.** The melee goal, target loss and defence
+    logic work on that union so tamed wolves can fight the mob that hurt or was hit by their owner
+    and wild wolves can hunt sheep and skeletons; the ranged, creeper, slime and enderman goals stay
+    player-only. Wolves pick their 1.20.5 variant skin from the spawn biome, and fish are the first
+    "aquatic" mobs: no buoyancy pop, free 3D swimming to water cells, flopping and suffocation on
+    land, and no persistence so schools despawn like vanilla water animals.
