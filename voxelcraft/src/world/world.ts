@@ -8,7 +8,7 @@ import { CHUNK_SIZE, SECTION_COUNT, WORLD_MAX_Y, WORLD_MIN_Y } from '../core/con
 import { blocks } from '../blocks/registry.ts';
 import { chunkKey } from './chunk.ts';
 import type { MeshBuffers } from './mesher.ts';
-import type { FromWorker, ToWorker } from './protocol.ts';
+import type { FromWorker, GenInit, ToWorker } from './protocol.ts';
 import type { ModelsJson } from './models.ts';
 import type { AtlasJson } from '../render/atlasIndex.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
@@ -51,6 +51,8 @@ export interface WorldOptions {
   translucentMaterial: THREE.Material;
   models: ModelsJson;
   atlas: AtlasJson;
+  /** Terrain generation workers to start (default: cores minus two, 1..4). */
+  genWorkers?: number;
   /** Supplies saved chunk data, or null to generate. */
   loadChunk: (cx: number, cz: number) => Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities?: string | null; mobs?: string | null } | null>;
 }
@@ -60,6 +62,7 @@ const FACE_NORMALS: [number, number, number][] = [[0, -1, 0], [0, 1, 0], [0, 0, 
 export class World {
   readonly chunks = new Map<string, LoadedChunk>();
   private readonly worker: Worker;
+  private readonly genWorkers: Worker[] = [];
   private readonly scene: THREE.Scene;
   private readonly solidMaterial: THREE.Material;
   private readonly translucentMaterial: THREE.Material;
@@ -68,7 +71,7 @@ export class World {
   renderDistance: number;
   readonly seed: number;
   ready = false;
-  stats = { chunks: 0, pending: 0, meshed: 0, drawn: 0 };
+  stats = { chunks: 0, pending: 0, meshed: 0, drawn: 0, generating: 0 };
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
   onBlockChanged: ((x: number, y: number, z: number, oldState: number, newState: number) => void) | null = null;
   onChunkUnloaded: ((c: LoadedChunk) => void) | null = null;
@@ -87,7 +90,18 @@ export class World {
     this.loadChunk = opts.loadChunk;
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<FromWorker>) => this.onMessage(ev.data);
-    this.send({ type: 'init', seed: opts.seed, models: opts.models, atlas: opts.atlas });
+    // Terrain generation pool: leave a core for the main thread and one for the world worker.
+    const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 4;
+    const poolSize = opts.genWorkers ?? Math.max(1, Math.min(4, cores - 2));
+    const genPorts: MessagePort[] = [];
+    for (let i = 0; i < poolSize; i++) {
+      const w = new Worker(new URL('./genWorker.ts', import.meta.url), { type: 'module' });
+      const channel = new MessageChannel();
+      w.postMessage({ type: 'init', seed: opts.seed, port: channel.port2 } satisfies GenInit, [channel.port2]);
+      this.genWorkers.push(w);
+      genPorts.push(channel.port1);
+    }
+    this.send({ type: 'init', seed: opts.seed, models: opts.models, atlas: opts.atlas, genPorts }, genPorts);
   }
 
   private send(msg: ToWorker, transfer?: Transferable[]): void {
@@ -96,6 +110,8 @@ export class World {
 
   dispose(): void {
     this.worker.terminate();
+    for (const w of this.genWorkers) w.terminate();
+    this.genWorkers.length = 0;
     for (const c of this.chunks.values()) this.removeMeshes(c);
     this.chunks.clear();
   }
@@ -372,6 +388,7 @@ export class World {
         this.stats.chunks = msg.chunks;
         this.stats.pending = msg.pending;
         this.stats.meshed = msg.meshed;
+        this.stats.generating = msg.generating;
         break;
     }
   }

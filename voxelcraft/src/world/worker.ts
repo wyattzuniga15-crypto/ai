@@ -11,7 +11,7 @@ import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
 import { SectionMesher } from './mesher.ts';
 import { AtlasIndex } from '../render/atlasIndex.ts';
-import { packKey, type FromWorker, type ToWorker } from './protocol.ts';
+import { packKey, type FromWorker, type GenRequest, type GenResult, type ToWorker } from './protocol.ts';
 
 const ctx = self as unknown as Worker;
 const post = (msg: FromWorker, transfer?: Transferable[]) => ctx.postMessage(msg, transfer ?? []);
@@ -29,6 +29,11 @@ let distance = 8;
 /** Answers from the main thread about saved chunk data (null = generate). */
 const sources = new Map<number, { blocks: Uint16Array; biomes: Uint8Array | null } | null>();
 const requested = new Set<number>();
+/** Terrain generation pool: ports to genWorker.ts instances with their in-flight request counts. */
+const genPool: { port: MessagePort; busy: number }[] = [];
+const generating = new Set<number>();
+/** Requests each generation worker may have queued; small so a moving view stays nearest-first. */
+const GEN_INFLIGHT = 3;
 const delivered = new Set<number>();
 /** Sections needing a (re)mesh, keyed "cx,sy,cz". */
 const dirty = new Set<string>();
@@ -62,8 +67,8 @@ function ensureTerrain(cx: number, cz: number): ChunkData | null {
     return null;
   }
   const src = sources.get(key);
-  sources.delete(key);
   if (src) {
+    sources.delete(key);
     c = new ChunkData(cx, cz, src.blocks, src.biomes ?? undefined);
     if (!src.biomes) {
       // biome map was not saved: regenerate it deterministically
@@ -74,13 +79,45 @@ function ensureTerrain(cx: number, cz: number): ChunkData | null {
     c.status = 'decorated';
     c.modified = true;
     c.updateHeightmapAll();
+  } else if (genPool.length) {
+    // fresh terrain: hand it to the generation pool and come back when the result arrives
+    requestTerrain(cx, cz, key);
+    return null;
   } else {
+    sources.delete(key);
     c = new ChunkData(cx, cz);
     gen.generateTerrain(c);
   }
   chunks.set(key, c);
   light.invalidateCache();
   return c;
+}
+
+/** Queues terrain generation on the least loaded pool worker; a no-op while in flight or saturated. */
+function requestTerrain(cx: number, cz: number, key: number): void {
+  if (generating.has(key)) return;
+  let best: { port: MessagePort; busy: number } | null = null;
+  for (const g of genPool) if (!best || g.busy < best.busy) best = g;
+  if (!best || best.busy >= GEN_INFLIGHT) return;
+  best.busy++;
+  generating.add(key);
+  const req: GenRequest = { type: 'gen', cx, cz };
+  best.port.postMessage(req);
+}
+
+function onTerrain(msg: GenResult, g: { port: MessagePort; busy: number }): void {
+  g.busy--;
+  const key = packKey(msg.cx, msg.cz);
+  generating.delete(key);
+  sources.delete(key);
+  if (!chunks.has(key) && chebyshev(msg.cx, msg.cz) <= distance + 4) {
+    const c = new ChunkData(msg.cx, msg.cz, msg.blocks, msg.biomes);
+    c.heightmap.set(msg.heightmap);
+    c.status = 'terrain';
+    chunks.set(key, c);
+    light.invalidateCache();
+  }
+  schedulePump();
 }
 
 const patchBuffers = new Map<number, number[]>();
@@ -267,7 +304,7 @@ function pump(): void {
     }
     light.invalidateCache();
   }
-  post({ type: 'stats', chunks: chunks.size, pending: dirty.size, meshed: meshedCount });
+  post({ type: 'stats', chunks: chunks.size, pending: dirty.size, meshed: meshedCount, generating: generating.size });
   if (more || dirty.size) schedulePump();
 }
 
@@ -300,6 +337,13 @@ ctx.onmessage = (ev: MessageEvent<ToWorker>) => {
       const atlas = new AtlasIndex(msg.atlas);
       baker = new ModelBaker(msg.models, atlas);
       mesher = new SectionMesher(provider, baker, atlas);
+      for (const port of msg.genPorts ?? []) {
+        const g = { port, busy: 0 };
+        port.onmessage = (e: MessageEvent<GenResult>) => {
+          if (e.data.type === 'terrain') onTerrain(e.data, g);
+        };
+        genPool.push(g);
+      }
       initialised = true;
       post({ type: 'ready' });
       schedulePump();

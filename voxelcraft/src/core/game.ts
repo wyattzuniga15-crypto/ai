@@ -151,6 +151,7 @@ export class Game {
       models: opts.assets.models,
       atlas: { width: atlasIndex.width, height: atlasIndex.height, tiles: atlasIndex.tiles },
       loadChunk: (cx, cz) => this.save.loadChunk(this.meta.id, cx, cz),
+      genWorkers: opts.options.genWorkers,
     });
     this.input = new Input(this.renderer.canvas);
     this.blockMeshes = new BlockMeshFactory(this.baker, opts.assets.blocks);

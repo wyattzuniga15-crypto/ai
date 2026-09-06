@@ -3,7 +3,7 @@ import type { ModelsJson } from './models.ts';
 import type { AtlasJson } from '../render/atlasIndex.ts';
 import type { MeshBuffers } from './mesher.ts';
 
-export interface InitMessage { type: 'init'; seed: number; models: ModelsJson; atlas: AtlasJson }
+export interface InitMessage { type: 'init'; seed: number; models: ModelsJson; atlas: AtlasJson; /** One port per terrain generation worker (see genWorker.ts). */ genPorts?: MessagePort[] }
 export interface ViewMessage { type: 'view'; cx: number; cz: number; distance: number }
 export interface ChunkSourceMessage { type: 'chunkSource'; cx: number; cz: number; blocks: Uint16Array | null; biomes: Uint8Array | null }
 export interface SetBlockMessage { type: 'setBlock'; x: number; y: number; z: number; state: number }
@@ -19,8 +19,13 @@ export interface NeedChunkMessage { type: 'needChunk'; keys: [number, number][] 
 export interface PatchMessage { type: 'patch'; cx: number; cz: number; edits: Int32Array }
 export interface LightMessage { type: 'light'; cx: number; cz: number; light: Uint8Array }
 export interface ReadyMessage { type: 'ready' }
-export interface StatsMessage { type: 'stats'; chunks: number; pending: number; meshed: number }
+export interface StatsMessage { type: 'stats'; chunks: number; pending: number; meshed: number; generating: number }
 export type FromWorker = ChunkMessage | MeshMessage | UnloadMessage | NeedChunkMessage | PatchMessage | LightMessage | ReadyMessage | StatsMessage;
 
 export const packKey = (cx: number, cz: number): number => (cx + 32768) * 65536 + (cz + 32768);
 export const unpackKey = (k: number): [number, number] => [Math.floor(k / 65536) - 32768, (k % 65536) - 32768];
+
+// Terrain generation pool (main thread -> gen worker, then gen worker <-> world worker over a port)
+export interface GenInit { type: 'init'; seed: number; port: MessagePort }
+export interface GenRequest { type: 'gen'; cx: number; cz: number }
+export interface GenResult { type: 'terrain'; cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; heightmap: Int16Array }

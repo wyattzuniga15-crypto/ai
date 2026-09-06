@@ -174,3 +174,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     exact by default; `greedyOptions.mergeVariants` trades that variation for larger merges and is
     reserved for a future "fast graphics" option. The chunk shader repeats the tile with `fract`
     and samples through `textureGrad` so mip selection stays continuous across the repeats.
+
+40. **Terrain generation runs in a small worker pool, everything else stays in the one world
+    worker.** Raw terrain (~130 ms per chunk) is the slowest pipeline step and is pure per chunk,
+    so `genWorker.ts` instances (cores minus two, one to four) generate columns and transfer the
+    block, biome and heightmap buffers to the world worker over MessagePorts created on the main
+    thread. Decoration, lighting and meshing need neighbouring chunks and stay single-threaded so
+    the authoritative chunk data has exactly one owner. Each pool worker holds at most three
+    queued requests so a moving player keeps getting the nearest chunks first.
+    Measured in the software-rendered test sandbox (4 cores): time to a playable world 2.8 s → 1.9 s
+    and the full render-distance-4 chunk set arrives about two seconds earlier; `options.genWorkers`
+    overrides the pool size (0 generates in the world worker).
