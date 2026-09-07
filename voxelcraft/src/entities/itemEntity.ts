@@ -13,6 +13,8 @@ export class ItemEntity {
   readonly vel = new THREE.Vector3();
   age = 0;
   pickupDelay = 10;
+  /** Ticks left of a throw, during which water does not slow it down. */
+  thrown = 0;
   dead = false;
   onGround = false;
   readonly sprite: THREE.Sprite;
@@ -48,7 +50,11 @@ export class ItemEntity {
       const s = world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.1), Math.floor(this.pos.z));
       return s !== 0 && blocks.blockOf(s).id === 'water';
     })();
-    if (inWater) {
+    // a thrown item keeps its speed for a moment, which is what carries a catch back to the angler
+    if (this.thrown > 0) {
+      this.thrown--;
+      this.vel.y -= inWater ? 0.02 : 0.04;
+    } else if (inWater) {
       this.vel.y += 0.01;
       this.vel.multiplyScalar(0.9);
     } else {

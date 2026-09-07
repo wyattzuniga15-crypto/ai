@@ -23,7 +23,7 @@ import { ItemEntity } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
-import { blockDrops, blockXp, chestLoot } from '../items/loot.ts';
+import { blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
@@ -42,6 +42,7 @@ import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors
 import { BlockMeshFactory } from '../render/blockMesh.ts';
 import { FallingBlockEntity } from '../entities/fallingBlock.ts';
 import { PrimedTnt } from '../entities/primedTnt.ts';
+import { FishingBobber, bobberMesh } from '../entities/bobber.ts';
 import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type CartKind } from '../entities/minecart.ts';
 import { FACING_OFFSET } from '../world/piston.ts';
 import { hooksFor, updateRun } from '../world/tripwire.ts';
@@ -70,6 +71,7 @@ import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts'
 import { PlayerPreview } from '../ui/playerPreview.ts';
 import { SignRenderer, isSignBlock } from '../blocks/signs.ts';
 import { ChestRenderer, chestModel, chestStates, isChestBlock } from '../blocks/chests.ts';
+import { compost, composterLevel, composterState } from '../blocks/composter.ts';
 import { openSignEditor } from '../ui/signEditor.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
 
@@ -169,6 +171,9 @@ export class Game {
   readonly xpOrbs: XpOrb[] = [];
   readonly audio = new AudioEngine();
   readonly signs: SignRenderer;
+  /** The bobber on the water, while a rod is cast. */
+  private bobber: FishingBobber | null = null;
+  private bobberLine: THREE.Line | null = null;
   /** Chests are drawn as block entities, the way vanilla draws them. */
   private readonly chests: ChestRenderer;
   /** Every chest in the loaded world, so their meshes can be kept in step. */
@@ -558,6 +563,7 @@ export class Game {
     this.tickPressurePlates();
     this.tickTripwires();
     this.tickMinecarts();
+    this.tickBobber();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -602,6 +608,7 @@ export class Game {
     if (this.state === 'playing') this.handleHotbarKeys();
     p.tick(this.input, this.world, this.tickCount);
     if (this.cart) this.seatCart();
+    this.trampleFarmland();
     this.survivalTick();
     if (this.state === 'playing') this.interactionTick();
     for (const e of this.itemEntities) {
@@ -1288,6 +1295,161 @@ export class Game {
    * Harvesting a hive: shears cut three honeycombs out of a full hive and a glass bottle fills with
    * honey. Vanilla angers the bees inside unless a campfire is burning under the hive.
    */
+  /** The rod: the first use casts, the second reels in whatever is on the line. */
+  private useRod(): void {
+    if (this.bobber) {
+      this.reelIn();
+      return;
+    }
+    const p = this.player;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir).clone();
+    const lure = p.heldItem()?.enchantments?.lure ?? 0;
+    const bobber = new FishingBobber(eye.x, eye.y - 0.1, eye.z, dir, lure, bobberMesh(import.meta.env.BASE_URL));
+    this.bobber = bobber;
+    this.renderer.scene.add(bobber.mesh);
+    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    this.bobberLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x000000 }));
+    this.renderer.scene.add(this.bobberLine);
+    this.audio.play('bow', { volume: 0.4, pitch: 1.4 });
+  }
+
+  /**
+   * Reeling in. A bite on the line is a catch: vanilla rolls its fishing table, weighted by luck of
+   * the sea and needing open water for treasure, throws the catch to the player and gives a little
+   * experience for it.
+   */
+  private reelIn(): void {
+    const bobber = this.bobber;
+    if (!bobber) return;
+    const p = this.player;
+    const held = p.heldItem();
+    if (bobber.biting) {
+      const luck = (held?.enchantments?.luck_of_the_sea ?? 0) + p.effects.level('luck') - p.effects.level('bad_luck');
+      const open = bobber.openWater(this.world);
+      for (const stack of fishingLoot(luck, open)) {
+        const e = this.dropStack(stack, bobber.pos.x, bobber.pos.y + 0.2, bobber.pos.z, false);
+        // vanilla throws the catch to whoever reeled it in
+        const to = new THREE.Vector3(p.pos.x - bobber.pos.x, p.pos.y + 0.5 - bobber.pos.y, p.pos.z - bobber.pos.z);
+        e.vel.copy(to).multiplyScalar(0.1);
+        e.vel.y += Math.sqrt(Math.max(0, to.length())) * 0.08;
+        e.pickupDelay = 0;
+        e.thrown = 20;
+      }
+      this.spawnXp(1 + Math.floor(Math.random() * 6), p.pos.x, p.pos.y + 0.5, p.pos.z);
+      if (p.gamemode !== 'creative' && held?.id === 'fishing_rod') p.inventory.damageSelected(1);
+      this.audio.play('pop', { pitch: 1.2 });
+    }
+    this.removeBobber();
+  }
+
+  private removeBobber(): void {
+    if (this.bobber) this.renderer.scene.remove(this.bobber.mesh);
+    if (this.bobberLine) {
+      this.renderer.scene.remove(this.bobberLine);
+      this.bobberLine.geometry.dispose();
+      (this.bobberLine.material as THREE.Material).dispose();
+    }
+    this.bobber = null;
+    this.bobberLine = null;
+  }
+
+  /** The line is dropped when the rod is put away, the player dies, or it lands too far off. */
+  private tickBobber(): void {
+    const bobber = this.bobber;
+    if (!bobber) return;
+    bobber.tick(this.world);
+    const p = this.player;
+    const held = p.heldItem();
+    if (p.dead || held?.id !== 'fishing_rod' || bobber.pos.distanceTo(p.pos) > 32 || bobber.pos.y < WORLD_MIN_Y) {
+      this.removeBobber();
+      return;
+    }
+    // a bite pulls the bobber under and throws up a trail of bubbles, as vanilla shows it
+    if (bobber.biting && this.tickCount % 2 === 0) {
+      this.particles.spawnSprite('smoke', bobber.pos.x, bobber.pos.y + 0.1, bobber.pos.z, 0, 0.01, 0, 12, 0.12);
+    }
+  }
+
+  /** The string from the rod in the player's hand out to the bobber. */
+  private updateBobberLine(alpha: number): void {
+    const line = this.bobberLine;
+    const bobber = this.bobber;
+    if (!line || !bobber) return;
+    const eye = this.player.eyePosition(alpha, this.tmpEye);
+    const dir = this.player.lookDirection(this.tmpDir);
+    const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+    const from = eye.clone().addScaledVector(dir, 0.4).addScaledVector(side, 0.35).setY(eye.y - 0.25);
+    const to = bobber.mesh.position;
+    line.geometry.setFromPoints([from, to]);
+    line.geometry.computeBoundingSphere();
+  }
+
+  /** A hoe on soil: vanilla's tillables, each turning into what it turns into. */
+  private tillSoil(t: RaycastHit): boolean {
+    const id = blocks.idOf(t.state);
+    const above = this.world.getBlock(t.x, t.y + 1, t.z);
+    const clear = above === 0 || blocks.blockOf(above).replaceable === true;
+    let into: string | null = null;
+    let drop: string | null = null;
+    if (id === 'rooted_dirt') {
+      into = 'dirt';
+      drop = 'hanging_roots';
+    } else if (id === 'coarse_dirt') into = 'dirt';
+    else if ((id === 'dirt' || id === 'grass_block' || id === 'dirt_path') && clear) into = 'farmland';
+    if (!into) return false;
+    this.world.setBlock(t.x, t.y, t.z, blocks.defaultState(into));
+    if (drop) this.dropStack({ id: drop, count: 1 }, t.x + 0.5, t.y + 1, t.z + 0.5, true);
+    if (this.player.gamemode !== 'creative') this.player.inventory.damageSelected(1);
+    this.audio.play('dig_gravel', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+    return true;
+  }
+
+  /** Landing on farmland from a height turns it back to dirt, as vanilla tramples a field. */
+  private trampleFarmland(): void {
+    const p = this.player;
+    if (p.landed <= 0.5 || p.gamemode === 'spectator') return;
+    const x = Math.floor(p.pos.x);
+    const y = Math.floor(p.pos.y - 0.1);
+    const z = Math.floor(p.pos.z);
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0 || blocks.idOf(state) !== 'farmland') return;
+    if (Math.random() >= p.landed - 0.5) return;
+    this.world.setBlock(x, y, z, blocks.defaultState('dirt'));
+    const above = this.world.getBlock(x, y + 1, z);
+    if (above !== 0 && blocks.blockOf(above).behavior === 'crop') this.breakBlock(x, y + 1, z);
+  }
+
+  /**
+   * A composter: what the player is holding goes in, on vanilla's odds, and a ready one hands its
+   * bone meal back and starts again.
+   */
+  private useComposter(t: RaycastHit): boolean {
+    const p = this.player;
+    const level = composterLevel(t.state);
+    const at = { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 };
+    if (level >= 8) {
+      this.dropStack({ id: 'bone_meal', count: 1 }, at.x, at.y + 0.4, at.z, true);
+      this.world.setBlock(t.x, t.y, t.z, composterState(0));
+      this.audio.play('pop', { ...at, pitch: 0.8 });
+      return true;
+    }
+    const held = p.heldItem();
+    if (!held) return false;
+    const result = compost(t.state, held.id, Math.random());
+    if (!result) return false;
+    if (p.gamemode !== 'creative') p.inventory.consumeSelected();
+    this.audio.play('click', { ...at, pitch: result.filled ? 1.2 : 0.8 });
+    if (!result.filled) return true;
+    this.world.setBlock(t.x, t.y, t.z, result.state);
+    for (let i = 0; i < 8; i++) {
+      this.particles.spawnSprite('happy', at.x + (Math.random() - 0.5) * 0.6, t.y + 0.2 + composterLevel(result.state) * 0.09, at.z + (Math.random() - 0.5) * 0.6, 0, 0.01, 0, 20, 0.2);
+    }
+    // the seventh load ripens a moment later, as vanilla schedules it
+    if (composterLevel(result.state) === 7) this.simulation.schedule(t.x, t.y, t.z, 20, this.tickCount);
+    return true;
+  }
+
   private useHive(t: RaycastHit, id: string): boolean {
     const held = this.player.heldItem();
     if (!held || (held.id !== 'shears' && held.id !== 'glass_bottle')) return false;
@@ -1493,6 +1655,7 @@ export class Game {
       this.chests.setOpen(`${t.x},${t.y},${t.z}`);
       return true;
     }
+    if (def.id === 'composter') return this.useComposter(t);
     if (def.id === 'enchanting_table') {
       const shelves = countBookshelves((x, y, z) => blocks.idOf(this.world.getBlock(x, y, z)), t.x, t.y, t.z);
       const seedRef = { seed: this.enchantSeed };
@@ -1609,6 +1772,11 @@ export class Game {
       if (this.placeMinecart(kind, t.x, t.y, t.z) && p.gamemode === 'survival') p.inventory.consumeSelected();
       return;
     }
+    if (def.behavior === 'fishing_rod') {
+      this.useRod();
+      return;
+    }
+    if (def.behavior === 'hoe' && t && this.tillSoil(t)) return;
     if (held.id === 'bone_meal' && t) {
       if (applyBoneMeal(this.simulationWorld(), t.x, t.y, t.z, t.state)) {
         if (p.gamemode === 'survival') p.inventory.consumeSelected();
@@ -3111,6 +3279,8 @@ export class Game {
     for (const e of this.primedTnt) e.updateMesh(alpha);
     for (const e of this.minecarts) e.updateMesh(alpha);
     this.chests.animate();
+    this.bobber?.updateMesh(alpha);
+    this.updateBobberLine(alpha);
     mobFireAssets.viewYaw = this.player.yaw;
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
     this.particles.render(alpha, this.renderer.canvas.height, (x, y, z) => this.brightnessAt(x, y, z));

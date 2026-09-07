@@ -11,6 +11,7 @@ import { emitted, isPowered, powerAt, updateWireNetwork, wireState } from '../wo
 import { updateAround } from '../world/tripwire.ts';
 import { extend, retract, FACING_OFFSET } from '../world/piston.ts';
 import { railPowered, railShape } from '../world/rails.ts';
+import { composterLevel, composterState } from './composter.ts';
 
 export interface BlockWorld extends FluidWorld {
   /** Light level at a position (max of sky and block light). */
@@ -256,6 +257,24 @@ function growCrop(ctx: BlockContext, maxAge: number): void {
   ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'age', String(age + 1)));
 }
 
+/**
+ * The two flower crops finish by turning into the flower itself: a torchflower at the last stage,
+ * and a pitcher plant that stands two blocks tall.
+ */
+function ripenFlowerCrop(ctx: BlockContext): void {
+  const state = ctx.w.getBlock(ctx.x, ctx.y, ctx.z);
+  if (state === 0 || blocks.blockOf(state).id !== ctx.def.id) return;
+  const age = Number(blocks.prop(state, 'age') ?? 0);
+  if (ctx.def.id === 'torchflower_crop') {
+    // the torchflower crop has only two stages; the second one is the flower itself
+    if (age >= 1) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, st('torchflower'));
+    return;
+  }
+  if (age < 4 || !isAir(ctx.w.getBlock(ctx.x, ctx.y + 1, ctx.z))) return;
+  ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.stateWith('pitcher_plant', { half: 'lower' }));
+  ctx.w.setBlock(ctx.x, ctx.y + 1, ctx.z, blocks.stateWith('pitcher_plant', { half: 'upper' }));
+}
+
 function growStalk(ctx: BlockContext, id: string, maxHeight: number): void {
   if (!isAir(ctx.w.getBlock(ctx.x, ctx.y + 1, ctx.z))) return;
   let h = 1;
@@ -286,6 +305,13 @@ const behaviors: Record<string, Behavior> = {
       else if (id === 'beetroots' || id === 'nether_wart' || id === 'sweet_berry_bush') {
         const age = Number(blocks.prop(ctx.state, 'age') ?? 0);
         if (age < 3 && ctx.w.rng.int(id === 'nether_wart' ? 10 : 5) === 0 && ctx.w.getLight(ctx.x, ctx.y, ctx.z) >= 9) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'age', String(age + 1)));
+      } else if (id === 'cocoa') {
+        // cocoa ripens on the jungle log it hangs from, in three stages
+        const age = Number(blocks.prop(ctx.state, 'age') ?? 0);
+        if (age < 2 && ctx.w.rng.int(5) === 0) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'age', String(age + 1)));
+      } else if (id === 'torchflower_crop' || id === 'pitcher_crop') {
+        growCrop(ctx, id === 'torchflower_crop' ? 1 : 4);
+        ripenFlowerCrop(ctx);
       } else if (id === 'melon_stem' || id === 'pumpkin_stem') {
         const age = Number(blocks.prop(ctx.state, 'age') ?? 0);
         if (age < 7) growCrop(ctx, 7);
@@ -603,7 +629,11 @@ const byId: Record<string, Behavior> = {
     },
   },
   composter: {
-    onUse: () => false,
+    // the seventh fill ripens a moment later, which is when vanilla turns the level to eight
+    scheduledTick: (ctx) => {
+      if (composterLevel(ctx.state) !== 7) return;
+      ctx.w.setBlock(ctx.x, ctx.y, ctx.z, composterState(8));
+    },
   },
 };
 
@@ -633,10 +663,27 @@ export function applyBoneMeal(w: BlockWorld, x: number, y: number, z: number, st
   }
   if (def.behavior === 'crop') {
     const age = Number(blocks.prop(state, 'age') ?? 0);
+    if (def.id === 'cocoa') {
+      // vanilla moves cocoa on one stage rather than several
+      if (age >= 2) return false;
+      w.setBlock(x, y, z, blocks.withProp(state, 'age', String(age + 1)));
+      return true;
+    }
+    if (def.id === 'torchflower_crop' || def.id === 'pitcher_crop') {
+      const max = def.id === 'torchflower_crop' ? 1 : 4;
+      if (age >= max) return false;
+      w.setBlock(x, y, z, blocks.withProp(state, 'age', String(Math.min(max, age + 1))));
+      ripenFlowerCrop({ w, x, y, z, state, def });
+      return true;
+    }
     const max = def.id === 'beetroots' || def.id === 'nether_wart' || def.id === 'sweet_berry_bush' ? 3 : 7;
     if (def.id === 'nether_wart' || age >= max) return false;
     w.setBlock(x, y, z, blocks.withProp(state, 'age', String(Math.min(max, age + 2 + w.rng.int(4)))));
     return true;
+  }
+  if (def.id === 'kelp' || def.id === 'kelp_plant' || def.id === 'cave_vines' || def.id === 'cave_vines_plant'
+    || def.id === 'sea_pickle' || def.id === 'seagrass' || def.id === 'moss_block') {
+    return boneMealSpread(w, x, y, z, def.id);
   }
   if (def.id === 'grass_block') {
     for (let i = 0; i < 24; i++) {
@@ -649,4 +696,66 @@ export function applyBoneMeal(w: BlockWorld, x: number, y: number, z: number, st
     return true;
   }
   return false;
+}
+
+/**
+ * Bone meal on the things that spread rather than ripen: kelp and cave vines put on length, a sea
+ * pickle multiplies, seagrass grows tall, and moss creeps over the ground around it.
+ */
+function boneMealSpread(w: BlockWorld, x: number, y: number, z: number, id: string): boolean {
+  if (id === 'kelp' || id === 'kelp_plant') {
+    let top = y;
+    while (blocks.blockOf(w.getBlock(x, top + 1, z)).id.startsWith('kelp')) top++;
+    const above = w.getBlock(x, top + 1, z);
+    if (blocks.blockOf(above).id !== 'water') return false;
+    w.setBlock(x, top, z, st('kelp_plant'));
+    w.setBlock(x, top + 1, z, blocks.stateWith('kelp', { age: String(w.rng.int(25)) }));
+    return true;
+  }
+  if (id === 'cave_vines' || id === 'cave_vines_plant') {
+    let bottom = y;
+    while (blocks.blockOf(w.getBlock(x, bottom - 1, z)).id.startsWith('cave_vines')) bottom--;
+    if (!isAir(w.getBlock(x, bottom - 1, z))) {
+      // nowhere to grow: the berries come on instead, which is the other thing bone meal does here
+      const state = w.getBlock(x, y, z);
+      if (blocks.prop(state, 'berries') === 'false') {
+        w.setBlock(x, y, z, blocks.withProp(state, 'berries', 'true'));
+        return true;
+      }
+      return false;
+    }
+    w.setBlock(x, bottom, z, blocks.stateWith('cave_vines_plant', { berries: 'false' }));
+    w.setBlock(x, bottom - 1, z, blocks.stateWith('cave_vines', { age: String(w.rng.int(25)), berries: w.rng.int(9) === 0 ? 'true' : 'false' }));
+    return true;
+  }
+  if (id === 'sea_pickle') {
+    const state = w.getBlock(x, y, z);
+    const count = Number(blocks.prop(state, 'pickles') ?? '1');
+    if (count >= 4) return false;
+    w.setBlock(x, y, z, blocks.withProp(state, 'pickles', String(count + 1)));
+    return true;
+  }
+  if (id === 'seagrass') {
+    if (blocks.blockOf(w.getBlock(x, y + 1, z)).id !== 'water') return false;
+    w.setBlock(x, y, z, blocks.stateWith('tall_seagrass', { half: 'lower' }));
+    w.setBlock(x, y + 1, z, blocks.stateWith('tall_seagrass', { half: 'upper' }));
+    return true;
+  }
+  // moss: vanilla spreads it over a small patch of what it will take, with the odd plant on top
+  let spread = false;
+  for (let i = 0; i < 24; i++) {
+    const px = x + w.rng.int(5) - 2;
+    const pz = z + w.rng.int(5) - 2;
+    for (const py of [y, y + 1, y - 1]) {
+      const at = w.getBlock(px, py, pz);
+      const atId = at === 0 ? 'air' : blocks.blockOf(at).id;
+      if (!SUPPORT_SOIL.has(atId) && atId !== 'stone') continue;
+      if (!isAir(w.getBlock(px, py + 1, pz))) break;
+      w.setBlock(px, py, pz, st('moss_block'));
+      if (w.rng.int(3) === 0) w.setBlock(px, py + 1, pz, st(w.rng.int(2) === 0 ? 'short_grass' : 'moss_carpet'));
+      spread = true;
+      break;
+    }
+  }
+  return spread;
 }

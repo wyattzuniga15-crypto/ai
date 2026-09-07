@@ -542,3 +542,23 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     inside. Finding them is the same trick the mesher uses: a lookup of every chest block state, a
     sweep of each chunk as it loads, and the ordinary block-change hook after that. The chest a
     chest minecart carries is the same model, since there is no block model to borrow.
+
+81. **Farming is vanilla's own arithmetic.** A hoe turns exactly what vanilla's tillables turn into:
+    dirt, grass and paths to farmland, coarse dirt to dirt, rooted dirt to dirt with its hanging
+    roots dropped. Landing on farmland from a height tramples it back to dirt on vanilla's odds,
+    the fall distance less a half. Crops grow on the chance vanilla gives them, faster on watered
+    farmland, and the two flower crops finish by becoming the flower: a torchflower at its second
+    stage, a pitcher plant standing two blocks tall. Bone meal moves a crop several stages, cocoa
+    exactly one, and spreads the plants that spread rather than ripen — kelp and cave vines put on
+    length, a sea pickle multiplies, seagrass grows tall, moss creeps over the ground around it.
+    A composter takes what vanilla's list allows at the odds vanilla gives each thing, seven fills
+    make it ready a moment later, and the eighth click hands the bone meal back.
+
+82. **Fishing runs on the loot tables, not on a guess.** The bobber is thrown the way vanilla throws
+    it, falls until it meets water, floats there and waits between 100 and 600 ticks, a hundred less
+    for each level of Lure, then dips for a second or two: reeling in during the dip is the catch.
+    What comes up is `gameplay/fishing` itself, three pools weighted by luck the way vanilla weights
+    them (`weight + quality × luck`), so luck of the sea makes treasure likelier and junk rarer, and
+    the treasure pool is kept for open water — the five-by-five of columns around the bobber, water
+    below and air above. The catch is thrown to whoever reeled it in, gives one to six experience,
+    and costs the rod a point of durability.

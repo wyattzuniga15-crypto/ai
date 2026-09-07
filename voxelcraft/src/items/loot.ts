@@ -6,12 +6,14 @@ import type { ItemStack } from './inventory.ts';
 import { items } from './registry.ts';
 import { blocks } from '../blocks/registry.ts';
 import lootChests from '../../data/loot/chests.json';
+import lootGameplay from '../../data/loot/gameplay.json';
 import { enchantments, supports } from './enchanting.ts';
 
 type Json = Record<string, unknown>;
 const blockTables = lootBlocks as Record<string, Json>;
 const entityTables = lootEntities as Record<string, Json>;
 const chestTables = lootChests as unknown as Record<string, Json>;
+const gameplayTables = lootGameplay as unknown as Record<string, Json>;
 const itemTags = (tagsJson as { item: Record<string, string[]> }).item;
 
 export interface LootContext {
@@ -25,6 +27,10 @@ export interface LootContext {
   looting?: number;
   /** Whether the entity was on fire (cooked drops). */
   onFire?: boolean;
+  /** Luck, which shifts weights by each entry's quality (luck of the sea, the luck effect). */
+  luck?: number;
+  /** Whether a fishing hook is in open water, which is what the treasure pool asks about. */
+  openWater?: boolean;
 }
 
 function stripTag(v: string): string {
@@ -118,8 +124,11 @@ function checkCondition(c: Json, ctx: LootContext): boolean {
     case 'killed_by_player':
       return !!ctx.killedByPlayer;
     case 'entity_properties': {
-      const pred = (c.predicate ?? {}) as { flags?: { is_on_fire?: boolean } };
+      const pred = (c.predicate ?? {}) as { flags?: { is_on_fire?: boolean }; type_specific?: { type?: string; in_open_water?: boolean } };
       if (pred.flags?.is_on_fire !== undefined) return pred.flags.is_on_fire === !!ctx.onFire;
+      // the treasure pool asks whether the hook is in open water
+      const hook = pred.type_specific;
+      if (hook?.type === 'fishing_hook' && hook.in_open_water !== undefined) return hook.in_open_water === !!ctx.openWater;
       return c.entity === 'this';
     }
     case 'damage_source_properties':
@@ -248,7 +257,8 @@ function evalEntry(e: Json, ctx: LootContext, out: ItemStack[]): boolean {
     case 'loot_table': {
       const ref = e.value;
       if (typeof ref === 'string') {
-        const sub = blockTables[stripTag(ref).replace(/^blocks\//, '')];
+        const name = stripTag(ref);
+        const sub = name.startsWith('gameplay/') ? gameplayTables[name.replace(/^gameplay\//, '')] : blockTables[name.replace(/^blocks\//, '')];
         if (sub) out.push(...evalTable(sub, ctx));
       } else if (ref && typeof ref === 'object') out.push(...evalTable(ref as Json, ctx));
       return true;
@@ -268,11 +278,14 @@ export function evalTable(table: Json, ctx: LootContext): ItemStack[] {
     for (let r = 0; r < rolls; r++) {
       const entries = ((pool.entries ?? []) as Json[]).filter((e) => conditionsOk(e.conditions, ctx));
       if (!entries.length) continue;
-      const total = entries.reduce((a, e) => a + Number(e.weight ?? 1), 0);
+      // vanilla weights an entry by `weight + quality * luck`, which is what luck of the sea moves
+      const weightOf = (e: Json) => Math.max(0, Math.floor(Number(e.weight ?? 1) + Number(e.quality ?? 0) * (ctx.luck ?? 0)));
+      const total = entries.reduce((a, e) => a + weightOf(e), 0);
+      if (total <= 0) continue;
       let pick = ctx.random() * total;
       let chosen = entries[entries.length - 1];
       for (const e of entries) {
-        pick -= Number(e.weight ?? 1);
+        pick -= weightOf(e);
         if (pick < 0) {
           chosen = e;
           break;
@@ -363,4 +376,15 @@ export function blockXp(blockId: string, tool: ItemStack | null, random: () => n
 
 export function hasLootTable(blockId: string): boolean {
   return blockId in blockTables;
+}
+
+/**
+ * What comes up on the line. Vanilla rolls `gameplay/fishing`, whose three pools are weighted by
+ * luck: luck of the sea makes treasure likelier and junk rarer, and treasure needs open water.
+ */
+export function fishingLoot(luck = 0, openWater = true, random: () => number = Math.random): ItemStack[] {
+  const table = gameplayTables.fishing;
+  if (!table) return [];
+  const rod: ItemStack = { id: 'fishing_rod', count: 1, enchantments: luck > 0 ? { luck_of_the_sea: luck } : undefined };
+  return evalTable(table, { tool: rod, random, luck, openWater });
 }
