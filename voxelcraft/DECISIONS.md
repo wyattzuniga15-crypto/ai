@@ -254,3 +254,22 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     Aquifers are a simplified version of vanilla's: a mask noise leaves about half the map dry and
     a level noise floods enclosed cave air below the local table, no barrier noise. Lava lakes are
     the only remaining vanilla lake feature and are placed underground during decoration.
+
+51. **Ravines breach the surface, and water no longer follows them down.** The canyon walk uses
+    vanilla's 1% per-chunk chance and starts between y 10 and 67, and the old rule that stopped
+    carving at sea level is gone, so canyons cut through hillsides and bottom out around y 20–40
+    instead of hiding underground. To keep them dry, the sea fill is now an aquifer decision like
+    vanilla's: a column floods to sea level only when it is under the sea or near it (the eleven
+    chunk-offset samples of `Aquifer.SURFACE_SAMPLING_OFFSETS_IN_CHUNKS`, plus a short-range shore
+    test because our coasts shelve gently), and otherwise fills to the local water table, which is
+    below the ravine floor almost everywhere. Where two neighbouring columns settled at different
+    levels, the higher water is walled off with stone, vanilla's aquifer barrier in miniature; a
+    rare region of the mask noise floods to sea level throughout, which is where ravine lakes come
+    from.
+
+52. **Ores are placed after the surface rules, not before.** Vanilla runs ore blobs as features,
+    long after surface rules dress the top of each column, so a gravel or dirt blob that reaches the
+    surface stays buried under the grass. Ours ran before dressing, which left bare dirt and gravel
+    patches all over grassy hills; moving the call after the surface pass (ores only ever replace
+    stone and deepslate) restores vanilla's look and costs nothing.
+

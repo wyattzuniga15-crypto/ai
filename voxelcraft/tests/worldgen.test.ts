@@ -167,16 +167,51 @@ describe('world generation', () => {
     const again = new ChunkData(seeded![0], seeded![1]);
     new WorldGenerator(777).generateTerrain(again);
     expect(Buffer.from(again.blocks.buffer).equals(Buffer.from(c.blocks.buffer))).toBe(true);
-    // aquifer levels: some regions dry, others between -35 and 61
-    let wet = 0, dry = 0;
+    // aquifer levels: some regions dry, others between -35 and sea level
+    let wet = 0, dry = 0, full = 0;
     for (let i = 0; i < 400; i++) {
       const lvl = gen.aquiferLevel(i * 37 - 7000, (i * 91) % 5000 - 2500);
       if (lvl < WORLD_MIN_Y) dry++;
-      else { wet++; expect(lvl).toBeGreaterThanOrEqual(-40); expect(lvl).toBeLessThanOrEqual(61); }
+      else { wet++; if (lvl === 62) full++; expect(lvl).toBeGreaterThanOrEqual(-40); expect(lvl).toBeLessThanOrEqual(62); }
     }
     expect(wet).toBeGreaterThan(40);
     expect(dry).toBeGreaterThan(40);
+    expect(full).toBeLessThan(wet / 2);
     void n;
+  });
+
+  it('only floods open air to sea level near the sea', () => {
+    const gen = new WorldGenerator(777);
+    // find an inland highland column and a coastal one
+    let inland: [number, number] | null = null, coast: [number, number] | null = null;
+    for (let x = -3000; x <= 3000 && !(inland && coast); x += 48) for (let z = -3000; z <= 3000 && !(inland && coast); z += 48) {
+      const h = gen.columnInfo(x, z).height;
+      if (!inland && h > 90) inland = [x, z];
+      if (!coast && h >= 63 && h < 72 && gen.columnInfo(x + 6, z).height < 62) coast = [x, z];
+    }
+    expect(inland).not.toBeNull();
+    expect(coast).not.toBeNull();
+    expect(gen.nearSea(inland![0], inland![1])).toBe(false);
+    expect(gen.nearSea(coast![0], coast![1])).toBe(true);
+    // a ravine that dips below sea level inland keeps a dry floor unless the aquifer floods it
+    let checked = 0;
+    for (let cx = -40; cx <= 40 && checked < 3; cx++) for (let cz = -40; cz <= 40 && checked < 3; cz++) {
+      if (!gen.ravineStartsIn(cx, cz)) continue;
+      const c = new ChunkData(cx, cz);
+      gen.generateTerrain(c);
+      for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) {
+        const wx = cx * 16 + x, wz = cz * 16 + z;
+        const pre = Math.floor(gen.columnInfo(wx, wz).height);
+        if (pre < 66 || gen.nearSea(wx, wz)) continue;
+        if (c.get(x, 62, z) !== 0) continue; // not carved open here
+        checked++;
+        const table = gen.aquiferLevel(wx, wz);
+        const water = blocks.defaultState('water');
+        // water only where the local aquifer table reaches y 62
+        expect(c.get(x, 62, z) === water).toBe(table >= 62);
+      }
+    }
+    void checked;
   });
 
   it('places a contained lava lake', () => {

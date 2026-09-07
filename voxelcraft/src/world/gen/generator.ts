@@ -58,6 +58,10 @@ const ORES: OreConfig[] = [
   { block: 'andesite', count: 1 / 6, min: 64, max: 128, distribution: 'uniform', size: 64 },
 ];
 
+/** Vanilla 1.18+ canyon carver probability per chunk. */
+const RAVINE_CHANCE = 0.01;
+/** Chunk offsets vanilla samples when deciding whether open water reaches sea level. */
+const SEA_SAMPLING_OFFSETS: ReadonlyArray<readonly [number, number]> = [[0, 0], [-2, -1], [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-2, 1], [-1, 1], [0, 1], [1, 1]];
 const MOUNTAIN_BIOMES = new Set(['snowy_slopes', 'jagged_peaks', 'frozen_peaks', 'stony_peaks', 'grove', 'meadow', 'windswept_hills', 'windswept_forest', 'windswept_gravelly_hills']);
 
 export type CaveBiome = 'lush' | 'dripstone' | 'deep_dark';
@@ -96,6 +100,8 @@ export class WorldGenerator {
   private readonly aquiferLevelNoise: Noise;
   /** Cells removed by ravines in the last generateTerrain (tests). */
   lastRavineCells = 0;
+  /** Quantised pre-carve surface heights sampled while filling fluids (cleared per chunk). */
+  private readonly surfaceCache = new Map<number, number>();
 
   private readonly S: Record<string, number>;
   private readonly stone: number;
@@ -255,13 +261,12 @@ export class WorldGenerator {
   generateTerrain(chunk: ChunkData): void {
     const cx = chunk.cx;
     const cz = chunk.cz;
+    this.surfaceCache.clear();
     const infos: ColumnInfo[] = new Array(256);
-    const heights = new Float32Array(256);
     for (let z = 0; z < CHUNK_SIZE; z++)
       for (let x = 0; x < CHUNK_SIZE; x++) {
         const info = this.columnInfo(cx * 16 + x, cz * 16 + z);
         infos[z * 16 + x] = info;
-        heights[z * 16 + x] = info.height;
         chunk.biomes[z * 16 + x] = info.biome;
       }
     const topY = new Int16Array(256);
@@ -298,8 +303,9 @@ export class WorldGenerator {
         chunk.set(x, WORLD_MIN_Y, z, this.bedrock);
         for (let y = WORLD_MIN_Y + 1; y <= WORLD_MIN_Y + 4; y++) if (hashPos(this.seed, wx, y, wz ^ 0x55) < 1 - (y - WORLD_MIN_Y) / 5) chunk.set(x, y, z, this.bedrock);
       }
-    this.carveRavines(chunk, heights);
-    this.placeOres(chunk);
+    this.carveRavines(chunk);
+    // open-water fill level per column (WORLD_MIN_Y - 1 where nothing was open below sea level)
+    const fillLevels = new Int16Array(256).fill(WORLD_MIN_Y - 1);
     // surface + water
     for (let z = 0; z < CHUNK_SIZE; z++)
       for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -308,10 +314,16 @@ export class WorldGenerator {
         const info = infos[z * 16 + x];
         const biome = biomes[info.biome];
         const surf = biome.surface;
-        // water fill
-        for (let y = SEA_LEVEL - 1; y >= WORLD_MIN_Y; y--) {
-          if (chunk.get(x, y, z) !== this.air) break;
-          chunk.set(x, y, z, this.water);
+        // water fill: sea beds, rivers, lakes and anything carved open near a coast flood to sea
+        // level (vanilla's global aquifer); inland ravines and cave mouths that dip below sea level
+        // follow the local aquifer instead, so most stay dry and a few become ravine lakes
+        if (chunk.get(x, SEA_LEVEL - 1, z) === this.air) {
+          const level = info.height < SEA_LEVEL || this.nearSea(wx, wz) ? SEA_LEVEL - 1 : this.aquiferLevel(wx, wz);
+          fillLevels[z * 16 + x] = level;
+          for (let y = level; y >= WORLD_MIN_Y; y--) {
+            if (chunk.get(x, y, z) !== this.air) break;
+            chunk.set(x, y, z, this.water);
+          }
         }
         // aquifers: enclosed cave air below the local water table floods (lava keeps the deep band)
         const table = Math.min(this.aquiferLevel(wx, wz), SEA_LEVEL - 2, Math.floor(info.height) - 5);
@@ -373,8 +385,33 @@ export class WorldGenerator {
         // freeze water surface in snowy biomes
         if (surf.snow && chunk.get(x, SEA_LEVEL - 1, z) === this.water && chunk.get(x, SEA_LEVEL, z) === this.air) chunk.set(x, SEA_LEVEL - 1, z, this.block('ice'));
       }
+    this.placeAquiferBarriers(chunk, fillLevels);
+    // ores are features in vanilla and run after the surface rules, so blobs never eat the topsoil
+    this.placeOres(chunk);
     chunk.updateHeightmapAll();
     chunk.status = 'terrain';
+  }
+
+  /**
+   * Vanilla's aquifer barrier, simplified: where an open column was flooded higher than its
+   * neighbour, the neighbour's air beside that water turns to stone so ravine lakes and shore
+   * water do not pour into dry carved space. Only pairs inside this chunk are known.
+   */
+  private placeAquiferBarriers(chunk: ChunkData, fillLevels: Int16Array): void {
+    for (let z = 0; z < CHUNK_SIZE; z++)
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const mine = fillLevels[z * 16 + x];
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const nx = x + dx, nz = z + dz;
+          if (nx < 0 || nx > 15 || nz < 0 || nz > 15) continue;
+          const theirs = fillLevels[nz * 16 + nx];
+          if (theirs <= mine) continue;
+          for (let y = theirs; y > mine && y >= WORLD_MIN_Y; y--) {
+            if (chunk.get(nx, y, nz) !== this.water) continue;
+            if (chunk.get(x, y, z) === this.air) chunk.set(x, y, z, y < 0 ? this.deepslate : this.stone);
+          }
+        }
+      }
   }
 
   /**
@@ -382,13 +419,40 @@ export class WorldGenerator {
    * caves up to a level between y −35 and 55 that varies smoothly over ~200 blocks.
    */
   aquiferLevel(wx: number, wz: number): number {
-    if (this.aquiferMask.fbm2(wx / 150, wz / 150, 2) > 0.05) return WORLD_MIN_Y - 1;
+    const mask = this.aquiferMask.fbm2(wx / 150, wz / 150, 2);
+    if (mask > 0.05) return WORLD_MIN_Y - 1;
+    if (mask < -0.42) return SEA_LEVEL - 1; // vanilla floodedness > 0.8: the global sea level applies
     return Math.round(10 + this.aquiferLevelNoise.fbm2(wx / 220, wz / 220, 2) * 45);
   }
 
-  /** Whether a ravine starts in chunk (cx, cz): vanilla canyon probability 0.02 per chunk. */
+  /** Pre-carve surface height of the 4×4 cell containing (wx, wz), cached for the current chunk. */
+  private preliminarySurface(wx: number, wz: number): number {
+    const qx = Math.floor(wx / 4);
+    const qz = Math.floor(wz / 4);
+    const key = qx * 0x100000 + qz;
+    let h = this.surfaceCache.get(key);
+    if (h === undefined) {
+      h = Math.floor(this.columnInfo(qx * 4 + 2, qz * 4 + 2).height);
+      this.surfaceCache.set(key, h);
+    }
+    return h;
+  }
+
+  /**
+   * Vanilla aquifer rule for open water: a column floods to sea level when any of the eleven
+   * sampled columns around it (chunk offsets, like `Aquifer.SURFACE_SAMPLING_OFFSETS_IN_CHUNKS`)
+   * has its surface more than eight blocks below sea level. Our coasts shelve gently, so the shore
+   * itself (sea within eight blocks) counts too; the aquifer barrier keeps the water in place.
+   */
+  nearSea(wx: number, wz: number): boolean {
+    for (const [ox, oz] of SEA_SAMPLING_OFFSETS) if (this.preliminarySurface(wx + ox * 16, wz + oz * 16) + 8 < SEA_LEVEL) return true;
+    for (let ox = -8; ox <= 8; ox += 4) for (let oz = -8; oz <= 8; oz += 4) if (this.preliminarySurface(wx + ox, wz + oz) < SEA_LEVEL) return true;
+    return false;
+  }
+
+  /** Whether a ravine starts in chunk (cx, cz): vanilla canyon probability 0.01 per chunk. */
   ravineStartsIn(cx: number, cz: number): boolean {
-    return new Rng(mix(this.seed, cx, cz, 0xca7e)).chance(0.02);
+    return new Rng(mix(this.seed, cx, cz, 0xca7e)).chance(RAVINE_CHANCE);
   }
 
   /**
@@ -396,7 +460,7 @@ export class WorldGenerator {
    * 112 steps carving tall thin ellipsoids; only the cells inside this chunk are removed, so
    * generation stays independent per chunk and deterministic.
    */
-  private carveRavines(chunk: ChunkData, heights: Float32Array): void {
+  private carveRavines(chunk: ChunkData): void {
     this.lastRavineCells = 0;
     const x0 = chunk.cx * 16;
     const z0 = chunk.cz * 16;
@@ -405,10 +469,10 @@ export class WorldGenerator {
         const scx = chunk.cx + dcx;
         const scz = chunk.cz + dcz;
         const rng = new Rng(mix(this.seed, scx, scz, 0xca7e));
-        if (!rng.chance(0.02)) continue;
+        if (!rng.chance(RAVINE_CHANCE)) continue;
         let x = scx * 16 + rng.int(16);
         let z = scz * 16 + rng.int(16);
-        let y = rng.range(20, 67);
+        let y = rng.range(10, 67);
         let yaw = rng.next() * Math.PI * 2;
         let pitch = (rng.next() - 0.5) * 0.25;
         let yawDelta = 0;
@@ -434,7 +498,6 @@ export class WorldGenerator {
           for (let bx = minX; bx <= maxX; bx++)
             for (let bz = minZ; bz <= maxZ; bz++) {
               const lx = bx - x0, lz = bz - z0;
-              const surface = heights[lz * 16 + lx];
               const dx = (bx + 0.5 - x) / rh, dz = (bz + 0.5 - z) / rh;
               // jagged walls like vanilla's per-layer width table
               const wobble = 0.85 + this.detail.noise2(bx / 7, bz / 7) * 0.3;
@@ -442,7 +505,6 @@ export class WorldGenerator {
               for (let by = minY; by <= maxY; by++) {
                 const dy = (by + 0.5 - y) / rv;
                 if (dx * dx + dz * dz + dy * dy >= wobble) continue;
-                if (surface < SEA_LEVEL && by >= SEA_LEVEL - 2) continue; // do not breach ocean floors
                 const cur = chunk.get(lx, by, lz);
                 if (cur === this.air || cur === this.bedrock) continue;
                 chunk.set(lx, by, lz, by <= -54 ? this.lava : this.air);
