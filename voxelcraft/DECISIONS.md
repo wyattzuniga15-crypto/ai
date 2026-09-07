@@ -336,3 +336,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     orange runs over plain terracotta, then yellow, brown and red bands, then white bands edged in
     light gray, so two seeds stripe differently.
 
+62. **Structures use Mojang's own templates, fetched not committed.** The client ships every
+    structure piece as an `.nbt` template, so `tools/gen-structures.ts` reads those (with a small NBT
+    reader in `tools/nbt.ts`), resolves their palettes and writes compact JSON into
+    `public/structures/`, gitignored like the textures. Placement follows the matching
+    `structure_set`: one start per spacing×spacing region at a random offset, with the biome list
+    read from the structure's own tag. A piece is rotated, fitted to the flattest ground under its
+    footprint, and the terrain inside its box is carved away and underpinned, which is vanilla's
+    terrain adaptation in miniature. Igloos, shipwrecks, ruined portals (with vanilla's decay) and
+    pillager outposts land first; the outpost's banners tell the game where to put its pillagers.
+

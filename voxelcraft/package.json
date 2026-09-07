@@ -13,6 +13,7 @@
     "atlas": "tsx tools/build-atlas.ts",
     "data": "tsx tools/gen-data.ts",
     "trades": "tsx tools/gen-trades.ts",
+    "structures": "tsx tools/gen-structures.ts",
     "geo": "tsx tools/geo-to-model.ts",
     "textures:gen": "tsx tools/gen-textures.ts",
     "test": "vitest run",

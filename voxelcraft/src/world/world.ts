@@ -10,6 +10,7 @@ import { chunkKey } from './chunk.ts';
 import type { MeshBuffers } from './mesher.ts';
 import type { FromWorker, GenInit, ToWorker } from './protocol.ts';
 import type { ModelsJson } from './models.ts';
+import type { StructureBundle } from './protocol.ts';
 import type { AtlasJson } from '../render/atlasIndex.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { deserializeEntities, entityKey, serializeEntities, type BlockEntity } from '../blocks/blockEntity.ts';
@@ -51,6 +52,8 @@ export interface WorldOptions {
   translucentMaterial: THREE.Material;
   models: ModelsJson;
   atlas: AtlasJson;
+  /** Vanilla structure templates, if `npm run structures` has produced them. */
+  structures?: StructureBundle;
   /** Terrain generation workers to start (default: cores minus two, 1..4). */
   genWorkers?: number;
   /** Supplies saved chunk data, or null to generate. */
@@ -97,11 +100,11 @@ export class World {
     for (let i = 0; i < poolSize; i++) {
       const w = new Worker(new URL('./genWorker.ts', import.meta.url), { type: 'module' });
       const channel = new MessageChannel();
-      w.postMessage({ type: 'init', seed: opts.seed, port: channel.port2 } satisfies GenInit, [channel.port2]);
+      w.postMessage({ type: 'init', seed: opts.seed, port: channel.port2, structures: opts.structures } satisfies GenInit, [channel.port2]);
       this.genWorkers.push(w);
       genPorts.push(channel.port1);
     }
-    this.send({ type: 'init', seed: opts.seed, models: opts.models, atlas: opts.atlas, genPorts }, genPorts);
+    this.send({ type: 'init', seed: opts.seed, models: opts.models, atlas: opts.atlas, genPorts, structures: opts.structures }, genPorts);
   }
 
   private send(msg: ToWorker, transfer?: Transferable[]): void {

@@ -4,6 +4,7 @@
  * keeps ownership of the chunks and does decoration, lighting and meshing.
  */
 import { ChunkData } from './chunk.ts';
+import { buildStructureSets } from './gen/structures.ts';
 import { WorldGenerator } from './gen/generator.ts';
 import type { GenInit, GenRequest, GenResult } from './protocol.ts';
 
@@ -23,6 +24,7 @@ ctx.onmessage = (ev: MessageEvent<GenInit>) => {
   const msg = ev.data;
   if (msg.type !== 'init') return;
   gen = new WorldGenerator(msg.seed);
+  if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates);
   port = msg.port;
   port.onmessage = (e: MessageEvent<GenRequest>) => {
     if (e.data.type === 'gen') generate(e.data);

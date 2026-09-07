@@ -15,6 +15,8 @@ import { applyMipLimit, type LoadedAtlas } from '../render/atlas.ts';
 import { AtlasIndex } from '../render/atlasIndex.ts';
 import { World, FACE_NORMALS, type RaycastHit } from '../world/world.ts';
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
+import type { StructureBundle } from '../world/protocol.ts';
+import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { Player } from '../entities/player.ts';
 import { ItemEntity } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
@@ -68,6 +70,8 @@ export interface GameAssets {
   blocks: LoadedAtlas;
   items: LoadedAtlas;
   models: ModelsJson;
+  /** Vanilla structure templates; empty when `npm run structures` has not been run. */
+  structures?: StructureBundle;
 }
 
 export interface GameOptions {
@@ -162,6 +166,7 @@ export class Game {
     this.renderer = new GameRenderer(opts.container, opts.options.fov);
     const mats = createChunkMaterials(opts.assets.blocks);
     this.blockAtlas = opts.assets.blocks;
+    this.structureBundle = opts.assets.structures;
     this.uniforms = mats.uniforms;
     applyMipLimit(this.renderer.renderer, opts.assets.blocks.texture, 4);
     this.sky = new Sky(import.meta.env.BASE_URL);
@@ -176,6 +181,7 @@ export class Game {
       solidMaterial: mats.solid,
       translucentMaterial: mats.translucent,
       models: opts.assets.models,
+      structures: opts.assets.structures,
       atlas: { width: atlasIndex.width, height: atlasIndex.height, tiles: atlasIndex.tiles },
       loadChunk: (cx, cz) => this.save.loadChunk(this.meta.id, cx, cz),
       genWorkers: opts.options.genWorkers,
@@ -1000,26 +1006,86 @@ export class Game {
     });
   }
 
-  /** Every generated bee nest comes with three bees, as vanilla's nests do. */
-  private populateBeeNests(cx: number, cz: number): void {
-    for (let x = 0; x < 16; x++)
-      for (let z = 0; z < 16; z++)
-        for (let y = 50; y < 200; y++) {
-          const wx = cx * 16 + x, wz = cz * 16 + z;
-          const state = this.world.getBlock(wx, y, wz);
-          if (!state || blocks.blockOf(state).id !== 'bee_nest') continue;
-          for (let i = 0; i < 3; i++) {
-            const spot = this.freeSpotNear(wx, y, wz);
-            if (!spot) break;
-            const bee = this.entities.spawn('bee', spot.x + (Math.random() - 0.5), spot.y + 0.2, spot.z + (Math.random() - 0.5), Math.random() * Math.PI * 2);
-            if (bee) {
-              bee.extra.hiveX = wx;
-              bee.extra.hiveY = y;
-              bee.extra.hiveZ = wz;
-              bee.persistent = true;
-            }
-          }
+  /** Structure sets built from the fetched templates, used by `/locate`. */
+  private get structureSets(): StructureSet[] {
+    if (!this.builtStructureSets) {
+      const bundle = this.structureBundle;
+      this.builtStructureSets = bundle ? buildStructureSets(bundle.index, bundle.templates) : [];
+    }
+    return this.builtStructureSets;
+  }
+  private builtStructureSets: StructureSet[] | null = null;
+  private structureBundle: StructureBundle | undefined;
+
+  /** Searches outward for the nearest region whose structure start is in a matching biome. */
+  private locateStructure(set: StructureSet): { x: number; z: number } | null {
+    const cx = Math.floor(this.player.pos.x) >> 4;
+    const cz = Math.floor(this.player.pos.z) >> 4;
+    const region = { x: Math.floor(cx / set.spacing), z: Math.floor(cz / set.spacing) };
+    for (let r = 0; r <= 8; r++)
+      for (let dx = -r; dx <= r; dx++)
+        for (let dz = -r; dz <= r; dz++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          const start = structureStart(this.meta.seed, set, region.x + dx, region.z + dz);
+          const x = start.cx * 16 + 8;
+          const z = start.cz * 16 + 8;
+          if (set.biomeSet.has(biomes[this.world.getBiome(x, z)]?.id ?? '')) return { x, z };
         }
+    return null;
+  }
+
+  /**
+   * First look at a freshly generated chunk: bee nests come with three bees, and a pillager outpost
+   * (spotted by the banners on its tower) comes with the pillagers that man it.
+   */
+  private populateStructures(cx: number, cz: number): void {
+    let outpost: { x: number; y: number; z: number } | null = null;
+    for (let x = 0; x < 16; x++)
+      for (let z = 0; z < 16; z++) {
+        const wx = cx * 16 + x, wz = cz * 16 + z;
+        const top = this.world.topBlock(wx, wz);
+        if (top < 0) continue;
+        // markers sit near the surface, so a short scan under the heightmap is enough
+        for (let y = top; y > top - 28 && y > 0; y--) {
+          const state = this.world.getBlock(wx, y, wz);
+          if (!state) continue;
+          const id = blocks.blockOf(state).id;
+          if (id === 'bee_nest') this.populateBeeNest(wx, y, wz);
+          else if (id === 'white_wall_banner' && !outpost) outpost = { x: wx, y, z: wz };
+        }
+      }
+    if (outpost) this.populateOutpost(outpost.x, outpost.y, outpost.z);
+  }
+
+  /** Every generated bee nest comes with three bees, as vanilla's nests do. */
+  private populateBeeNest(wx: number, y: number, wz: number): void {
+    for (let i = 0; i < 3; i++) {
+      const spot = this.freeSpotNear(wx, y, wz);
+      if (!spot) break;
+      const bee = this.entities.spawn('bee', spot.x + (Math.random() - 0.5), spot.y + 0.2, spot.z + (Math.random() - 0.5), Math.random() * Math.PI * 2);
+      if (bee) {
+        bee.extra.hiveX = wx;
+        bee.extra.hiveY = y;
+        bee.extra.hiveZ = wz;
+        bee.persistent = true;
+      }
+    }
+  }
+
+  /** Vanilla mans an outpost with pillagers, one of them a captain under the banner. */
+  private populateOutpost(x: number, y: number, z: number): void {
+    for (let i = 0; i < 4; i++) {
+      const px = x + Math.floor(Math.random() * 9) - 4;
+      const pz = z + Math.floor(Math.random() * 9) - 4;
+      const top = this.world.topBlock(px, pz);
+      if (top < 0) continue;
+      const m = this.entities.spawn('pillager', px + 0.5, top + 1, pz + 0.5, Math.random() * Math.PI * 2);
+      if (m) {
+        m.persistent = true;
+        m.extra.patrol = true;
+        if (i === 0) m.extra.captain = true;
+      }
+    }
   }
 
   /**
@@ -1511,7 +1577,7 @@ export class Game {
     if (!this.animalChunks.has(key)) {
       this.animalChunks.add(key);
       this.entities.spawnAnimalsInChunk(cx, cz);
-      this.populateBeeNests(cx, cz);
+      this.populateStructures(cx, cz);
     }
   }
 
@@ -2616,9 +2682,18 @@ export class Game {
       case 'weather':
         say('Weather is not implemented yet (Phase 3)', '#fa5');
         break;
-      case 'locate':
-        say('Structures are not generated yet (Phase 3)', '#fa5');
+      case 'locate': {
+        const wanted = args[0]?.replace(/^minecraft:/, '');
+        const sets = this.structureSets;
+        if (!sets.length) return err('No structures loaded — run `npm run structures`');
+        const set = sets.find((x) => x.name === wanted);
+        if (!set) return err(`Usage: /locate <${sets.map((x) => x.name).join('|')}>`);
+        const found = this.locateStructure(set);
+        if (!found) return err(`Could not find a ${set.name} nearby`);
+        const dist = Math.round(Math.hypot(found.x - p.pos.x, found.z - p.pos.z));
+        say(`Nearest ${set.name} is at ${found.x}, ~${found.z} (${dist} blocks away)`);
         break;
+      }
       case 'setblock': {
         if (args.length < 4) return err('Usage: /setblock <x> <y> <z> <block>');
         const x = Math.floor(num(args[0], p.pos.x));

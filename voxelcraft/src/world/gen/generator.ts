@@ -11,6 +11,7 @@ import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
+import { stampStructure, structureStart, type StructureSet } from './structures.ts';
 
 const st = (id: string) => blocks.defaultState(id);
 
@@ -91,6 +92,8 @@ export interface ColumnInfo {
 
 export class WorldGenerator {
   readonly seed: number;
+  /** Structure templates and their spreads, installed once the runtime has fetched them. */
+  structures: StructureSet[] = [];
   private readonly continental: Noise;
   private readonly erosion: Noise;
   private readonly peaks: Noise;
@@ -707,6 +710,9 @@ export class WorldGenerator {
     };
     const biomeAt = (lx: number, lz: number) => biomes[chunk.biomes[lz * 16 + lx]];
 
+    // structures go in before the scatter features, as vanilla's generation steps do
+    this.placeStructures(chunk, world);
+
     if (rng.chance(1 / 8)) {
       const lx = rng.range(3, 12), lz = rng.range(3, 12);
       const ly = rng.range(-50, 30);
@@ -792,6 +798,104 @@ export class WorldGenerator {
     this.decoratePaleGarden(chunk, world, rng, biomeAt);
     chunk.status = 'decorated';
   }
+
+  /**
+   * Stamps any structure whose start lands in this chunk. Vanilla starts a structure in one chunk
+   * and writes it across the chunks it covers; ours fits the piece to the ground under its centre
+   * and writes through the neighbour-aware block access, so the parts that spill over land too.
+   */
+  private placeStructures(chunk: ChunkData, world: BlockAccess): void {
+    for (const set of this.structures) {
+      const regionX = Math.floor(chunk.cx / set.spacing);
+      const regionZ = Math.floor(chunk.cz / set.spacing);
+      const start = structureStart(this.seed, set, regionX, regionZ);
+      if (start.cx !== chunk.cx || start.cz !== chunk.cz) continue;
+      const rng = new Rng(mix(this.seed ^ set.salt, chunk.cx, chunk.cz, 0x5747));
+      const wx = chunk.cx * 16 + rng.int(8);
+      const wz = chunk.cz * 16 + rng.int(8);
+      const info = this.columnInfo(wx, wz);
+      if (!set.biomeSet.has(biomes[info.biome].id)) continue;
+      const template = set.templates[rng.int(set.templates.length)];
+      const rotation = rng.int(4);
+      const [sx, , sz] = template.size;
+      const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+      const y = this.structureGroundY(chunk, world, wx, wz, rw, rd, set.placement);
+      if (y === null) continue;
+      // ruined portals crumble; everything else is placed whole
+      const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
+      const written = new Set<string>();
+      const placed = stampStructure(world, { set, template, x: wx, y, z: wz, rotation, integrity, rng }, written);
+      if (placed > 0) {
+        this.fitStructureToTerrain(world, wx, y, wz, rw, template.size[1], rd, written, set.placement);
+        this.lastStructure = { name: set.name, x: wx, y, z: wz };
+      }
+    }
+  }
+
+  /**
+   * Vanilla's terrain adaptation in miniature: clear whatever terrain sits inside the structure's
+   * box and give it a foundation down to the ground, so a piece on a slope is neither buried nor
+   * left floating. Ocean pieces keep their water, since a shipwreck is meant to be flooded.
+   */
+  private fitStructureToTerrain(
+    world: BlockAccess,
+    x: number,
+    y: number,
+    z: number,
+    w: number,
+    h: number,
+    d: number,
+    written: Set<string>,
+    placement: string,
+  ): void {
+    const filler = this.block('dirt');
+    for (let dx = 0; dx < w; dx++)
+      for (let dz = 0; dz < d; dz++) {
+        // carve the terrain that would poke into the piece
+        if (placement !== 'ocean_floor') {
+          for (let dy = 0; dy < h; dy++) {
+            if (written.has(`${x + dx},${y + dy},${z + dz}`)) continue;
+            const cur = world.get(x + dx, y + dy, z + dz);
+            if (cur !== this.air && cur !== this.water) world.set(x + dx, y + dy, z + dz, this.air);
+          }
+        }
+        // and hold it up where the ground falls away
+        for (let dy = 1; dy <= 8; dy++) {
+          const cur = world.get(x + dx, y - dy, z + dz);
+          if (cur !== this.air && cur !== this.water) break;
+          if (placement === 'ocean_floor' && cur === this.water) break;
+          world.set(x + dx, y - dy, z + dz, filler);
+        }
+      }
+  }
+
+  /** Ground height a structure should sit on: the lowest surface under its footprint. */
+  private structureGroundY(chunk: ChunkData, world: BlockAccess, wx: number, wz: number, w: number, d: number, placement: string): number | null {
+    let lowest = Infinity;
+    let highest = -Infinity;
+    // sample a grid over the footprint, not just its corners
+    const step = Math.max(1, Math.floor(Math.min(w, d) / 3));
+    for (let dx = 0; dx < w; dx += step)
+      for (let dz = 0; dz < d; dz += step) {
+        const h = Math.floor(this.columnInfo(wx + dx, wz + dz).height);
+        lowest = Math.min(lowest, h);
+        highest = Math.max(highest, h);
+      }
+    if (!Number.isFinite(lowest)) return null;
+    // vanilla only starts a structure where the ground is close to level; ours allows a small slope
+    if (highest - lowest > 3) return null;
+    if (placement === 'ocean_floor') {
+      if (lowest >= SEA_LEVEL - 2) return null;
+      return lowest + 1;
+    }
+    if (lowest < SEA_LEVEL) return null;
+    void chunk;
+    void world;
+    return lowest + 1;
+  }
+
+  /** Where the last structure was stamped, for tests and the `/locate` command. */
+  lastStructure: { name: string; x: number; y: number; z: number } | null = null;
 
   /** Pale gardens hang moss from their canopy and spread pale moss over the ground, as vanilla does. */
   private decoratePaleGarden(chunk: ChunkData, world: BlockAccess, rng: Rng, biomeAt: (lx: number, lz: number) => BiomeDef): void {

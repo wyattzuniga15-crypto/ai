@@ -6,6 +6,7 @@
 import { SECTION_COUNT, WORLD_MIN_Y } from '../core/constants.ts';
 import { blocks } from '../blocks/registry.ts';
 import { ChunkData } from './chunk.ts';
+import { buildStructureSets } from './gen/structures.ts';
 import { WorldGenerator } from './gen/generator.ts';
 import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
@@ -334,6 +335,7 @@ ctx.onmessage = (ev: MessageEvent<ToWorker>) => {
   switch (msg.type) {
     case 'init': {
       gen = new WorldGenerator(msg.seed);
+      if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates);
       const atlas = new AtlasIndex(msg.atlas);
       baker = new ModelBaker(msg.models, atlas);
       mesher = new SectionMesher(provider, baker, atlas);

@@ -20,6 +20,10 @@ gitignored folders (`assets/`, `public/atlas`, `public/textures`, `public/models
 Mojang-owned is committed. It also builds the block/item texture atlases. Re-run with
 `-- --force` to refresh, or `-- --source=mirror` to skip the official CDN.
 
+`npm run structures` converts Mojang's structure templates from the fetched client into
+`public/structures/` (gitignored, like the textures); without it the world simply generates no
+structures.
+
 `npm run data` regenerates the committed `data/` files (blocks, items, recipes, loot, tags, mobs,
 biomes, enchantments, effects, collision shapes) from the fetched sources. Two smaller tools cover
 what Java keeps in code rather than in the assets: `npm run trades` turns Mojang's published trade
