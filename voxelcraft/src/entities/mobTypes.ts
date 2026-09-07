@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -360,6 +360,74 @@ const parrotModel = (texture = 'parrot/parrot_red_blue.png'): ModelDef => ({
     { name: 'right_leg', parent: 'body', pivot: [-0.5, 23, -0.5], boxes: [{ uv: [14, 18], box: [-1, -0.5, -1, 1, 2, 1] }] },
   ],
 });
+
+
+/** The camel, tall enough that its head is out of most things' reach. */
+const camelModel: ModelDef = {
+  texture: 'camel/camel.png', texW: 128, texH: 128,
+  parts: [
+    { name: 'body', pivot: [0.5, 4, 9.5], boxes: [{ uv: [0, 25], box: [-8, -12, -23.5, 15, 12, 27] }] },
+    { name: 'hump', parent: 'body', pivot: [0.5, -8, 0], boxes: [{ uv: [74, 0], box: [-5, -5, -6, 9, 5, 11] }] },
+    { name: 'tail', parent: 'body', pivot: [0, -5, 13], boxes: [{ uv: [122, 0], box: [-1.5, 0, 0, 3, 14, 0] }] },
+    { name: 'head', parent: 'body', pivot: [0.5, -1, -10], boxes: [{ uv: [60, 24], box: [-4, -5, -15, 7, 8, 19] }, { uv: [21, 0], box: [-4, -19, -15, 7, 14, 7] }, { uv: [50, 0], box: [-3, -19, -21, 5, 5, 6] }] },
+    { name: 'left_ear', parent: 'head', pivot: [3, -19, -19.5], boxes: [{ uv: [45, 0], box: [0, -0.5, -1, 3, 1, 2] }] },
+    { name: 'right_ear', parent: 'head', pivot: [-3, -19, -19.5], boxes: [{ uv: [67, 0], box: [-3, -0.5, -1, 3, 1, 2] }] },
+    { name: 'right_front_leg', pivot: [-4.9, 1, -10.5], boxes: [{ uv: [0, 26], box: [-2.5, 2, -2.5, 5, 21, 5] }] },
+    { name: 'left_front_leg', pivot: [4.9, 1, -10.5], boxes: [{ uv: [0, 0], box: [-2.5, 2, -2.5, 5, 21, 5] }] },
+    { name: 'left_hind_leg', pivot: [4.9, 1, 9.5], boxes: [{ uv: [58, 16], box: [-2.5, 2, -2.5, 5, 21, 5] }] },
+    { name: 'right_hind_leg', pivot: [-4.9, 1, 9.5], boxes: [{ uv: [94, 16], box: [-2.5, 2, -2.5, 5, 21, 5] }] },
+  ],
+};
+
+/** The armadillo, which shows one shape walking about and another rolled up. */
+const armadilloModel: ModelDef = {
+  texture: 'armadillo.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 21, 4], boxes: [{ uv: [0, 20], box: [-4, -7, -10, 8, 8, 12], inflate: 0.3 }, { uv: [0, 40], box: [-4, -7, -10, 8, 8, 12] }] },
+    { name: 'tail', parent: 'body', pivot: [0, 18, 5], rotation: [-0.5061, 0, 0], boxes: [{ uv: [44, 53], box: [-0.5, -0.0865, 0.0933, 1, 6, 1] }] },
+    { name: 'head', parent: 'body', pivot: [0, 19, -7], boxes: [{ uv: [43, 15], box: [-1.5, -1, -1, 3, 5, 2] }] },
+    { name: 'right_ear', parent: 'head', pivot: [-1, 18, -7], boxes: [{ uv: [43, 10], box: [-2.5, -3, -0.6, 2, 5, 0] }] },
+    { name: 'left_ear', parent: 'head', pivot: [1, 17, -7], boxes: [{ uv: [47, 10], box: [0.5, -2, -0.6, 2, 5, 0] }] },
+    { name: 'right_hind_leg', pivot: [-2, 21, 4], boxes: [{ uv: [51, 31], box: [-1, 0, -1, 2, 3, 2] }] },
+    { name: 'left_hind_leg', pivot: [2, 21, 4], boxes: [{ uv: [42, 31], box: [-1, 0, -1, 2, 3, 2] }] },
+    { name: 'right_front_leg', pivot: [-2, 21, -4], boxes: [{ uv: [51, 43], box: [-1, 0, -1, 2, 3, 2] }] },
+    { name: 'left_front_leg', pivot: [2, 21, -4], boxes: [{ uv: [42, 43], box: [-1, 0, -1, 2, 3, 2] }] },
+    // the ball it curls into, which is drawn instead of everything else
+    { name: 'body_rolled_up', pivot: [0, 24, 0], hidden: true, boxes: [{ uv: [0, 0], box: [-5, -10, -6, 10, 10, 10] }] },
+  ],
+};
+
+/** The sniffer, six legs and a nose to the ground. */
+const snifferModel: ModelDef = {
+  texture: 'sniffer.png', texW: 192, texH: 192,
+  parts: [
+    { name: 'body', pivot: [0, 24, 0], boxes: [{ uv: [62, 0], box: [-12.5, -33, -20, 25, 24, 40], inflate: 0.5 }, { uv: [62, 68], box: [-12.5, -33, -20, 25, 29, 40] }, { uv: [87, 68], box: [-12.5, -8, -20, 25, 0, 40] }] },
+    { name: 'head', parent: 'body', pivot: [0, 10.5, -19.4], boxes: [{ uv: [8, 15], box: [-6.5, -7.5, -11.5, 13, 18, 11] }, { uv: [8, 4], box: [-6.5, 7.5, -11.5, 13, 0, 11] }] },
+    { name: 'left_ear', parent: 'head', pivot: [6.4, 3, -23.9], boxes: [{ uv: [2, 0], box: [0, 0, -3, 1, 19, 7] }] },
+    { name: 'right_ear', parent: 'head', pivot: [-6.4, 3, -23.9], boxes: [{ uv: [48, 0], box: [-1, 0, -3, 1, 19, 7] }] },
+    { name: 'nose', parent: 'head', pivot: [0, 6, -30.9], boxes: [{ uv: [10, 45], box: [-6.5, -2, -9, 13, 2, 9] }] },
+    { name: 'lower_beak', parent: 'head', pivot: [0, 13, -31.9], boxes: [{ uv: [10, 57], box: [-6.5, -7, -8, 13, 12, 9] }] },
+    { name: 'right_front_leg', pivot: [-7.5, 15, -15], boxes: [{ uv: [32, 87], box: [-3.5, -1, -4, 7, 10, 8] }] },
+    { name: 'right_mid_leg', pivot: [-7.5, 15, 0], boxes: [{ uv: [32, 105], box: [-3.5, -1, -4, 7, 10, 8] }] },
+    { name: 'right_hind_leg', pivot: [-7.5, 15, 15], boxes: [{ uv: [32, 123], box: [-3.5, -1, -4, 7, 10, 8] }] },
+    { name: 'left_front_leg', pivot: [7.5, 15, -15], boxes: [{ uv: [0, 87], box: [-3.5, -1, -4, 7, 10, 8] }] },
+    { name: 'left_mid_leg', pivot: [7.5, 15, 0], boxes: [{ uv: [0, 105], box: [-3.5, -1, -4, 7, 10, 8] }] },
+    { name: 'left_hind_leg', pivot: [7.5, 15, 15], boxes: [{ uv: [0, 123], box: [-3.5, -1, -4, 7, 10, 8] }] },
+  ],
+};
+
+/** The allay, a small blue thing with two beating wings. */
+const allayModel: ModelDef = {
+  texture: 'allay/allay.png', texW: 32, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 19, 0], boxes: [{ uv: [0, 10], box: [-1.5, 0, -1, 3, 4, 2] }, { uv: [0, 16], box: [-1.5, 0, -1, 3, 5, 2], inflate: -0.2 }] },
+    { name: 'head', parent: 'body', pivot: [0, 19, 0.75], boxes: [{ uv: [0, 0], box: [-2.5, -5.01, -3.25, 5, 5, 5] }] },
+    { name: 'right_arm', parent: 'body', pivot: [-1.75, 19.5, 0], boxes: [{ uv: [23, 0], box: [-0.75, -0.5, -1, 1, 4, 2] }] },
+    { name: 'left_arm', parent: 'body', pivot: [1.75, 19.5, 0], boxes: [{ uv: [23, 6], box: [-0.25, -0.5, -1, 1, 4, 2] }] },
+    { name: 'left_wing', parent: 'body', pivot: [0.5, 20, 1], boxes: [{ uv: [16, 14], box: [0, 0, 0, 0, 5, 8] }] },
+    { name: 'right_wing', parent: 'body', pivot: [-0.5, 20, 1], boxes: [{ uv: [16, 14], box: [0, 0, 0, 0, 5, 8] }] },
+  ],
+};
 
 const phantomModel: ModelDef = {
   texture: 'phantom.png', texW: 64, texH: 64,
@@ -1058,6 +1126,7 @@ export const BREEDING_FOODS: Record<string, string[]> = {
   turtle: ['seagrass'], goat: ['wheat'], fox: ['sweet_berries', 'glow_berries'],
   rabbit: ['carrot', 'golden_carrot', 'dandelion'], panda: ['bamboo'], llama: ['hay_block'],
   axolotl: ['tropical_fish_bucket'], frog: ['slime_ball'], parrot: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds'],
+  camel: ['cactus'], armadillo: ['spider_eye'], sniffer: ['torchflower_seeds'],
   chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
 };
 export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
@@ -1199,6 +1268,11 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   tadpole: { model: tadpoleModel, animation: 'fish', eyeHeight: 0.2, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
   // the jungle's parrot, which dances to whatever a jukebox is playing
   parrot: { model: parrotModel(), animation: 'chicken', eyeHeight: 0.8, followRange: 16, flapping: true, goals: () => [floatGoal, parrotDanceGoal(), panicGoal(1.4), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // the desert, the savanna and the two that are found rather than met
+  camel: { model: camelModel, animation: 'quadruped', eyeHeight: 2.1, followRange: 16, goals: () => [floatGoal, camelSitGoal(), panicGoal(1.2), breedGoal(), followParentGoal(), wanderGoal(160, 0.6, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  armadillo: { model: armadilloModel, animation: 'quadruped', eyeHeight: 0.5, followRange: 16, goals: () => [floatGoal, armadilloRollGoal(), panicGoal(1.4), breedGoal(), followParentGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(6), randomLookGoal] },
+  sniffer: { model: snifferModel, animation: 'quadruped', eyeHeight: 1.5, followRange: 16, goals: () => [floatGoal, snifferDigGoal(), breedGoal(), followParentGoal(), wanderGoal(200, 0.5, 8), lookAtPlayerGoal(8), randomLookGoal] },
+  allay: { model: allayModel, animation: 'chicken', eyeHeight: 0.45, followRange: 32, flying: true, flapping: true, goals: () => [allayFollowGoal(), wanderGoal(80, 1, 8), lookAtPlayerGoal(8), randomLookGoal] },
   // the two that are built rather than born: a village's guardian and the player's own snowman
   iron_golem: { model: ironGolemModel, animation: 'biped', eyeHeight: 2.4, followRange: 32, goals: () => golemGoals() },
   snow_golem: { model: snowGolemModel, animation: 'biped', eyeHeight: 1.7, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), snowGolemGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(8), randomLookGoal] },

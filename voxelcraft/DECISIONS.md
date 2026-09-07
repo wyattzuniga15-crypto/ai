@@ -1299,3 +1299,20 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      dances beside a jukebox that is playing, which needed the mob world to be able to ask whether
      there is a record spinning within three blocks — the reach vanilla gives it. It bobs from foot
      to foot until the music stops, which is exactly as much as vanilla's parrot does about it.
+
+126. **Camels, armadillos, sniffers and allays.** Four more, again from Mojang's geometry, each with
+     the one habit that identifies it: a camel folds its legs under it when nothing has come near
+     for a while and stands the moment somebody does; an armadillo curls into the ball its model
+     carries a second shape for, at a player or a monster within seven blocks; a sniffer noses an
+     ancient seed — a torchflower seed or a pitcher pod — out of ground it can dig, and nothing else;
+     an allay keeps beside whoever it belongs to, hovering a little above and to one side rather
+     than sitting on their head.
+
+     Two of the four have no natural spawn in vanilla either: a sniffer is hatched from an egg dug
+     out of suspicious sand, and an allay is found caged in an outpost or a mansion, so both are
+     registered and behave, and are met by summoning them rather than by walking into one. The
+     camel and the armadillo do spawn, in the desert and in the savannas and badlands.
+
+     The sniffer was checked by measuring its model rather than photographing it: at just over two
+     blocks tall with all twelve of its parts and six legs where they should be, it would not sit in
+     the little photo pool the other portraits use.

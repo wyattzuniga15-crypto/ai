@@ -53,6 +53,8 @@ const LLAMA_BIOMES = new Set(['savanna', 'savanna_plateau', 'windswept_savanna',
 const RABBIT_BIOMES = new Set(['desert', 'flower_forest', 'taiga', 'snowy_taiga', 'snowy_plains', 'ice_spikes', 'grove', 'meadow', 'badlands', 'wooded_badlands', 'eroded_badlands']);
 const PARROT_BIOMES = new Set(['jungle', 'sparse_jungle', 'bamboo_jungle']);
 const FROG_BIOMES = new Set(['swamp', 'mangrove_swamp']);
+const CAMEL_BIOMES = new Set(['desert']);
+const ARMADILLO_BIOMES = new Set(['savanna', 'savanna_plateau', 'windswept_savanna', 'badlands', 'wooded_badlands', 'eroded_badlands']);
 
 /** Vanilla's goat biomes: the peaks and the slopes under them. */
 const GOAT_BIOMES = new Set(['frozen_peaks', 'jagged_peaks', 'stony_peaks', 'snowy_slopes', 'windswept_hills', 'meadow']);
@@ -297,17 +299,19 @@ export class EntityManager {
     const rabbit = RABBIT_BIOMES.has(biome.id) && h.rng() < 0.4;
     const parrot = PARROT_BIOMES.has(biome.id) && h.rng() < 0.4;
     const frog = FROG_BIOMES.has(biome.id) && h.rng() < 0.6;
+    const camel = CAMEL_BIOMES.has(biome.id) && h.rng() < 0.25;
+    const armadillo = ARMADILLO_BIOMES.has(biome.id) && h.rng() < 0.4;
     // vanilla spawns ocelots only in the jungles, in pairs
     const ocelot = biome.category === 'jungle' && h.rng() < 0.25;
     // vanilla plains and savannas spawn herds of horses, and one in five of those is a donkey
     const equine = HORSE_BIOMES.has(biome.id) && h.rng() < 0.4;
-    const type = parrot ? 'parrot' : frog ? 'frog' : panda ? 'panda' : bear ? 'polar_bear' : llama ? 'llama' : rabbit ? 'rabbit' : fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    const type = camel ? 'camel' : armadillo ? 'armadillo' : parrot ? 'parrot' : frog ? 'frog' : panda ? 'panda' : bear ? 'polar_bear' : llama ? 'llama' : rabbit ? 'rabbit' : fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
     // horse herds share one coat like vanilla's group spawn
     const herdCoat = HORSE_COATS[Math.floor(h.rng() * HORSE_COATS.length)];
     // a llama herd shares a coat the way a horse herd shares one
     const herdCoatLlama = LLAMA_COATS[Math.floor(h.rng() * LLAMA_COATS.length)];
-    const want = parrot ? 1 + Math.floor(h.rng() * 2) : frog ? 2 + Math.floor(h.rng() * 4) : ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : bear ? 1 + Math.floor(h.rng() * 2) : llama ? 4 + Math.floor(h.rng() * 3) : rabbit ? 2 + Math.floor(h.rng() * 3) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
+    const want = camel ? 1 + Math.floor(h.rng() * 2) : armadillo ? 2 + Math.floor(h.rng() * 3) : parrot ? 1 + Math.floor(h.rng() * 2) : frog ? 2 + Math.floor(h.rng() * 4) : ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : bear ? 1 + Math.floor(h.rng() * 2) : llama ? 4 + Math.floor(h.rng() * 3) : rabbit ? 2 + Math.floor(h.rng() * 3) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
     let spawned = 0;
     for (let i = 0; i < 12 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 7) - 3 + 0.5;

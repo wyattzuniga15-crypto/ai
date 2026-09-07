@@ -1280,6 +1280,93 @@ export const parrotDanceGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Camels, armadillos, sniffers and allays
+// ---------------------------------------------------------------------------------------------
+/** Vanilla's camel: it folds its legs under it when nothing has happened for a while. */
+export const camelSitGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => {
+    const near = w.playerTargetable() && m.distanceTo(w.playerPos()) < 8;
+    if (near || m.age - m.lastHurtTime < 100) {
+      m.extra.sitting = false;
+      return false;
+    }
+    return m.extra.sitting === true || w.rng() < 0.002;
+  },
+  canContinue: (m, w) => m.extra.sitting === true && !(w.playerTargetable() && m.distanceTo(w.playerPos()) < 8),
+  tick: (m) => {
+    m.extra.sitting = true;
+    m.moveTarget = null;
+    m.vel.x = 0;
+    m.vel.z = 0;
+  },
+  stop: (m) => {
+    m.extra.sitting = false;
+  },
+});
+
+/** How close something has to come before an armadillo curls up, as vanilla measures it. */
+export const ARMADILLO_SCARE_RANGE = 7;
+
+/** Vanilla's armadillo: anything it does not like within seven blocks and it rolls into a ball. */
+export const armadilloRollGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => {
+    const player = w.playerTargetable() && m.distanceTo(w.playerPos()) < ARMADILLO_SCARE_RANGE;
+    const monster = w.mobsNear(m.pos.x, m.pos.y, m.pos.z, ARMADILLO_SCARE_RANGE).some((o) => o !== m && !o.dead && o.def.disposition === 'hostile');
+    return player || monster || m.age - m.lastHurtTime < 60;
+  },
+  tick: (m) => {
+    m.extra.rolled = true;
+    m.moveTarget = null;
+    m.lookTarget = null;
+    m.vel.x = 0;
+    m.vel.z = 0;
+  },
+  stop: (m) => {
+    m.extra.rolled = false;
+  },
+});
+
+/** What a sniffer turns up, which is vanilla's two ancient seeds. */
+export const SNIFFER_SEEDS = ['torchflower_seeds', 'pitcher_pod'];
+
+/** Vanilla's sniffer: it noses about and now and then digs an ancient seed out of the ground. */
+export const snifferDigGoal = (): Goal => ({
+  flags: 0,
+  canUse: (m, w) => !m.isBaby && w.rng() < 0.0015,
+  tick: (m, w) => {
+    const bx = Math.floor(m.pos.x);
+    const by = Math.floor(m.pos.y);
+    const bz = Math.floor(m.pos.z);
+    // it only digs what it can get its nose into
+    const below = blocks.blockOf(w.getBlock(bx, by - 1, bz)).id;
+    if (below !== 'grass_block' && below !== 'dirt' && below !== 'coarse_dirt' && below !== 'rooted_dirt' && below !== 'moss_block' && below !== 'podzol') return;
+    w.dropItem(SNIFFER_SEEDS[Math.floor(w.rng() * SNIFFER_SEEDS.length)], 1, m.pos.x, m.pos.y, m.pos.z);
+    w.emitParticles('happy', m.pos.x, m.pos.y + 0.2, m.pos.z, 6, m.width, 0.3);
+    w.playSound('dig_grass', m.pos.x, m.pos.y, m.pos.z, 0.8);
+  },
+});
+
+/** Vanilla's allay: it keeps close to whoever gave it something and darts about at their side. */
+export const allayFollowGoal = (range = 32): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => m.extra.owner === true && m.distanceTo(w.playerPos()) < range,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    m.lookTarget = p.clone();
+    // it hovers a little above and to one side rather than sitting on top of them
+    if (m.distanceTo(p) < 3) {
+      m.moveTarget = null;
+      return;
+    }
+    m.moveTarget = p.clone().add(new THREE.Vector3(Math.cos(m.age * 0.05) * 2, 1.2, Math.sin(m.age * 0.05) * 2));
+    m.moveSpeed = 1.6;
+    m.moveTimeout = 40;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Golems
 // ---------------------------------------------------------------------------------------------
 /** What an iron golem counts as an enemy: the monsters, and never a creeper, which vanilla spares. */

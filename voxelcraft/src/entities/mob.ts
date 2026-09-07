@@ -1110,6 +1110,19 @@ export class Mob {
       if (typeof this.extra.playDead === 'number' && this.extra.playDead > 0) g.rotation.z = Math.PI;
     }
     if (this.def.id === 'frog') this.setTexture(`frog/${String(this.extra.variant ?? 'temperate')}_frog.png`);
+    if (this.def.id === 'armadillo') {
+      // rolled up it is a ball and nothing else, which is how vanilla draws it
+      const rolled = this.extra.rolled === true;
+      for (const [name, part] of parts) part.visible = name === 'body_rolled_up' ? rolled : !rolled;
+    }
+    if (this.def.id === 'camel' && this.extra.sitting === true) {
+      // a sitting camel folds its legs under it and drops its body onto them
+      g.position.y -= 0.5;
+      set('right_front_leg', 1.5);
+      set('left_front_leg', 1.5);
+      set('right_hind_leg', -1.5);
+      set('left_hind_leg', -1.5);
+    }
     if (this.def.id === 'parrot') {
       this.setTexture(`parrot/parrot_${String(this.extra.color ?? 'red_blue')}.png`);
       if (this.extra.dancing === true) {
