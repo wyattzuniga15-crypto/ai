@@ -224,7 +224,7 @@ export const creeperGoal = (): Goal => ({
 });
 
 /** Skeleton: keep distance, shoot arrows every 40 ticks (vanilla 20 on hard). */
-export const bowAttackGoal = (effect?: ArrowEffect): Goal => {
+export const bowAttackGoal = (effect?: ArrowEffect, weapon: 'bow' | 'crossbow' = 'bow'): Goal => {
   let strafeTicks = 0;
   return {
     flags: FLAG_MOVE | FLAG_LOOK,
@@ -255,9 +255,14 @@ export const bowAttackGoal = (effect?: ArrowEffect): Goal => {
         }
       } else m.moveTarget = null;
       if (los && d <= 15 && m.attackCooldown === 0) {
-        w.shootArrow(m.eyePos(), eye, 1.6, 2, effect);
-        m.attackCooldown = 40;
-      }
+        // vanilla aims a third of the way up the target, not at its eyes, and lets the arc do the rest
+        const aim = p.clone();
+        aim.y += 0.6;
+        // vanilla crossbows hit harder and reload more slowly than a skeleton's bow
+        w.shootArrow(m.eyePos(), aim, weapon === 'crossbow' ? 1.9 : 1.6, weapon === 'crossbow' ? 3 : 2, effect);
+        m.attackCooldown = weapon === 'crossbow' ? 70 : 40;
+        m.extra.aiming = 0;
+      } else if (los && d <= 15) m.extra.aiming = 1;
     },
     stop: (m) => {
       m.moveTarget = null;
@@ -689,6 +694,123 @@ export const beeGoal = (): Goal => {
 
 /** Blocks a bee treats as a flower, filled in by the mob table so the goal stays data-driven. */
 export const BEE_FLOWER_IDS: string[] = [];
+
+/** Illagers hunt villagers as well as the player (vanilla's raid target list, minus golems). */
+export const targetVillagerGoal = (): Goal => ({
+  flags: FLAG_TARGET,
+  canUse: (m, w) => {
+    if (m.target !== null) return false;
+    return w.mobsNear(m.pos.x, m.pos.y, m.pos.z, m.def.followRange).some((o) => !o.dead && (o.def.id === 'villager' || o.def.id === 'wandering_trader'));
+  },
+  tick: (m, w) => {
+    const victim = w.mobsNear(m.pos.x, m.pos.y, m.pos.z, m.def.followRange).find((o) => !o.dead && (o.def.id === 'villager' || o.def.id === 'wandering_trader'));
+    if (victim) m.target = victim;
+  },
+});
+
+/**
+ * Evokers cast vanilla's two spells: a ring of vexes to fight for them, and a line of fangs that
+ * erupts from the ground toward the target. Both take a moment of casting, arms raised.
+ */
+export const evokerGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => targetAlive(m, w),
+  canContinue: (m, w) => targetAlive(m, w),
+  tick: (m, w) => {
+    const target = targetPos(m, w);
+    m.lookTarget = targetEye(m, w);
+    const d = m.distanceTo(target);
+    // evokers keep their distance and never melee
+    if (d < 8) {
+      const dx = m.pos.x - target.x, dz = m.pos.z - target.z;
+      const len = Math.hypot(dx, dz) || 1;
+      if (m.age % 20 === 0) {
+        m.moveTarget = new THREE.Vector3(m.pos.x + (dx / len) * 5, m.pos.y, m.pos.z + (dz / len) * 5);
+        m.moveSpeed = 1;
+        m.moveTimeout = 30;
+      }
+    } else if (d > 12 && m.age % 10 === 0) {
+      m.moveTarget = target.clone();
+      m.moveSpeed = 1;
+      m.moveTimeout = 40;
+    } else m.moveTarget = null;
+    const casting = typeof m.extra.casting === 'number' ? m.extra.casting : 0;
+    if (casting > 0) {
+      m.extra.casting = casting - 1;
+      if (casting === 1) {
+        if (m.extra.spell === 'vexes') {
+          // three vexes appear around the evoker (vanilla summons up to three at a time)
+          for (let i = 0; i < 3; i++) {
+            const a = (i / 3) * Math.PI * 2;
+            const vex = w.spawnMob('vex', m.pos.x + Math.cos(a) * 1.5, m.pos.y + 1, m.pos.z + Math.sin(a) * 1.5, false);
+            if (vex) {
+              vex.target = m.target;
+              vex.extra.life = 1200; // vexes wither away after a minute or so
+            }
+          }
+          w.playSound('evoker_cast', m.pos.x, m.pos.y, m.pos.z);
+        } else {
+          // a line of fangs walks from the evoker to the target, biting whatever stands in it
+          const dx = target.x - m.pos.x, dz = target.z - m.pos.z;
+          const len = Math.hypot(dx, dz) || 1;
+          for (let i = 1; i <= 8; i++) {
+            const fx = m.pos.x + (dx / len) * i * 1.2;
+            const fz = m.pos.z + (dz / len) * i * 1.2;
+            const fy = groundAt(w, fx, Math.floor(m.pos.y), fz, 2, 4);
+            if (fy === null) continue;
+            w.emitParticles('angry', fx, fy + 0.3, fz, 2, 0.6, 0.4);
+            if (Math.hypot(w.playerPos().x - fx, w.playerPos().z - fz) < 1.2 && Math.abs(w.playerPos().y - fy) < 2) w.hurtPlayer(6, m.pos, m);
+          }
+          w.playSound('evoker_fangs', m.pos.x, m.pos.y, m.pos.z);
+        }
+      }
+      return;
+    }
+    if (m.attackCooldown === 0 && d < 16) {
+      const vexes = w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 16).filter((o) => o.def.id === 'vex' && !o.dead).length;
+      m.extra.spell = vexes < 3 && w.rng() < 0.4 ? 'vexes' : 'fangs';
+      m.extra.casting = 40;
+      m.attackCooldown = 200;
+      w.playSound('evoker_prepare', m.pos.x, m.pos.y, m.pos.z);
+    }
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.lookTarget = null;
+    m.extra.casting = 0;
+  },
+});
+
+/** Vexes dart at their target through walls and fade away after their summon time runs out. */
+export const vexGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const life = typeof m.extra.life === 'number' ? m.extra.life - 1 : 1200;
+    m.extra.life = life;
+    if (life <= 0) {
+      m.hurt(20, null, 'other', 0);
+      return;
+    }
+    if (!targetAlive(m, w)) {
+      if (!m.moveTarget || m.age % 40 === 0) {
+        m.moveTarget = new THREE.Vector3(m.pos.x + (w.rng() - 0.5) * 8, m.pos.y + (w.rng() - 0.5) * 3, m.pos.z + (w.rng() - 0.5) * 8);
+        m.moveSpeed = 1;
+        m.moveTimeout = 60;
+      }
+      return;
+    }
+    const eye = targetEye(m, w);
+    m.moveTarget = eye.clone();
+    m.moveSpeed = 1.6;
+    m.moveTimeout = 40;
+    m.lookTarget = eye;
+    if (m.distanceTo(targetPos(m, w)) < 1.6 && m.attackCooldown === 0) {
+      hurtTarget(m, w, m.def.damage);
+      m.attackCooldown = 20;
+    }
+  },
+});
 
 /** Villagers keep away from zombies and illagers (vanilla avoid goals with a wider radius). */
 export const avoidMonstersGoal = (range = 8): Goal => ({

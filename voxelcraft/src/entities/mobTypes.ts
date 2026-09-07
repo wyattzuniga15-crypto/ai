@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { BEE_FLOWER_IDS, avoidCatsGoal, avoidMonstersGoal, beeGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { BEE_FLOWER_IDS, avoidCatsGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -444,6 +444,57 @@ export const BEE_FLOWERS = [
   'open_eyeblossom', 'closed_eyeblossom',
 ];
 
+/**
+ * Illagers share the villager body with free arms (converted from the shipped geometry). The
+ * crossed `arms` block is what vanilla shows while an illager walks with nothing to do, and the
+ * separate arms take over when it attacks or aims.
+ */
+const illagerModel = (texture: string): ModelDef => ({
+  texture, texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 24, 0], boxes: [{ uv: [16, 20], box: [-4, -24, -3, 8, 12, 6] }, { uv: [0, 38], box: [-4, -24, -3, 8, 18, 6], inflate: 0.5 }] },
+    { name: 'head', parent: 'body', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-4, -10, -4, 8, 10, 8] }] },
+    { name: 'nose', parent: 'head', pivot: [0, -2, 0], boxes: [{ uv: [24, 0], box: [-1, -1, -6, 2, 4, 2] }] },
+    { name: 'arms', parent: 'body', pivot: [0, 2, 0], hidden: true, boxes: [{ uv: [44, 22], box: [-8, -2, -2, 4, 8, 4] }, { uv: [44, 22], box: [4, -2, -2, 4, 8, 4], mirror: true }, { uv: [40, 38], box: [-4, 2, -2, 8, 4, 4] }] },
+    { name: 'right_arm', parent: 'body', pivot: [-5, 2, 0], boxes: [{ uv: [40, 46], box: [-3, -2, -2, 4, 12, 4] }] },
+    { name: 'left_arm', parent: 'body', pivot: [5, 2, 0], boxes: [{ uv: [40, 46], box: [-1, -2, -2, 4, 12, 4], mirror: true }] },
+    { name: 'right_leg', parent: 'body', pivot: [-2, 12, 0], boxes: [{ uv: [0, 22], box: [-2, 0, -2, 4, 12, 4] }] },
+    { name: 'left_leg', parent: 'body', pivot: [2, 12, 0], boxes: [{ uv: [0, 22], box: [-2, 0, -2, 4, 12, 4], mirror: true }] },
+  ],
+});
+
+/** Vex: a small winged illager familiar (converted from the shipped geometry). */
+const vexModel: ModelDef = {
+  texture: 'illager/vex.png', texW: 32, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 22, 0], boxes: [{ uv: [0, 10], box: [-1.5, -4, -1, 3, 4, 2] }, { uv: [0, 16], box: [-1.5, -3, -1, 3, 5, 2], inflate: -0.2 }] },
+    { name: 'head', parent: 'body', pivot: [0, 18, 0], boxes: [{ uv: [0, 0], box: [-2.5, -5, -2.5, 5, 5, 5] }] },
+    { name: 'right_arm', parent: 'body', pivot: [-1.75, 18.25, 0], boxes: [{ uv: [23, 0], box: [-1.25, -0.5, -1, 2, 4, 2], inflate: -0.1 }] },
+    { name: 'left_arm', parent: 'body', pivot: [1.75, 18.25, 0], boxes: [{ uv: [23, 6], box: [-0.75, -0.5, -1, 2, 4, 2], inflate: -0.1 }] },
+    { name: 'left_wing', parent: 'body', pivot: [0.5, 19, 1], boxes: [{ uv: [16, 22], box: [0, 0, 0, 8, 5, 0], mirror: true }] },
+    { name: 'right_wing', parent: 'body', pivot: [-0.5, 19, 1], boxes: [{ uv: [16, 22], box: [-8, 0, 0, 8, 5, 0] }] },
+  ],
+};
+
+/** Ravager: the illagers' beast (converted from the shipped geometry). */
+const ravagerModel: ModelDef = {
+  texture: 'illager/ravager.png', texW: 128, texH: 128,
+  parts: [
+    { name: 'body', pivot: [0, 5, 2], rotation: [-1.5708, 0, 0], boxes: [{ uv: [0, 55], box: [-7, -7, -4, 14, 16, 20] }, { uv: [0, 91], box: [-6, 9, -4, 12, 13, 18] }] },
+    { name: 'neck', pivot: [0, 4, -20], boxes: [{ uv: [68, 73], box: [-5, -11, 10, 10, 10, 18] }] },
+    { name: 'head', parent: 'neck', pivot: [0, -4, -10], boxes: [{ uv: [0, 0], box: [-8, -6, -14, 16, 20, 16] }, { uv: [0, 0], box: [-2, 8, -18, 4, 8, 4] }] },
+    { name: 'mouth', parent: 'head', pivot: [0, 9, -10], boxes: [{ uv: [0, 36], box: [-8, -1, -14, 16, 3, 16] }] },
+    { name: 'horns', parent: 'head', pivot: [-5, -3, -19], rotation: [-1.0472, 0, 0], boxes: [{ uv: [74, 55], box: [-5, -14, -1, 2, 14, 4] }, { uv: [74, 55], box: [13, -14, -1, 2, 14, 4] }] },
+    { name: 'right_hind_leg', pivot: [-12, -6, 22], boxes: [{ uv: [96, 0], box: [0, -7, -5, 8, 37, 8] }] },
+    { name: 'left_hind_leg', pivot: [4, -6, 22], boxes: [{ uv: [96, 0], box: [0, -7, -5, 8, 37, 8] }] },
+    { name: 'right_front_leg', pivot: [-4, -2, -4], boxes: [{ uv: [64, 0], box: [-8, -11, -4, 8, 37, 8] }] },
+    { name: 'left_front_leg', pivot: [-4, -2, -4], boxes: [{ uv: [64, 0], box: [8, -11, -4, 8, 37, 8] }] },
+  ],
+};
+
+/** Illagers, and the mobs they bring along. */
+export const ILLAGER_TYPES = ['pillager', 'vindicator', 'evoker', 'vex', 'ravager'];
+
 interface MobSpec {
   model: ModelDef;
   animation: MobStats['animation'];
@@ -536,6 +587,12 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // cats and ocelots share the vanilla model; ocelots only ever grow to trust the player
   cat: { model: catModel('cat/tabby.png', true), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, sitGoal(), catAvoidGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), followOwnerGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
   ocelot: { model: catModel('cat/ocelot.png'), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, ocelotFleeGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // illagers: pillagers shoot crossbows, vindicators charge with axes, evokers summon vexes and fangs
+  pillager: { model: illagerModel('illager/pillager.png'), animation: 'illager', eyeHeight: 1.62, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), targetVillagerGoal(), bowAttackGoal(undefined, 'crossbow'), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  vindicator: { model: illagerModel('illager/vindicator.png'), animation: 'illager', eyeHeight: 1.62, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), targetVillagerGoal(), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  evoker: { model: illagerModel('illager/evoker.png'), animation: 'illager', eyeHeight: 1.62, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), targetVillagerGoal(), evokerGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  vex: { model: vexModel, animation: 'vex', eyeHeight: 0.51, followRange: 32, flying: true, goals: () => [loseTargetGoal(), targetPlayerGoal(32), vexGoal()] },
+  ravager: { model: ravagerModel, animation: 'quadruped', eyeHeight: 1.9, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), targetVillagerGoal(), meleeAttackGoal(0.6, (m, w) => w.emitParticles('angry', m.pos.x, m.pos.y + m.height, m.pos.z, 3, m.width, 0.5)), wanderGoal(120, 0.8), lookAtPlayerGoal(8), randomLookGoal] },
   // bees fly between flowers and their hive; vanilla stats are 10 health and a 2-damage sting
   bee: { model: beeModel, animation: 'bee', eyeHeight: 0.45, followRange: 48, flying: true, goals: () => [beeGoal()] },
   // villagers keep a profession, level and trade list in `extra`; the wandering trader is unlayered

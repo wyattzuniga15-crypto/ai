@@ -317,3 +317,15 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     time the chunk is populated. They pollinate flowers, carry the nectar home, and the honey level
     rises when they come back out, which is what a hive's `beehive` block entity tracks.
 
+59. **Ranged mobs were aiming over the player's head.** Vanilla aims a bow a third of the way up the
+    target and adds `0.2 × distance` to the vertical component; ours aimed at the eyes with half
+    that arc, so skeleton and stray arrows sailed past above the hitbox and never hit anything. Both
+    are now vanilla's, and the arc is scaled by the launch speed so a pillager's faster crossbow bolt
+    follows the same line rather than flying high.
+
+60. **Illagers are here; raids wait for villages.** Pillagers, vindicators, evokers (with vex
+    summons and fang lines), vexes and ravagers all hunt villagers as well as the player, and
+    patrols spawn from the fifth day on with a captain. Killing a captain leaves Bad Omen on the
+    player, which is the raid trigger in vanilla; the raid itself needs villages, so for now the
+    effect simply sits on the player.
+

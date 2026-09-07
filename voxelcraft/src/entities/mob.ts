@@ -32,7 +32,7 @@ export interface MobStats {
   flying?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -675,6 +675,42 @@ export class Mob {
           const p = parts.get(n);
           if (p) p.visible = chested;
         }
+        break;
+      }
+      case 'illager': {
+        set('right_leg', legA);
+        set('left_leg', legB);
+        const crossed = this.target === null && this.extra.casting === undefined;
+        const arms = parts.get('arms');
+        const right = parts.get('right_arm');
+        const left = parts.get('left_arm');
+        if (arms) arms.visible = crossed;
+        if (right) right.visible = !crossed;
+        if (left) left.visible = !crossed;
+        const casting = typeof this.extra.casting === 'number' && this.extra.casting > 0;
+        if (casting) {
+          // vanilla's spellcasting pose: both arms raised and spread
+          set('right_arm', -Math.PI * 0.6, 0, -0.6);
+          set('left_arm', -Math.PI * 0.6, 0, 0.6);
+        } else if (this.extra.aiming === 1) {
+          // aiming a crossbow: both arms forward
+          set('right_arm', -Math.PI / 2 + this.headPitch, -0.2);
+          set('left_arm', -Math.PI / 2 + this.headPitch, 0.2);
+        } else if (!crossed) {
+          set('right_arm', Math.cos(swing * 0.6662 + Math.PI) * 2 * amt * 0.5);
+          set('left_arm', Math.cos(swing * 0.6662) * 2 * amt * 0.5);
+        }
+        break;
+      }
+      case 'vex': {
+        // wings beat constantly; the arms hang forward with the vex's little sword
+        const beat = Math.sin((this.age + alpha) * 0.9) * 0.5;
+        const lw = parts.get('left_wing');
+        const rw = parts.get('right_wing');
+        if (lw) lw.rotation.y = -0.5 - beat;
+        if (rw) rw.rotation.y = 0.5 + beat;
+        set('right_arm', -Math.PI / 2, -0.2);
+        set('left_arm', -Math.PI / 2, 0.2);
         break;
       }
       case 'bee': {

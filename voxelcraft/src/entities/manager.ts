@@ -35,6 +35,7 @@ export class EntityManager {
   passiveCap = 10;
   private phantomTimer = 1200;
   private traderTimer = 6000;
+  private patrolTimer = 6000;
 
   constructor(private readonly host: ManagerHost) {}
 
@@ -71,7 +72,9 @@ export class EntityManager {
   shootArrow(from: THREE.Vector3, to: THREE.Vector3, velocity: number, damage: number, fromPlayer = false): Arrow {
     const dir = to.clone().sub(from);
     const dist = Math.hypot(dir.x, dir.z);
-    dir.y += dist * 0.2 * 0.5; // vanilla arc compensation
+    // Vanilla's arc compensation (AbstractSkeleton.performRangedAttack) is tuned for a bow's 1.6
+    // launch speed; scaling it by the speed ratio keeps a faster crossbow bolt on the same line.
+    dir.y += dist * 0.2 * (1.6 / velocity);
     const a = new Arrow(this.host.base, from, dir, velocity, damage, fromPlayer);
     this.arrows.push(a);
     this.host.scene.add(a.mesh);
@@ -302,6 +305,41 @@ export class EntityManager {
         m.extra.despawnAt = 48000; // wanders off after a couple of days, like vanilla's timer
       }
       return;
+    }
+  }
+
+  /**
+   * Pillager patrols: vanilla rolls one about every ten minutes from the fifth day on and drops a
+   * band of pillagers 24 to 48 blocks from the player, one of them a captain.
+   */
+  patrolSpawnTick(day: number): void {
+    if (--this.patrolTimer > 0) return;
+    const h = this.host;
+    this.patrolTimer = 12000;
+    if (day < 5 || !h.playerTargetable()) return;
+    if (h.rng() > 0.2) return;
+    if (this.mobs.filter((m) => m.extra.patrol === true && !m.dead).length > 0) return;
+    const p = h.playerPos();
+    const stats = mobStats('pillager')!;
+    const angle = h.rng() * Math.PI * 2;
+    const dist = 24 + h.rng() * 24;
+    const cx = Math.floor(p.x + Math.cos(angle) * dist);
+    const cz = Math.floor(p.z + Math.sin(angle) * dist);
+    const size = 2 + Math.floor(h.rng() * 4);
+    let spawned = 0;
+    for (let i = 0; i < 24 && spawned < size; i++) {
+      const x = cx + Math.floor((h.rng() * 2 - 1) * 5) + 0.5;
+      const z = cz + Math.floor((h.rng() * 2 - 1) * 5) + 0.5;
+      const top = h.topBlock(Math.floor(x), Math.floor(z));
+      if (top < 0 || !Mob.fits(h, stats, x, top + 1, z)) continue;
+      // vanilla mixes in vindicators as the raid waves grow; a patrol is pillagers plus a captain
+      const m = this.spawn(spawned === 0 ? 'pillager' : h.rng() < 0.2 ? 'vindicator' : 'pillager', x, top + 1, z, h.rng() * Math.PI * 2);
+      if (m) {
+        m.extra.patrol = true;
+        m.persistent = true;
+        if (spawned === 0) m.extra.captain = true;
+      }
+      spawned++;
     }
   }
 

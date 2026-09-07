@@ -521,6 +521,7 @@ export class Game {
     if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
     this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
     this.entities.traderSpawnTick(this.isDay());
+    this.entities.patrolSpawnTick(Math.floor(this.time / DAY_LENGTH));
     if (this.tickCount % 100 === 0) this.entities.traderDespawnTick();
     if (this.sleeping > 0 && --this.sleeping === 0) {
       const day = Math.floor(this.time / DAY_LENGTH);
@@ -2139,6 +2140,11 @@ export class Game {
     const carried = m.extra as unknown as { equip?: (ItemStack | null)[]; chestItems?: (ItemStack | null)[] };
     for (const st of [...(carried.equip ?? []), ...(carried.chestItems ?? [])]) if (st) this.dropStack(st, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     if (m.extra.chest === true) this.dropStack({ id: 'chest', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    // killing a patrol captain leaves the player marked with Bad Omen (raids come with villages)
+    if (byPlayer && m.extra.captain === true) {
+      this.player.effects.add('bad_omen', 120000, 0);
+      this.hud.showToast('Bad Omen');
+    }
     if (byPlayer && m.def.xp > 0) this.spawnXp(m.def.xp, m.pos.x, m.pos.y + 0.5, m.pos.z);
     this.audio.play(MOB_DEATH_SOUNDS[m.def.id] ?? m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
     this.particles.poof(m.pos.x, m.pos.y, m.pos.z, 20, Math.random, m.def.width, m.def.height);

@@ -114,6 +114,13 @@ const SOUNDS: Record<string, Synth> = {
   horse_gallop: (c, o, p, t) => { [0, 0.07, 0.16, 0.22].forEach((d) => burst(c, o, t + d, 'lowpass', 260, 1, 0.004, 0.09, 0.16, p)); },
   donkey: (c, o, p, t) => { [0, 0.18].forEach((d, i) => { tone(c, o, t + d, 'square', i ? 240 : 520, i ? 140 : 300, 0.28, 0.16, p); }); },
   saddle: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1200, 1.5, 0.01, 0.2, 0.15, p); tone(c, o, t, 'sine', 220, 160, 0.15, 0.08, p); },
+  // illagers: a low grunt, the evoker's chant and the crack of fangs
+  illager: (c, o, p, t) => { tone(c, o, t, 'square', 180, 140, 0.3, 0.14, p); burst(c, o, t, 'lowpass', 400, 1, 0.02, 0.25, 0.1, p); },
+  evoker_prepare: (c, o, p, t) => { [0, 0.12, 0.24].forEach((d, i) => tone(c, o, t + d, 'sine', 320 + i * 60, 380 + i * 60, 0.18, 0.12, p)); },
+  evoker_cast: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 700, 200, 0.4, 0.15, p); burst(c, o, t, 'bandpass', 1200, 1.5, 0.01, 0.35, 0.12, p); },
+  evoker_fangs: (c, o, p, t) => { burst(c, o, t, 'lowpass', 900, 1, 0.005, 0.2, 0.25, p); tone(c, o, t, 'square', 260, 90, 0.25, 0.16, p); },
+  vex: (c, o, p, t) => { tone(c, o, t, 'square', 900, 1100, 0.15, 0.09, p); tone(c, o, t + 0.08, 'square', 1100, 800, 0.15, 0.07, p); },
+  ravager: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 130, 70, 0.6, 0.2, p); burst(c, o, t, 'lowpass', 300, 1.2, 0.03, 0.5, 0.2, p); },
   // bees: a wing buzz, an angrier one and the sting; plus filling a bottle at a hive
   bee: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 240, 220, 0.5, 0.06, p); tone(c, o, t, 'square', 120, 110, 0.5, 0.04, p); },
   bee_angry: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 330, 300, 0.6, 0.09, p); tone(c, o, t, 'square', 165, 150, 0.6, 0.05, p); },

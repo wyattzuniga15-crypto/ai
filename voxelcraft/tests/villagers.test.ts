@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
+import * as THREE from 'three';
+import type { Mob, MobWorld } from '../src/entities/mob.ts';
 import tradesJson from '../data/trades.json';
 import itemsJson from '../data/items.json';
 import {
   LEVEL_NAMES, LEVEL_XP, PROFESSIONS, buildOffers, costOf, levelFor, offerSatisfied,
   professionForBlock, professionName, tableFor, takeTrade, tierTrades, type Offer,
 } from '../src/entities/villagers.ts';
-import { villagerTypeFor, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, VILLAGER_TYPES, mobStats, MOB_SPECS, beeTexture, BEE_FLOWERS, isBreedingFood } from '../src/entities/mobTypes.ts';
-import { BEE_FLOWER_IDS } from '../src/entities/ai.ts';
+import { villagerTypeFor, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, VILLAGER_TYPES, mobStats, MOB_SPECS, beeTexture, BEE_FLOWERS, isBreedingFood, ILLAGER_TYPES } from '../src/entities/mobTypes.ts';
+import { BEE_FLOWER_IDS, targetVillagerGoal } from '../src/entities/ai.ts';
 import { createBlockEntity } from '../src/blocks/blockEntity.ts';
 import { blocks } from '../src/blocks/registry.ts';
 
 const tables = tradesJson as unknown as Record<string, { xp: number; trades: unknown[] }[]>;
+
+/** Mob stand-in: building a real Mob needs a DOM for its model, so goals are driven on a stub. */
+const makeMob = (type: string): Mob => {
+  const def = mobStats(type)!;
+  return { def, extra: {}, health: def.health, maxHealth: def.health, dead: false, target: null, age: 0, pos: new THREE.Vector3(), distanceTo: () => 4 } as unknown as Mob;
+};
 
 describe('villager trades', () => {
   it('carries a five-tier table for every profession and one for the wandering trader', () => {
@@ -167,5 +175,57 @@ describe('bees', () => {
       const levels = def!.states?.find((s) => s.name === 'honey_level');
       expect(levels?.values).toEqual(['0', '1', '2', '3', '4', '5']);
     }
+  });
+});
+
+describe('illagers', () => {
+  it('registers every illager with vanilla stats', () => {
+    const expected: Record<string, { health: number; damage: number; animation: string }> = {
+      pillager: { health: 24, damage: 0, animation: 'illager' },
+      vindicator: { health: 24, damage: 5, animation: 'illager' },
+      evoker: { health: 24, damage: 6, animation: 'illager' },
+      vex: { health: 14, damage: 9, animation: 'vex' },
+      ravager: { health: 100, damage: 12, animation: 'quadruped' },
+    };
+    for (const id of ILLAGER_TYPES) {
+      const stats = mobStats(id);
+      expect(stats, id).not.toBeNull();
+      expect(stats!.disposition).toBe('hostile');
+      expect(stats!.health).toBe(expected[id].health);
+      expect(stats!.damage).toBe(expected[id].damage);
+      expect(stats!.animation).toBe(expected[id].animation);
+    }
+    expect(mobStats('vex')!.flying).toBe(true);
+  });
+
+  it('dresses illagers in the crossed-arm model and the vex in wings', () => {
+    for (const id of ['pillager', 'vindicator', 'evoker']) {
+      const names = MOB_SPECS[id].model.parts.map((p) => p.name);
+      expect(names, id).toContain('arms');
+      expect(names, id).toContain('right_arm');
+      expect(names, id).toContain('nose');
+      // the crossed arms start hidden and only show while the illager is idle
+      expect(MOB_SPECS[id].model.parts.find((p) => p.name === 'arms')!.hidden).toBe(true);
+    }
+    const vex = MOB_SPECS.vex.model.parts.map((p) => p.name);
+    expect(vex).toContain('left_wing');
+    expect(vex).toContain('right_wing');
+  });
+
+  it('sends illagers after villagers as well as the player', () => {
+    const world = {
+      mobsNear: () => [villager],
+      playerPos: () => new THREE.Vector3(0, 64, 0),
+      rng: () => 0.5,
+    } as unknown as MobWorld;
+    const villager = makeMob('villager');
+    const vindicator = makeMob('vindicator');
+    const goal = targetVillagerGoal();
+    expect(goal.canUse(vindicator, world)).toBe(true);
+    goal.tick(vindicator, world);
+    expect(vindicator.target).toBe(villager);
+    // an illager already fighting the player keeps that target
+    vindicator.target = 'player';
+    expect(goal.canUse(vindicator, world)).toBe(false);
   });
 });
