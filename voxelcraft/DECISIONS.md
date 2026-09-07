@@ -506,3 +506,19 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     both ways is what lets a run of dust light the lamp it ends at; and a change to anything that can
     move a signal wakes the neighbours of its neighbours, since that is how a charged block passes
     the news on.
+
+78. **Pistons move their line in one step, and carts ride the track vanilla lays.** A piston resolves
+    the run in front of it the way `PistonStructureResolver` does — twelve blocks at most, anything
+    soft in the way broken, anything anchored refusing to budge — and then writes the blocks in their
+    new places rather than animating them across two ticks, because nothing else in the game reads a
+    half-moved block. The piston is marked extended before its head is placed, since the head checks
+    for the piston the moment it lands. Rails take their shape from the rails beside them, level or a
+    step up or down, with only plain rail allowed to bend round a corner, and a powered rail finds
+    its signal up to eight rails along the run, which is `findPoweredRailSignal` shortened. A cart
+    snaps to the line of the rail under it and keeps to its middle; a powered rail adds 0.06 to a
+    moving cart and shoves a still one 0.02 away from a block at either end, exactly the two cases
+    vanilla splits; a detector rail powers up under a cart and holds the pulse for a second, so a
+    cart at full speed still trips it. A chest cart carries twenty-seven slots and a hopper cart
+    five, a TNT cart lights on a powered activator rail and goes off like a stick of TNT, and the
+    block a loaded cart carries is drawn inside it at three quarters size. Carts are saved with the
+    entities of the chunk they are standing in and come back when it loads.

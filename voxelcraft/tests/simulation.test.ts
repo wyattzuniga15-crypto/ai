@@ -50,6 +50,8 @@ class TestWorld implements BlockWorld {
     this.notes.push([x, y, z]);
   }
 
+  dispense(): void {}
+
   getLight(): number {
     return this.light;
   }

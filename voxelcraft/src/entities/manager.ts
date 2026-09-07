@@ -193,6 +193,8 @@ export class EntityManager {
 
   /** Called for saved entries that are items rather than mobs. */
   onRestoreItem: ((s: MobSave) => void) | null = null;
+  /** Called for saved minecarts, which the game keeps outside the mob list. */
+  onRestoreCart: ((s: MobSave) => void) | null = null;
 
   restoreChunk(cx: number, cz: number, saved: MobSave[] | null): void {
     const key = chunkKey(cx, cz);
@@ -201,6 +203,10 @@ export class EntityManager {
     for (const s of list) {
       if (s.type === 'item') {
         this.onRestoreItem?.(s);
+        continue;
+      }
+      if (s.type === 'minecart' || s.type.endsWith('_minecart')) {
+        this.onRestoreCart?.(s);
         continue;
       }
       const m = this.spawn(s.type, s.x, s.y, s.z, s.yaw);

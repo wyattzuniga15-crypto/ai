@@ -8,6 +8,8 @@ import { LAVA_DELAY, WATER_DELAY, tickFluid, type FluidWorld } from '../world/fl
 import { placeTree, type BlockAccess } from '../world/gen/features.ts';
 import { SEA_LEVEL } from '../core/constants.ts';
 import { emitted, isPowered, powerAt, updateWireNetwork, wireState } from '../world/redstone.ts';
+import { extend, retract, FACING_OFFSET } from '../world/piston.ts';
+import { railPowered, railShape } from '../world/rails.ts';
 
 export interface BlockWorld extends FluidWorld {
   /** Light level at a position (max of sky and block light). */
@@ -29,6 +31,8 @@ export interface BlockWorld extends FluidWorld {
   igniteTnt(x: number, y: number, z: number): void;
   /** Sound a note block, at the pitch and instrument its state carries. */
   playNote(x: number, y: number, z: number): void;
+  /** Fire a dispenser or drop from a dropper: the main thread has the items and the projectiles. */
+  dispense(x: number, y: number, z: number): void;
 }
 
 export interface BlockContext {
@@ -122,11 +126,43 @@ function redstoneChanged(ctx: BlockContext): void {
       if (powered) w.playNote(x, y, z);
       return;
     }
-    case 'powered_rail': case 'activator_rail': {
+    case 'piston': case 'sticky_piston': {
+      const facing = blocks.prop(ctx.state, 'facing') ?? 'up';
+      const sticky = id === 'sticky_piston';
+      const extended = blocks.prop(ctx.state, 'extended') === 'true';
+      // a piston reads the signal at itself and at the block its head would occupy, as vanilla does
+      const [fx, fy, fz] = FACING_OFFSET[facing];
+      const powered = isPowered(w, x, y, z) || isPowered(w, x + fx, y + fy, z + fz);
+      if (powered === extended) return;
+      if (powered) extend(w, x, y, z, facing, sticky);
+      else retract(w, x, y, z, facing, sticky);
+      return;
+    }
+    case 'piston_head': {
+      // the head goes when the piston behind it does
+      const facing = blocks.prop(ctx.state, 'facing') ?? 'up';
+      const [bx, by, bz] = OPPOSITE[facing];
+      const base = w.getBlock(x + bx, y + by, z + bz);
+      const baseId = base === 0 ? 'air' : blocks.blockOf(base).id;
+      if ((baseId !== 'piston' && baseId !== 'sticky_piston') || blocks.prop(base, 'extended') !== 'true') w.setBlock(x, y, z, 0);
+      return;
+    }
+    case 'dispenser': case 'dropper': {
       const powered = isPowered(w, x, y, z);
-      if (powered !== (blocks.prop(ctx.state, 'powered') === 'true')) {
-        w.setBlock(x, y, z, blocks.withProp(ctx.state, 'powered', powered ? 'true' : 'false'));
+      if (powered === (blocks.prop(ctx.state, 'triggered') === 'true')) return;
+      w.setBlock(x, y, z, blocks.withProp(ctx.state, 'triggered', powered ? 'true' : 'false'));
+      if (powered) w.schedule(x, y, z, 4);
+      return;
+    }
+    case 'rail': case 'powered_rail': case 'activator_rail': case 'detector_rail': {
+      // the track first works out which way it runs, then whether it is carrying a signal
+      const shape = railShape(w, x, y, z, id, blocks.prop(ctx.state, 'shape'));
+      let next = shape !== blocks.prop(ctx.state, 'shape') ? blocks.withProp(ctx.state, 'shape', shape) : ctx.state;
+      if (id === 'powered_rail' || id === 'activator_rail') {
+        const powered = railPowered(w, x, y, z, shape);
+        if (powered !== (blocks.prop(next, 'powered') === 'true')) next = blocks.withProp(next, 'powered', powered ? 'true' : 'false');
       }
+      if (next !== ctx.state) w.setBlock(x, y, z, next);
       return;
     }
     default:
@@ -181,6 +217,10 @@ function redstoneTick(ctx: BlockContext): void {
   if (id === 'observer') {
     // the pulse is two ticks long, as vanilla times it
     if (blocks.prop(state, 'powered') === 'true') w.setBlock(x, y, z, blocks.withProp(state, 'powered', 'false'));
+    return;
+  }
+  if (id === 'dispenser' || id === 'dropper') {
+    w.dispense(x, y, z);
     return;
   }
   if (id === 'daylight_detector') {
@@ -403,7 +443,7 @@ const behaviors: Record<string, Behavior> = {
     },
     onNeighborChanged: (ctx, nx, ny, nz) => {
       const id = ctx.def.id;
-      if (id === 'redstone_wire' || id === 'redstone_torch' || id === 'lever' || id === 'repeater' || id === 'comparator') {
+      if (id === 'redstone_wire' || id === 'redstone_torch' || id === 'lever' || id === 'repeater' || id === 'comparator' || id.endsWith('rail')) {
         needsSupportBelow(ctx, nx, ny, nz, (b) => blocks.get(b).solid);
       }
       // an observer watches one block and pulses when it changes, whatever the change was
@@ -517,7 +557,16 @@ const behaviors: Record<string, Behavior> = {
   },
 };
 
+/** A dispenser and a dropper are containers that also answer a signal. */
+const dispenserBehavior: Behavior = {
+  onUse: (ctx) => behaviors.container.onUse!(ctx),
+  onNeighborChanged: (ctx) => redstoneChanged(ctx),
+  scheduledTick: (ctx) => redstoneTick(ctx),
+};
+
 const byId: Record<string, Behavior> = {
+  dispenser: dispenserBehavior,
+  dropper: dispenserBehavior,
   lever: {
     onUse: (ctx) => {
       ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'powered', blocks.prop(ctx.state, 'powered') === 'true' ? 'false' : 'true'));

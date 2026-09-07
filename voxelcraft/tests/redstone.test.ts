@@ -93,6 +93,12 @@ class Bench implements BlockWorld {
   playNote(x: number, y: number, z: number): void {
     this.notes.push([x, y, z]);
   }
+
+  readonly dispensed: [number, number, number][] = [];
+
+  dispense(x: number, y: number, z: number): void {
+    this.dispensed.push([x, y, z]);
+  }
 }
 
 /** A run of dust along +x at y 64, on the stone floor. */
@@ -261,5 +267,80 @@ describe('redstone wiring', () => {
     expect(b.power(3, 64, 0)).toBe(0);
     expect(isPowered(b, 2, 64, 0)).toBe(true); // the block itself is powered, just not through
     expect(powerAt(b, 3, 64, 0)).toBe(0);
+  });
+});
+
+describe('pistons', () => {
+  it('shoves a line of blocks along and takes them back when it is sticky', () => {
+    const w = new Bench();
+    w.place(0, 64, 0, 'sticky_piston', { facing: 'east', extended: 'false' });
+    w.place(1, 64, 0, 'stone');
+    w.place(2, 64, 0, 'dirt');
+    w.place(-1, 64, 0, 'redstone_block');
+    w.run();
+    expect(w.prop(0, 64, 0, 'extended')).toBe('true');
+    expect(w.id(1, 64, 0)).toBe('piston_head');
+    expect(w.id(2, 64, 0)).toBe('stone'); // both blocks moved one along
+    expect(w.id(3, 64, 0)).toBe('dirt');
+
+    w.setBlock(-1, 64, 0, 0);
+    w.run();
+    expect(w.prop(0, 64, 0, 'extended')).toBe('false');
+    expect(w.id(1, 64, 0)).toBe('stone'); // the sticky head dragged the stone back
+    expect(w.id(2, 64, 0)).toBe('air');
+    expect(w.id(3, 64, 0)).toBe('dirt');
+  });
+
+  it('refuses to push what is anchored, and pushes at most twelve blocks', () => {
+    const w = new Bench();
+    w.place(0, 64, 0, 'piston', { facing: 'east', extended: 'false' });
+    w.place(1, 64, 0, 'stone');
+    w.place(2, 64, 0, 'obsidian');
+    w.place(-1, 64, 0, 'redstone_block');
+    w.run();
+    expect(w.prop(0, 64, 0, 'extended')).toBe('false'); // obsidian will not budge
+    expect(w.id(1, 64, 0)).toBe('stone');
+
+    const b = new Bench();
+    b.place(0, 64, 0, 'piston', { facing: 'east', extended: 'false' });
+    for (let x = 1; x <= 13; x++) b.place(x, 64, 0, 'stone');
+    b.place(-1, 64, 0, 'redstone_block');
+    b.run();
+    expect(b.prop(0, 64, 0, 'extended')).toBe('false'); // thirteen is one too many
+  });
+
+  it('breaks the soft thing in its way and drops its head when it is taken out', () => {
+    const w = new Bench();
+    w.place(0, 64, 0, 'piston', { facing: 'east', extended: 'false' });
+    w.place(1, 64, 0, 'stone');
+    w.place(2, 64, 0, 'torch');
+    w.place(-1, 64, 0, 'redstone_block');
+    w.run();
+    expect(w.prop(0, 64, 0, 'extended')).toBe('true');
+    expect(w.id(2, 64, 0)).toBe('stone');
+
+    // pull the piston out and its head goes with it
+    w.setBlock(0, 64, 0, 0);
+    w.run();
+    expect(w.id(1, 64, 0)).toBe('air');
+  });
+});
+
+describe('dispensers', () => {
+  it('fires once on a rising signal and waits for the next one', () => {
+    const w = new Bench();
+    w.place(0, 64, 0, 'dispenser', { facing: 'east', triggered: 'false' });
+    w.place(-1, 64, 0, 'redstone_block');
+    w.run();
+    expect(w.prop(0, 64, 0, 'triggered')).toBe('true');
+    expect(w.dispensed.length).toBe(1);
+    w.run();
+    expect(w.dispensed.length).toBe(1); // holding the signal does not fire it again
+
+    w.setBlock(-1, 64, 0, 0);
+    w.run();
+    expect(w.prop(0, 64, 0, 'triggered')).toBe('false');
+    w.place(-1, 64, 0, 'redstone_block');
+    expect(w.dispensed.length).toBe(2);
   });
 });

@@ -82,7 +82,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Fossils (bones and their coal seam buried in deserts and swamps, one chunk in 64) and woodland mansions (vanilla's own rooms laid on its eight-block grid, two floors walled and roofed, the entrance hall at the front, chests of mansion loot and the vindicators and evokers that live there)
 - [ ] Structures, last: ocean monuments (waiting on guardians)
 - [x] Redstone, first slice: the power model (sources, strong and weak signals, blocks charged by what is under them), dust networks that fall off one level a block and draw themselves the way vanilla does, torches inverting what holds them up, repeaters with their delay, comparators comparing and subtracting, levers, buttons, pressure plates (players, mobs and dropped items), observers, daylight sensors, lamps, copper bulbs, note blocks, doors and trapdoors and gates following the signal, and TNT that lights, hisses and goes off
-- [ ] Redstone, next: pistons and sticky pistons, dispensers and droppers firing, rails and minecarts, target blocks, tripwire
+- [x] Redstone, second slice: pistons and sticky pistons (vanilla's twelve-block push, soft blocks broken, anchored blocks refusing, sticky pulls), dispensers and droppers firing what they hold, rails taking their shape from their neighbours, powered rails finding a signal eight rails along, detector rails pulsing under a cart, and minecarts that are placed, ridden, loaded (chest, hopper), lit (TNT on an activator rail), broken and saved
+- [ ] Redstone, next: target blocks, tripwire hooks and string
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
 - [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)

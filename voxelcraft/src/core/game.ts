@@ -42,6 +42,8 @@ import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors
 import { BlockMeshFactory } from '../render/blockMesh.ts';
 import { FallingBlockEntity } from '../entities/fallingBlock.ts';
 import { PrimedTnt } from '../entities/primedTnt.ts';
+import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type CartKind } from '../entities/minecart.ts';
+import { FACING_OFFSET } from '../world/piston.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
 import { EntityManager, type ManagerHost } from '../entities/manager.ts';
@@ -100,6 +102,9 @@ const MOB_DEATH_SOUNDS: Record<string, string> = {
 };
 const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
 
+/** How far above a cart its rider sits, matching vanilla's minecart passenger offset. */
+const RIDE_HEIGHT = 0.06;
+
 export class Game {
   readonly renderer: GameRenderer;
   readonly world: World;
@@ -145,6 +150,11 @@ export class Game {
   readonly fallingBlocks: FallingBlockEntity[] = [];
   /** TNT that has been lit and is counting down. */
   readonly primedTnt: PrimedTnt[] = [];
+  /** Minecarts on the rails, and the one the player is sitting in. */
+  readonly minecarts: Minecart[] = [];
+  private cart: Minecart | null = null;
+  /** Detector rails a cart has crossed, with the tick it last saw one, so the pulse can be held. */
+  private readonly detectorsOn = new Map<string, number>();
   /** Pressure plates currently held down, and the tick the last thing stood on them. */
   private readonly platesDown = new Map<string, number>();
   private eating: { ticks: number; total: number; id: string } | null = null;
@@ -221,6 +231,7 @@ export class Game {
       dropItem: (id, count, x, y, z) => { this.dropStack({ id, count }, x, y, z, true); },
       igniteTnt: (x, y, z) => this.igniteTnt(x, y, z),
       playNote: (x, y, z) => this.playNote(x, y, z),
+      dispense: (x, y, z) => this.dispense(x, y, z),
     };
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
     this.world.onBlockChanged = (x, y, z, o, n) => this.simulation.onBlockChanged(x, y, z, o, n);
@@ -305,6 +316,12 @@ export class Game {
           this.itemEntities.splice(i, 1);
         }
       }
+      for (let i = this.minecarts.length - 1; i >= 0; i--) {
+        const cart = this.minecarts[i];
+        if (cart === this.cart || (Math.floor(cart.pos.x) >> 4) !== c.cx || (Math.floor(cart.pos.z) >> 4) !== c.cz) continue;
+        this.renderer.scene.remove(cart.mesh);
+        this.minecarts.splice(i, 1);
+      }
       if (mobs.length) void this.save.saveChunks(this.meta.id, [{ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: JSON.stringify(mobs) }]);
     };
     this.hud = new Hud(opts.container, this.icons);
@@ -343,6 +360,14 @@ export class Game {
     window.addEventListener('keydown', unlock);
     this.entities.onRestoreItem = (s) => {
       if (s.item) this.dropStack({ ...s.item }, s.x, s.y, s.z, false).pickupDelay = 0;
+    };
+    this.entities.onRestoreCart = (s) => {
+      const kind = cartKindFor(s.type);
+      if (!kind) return;
+      const cart = this.spawnCart(kind, s.x, s.y, s.z);
+      cart.yaw = s.yaw;
+      const saved = (s.extra as { items?: Slot[] | null } | undefined)?.items;
+      if (cart.items && Array.isArray(saved)) for (let i = 0; i < cart.items.length; i++) cart.items[i] = saved[i] ?? null;
     };
     window.addEventListener('beforeunload', this.unloadHandler);
   }
@@ -475,6 +500,7 @@ export class Game {
     const mobChunks = new Set<string>();
     for (const m of this.entities.mobs) if (!m.dead) mobChunks.add(`${Math.floor(m.pos.x) >> 4},${Math.floor(m.pos.z) >> 4}`);
     for (const e of this.itemEntities) if (!e.dead) mobChunks.add(`${Math.floor(e.pos.x) >> 4},${Math.floor(e.pos.z) >> 4}`);
+    for (const c of this.minecarts) if (!c.dead) mobChunks.add(`${Math.floor(c.pos.x) >> 4},${Math.floor(c.pos.z) >> 4}`);
     for (const c of this.world.chunks.values()) {
       const key = `${c.cx},${c.cz}`;
       if (c.modified || mobChunks.has(key)) {
@@ -513,6 +539,7 @@ export class Game {
     this.tickFallingBlocks();
     this.tickPrimedTnt();
     this.tickPressurePlates();
+    this.tickMinecarts();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -553,6 +580,7 @@ export class Game {
     const p = this.player;
     if (this.state === 'playing') this.handleHotbarKeys();
     p.tick(this.input, this.world, this.tickCount);
+    if (this.cart) this.seatCart();
     this.survivalTick();
     if (this.state === 'playing') this.interactionTick();
     for (const e of this.itemEntities) {
@@ -725,6 +753,13 @@ export class Game {
         this.useCooldown = 5;
         return;
       }
+      const cart = this.cartUnderCursor();
+      if (cart && cart !== this.cart && (!t || cart.pos.distanceTo(eye) < t.distance)) {
+        this.breakCart(cart);
+        this.breaking = null;
+        this.useCooldown = 5;
+        return;
+      }
     }
     // mining
     if (this.input.isDown('attack') && t && !p.dead) {
@@ -756,6 +791,13 @@ export class Game {
       const dir = p.lookDirection(this.tmpDir);
       const hit = this.entities.raycast(eye, dir, 3);
       if (hit && (!t || hit.distance < t.distance) && this.interactMob(hit.mob)) {
+        this.eating = null;
+        this.useCooldown = 4;
+        return;
+      }
+      const cart = this.cartUnderCursor();
+      if (cart && cart !== this.cart && !cartKindFor(p.heldItem()?.id ?? '')) {
+        this.useMinecart(cart);
         this.eating = null;
         this.useCooldown = 4;
         return;
@@ -1537,6 +1579,12 @@ export class Game {
       this.useBucket(held.id);
       return;
     }
+    const kind = cartKindFor(held.id);
+    if (kind && t) {
+      // vanilla places the cart on the rail itself, not on the face that was clicked
+      if (this.placeMinecart(kind, t.x, t.y, t.z) && p.gamemode === 'survival') p.inventory.consumeSelected();
+      return;
+    }
     if (held.id === 'bone_meal' && t) {
       if (applyBoneMeal(this.simulationWorld(), t.x, t.y, t.z, t.state)) {
         if (p.gamemode === 'survival') p.inventory.consumeSelected();
@@ -1711,6 +1759,235 @@ export class Game {
     return blocks.withProp(state, 'powered', down ? 'true' : 'false');
   }
 
+  /**
+   * A dispenser fires the first item it can, a dropper simply drops one. Vanilla has a behaviour per
+   * item; ours shoots what can be shot, lights what can be lit, and throws the rest out in front.
+   */
+  dispense(x: number, y: number, z: number): void {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0) return;
+    const def = blocks.blockOf(state);
+    if (def.id !== 'dispenser' && def.id !== 'dropper') return;
+    const entity = this.world.getBlockEntity(x, y, z) as ContainerEntity | null;
+    if (!entity || !('items' in entity)) return;
+    const slots = entity.items.map((s, i) => [s, i] as const).filter(([s]) => s && s.count > 0);
+    if (!slots.length) {
+      this.audio.play('click', { x, y, z, pitch: 0.8 });
+      return;
+    }
+    const [stack, slot] = slots[Math.floor(Math.random() * slots.length)];
+    const facing = blocks.prop(state, 'facing') ?? 'up';
+    const [dx, dy, dz] = FACING_OFFSET[facing];
+    const from = new THREE.Vector3(x + 0.5 + dx * 0.7, y + 0.5 + dy * 0.7, z + 0.5 + dz * 0.7);
+    const take = (): void => {
+      stack!.count--;
+      if (stack!.count <= 0) entity.items[slot] = null;
+      this.world.markModifiedAt(x, z);
+    };
+    // a dropper only ever drops; a dispenser uses what it can
+    if (def.id === 'dispenser') {
+      if (stack!.id === 'arrow' || stack!.id === 'spectral_arrow' || stack!.id === 'tipped_arrow') {
+        take();
+        this.entities.shootArrow(from, from.clone().add(new THREE.Vector3(dx, dy, dz).multiplyScalar(8)), 1.6, 6, true);
+        this.audio.play('bow', { x, y, z });
+        return;
+      }
+      if (stack!.id === 'flint_and_steel') {
+        const at = this.world.getBlock(x + dx, y + dy, z + dz);
+        if (blocks.blockOf(at).id === 'tnt') this.igniteTnt(x + dx, y + dy, z + dz);
+        else if (at === 0) this.world.setBlock(x + dx, y + dy, z + dz, blocks.defaultState('fire'));
+        this.audio.play('fizz', { x, y, z });
+        take();
+        return;
+      }
+      if (stack!.id === 'tnt') {
+        take();
+        this.world.setBlock(x + dx, y + dy, z + dz, blocks.defaultState('tnt'));
+        this.igniteTnt(x + dx, y + dy, z + dz);
+        return;
+      }
+    }
+    take();
+    const dropped = this.dropStack({ id: stack!.id, count: 1, ...(stack!.enchantments ? { enchantments: stack!.enchantments } : {}) }, from.x, from.y, from.z, true);
+    if (dropped) dropped.vel.set(dx * 0.3, dy * 0.3 + 0.1, dz * 0.3);
+    this.audio.play('click', { x, y, z });
+  }
+
+  /**
+   * Minecarts roll along their rails; the one being ridden takes a little push from the keys, as
+   * vanilla lets a rider nudge a cart along, and carries the player with it.
+   */
+  private tickMinecarts(): void {
+    for (let i = this.minecarts.length - 1; i >= 0; i--) {
+      const cart = this.minecarts[i];
+      let push = 0;
+      if (cart === this.cart) {
+        const forward = (this.input.isDown('forward') ? 1 : 0) - (this.input.isDown('back') ? 1 : 0);
+        if (forward !== 0) {
+          const look = this.player.lookDirection(this.tmpDir);
+          const along = look.x * cart.vel.x + look.z * cart.vel.z;
+          const heading = Math.abs(cart.vel.x) + Math.abs(cart.vel.z) > 0.01 ? Math.sign(along) : Math.sign(look.z * -1 || look.x);
+          push = 0.008 * forward * (heading || 1);
+        }
+      }
+      cart.tick(this.world, push);
+      if (cart.fuse === 0) {
+        cart.dead = true;
+        this.explodeAt(cart.pos.x, cart.pos.y + 0.5, cart.pos.z, 4, null);
+      }
+      if (cart.pos.y < WORLD_MIN_Y) cart.dead = true;
+      if (cart.dead) {
+        if (this.cart === cart) this.leaveCart();
+        this.renderer.scene.remove(cart.mesh);
+        this.minecarts.splice(i, 1);
+        continue;
+      }
+    }
+    // vanilla dismounts a rider on the sneak key, the same way it steps off a horse
+    if (this.cart && (this.input.tickPressed('sneak') || this.player.dead)) this.leaveCart();
+    this.tickDetectorRails();
+  }
+
+  /**
+   * A detector rail powers up under a cart and, as in vanilla, holds the signal for a second
+   * afterwards, so a cart at full speed still gives a usable pulse.
+   */
+  private tickDetectorRails(): void {
+    const on = new Set<string>();
+    for (const cart of this.minecarts) {
+      const bx = Math.floor(cart.pos.x);
+      const bz = Math.floor(cart.pos.z);
+      for (const by of [Math.floor(cart.pos.y), Math.floor(cart.pos.y) - 1]) {
+        const state = this.world.getBlock(bx, by, bz);
+        if (state === 0 || blocks.blockOf(state).id !== 'detector_rail') continue;
+        on.add(`${bx},${by},${bz}`);
+        break;
+      }
+    }
+    const isDetector = (x: number, y: number, z: number): number => {
+      const state = this.world.getBlock(x, y, z);
+      return state !== 0 && blocks.blockOf(state).id === 'detector_rail' ? state : 0;
+    };
+    for (const key of on) {
+      this.detectorsOn.set(key, this.tickCount);
+      const [x, y, z] = key.split(',').map(Number);
+      const state = isDetector(x, y, z);
+      if (!state || blocks.prop(state, 'powered') === 'true') continue;
+      this.world.setBlock(x, y, z, blocks.withProp(state, 'powered', 'true'));
+    }
+    for (const [key, when] of this.detectorsOn) {
+      if (on.has(key) || this.tickCount - when < 20) continue;
+      this.detectorsOn.delete(key);
+      const [x, y, z] = key.split(',').map(Number);
+      const state = isDetector(x, y, z);
+      if (!state) continue;
+      this.world.setBlock(x, y, z, blocks.withProp(state, 'powered', 'false'));
+    }
+  }
+
+  /** Seats the rider in their cart after the player has ticked, so the ride interpolates smoothly. */
+  private seatCart(): void {
+    const cart = this.cart;
+    if (!cart) return;
+    const p = this.player;
+    p.prevPos.set(cart.prev.x, cart.prev.y + RIDE_HEIGHT, cart.prev.z);
+    p.pos.set(cart.pos.x, cart.pos.y + RIDE_HEIGHT, cart.pos.z);
+    p.vel.set(0, 0, 0);
+    p.onGround = true;
+    p.fallDistance = 0;
+  }
+
+  /** Puts a cart into the world at an exact position, which is what placing and loading both need. */
+  spawnCart(kind: CartKind, x: number, y: number, z: number): Minecart {
+    const carried = CART_BLOCKS[kind];
+    const contents = carried ? this.blockMeshes.mesh(blocks.defaultState(carried)) : null;
+    const cart = new Minecart(kind, x, y, z, minecartMesh(import.meta.env.BASE_URL, contents));
+    this.minecarts.push(cart);
+    this.renderer.scene.add(cart.mesh);
+    return cart;
+  }
+
+  /** Puts a cart on the rail the player clicked, which is how a minecart item is used. */
+  placeMinecart(kind: CartKind, x: number, y: number, z: number): boolean {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0 || !blocks.blockOf(state).id.endsWith('rail')) return false;
+    this.spawnCart(kind, x + 0.5, y + 0.1, z + 0.5);
+    this.audio.play('click', { x, y, z });
+    return true;
+  }
+
+  /** The cart the player is looking at, within reach. */
+  private cartUnderCursor(): Minecart | null {
+    const eye = this.player.eyePosition(1, this.tmpEye);
+    const dir = this.player.lookDirection(this.tmpDir);
+    let best: Minecart | null = null;
+    let bestDist = BLOCK_REACH;
+    for (const cart of this.minecarts) {
+      const to = cart.pos.clone().add(new THREE.Vector3(0, 0.35, 0)).sub(eye);
+      const along = to.dot(dir);
+      if (along <= 0 || along > bestDist) continue;
+      if (to.clone().addScaledVector(dir, -along).length() > 0.8) continue;
+      best = cart;
+      bestDist = along;
+    }
+    return best;
+  }
+
+  /** Sits the player in a cart, or opens the chest one. */
+  private useMinecart(cart: Minecart): void {
+    if (cart.items) {
+      this.openCartChest(cart);
+      return;
+    }
+    if (this.mount) this.dismount();
+    if (this.cart && this.cart !== cart) this.leaveCart();
+    this.cart = cart;
+    cart.ridden = true;
+    this.player.riding = true;
+    this.seatCart();
+  }
+
+  /** A chest or hopper cart carries its own inventory, shown in the matching screen. */
+  private openCartChest(cart: Minecart): void {
+    const contents = cart.items;
+    if (!contents) return;
+    const inv = this.player.inventory;
+    const screen = cart.kind === 'hopper_minecart'
+      ? hopperScreen(inv, contents)
+      : chestScreen(inv, contents, 3, 'Minecart with Chest');
+    this.openScreen(screen);
+  }
+
+  /** Steps out of the cart, putting the player back beside it. */
+  private leaveCart(): void {
+    const cart = this.cart;
+    if (!cart) return;
+    cart.ridden = false;
+    this.cart = null;
+    const p = this.player;
+    p.riding = false;
+    p.vel.set(0, 0, 0);
+    for (const [dx, dz] of [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9], [0, 0]]) {
+      const x = cart.pos.x + dx;
+      const z = cart.pos.z + dz;
+      if (p.fitsAt(this.world, x, cart.pos.y + 0.2, z)) {
+        p.teleport(x, cart.pos.y + 0.2, z);
+        return;
+      }
+    }
+    p.teleport(cart.pos.x, cart.pos.y + 0.6, cart.pos.z);
+  }
+
+  /** Breaking a cart: it drops its item and everything it was carrying, as vanilla does. */
+  private breakCart(cart: Minecart): void {
+    cart.dead = true;
+    if (this.player.gamemode !== 'creative') {
+      this.dropStack({ id: CART_ITEMS[cart.kind], count: 1 }, cart.pos.x, cart.pos.y + 0.3, cart.pos.z, true);
+      for (const slot of cart.items ?? []) if (slot) this.dropStack(cloneStack(slot), cart.pos.x, cart.pos.y + 0.3, cart.pos.z, true);
+    }
+    this.audio.play('click', { x: cart.pos.x, y: cart.pos.y, z: cart.pos.z });
+  }
+
   private tickPrimedTnt(): void {
     for (let i = this.primedTnt.length - 1; i >= 0; i--) {
       const e = this.primedTnt[i];
@@ -1765,6 +2042,10 @@ export class Game {
     for (const e of this.itemEntities) {
       if (e.dead || (Math.floor(e.pos.x) >> 4) !== cx || (Math.floor(e.pos.z) >> 4) !== cz) continue;
       list.push({ type: 'item', x: e.pos.x, y: e.pos.y, z: e.pos.z, yaw: 0, health: 0, age: e.age, item: { ...e.stack } });
+    }
+    for (const cart of this.minecarts) {
+      if (cart.dead || (Math.floor(cart.pos.x) >> 4) !== cx || (Math.floor(cart.pos.z) >> 4) !== cz) continue;
+      list.push({ type: cart.kind, x: cart.pos.x, y: cart.pos.y, z: cart.pos.z, yaw: cart.yaw, health: 0, age: 0, extra: { items: cart.items ?? null } });
     }
     return list;
   }
@@ -2694,6 +2975,7 @@ export class Game {
     for (const e of this.itemEntities) e.updateSprite(alpha, partialTime / 20);
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
     for (const e of this.primedTnt) e.updateMesh(alpha);
+    for (const e of this.minecarts) e.updateMesh(alpha);
     mobFireAssets.viewYaw = this.player.yaw;
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
     this.particles.render(alpha, this.renderer.canvas.height, (x, y, z) => this.brightnessAt(x, y, z));
