@@ -126,6 +126,16 @@ const SOUNDS: Record<string, Synth> = {
   guardian: (c, o, p, t) => { tone(c, o, t, 'sine', 220, 130, 0.5, 0.16, p); burst(c, o, t, 'bandpass', 600, 3, 0.05, 0.45, 0.12, p); },
   guardian_attack: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 260, 700, 0.7, 0.12, p, 0.2); burst(c, o, t, 'bandpass', 1200, 6, 0.2, 0.5, 0.08, p); },
   guardian_hurt: (c, o, p, t) => { tone(c, o, t, 'square', 900, 200, 0.2, 0.18, p); burst(c, o, t, 'highpass', 2000, 1, 0.005, 0.2, 0.2, p); },
+  // the Nether's voices: a blaze's crackle, a ghast's cry, piglins and hoglins snorting
+  blaze: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1800, 2, 0.02, 0.4, 0.1, p); tone(c, o, t, 'sawtooth', 300, 200, 0.3, 0.06, p); },
+  blaze_shoot: (c, o, p, t) => { burst(c, o, t, 'highpass', 2500, 1, 0.005, 0.25, 0.18, p); tone(c, o, t, 'square', 700, 300, 0.2, 0.1, p); },
+  ghast: (c, o, p, t) => { tone(c, o, t, 'sine', 500, 260, 1.1, 0.2, p, 0.1); tone(c, o, t + 0.15, 'sine', 380, 200, 0.9, 0.12, p, 0.1); },
+  ghast_warn: (c, o, p, t) => tone(c, o, t, 'sine', 700, 900, 0.5, 0.15, p, 0.1),
+  ghast_shoot: (c, o, p, t) => { burst(c, o, t, 'lowpass', 900, 1, 0.01, 0.4, 0.22, p); tone(c, o, t, 'sawtooth', 200, 90, 0.35, 0.14, p); },
+  piglin: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 240, 150, 0.2, 0.14, p); burst(c, o, t, 'bandpass', 800, 2, 0.01, 0.18, 0.12, p); },
+  hoglin: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 170, 110, 0.35, 0.18, p); burst(c, o, t, 'lowpass', 500, 1.5, 0.02, 0.3, 0.14, p); },
+  strider: (c, o, p, t) => { tone(c, o, t, 'triangle', 420, 300, 0.3, 0.12, p); burst(c, o, t, 'bandpass', 1100, 2, 0.02, 0.25, 0.07, p); },
+  magma_cube: (c, o, p, t) => { burst(c, o, t, 'lowpass', 600, 1, 0.01, 0.25, 0.18, p); tone(c, o, t, 'sine', 150, 90, 0.2, 0.1, p); },
   elder_guardian_curse: (c, o, p, t) => { tone(c, o, t, 'sine', 160, 60, 1.2, 0.22, p, 0.15); tone(c, o, t + 0.1, 'sawtooth', 90, 40, 1.1, 0.12, p, 0.2); },
   // bees: a wing buzz, an angrier one and the sting; plus filling a bottle at a hive
   bee: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 240, 220, 0.5, 0.06, p); tone(c, o, t, 'square', 120, 110, 0.5, 0.04, p); },

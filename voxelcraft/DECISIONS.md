@@ -756,3 +756,26 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     vanilla's `0x330808` fog over everything and carries vanilla's ambient light of 0.1 laid over
     the brightness curve, so its caverns are gloomy rather than pitch black. Nothing spawns down
     there yet: its mobs come with the fortress, and overworld animals have no business in it.
+
+97. **The Nether's own mobs.** Ten more, and every model transcribed from vanilla and then checked
+    against its texture rather than trusted: laying each box's net over the artwork put the piglin's
+    ten-wide head, its snout, tusks and both ears exactly where the skin has them, the blaze's head
+    and rod, the magma cube's eight flat slices and its core, and the strider's body and legs. Where
+    the texture could not settle it — the ghast, which is opaque across its whole net — vanilla's
+    own numbers stand: a sixteen-block body with nine tentacles of vanilla's lengths, drawn at the
+    4.5 the ghast renderer scales by.
+
+    Their behaviour is vanilla's where vanilla states it. A piglin takes offence at a player with no
+    gold on and leaves one wearing it alone until it is hit, which is the whole of the truce; a
+    brute never cares either way. A blaze holds still, charges, and looses a round of three
+    fireballs six ticks apart before a long pause, and only ever at something it can see. A ghast
+    howls, charges for forty ticks and spits. Striders walk on top of their lava sea rather than
+    sinking into it, and shiver when they end up ashore. Everything born down there is fireproof,
+    and they spawn at any light level, as vanilla's nether monsters do, on vanilla's own per-biome
+    lists — hoglins and piglins in the crimson forest, endermen and striders in the warped, ghasts
+    and skeletons in the soul sand valley, magma cubes in the deltas, zombified piglins everywhere.
+
+    One vanilla rule was missing and is now in: standing in the portal you arrived in holds its
+    cooldown up rather than counting it down, so a traveller has to step out before the way back
+    opens. Without it a player who arrives and stands still is sent home five minutes later, which
+    is exactly what the first run of the Nether did.

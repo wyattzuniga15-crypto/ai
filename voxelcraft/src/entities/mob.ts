@@ -32,9 +32,13 @@ export interface MobStats {
   aquatic?: boolean;
   /** Phantoms: no gravity, fly toward 3D move targets. */
   flying?: boolean;
+  /** Nether mobs: lava and fire do nothing to them. */
+  fireproof?: boolean;
+  /** Striders: lava carries them rather than swallowing them. */
+  walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -51,6 +55,8 @@ export interface MobWorld extends BlockSource {
   playerTargetable(): boolean;
   /** Whether the player is invisible, which shortens how far a mob can see them. */
   playerInvisible?(): boolean;
+  /** Whether the player is wearing gold, which piglins take as a sign to leave them be. */
+  playerWearsGold?(): boolean;
   /** Status effect applied to the player by a mob attack or arrow. */
   addPlayerEffect(id: string, ticks: number, amplifier?: number): void;
   /** Sets the player on fire (burning zombies pass their flames on). */
@@ -322,6 +328,7 @@ export class Mob {
     this.inWater = isFluidAt(w, this.pos.x, this.pos.y + 0.2, this.pos.z, 'water');
     // sunlight
     if (this.def.burnsInSun && w.isDay() && !this.inWater && w.getSkyLight(Math.floor(this.pos.x), Math.floor(this.pos.y + this.def.eyeHeight), Math.floor(this.pos.z)) >= 15 && w.rng() < 0.8) this.fireTicks = Math.max(this.fireTicks, 160);
+    if (this.def.fireproof) this.fireTicks = 0; // the Nether's own take no harm from either
     if (this.fireTicks > 0) {
       this.fireTicks--;
       if (this.inWater) this.fireTicks = 0;
@@ -329,7 +336,7 @@ export class Mob {
       if (this.dead) return;
     }
     // lava
-    if (isFluidAt(w, this.pos.x, this.pos.y + 0.2, this.pos.z, 'lava')) {
+    if (!this.def.fireproof && isFluidAt(w, this.pos.x, this.pos.y + 0.2, this.pos.z, 'lava')) {
       this.hurt(4, null, 'other', 0);
       this.fireTicks = 300;
       if (this.dead) return;
@@ -460,6 +467,13 @@ export class Mob {
       this.vel.y -= 0.02;
     } else if (this.def.flapping && this.vel.y < -0.1 && !this.onGround) {
       this.vel.y = -0.1;
+    }
+    // striders walk on their lava sea rather than sinking into it, as vanilla lets them
+    if (this.def.walksOnLava && isFluidAt(w, this.pos.x, this.pos.y + 0.1, this.pos.z, 'lava')) {
+      const surface = Math.floor(this.pos.y + 0.1) + 1;
+      this.pos.y = surface;
+      this.vel.y = Math.max(0, this.vel.y);
+      this.onGround = true;
     }
     const box = this.aabb();
     const before = { x: this.pos.x, z: this.pos.z };
@@ -858,6 +872,37 @@ export class Mob {
         } else if (eye) {
           eye.position.set(0, 0, 0);
         }
+        break;
+      }
+      case 'blaze': {
+        // vanilla turns three rings of rods about the blaze at radius nine, seven and five
+        const t = (this.age + alpha) * 0.1;
+        for (let i = 0; i < 12; i++) {
+          const rod = parts.get(`rod${i}`);
+          if (!rod) continue;
+          const ring = Math.floor(i / 4);
+          const radius = [9, 7, 5][ring];
+          const speed = [-0.1, 0.03, -0.05][ring];
+          const height = [-2, 2, 11][ring];
+          const angle = (ring === 1 ? Math.PI / 4 : ring === 2 ? 0.4712 : 0) + i + (this.age + alpha) * Math.PI * speed;
+          rod.position.set(-Math.cos(angle) * radius, -(height + Math.cos(i * 2 + t * 2.5)), Math.sin(angle) * radius);
+        }
+        break;
+      }
+      case 'ghast': {
+        // the tentacles sway under the body, each on its own beat
+        for (let i = 0; i < 9; i++) {
+          const arm = parts.get(`tentacle${i}`);
+          if (arm) arm.rotation.x = 0.2 * Math.sin((this.age + alpha) * 0.3 + i) + 0.4;
+        }
+        break;
+      }
+      case 'strider': {
+        // long legs striding, and the body rocking with them
+        set('right_leg', legA * 1.2);
+        set('left_leg', legB * 1.2);
+        const body = parts.get('body');
+        if (body) body.rotation.z = Math.cos(swing * 0.6662) * 0.08 * amt;
         break;
       }
       case 'phantom': {

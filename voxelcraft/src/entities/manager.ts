@@ -396,7 +396,8 @@ export class EntityManager {
     // drowned spawn inside water in ocean and river biomes; everything else needs air on solid ground
     const inWater = centre !== 0 && blocks.blockOf(centre).id === 'water';
     if (inWater && biome?.category !== 'ocean' && biome?.category !== 'river') return;
-    const type = inWater ? 'drowned' : pickHostile(h.rng, biome, y, isSlimeChunk(cx, cz, h.seed), h.moonBrightness?.() ?? 1);
+    const nether = biome?.dimension === 'nether';
+    const type = inWater && !nether ? 'drowned' : pickHostile(h.rng, biome, y, isSlimeChunk(cx, cz, h.seed), h.moonBrightness?.() ?? 1);
     const stats = mobStats(type)!;
     const packSize = type === 'creeper' || type === 'enderman' ? 1 : 1 + Math.floor(h.rng() * 4);
     const p = h.playerPos();
@@ -411,17 +412,24 @@ export class EntityManager {
       const at = h.getBlock(Math.floor(px), py, Math.floor(pz));
       const above = h.getBlock(Math.floor(px), py + 1, Math.floor(pz));
       const isWater = (s: number) => s !== 0 && blocks.blockOf(s).id === 'water';
+      const isLava = (s: number) => s !== 0 && blocks.blockOf(s).id === 'lava';
       if (inWater) {
         if (!isWater(at) || (above !== 0 && !isWater(above))) continue;
+      } else if (type === 'strider') {
+        // striders come up out of the lava they live on
+        if (!isLava(below) || at !== 0 || above !== 0) continue;
       } else {
         if (!blocks.blockOf(below).solid || blocks.blockOf(below).behavior === 'fluid') continue;
         if (at !== 0 || above !== 0) continue;
       }
       const bx = Math.floor(px);
       const bz = Math.floor(pz);
-      if (h.getBlockLight(bx, py, bz) > 0) continue;
-      const raw = Math.max(h.getBlockLight(bx, py, bz), h.getSkyLight(bx, py, bz) - h.skyDarken());
-      if (raw > Math.floor(h.rng() * 8)) continue;
+      // vanilla's nether mobs come out whatever the light is; everything else needs the dark
+      if (!nether) {
+        if (h.getBlockLight(bx, py, bz) > 0) continue;
+        const raw = Math.max(h.getBlockLight(bx, py, bz), h.getSkyLight(bx, py, bz) - h.skyDarken());
+        if (raw > Math.floor(h.rng() * 8)) continue;
+      }
       if (!Mob.fits(h, stats, px, py, pz)) continue;
       this.spawn(type, px, py, pz, h.rng() * Math.PI * 2);
       spawned++;

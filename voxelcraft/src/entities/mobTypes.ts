@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { BEE_FLOWER_IDS, avoidCatsGoal, elderCurseGoal, guardianGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { BEE_FLOWER_IDS, avoidCatsGoal, blazeGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -484,6 +484,98 @@ function guardianModel(texture: string): ModelDef {
   };
 }
 
+/**
+ * Vanilla's piglin: a biped with its own wide head, snout, tusks and the two ears that flap as it
+ * walks. Piglin brutes and zombified piglins are the same model on their own skins.
+ */
+function piglinModel(texture: string): ModelDef {
+  return {
+    texture, texW: 64, texH: 64,
+    parts: [
+      { name: 'head', pivot: [0, 0, 0], boxes: [
+        { uv: [0, 0], box: [-5, -8, -4, 10, 8, 8] },
+        { uv: [31, 1], box: [-2, -4, -5, 4, 4, 1] }, // the snout
+        { uv: [2, 4], box: [2, -2, -6, 1, 2, 1] }, // and its tusks
+        { uv: [2, 0], box: [-3, -2, -6, 1, 2, 1] },
+      ] },
+      { name: 'right_ear', parent: 'head', pivot: [-4.5, -6, 0], rotation: [0, 0, -0.5236], boxes: [{ uv: [39, 6], box: [-1, 0, -2, 1, 5, 4] }] },
+      { name: 'left_ear', parent: 'head', pivot: [4.5, -6, 0], rotation: [0, 0, 0.5236], boxes: [{ uv: [50, 6], box: [0, 0, -2, 1, 5, 4] }] },
+      { name: 'body', pivot: [0, 0, 0], boxes: [{ uv: [16, 16], box: [-4, 0, -2, 8, 12, 4] }] },
+      { name: 'right_arm', pivot: [-5, 2, 0], boxes: [{ uv: [40, 16], box: [-3, -2, -2, 4, 12, 4] }] },
+      { name: 'left_arm', pivot: [5, 2, 0], boxes: [{ uv: [40, 16], box: [-1, -2, -2, 4, 12, 4], mirror: true }] },
+      { name: 'right_leg', pivot: [-1.9, 12, 0], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 12, 4] }] },
+      { name: 'left_leg', pivot: [1.9, 12, 0], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 12, 4], mirror: true }] },
+    ],
+  };
+}
+
+/** The blaze: a head with twelve rods turning around it in three rings, as vanilla arranges them. */
+const blazeModel: ModelDef = {
+  texture: 'blaze.png', texW: 64, texH: 32,
+  parts: [
+    { name: 'head', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-4, -4, -4, 8, 8, 8] }] },
+    ...Array.from({ length: 12 }, (_, i) => ({
+      name: `rod${i}`,
+      pivot: [0, 0, 0] as [number, number, number],
+      boxes: [{ uv: [0, 16] as [number, number], box: [0, 0, 0, 2, 8, 2] as [number, number, number, number, number, number] }],
+    })),
+  ],
+};
+
+/** The magma cube: vanilla's eight flat slices around a small core, which part as it hops. */
+const magmaCubeModel: ModelDef = {
+  texture: 'slime/magmacube.png', texW: 64, texH: 64,
+  parts: [
+    ...Array.from({ length: 8 }, (_, i) => ({
+      name: `slice${i}`,
+      pivot: [0, 0, 0] as [number, number, number],
+      boxes: [{ uv: [(i % 2) * 32, Math.floor(i / 2) * 9] as [number, number], box: [-4, 16 + i, -4, 8, 1, 8] as [number, number, number, number, number, number] }],
+    })),
+    { name: 'core', pivot: [0, 0, 0], boxes: [{ uv: [24, 40], box: [-2, 18, -2, 4, 4, 4] }] },
+  ],
+};
+
+/** The ghast: a cube with nine tentacles of vanilla's own lengths hanging off it. */
+const GHAST_TENTACLES = [11, 9, 14, 8, 12, 10, 13, 9, 11];
+const ghastModel: ModelDef = {
+  texture: 'ghast/ghast.png', texW: 64, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 17.6, 0], boxes: [{ uv: [0, 0], box: [-8, -8, -8, 16, 16, 16] }] },
+    ...GHAST_TENTACLES.map((len, i) => ({
+      name: `tentacle${i}`,
+      pivot: [((i % 3) - 1) * 5, 24.6, (Math.floor(i / 3) - 1) * 5] as [number, number, number],
+      boxes: [{ uv: [0, 0] as [number, number], box: [-1, 0, -1, 2, len, 2] as [number, number, number, number, number, number] }],
+    })),
+  ],
+};
+
+/** The hoglin and the zoglin it turns into: vanilla's boxy body, wide head, ears and four thick legs. */
+function hoglinModel(texture: string): ModelDef {
+  return {
+    texture, texW: 128, texH: 64,
+    parts: [
+      { name: 'body', pivot: [0, 7, 0], boxes: [{ uv: [1, 1], box: [-8, -7, -13, 16, 14, 26] }] },
+      { name: 'head', pivot: [0, 2, -12], boxes: [{ uv: [61, 1], box: [-7, -3, -19, 14, 6, 19] }] },
+      { name: 'right_ear', parent: 'head', pivot: [-6, 0, -15], rotation: [0, 0, -0.6981], boxes: [{ uv: [1, 1], box: [-6, -1, -2, 6, 1, 4] }] },
+      { name: 'left_ear', parent: 'head', pivot: [6, 0, -15], rotation: [0, 0, 0.6981], boxes: [{ uv: [1, 6], box: [0, -1, -2, 6, 1, 4] }] },
+      { name: 'right_front_leg', pivot: [-4, 10, -8], boxes: [{ uv: [42, 42], box: [-3, 0, -3, 6, 14, 6] }] },
+      { name: 'left_front_leg', pivot: [4, 10, -8], boxes: [{ uv: [42, 42], box: [-3, 0, -3, 6, 14, 6], mirror: true }] },
+      { name: 'right_hind_leg', pivot: [-5.5, 10, 8], boxes: [{ uv: [66, 42], box: [-2.5, 0, -2.5, 5, 14, 5] }] },
+      { name: 'left_hind_leg', pivot: [5.5, 10, 8], boxes: [{ uv: [66, 42], box: [-2.5, 0, -2.5, 5, 14, 5], mirror: true }] },
+    ],
+  };
+}
+
+/** The strider: a fuzzy body on two long legs, which is the whole of it. */
+const striderModel: ModelDef = {
+  texture: 'strider/strider.png', texW: 64, texH: 128,
+  parts: [
+    { name: 'body', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-8, -8, -8, 16, 14, 16] }] },
+    { name: 'right_leg', pivot: [-4, 6, 0], boxes: [{ uv: [0, 32], box: [-2, 0, -2, 4, 18, 4] }] },
+    { name: 'left_leg', pivot: [4, 6, 0], boxes: [{ uv: [0, 55], box: [-2, 0, -2, 4, 18, 4] }] },
+  ],
+};
+
 /** Bee skins: angry and nectar-carrying bees swap texture like vanilla's four variants. */
 export function beeTexture(angry: boolean, nectar: boolean): string {
   return `bee/bee${angry ? '_angry' : ''}${nectar ? '_nectar' : ''}.png`;
@@ -560,6 +652,8 @@ interface MobSpec {
   loot?: string;
   scale?: number;
   aquatic?: boolean;
+  fireproof?: boolean;
+  walksOnLava?: boolean;
   flying?: boolean;
   /** mobs.json entry to read stats from when it differs from the spec id (slime sizes). */
   data?: string;
@@ -658,6 +752,18 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // guardians live in the water and shoot rather than bite; the elder is the same mob at 2.35 scale
   guardian: { model: guardianModel('guardian.png'), animation: 'guardian', eyeHeight: 0.425, followRange: 16, aquatic: true, goals: () => [loseTargetGoal(), targetPlayerGoal(16), guardianGoal()] },
   elder_guardian: { model: guardianModel('guardian_elder.png'), animation: 'guardian', eyeHeight: 1, followRange: 16, aquatic: true, scale: 2.35, goals: () => [elderCurseGoal(), loseTargetGoal(), targetPlayerGoal(16), guardianGoal()] },
+  // the Nether's own: piglins take offence unless the player is wearing gold, hoglins charge on sight
+  zombified_piglin: { model: piglinModel('piglin/zombified_piglin.png'), animation: 'biped', eyeHeight: 1.79, followRange: 35, fireproof: true, goals: () => [floatGoal, loseTargetGoal(), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  piglin: { model: piglinModel('piglin/piglin.png'), animation: 'biped', eyeHeight: 1.79, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), piglinAngerGoal(), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  piglin_brute: { model: piglinModel('piglin/piglin_brute.png'), animation: 'biped', eyeHeight: 1.79, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  hoglin: { model: hoglinModel('hoglin/hoglin.png'), animation: 'quadruped', eyeHeight: 1.4, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), meleeAttackGoal(0.4), wanderGoal(120, 0.8), lookAtPlayerGoal(8), randomLookGoal] },
+  zoglin: { model: hoglinModel('hoglin/zoglin.png'), animation: 'quadruped', eyeHeight: 1.4, followRange: 16, data: 'zoglin', fireproof: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), meleeAttackGoal(0.4), wanderGoal(120, 0.8), lookAtPlayerGoal(8), randomLookGoal] },
+  strider: { model: striderModel, animation: 'strider', eyeHeight: 1.5, followRange: 16, fireproof: true, walksOnLava: true, goals: () => [striderGoal(), lookAtPlayerGoal(8), randomLookGoal] },
+  blaze: { model: blazeModel, animation: 'blaze', eyeHeight: 1.5, followRange: 48, flying: true, fireproof: true, goals: () => [loseTargetGoal(), targetPlayerGoal(48), blazeGoal()] },
+  ghast: { model: ghastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 64, flying: true, fireproof: true, scale: 4.5, override: { health: 10, damage: 6 }, goals: () => [loseTargetGoal(), targetPlayerGoal(64), ghastGoal()] },
+  magma_cube: { model: magmaCubeModel, animation: 'slime', eyeHeight: 0.325, followRange: 16, fireproof: true, scale: 1, override: { width: 0.52, height: 0.52, health: 1, damage: 3, xp: 1 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
+  magma_cube_medium: { model: magmaCubeModel, animation: 'slime', eyeHeight: 0.65, followRange: 16, fireproof: true, scale: 2, data: 'magma_cube', loot: 'magma_cube', override: { width: 1.04, height: 1.04, health: 4, damage: 4, xp: 2 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
+  magma_cube_big: { model: magmaCubeModel, animation: 'slime', eyeHeight: 1.3, followRange: 16, fireproof: true, scale: 4, data: 'magma_cube', loot: 'magma_cube', override: { width: 2.08, height: 2.08, health: 16, damage: 6, xp: 4 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
 };
 
 /** Villagers wander, watch the player, flee monsters and look for a job site block. */
@@ -740,6 +846,8 @@ export function mobStats(id: string): MobStats | null {
     climbs: spec.climbs,
     flapping: spec.flapping,
     aquatic: spec.aquatic,
+    fireproof: spec.fireproof,
+    walksOnLava: spec.walksOnLava,
     flying: spec.flying,
     model: spec.model,
     animation: spec.animation,
@@ -769,7 +877,35 @@ export function isSlimeChunk(cx: number, cz: number, seed: number): boolean {
 }
 
 /** Picks a monster for a natural spawn attempt following vanilla biome rules. */
+/**
+ * Vanilla's nether spawn lists, by biome: the wastes are mostly zombified piglins with ghasts,
+ * magma cubes and the odd enderman, the crimson forest is piglins and hoglins, the warped forest
+ * only endermen, the soul sand valley skeletons and ghasts, and the deltas magma cubes.
+ */
+const NETHER_WEIGHTS: Record<string, [string, number][]> = {
+  nether_wastes: [['zombified_piglin', 50], ['ghast', 50], ['magma_cube', 2], ['enderman', 1], ['piglin', 15]],
+  crimson_forest: [['zombified_piglin', 1], ['hoglin', 9], ['piglin', 5]],
+  warped_forest: [['enderman', 1], ['strider', 60]],
+  soul_sand_valley: [['skeleton', 20], ['ghast', 50], ['enderman', 1], ['strider', 60]],
+  basalt_deltas: [['ghast', 40], ['magma_cube', 100], ['strider', 60]],
+};
+
+/** One of a nether biome's own mobs, on vanilla's weights. */
+export function pickNether(rng: () => number, biome: BiomeDef | undefined): string {
+  const list = NETHER_WEIGHTS[biome?.id ?? ''] ?? NETHER_WEIGHTS.nether_wastes;
+  let total = 0;
+  for (const [, w] of list) total += w;
+  let r = rng() * total;
+  for (const [t, w] of list) {
+    r -= w;
+    if (r < 0) return t === 'magma_cube' ? MAGMA_SIZES[Math.floor(rng() * 3)] : t;
+  }
+  return list[0][0];
+}
+const MAGMA_SIZES = ['magma_cube', 'magma_cube_medium', 'magma_cube_big'];
+
 export function pickHostile(rng: () => number, biome: BiomeDef | undefined, y: number, slimeChunk: boolean, moon = 1): string {
+  if (biome?.dimension === 'nether') return pickNether(rng, biome);
   if (slimeChunk && y < 40 && rng() < 0.5) return SLIME_SIZES[Math.floor(rng() * 3)];
   // vanilla only lets swamp slimes out by the light of the moon, and the fuller it is the more come
   if (biome?.category === 'swamp' && y >= 50 && y <= 70 && rng() < 0.5 && rng() < moon) return SLIME_SIZES[Math.floor(rng() * 3)];

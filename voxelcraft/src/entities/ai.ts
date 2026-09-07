@@ -1157,4 +1157,132 @@ export const elderCurseGoal = (): Goal => ({
   },
 });
 
+// ---------------------------------------------------------------------------------------------
+// Nether mobs
+// ---------------------------------------------------------------------------------------------
+/**
+ * Vanilla's blaze: it hangs in the air over its fortress, and once it has a target it charges three
+ * fireballs, pausing between rounds. It cannot be knocked out of the sky and it never lands.
+ */
+export const blazeGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    if (!targetAlive(m, w) || m.target === null) {
+      // drifting: vanilla's blaze bobs about where it spawned
+      if (!m.moveTarget || w.rng() < 0.02) {
+        m.moveTarget = new THREE.Vector3(m.pos.x + (w.rng() * 2 - 1) * 6, m.pos.y + (w.rng() * 2 - 1) * 3, m.pos.z + (w.rng() * 2 - 1) * 6);
+        m.moveSpeed = 0.8;
+        m.moveTimeout = 80;
+      }
+      m.extra.charge = 0;
+      return;
+    }
+    const eye = targetEye(m, w);
+    m.lookTarget = eye;
+    const d = m.distanceTo(eye);
+    // it keeps its distance and only shoots what it can see
+    if (d > 12) {
+      m.moveTarget = eye.clone();
+      m.moveSpeed = 1;
+      m.moveTimeout = 40;
+    } else if (d < 5) {
+      m.moveTarget = m.pos.clone().add(m.pos.clone().sub(eye).setLength(4));
+      m.moveSpeed = 1;
+      m.moveTimeout = 20;
+    } else m.moveTarget = null;
+    if (!w.lineOfSight(m.eyePos(), eye)) return;
+    const charge = (typeof m.extra.charge === 'number' ? m.extra.charge : 0) + 1;
+    m.extra.charge = charge;
+    // vanilla: a round of three fireballs, six ticks apart, then a long pause
+    const round = charge % 60;
+    if (round === 20 || round === 26 || round === 32) {
+      w.shootArrow(m.eyePos(), eye, 0.9, m.def.damage, undefined);
+      w.playSound('blaze_shoot', m.pos.x, m.pos.y, m.pos.z);
+    }
+  },
+});
+
+/**
+ * Vanilla's ghast: it drifts high up and spits a fireball every few seconds at whatever it can see,
+ * charging with an audible warning first.
+ */
+export const ghastGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    if (!m.moveTarget || w.rng() < 0.01) {
+      m.moveTarget = new THREE.Vector3(m.pos.x + (w.rng() * 2 - 1) * 16, m.pos.y + (w.rng() * 2 - 1) * 6, m.pos.z + (w.rng() * 2 - 1) * 16);
+      m.moveSpeed = 0.6;
+      m.moveTimeout = 120;
+    }
+    if (!targetAlive(m, w) || m.target === null) {
+      m.extra.charge = 0;
+      return;
+    }
+    const eye = targetEye(m, w);
+    m.lookTarget = eye;
+    if (m.distanceTo(eye) > 64 || !w.lineOfSight(m.eyePos(), eye)) {
+      m.extra.charge = 0;
+      return;
+    }
+    // vanilla charges for twenty ticks, howls, then lets the fireball go
+    const charge = (typeof m.extra.charge === 'number' ? m.extra.charge : 0) + 1;
+    m.extra.charge = charge;
+    if (charge === 1) w.playSound('ghast_warn', m.pos.x, m.pos.y, m.pos.z);
+    if (charge < 40) return;
+    m.extra.charge = 0;
+    w.shootArrow(m.eyePos(), eye, 0.6, 6, undefined);
+    w.playSound('ghast_shoot', m.pos.x, m.pos.y, m.pos.z);
+  },
+});
+
+/**
+ * Piglins and hoglins: piglins leave a player wearing gold alone, as vanilla's do, and hoglins keep
+ * away from warped fungus. Both charge whatever they have decided to hate.
+ */
+export const piglinAngerGoal = (): Goal => ({
+  flags: FLAG_TARGET,
+  canUse: (m, w) => {
+    if (m.target) return false;
+    if (!w.playerTargetable()) return false;
+    if (m.distanceTo(w.playerPos()) > m.def.followRange) return false;
+    // vanilla: gold armour keeps a piglin calm unless it has already been hit
+    if (m.age - m.lastHurtTime > 100 && w.playerWearsGold?.()) return false;
+    return w.lineOfSight(m.eyePos(), w.playerEye());
+  },
+  tick: (m) => {
+    m.target = 'player';
+  },
+});
+
+/**
+ * Striders walk on lava and shiver on land, as vanilla's do: they wander over the sea they live on
+ * and head back to it if they end up ashore.
+ */
+export const striderGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: () => true,
+  tick: (m, w) => {
+    const onLava = isLavaAt(w, m.pos.x, m.pos.y - 0.2, m.pos.z);
+    m.extra.cold = !onLava;
+    if (m.moveTarget && w.rng() > 0.02) return;
+    for (let i = 0; i < 10; i++) {
+      const x = m.pos.x + (w.rng() * 2 - 1) * 8;
+      const z = m.pos.z + (w.rng() * 2 - 1) * 8;
+      // a strider looks for more of its lava sea, and settles for anything solid when ashore
+      if (!isLavaAt(w, x, m.pos.y - 0.2, z) && onLava) continue;
+      m.moveTarget = new THREE.Vector3(x, m.pos.y, z);
+      m.moveSpeed = onLava ? 1 : 0.6;
+      m.moveTimeout = 100;
+      return;
+    }
+  },
+});
+
+const isLavaAt = (w: MobWorld, x: number, y: number, z: number) => {
+  const s = w.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+  return s !== 0 && blocks.blockOf(s).id === 'lava';
+};
+
 export { FLAG_MOVE as _FLAG_MOVE };

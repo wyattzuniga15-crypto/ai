@@ -329,6 +329,8 @@ export class Game {
       playerLookDir: () => this.player.lookDirection(),
       playerTargetable: () => !this.player.dead && this.player.gamemode === 'survival',
       playerInvisible: () => this.player.effects.level('invisibility') > 0,
+      // vanilla: a single piece of gold armour is enough to keep a piglin from taking offence
+      playerWearsGold: () => this.player.inventory.armor.some((a) => a?.id.startsWith('golden_')),
       hurtPlayer: (amount, from, source) => {
         this.hurtByMob(amount, from);
         if (source) this.lastAttacker = source;
@@ -621,7 +623,12 @@ export class Game {
       if (this.portalTicks < 0) this.portalTicks = 0;
       return;
     }
-    if (this.portalCooldown > 0) return;
+    // vanilla holds the cooldown up for as long as a traveller stands in the portal they arrived
+    // in, so the way back only opens once they have stepped out of it
+    if (this.portalCooldown > 0) {
+      this.portalCooldown = PORTAL_COOLDOWN;
+      return;
+    }
     this.portalTicks++;
     const wait = p.gamemode === 'creative' ? 1 : PORTAL_WAIT;
     if (this.portalTicks < wait) return;
@@ -791,9 +798,7 @@ export class Game {
       this.syncSigns();
       this.syncChests();
     }
-    // the Nether spawns nothing yet: its own mobs come with the fortress, and overworld ones
-    // have no business down there
-    if (this.world.dimension === 'overworld') this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
+    this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
     this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
     this.entities.traderSpawnTick(this.isDay());
@@ -4851,7 +4856,7 @@ export class Game {
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat', guardian: 'guardian', elder_guardian: 'guardian' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat', guardian: 'guardian', elder_guardian: 'guardian', blaze: 'blaze', ghast: 'ghast', piglin: 'piglin', piglin_brute: 'piglin', zombified_piglin: 'piglin', hoglin: 'hoglin', zoglin: 'hoglin', strider: 'strider', magma_cube: 'magma_cube', magma_cube_medium: 'magma_cube', magma_cube_big: 'magma_cube' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }
