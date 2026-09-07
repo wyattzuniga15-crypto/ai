@@ -4,7 +4,7 @@
  */
 import { CHUNK_SIZE, SECTION_COUNT, WORLD_MIN_Y } from '../core/constants.ts';
 import { blocks } from '../blocks/registry.ts';
-import { behaviorFor, hasRandomTick, type BlockContext, type BlockWorld } from '../blocks/behaviors.ts';
+import { behaviorFor, randomTickable, type BlockContext, type BlockWorld } from '../blocks/behaviors.ts';
 import type { LoadedChunk } from './world.ts';
 
 interface Scheduled {
@@ -80,7 +80,38 @@ export class Simulation {
   randomTickSpeed = 3;
   simulationDistance = 6;
 
+  /**
+   * Which sections of a chunk hold anything at all, by chunk key. Vanilla only random-ticks the
+   * sections that are not empty, and in a normal world most of a column is sky.
+   */
+  private readonly tickMasks = new Map<string, Uint8Array>();
+
   constructor(private readonly w: BlockWorld, private readonly chunks: () => Iterable<LoadedChunk>) {}
+
+  /** Forgets what a chunk's sections held, after generation or a reload has rewritten them. */
+  invalidateChunk(cx: number, cz: number): void {
+    this.tickMasks.delete(`${cx},${cz}`);
+  }
+
+  /** Works the mask out the first time a chunk is asked about, and keeps it until it is edited. */
+  private sectionsWithBlocks(c: LoadedChunk): Uint8Array {
+    const key = `${c.cx},${c.cz}`;
+    const cached = this.tickMasks.get(key);
+    if (cached) return cached;
+    const mask = new Uint8Array(SECTION_COUNT);
+    const perSection = 16 * CHUNK_SIZE * CHUNK_SIZE;
+    for (let sy = 0; sy < SECTION_COUNT; sy++) {
+      const from = sy * perSection;
+      for (let i = from; i < from + perSection; i++) {
+        if (c.blocks[i] === 0) continue;
+        mask[sy] = 1;
+        break;
+      }
+    }
+    if (this.tickMasks.size > 1024) this.tickMasks.clear();
+    this.tickMasks.set(key, mask);
+    return mask;
+  }
 
   schedule(x: number, y: number, z: number, delay: number, now: number): void {
     const key = `${x},${y},${z}`;
@@ -92,6 +123,8 @@ export class Simulation {
   /** Called for every block change; fires placement hooks and queues neighbour updates. */
   onBlockChanged(x: number, y: number, z: number, oldState: number, newState: number): void {
     void oldState;
+    // the section this cell is in may have gone from empty to not: its mask has to be worked out again
+    if (newState !== 0) this.tickMasks.delete(`${x >> 4},${z >> 4}`);
     if (newState !== 0) {
       const def = blocks.blockOf(newState);
       const b = behaviorFor(def);
@@ -122,9 +155,12 @@ export class Simulation {
     }
     // random ticks
     const rng = this.w.rng;
+    const ticks = randomTickable();
     for (const c of this.chunks()) {
       if (Math.max(Math.abs(c.cx - centerCx), Math.abs(c.cz - centerCz)) > this.simulationDistance) continue;
+      const mask = this.sectionsWithBlocks(c);
       for (let sy = 0; sy < SECTION_COUNT; sy++) {
+        if (!mask[sy]) continue; // nothing but sky in there
         for (let i = 0; i < this.randomTickSpeed; i++) {
           const r = rng.nextU32();
           const lx = r & 15;
@@ -132,9 +168,8 @@ export class Simulation {
           const lz = (r >> 8) & 15;
           const y = WORLD_MIN_Y + sy * 16 + ly;
           const state = c.blocks[((y - WORLD_MIN_Y) * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
-          if (state === 0) continue;
+          if (state === 0 || !ticks[state]) continue;
           const def = blocks.blockOf(state);
-          if (!hasRandomTick(def)) continue;
           const ctx: BlockContext = { w: this.w, x: c.cx * 16 + lx, y, z: c.cz * 16 + lz, state, def };
           behaviorFor(def)!.randomTick!(ctx);
         }

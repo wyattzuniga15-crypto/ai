@@ -1026,3 +1026,25 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      do, the game already does with them elsewhere — a banner is woven at a loom and drawn as a block
      entity, a wither skull is watched for where the Wither is summoned, a portal is stepped into,
      and bedrock is simply unbreakable.
+
+112. **The performance pass.** Three things were eating the main thread, all of them found by
+     timing the frame rather than by guessing.
+
+     A chunk is meshed a section at a time and each finished section was rebuilding the whole
+     column's geometry — two dozen rebuilds of a three-hundred-and-eighty-four-block column for one
+     chunk arriving, twelve of them in a frame while chunks were streaming in. A column now waits
+     until its sections stop arriving (eighty milliseconds, or half a second at the outside) before
+     it is rebuilt, and rebuilds are given four milliseconds of a frame between them. That took the
+     work the streaming does per frame from about fourteen milliseconds to two or three.
+
+     The simulation was drawing three random ticks for every section of every chunk in range,
+     whether or not the section held anything: in a normal world most of a column is sky. It now
+     keeps, per chunk, which sections hold blocks at all — worked out once and forgotten whenever
+     that chunk is edited, patched by the generator or reloaded — and it asks a table indexed by
+     block state whether a block wants random ticks rather than looking up its behaviour. Random
+     ticks went from three and a half milliseconds a tick to one and a half.
+
+     And every chunk column carried a bounding sphere of radius two hundred and eighty about the
+     middle of the world's height, which is in view from everywhere: nothing was ever culled. Each
+     column is now bounded by the sections that actually hold geometry, so looking at the sky draws
+     thirty-six calls where it drew nearly six hundred.

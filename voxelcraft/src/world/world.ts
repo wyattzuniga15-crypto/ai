@@ -66,6 +66,12 @@ export interface WorldOptions {
 
 const FACE_NORMALS: [number, number, number][] = [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
 
+/** How quiet a column has to go before its geometry is rebuilt, and how long that may be put off. */
+const COLUMN_QUIET_MS = 80;
+const COLUMN_WAIT_MS = 500;
+/** How much of a frame column rebuilds may take before the rest wait for the next one. */
+const COLUMN_BUDGET_MS = 4;
+
 export class World {
   readonly chunks = new Map<string, LoadedChunk>();
   private readonly worker: Worker;
@@ -83,10 +89,18 @@ export class World {
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
   onBlockChanged: ((x: number, y: number, z: number, oldState: number, newState: number) => void) | null = null;
   onChunkUnloaded: ((c: LoadedChunk) => void) | null = null;
+  /** Blocks written into a chunk the main thread already holds, by world generation next door. */
+  onChunkPatched: ((cx: number, cz: number) => void) | null = null;
   private pendingEdits: number[] = [];
   private readonly pendingMobs = new Map<string, string | null>();
   private readonly loadChunk: WorldOptions['loadChunk'];
-  private readonly dirtyColumns = new Set<string>();
+  /**
+   * Columns waiting for their geometry to be rebuilt, with when they were first marked and when
+   * the last section arrived: a chunk being meshed sends its two dozen sections one at a time, and
+   * rebuilding the whole column for each of them is most of what the main thread does while
+   * chunks are streaming in.
+   */
+  private readonly dirtyColumns = new Map<string, { since: number; last: number }>();
   private readonly pendingEntities = new Map<string, string | null>();
 
   constructor(opts: WorldOptions) {
@@ -307,13 +321,17 @@ export class World {
       this.viewCz = cz;
       this.send({ type: 'view', cx, cz, distance: this.renderDistance });
     }
-    // rebuild column geometry for chunks that received new sections
-    let budget = 6;
-    for (const key of this.dirtyColumns) {
+    // rebuild column geometry for chunks that received new sections, once their sections have
+    // stopped arriving — or after a moment, so nothing waits on a worker that never goes quiet
+    const now = performance.now();
+    const deadline = now + COLUMN_BUDGET_MS;
+    for (const [key, t] of this.dirtyColumns) {
+      if (now - t.last < COLUMN_QUIET_MS && now - t.since < COLUMN_WAIT_MS) continue;
       const c = this.chunks.get(key);
       this.dirtyColumns.delete(key);
       if (c) this.rebuildColumn(c);
-      if (--budget <= 0) break;
+      // a frame is sixteen milliseconds: what is left over waits for the next one
+      if (performance.now() > deadline) break;
     }
   }
 
@@ -358,7 +376,10 @@ export class World {
         if (!c) return;
         c.sections[msg.sy] = msg.solid;
         c.translucentSections[msg.sy] = msg.translucent;
-        this.dirtyColumns.add(key);
+        const now = performance.now();
+        const pending = this.dirtyColumns.get(key);
+        if (pending) pending.last = now;
+        else this.dirtyColumns.set(key, { since: now, last: now });
         break;
       }
       case 'patch': {
@@ -368,6 +389,7 @@ export class World {
         for (let i = 0; i + 3 < e.length; i += 4) {
           c.blocks[((e[i + 1] - WORLD_MIN_Y) * CHUNK_SIZE + e[i + 2]) * CHUNK_SIZE + e[i]] = e[i + 3];
         }
+        this.onChunkPatched?.(msg.cx, msg.cz);
         break;
       }
       case 'light': {
@@ -468,8 +490,20 @@ export class World {
     geo.setAttribute('color', new THREE.BufferAttribute(color, 4, true));
     geo.setAttribute('light', new THREE.BufferAttribute(light, 2, false));
     geo.setIndex(new THREE.BufferAttribute(index, 1));
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, 192, 8), 280);
-    geo.boundingBox = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(16, 384, 16));
+    // Only the sections that hold anything are worth drawing: a bound around those lets the whole
+    // column be skipped when it is out of view, which a bound around the whole world height never is.
+    let lowest = SECTION_COUNT;
+    let highest = -1;
+    sections.forEach((sec, sy) => {
+      if (!sec) return;
+      lowest = Math.min(lowest, sy);
+      highest = Math.max(highest, sy);
+    });
+    // a block's model may reach a little past its own cell, so the bound is given a block of slack
+    const y0 = lowest * 16 - 1;
+    const y1 = (highest + 1) * 16 + 1;
+    geo.boundingBox = new THREE.Box3(new THREE.Vector3(0, y0, 0), new THREE.Vector3(16, y1, 16));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, (y0 + y1) / 2, 8), Math.hypot(8, (y1 - y0) / 2, 8));
     const mesh = new THREE.Mesh(geo, material);
     mesh.position.set(c.cx * 16, WORLD_MIN_Y, c.cz * 16);
     mesh.matrixAutoUpdate = false;

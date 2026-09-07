@@ -966,7 +966,12 @@ export class Game {
       this.simulation.onBlockChanged(x, y, z, o, n);
       this.chestChanged(x, y, z, o, n);
     };
-    world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
+    world.onChunkLoaded = (cx, cz) => {
+      // a chunk that has just been (re)built may hold blocks where there were none
+      this.simulation.invalidateChunk(cx, cz);
+      this.onChunkLoaded(cx, cz);
+    };
+    world.onChunkPatched = (cx, cz) => this.simulation.invalidateChunk(cx, cz);
     world.onChunkUnloaded = (c) => this.onChunkUnloaded(c);
     return world;
   }

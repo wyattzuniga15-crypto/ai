@@ -122,4 +122,5 @@ coverage counts in `COVERAGE.md`.
 - [x] Polish, third slice: light that depends on the block's state — a lit furnace, a lit lamp, a candle by how many candles — and the two bugs behind it: light the worker worked out never reaching the main thread, and a torch that left its light behind when it was broken
 - [x] Polish, fourth slice: the three weapons that had no behaviour — the crossbow held loaded with multishot and piercing, the trident thrown with loyalty, riptide and channeling, and the mace that turns a fall into the blow — and the sword sweep
 - [x] Polish, fifth slice: the last block behaviours — flower pots that take a plant and give it back, and powder snow that swallows a walker, freezes them and is walked over in leather boots
-- [ ] Polish, next: performance pass (60 fps at 8 chunks on integrated graphics), audio (music, ambient loops, records), the biomes the generator does not place yet
+- [x] Polish, sixth slice: the performance pass — column geometry rebuilt once per chunk rather than once per section and bounded to four milliseconds a frame, random ticks skipping the sections that hold nothing, and columns bounded by what they actually hold so the renderer can cull them
+- [ ] Polish, next: audio (music, ambient loops, records), the biomes the generator does not place yet

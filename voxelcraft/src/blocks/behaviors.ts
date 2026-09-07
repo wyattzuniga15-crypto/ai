@@ -918,6 +918,21 @@ export function hasRandomTick(def: BlockDef): boolean {
   return !!b?.randomTick;
 }
 
+/**
+ * Whether each block state wants random ticks, by state id. The simulation looks at twenty thousand
+ * cells a tick, so it asks this array rather than working it out from the block every time.
+ */
+let randomTickStates: Uint8Array | null = null;
+export function randomTickable(): Uint8Array {
+  if (randomTickStates) return randomTickStates;
+  const out = new Uint8Array(blocks.maxState + 1);
+  for (const def of blocks.defs) {
+    if (!hasRandomTick(def)) continue;
+    for (let s = def.min; s <= def.max; s++) out[s] = 1;
+  }
+  return (randomTickStates = out);
+}
+
 /** Bone meal on a growable block; returns true when consumed. */
 export function applyBoneMeal(w: BlockWorld, x: number, y: number, z: number, state: number): boolean {
   const def = blocks.blockOf(state);
