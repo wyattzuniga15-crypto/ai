@@ -74,7 +74,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Structures, fourth slice: placement the way vanilla does it, where every chunk writes its own part of any start that reaches it, so a structure comes out whole and identical however the player approaches it, and a village is of the type its biome calls for
 - [x] Abandoned mineshafts: vanilla's own piece walk (room, corridors with supports, cobwebs, rails and chests, crossings, stairs) rolled one chunk in 250, dark oak in the badlands, with the abandoned mineshaft loot table in its chests
 - [x] Monster spawners: the block entity remembers its mob, runs only with a player within sixteen blocks, tries four spawns in the box around it and stops at six nearby; ores and spawners drop experience when mined (silk touch takes the block instead)
-- [ ] Structures, next: strongholds, temples, monuments, mansions, trial chambers, ancient cities, witch huts
+- [x] Temples and witch huts: the desert pyramid with its stepped shell, marked floor and treasure room under nine TNT, the jungle temple with its lever puzzle and tripwire dispensers, and the swamp hut on its stilts with a witch and her black cat
+- [ ] Structures, next: strongholds, monuments, mansions, trial chambers, ancient cities, ocean ruins
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)

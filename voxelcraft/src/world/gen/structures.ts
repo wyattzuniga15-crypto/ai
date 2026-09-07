@@ -16,7 +16,7 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut';
   spacing: number;
   separation: number;
   salt: number;
@@ -90,6 +90,8 @@ function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]
   if (entry.placement === 'jigsaw') return 8;
   // a mineshaft's walk stays inside 80 blocks of its room, and a piece can be 13 more
   if (entry.placement === 'mineshaft') return 7;
+  // anything else built in code is one piece, and the largest of them (a pyramid) is 21 blocks
+  if (!templates.length) return 3;
   let widest = 0;
   for (const t of templates) widest = Math.max(widest, t.size[0], t.size[2]);
   return Math.ceil((widest + 8) / 16);
@@ -113,7 +115,8 @@ export function buildStructureSets(
       pools: pools[entry.name] ?? {},
       variantBiomes: (entry.variants ?? []).map((v) => new Set(v.biomes)),
     };
-  }).filter((s) => s.templates.length > 0 || s.placement === 'mineshaft');
+  // a structure with templates needs them loaded; one built in code declares no pieces at all
+  }).filter((s) => s.templates.length > 0 || s.pieces.length === 0);
 }
 
 /**

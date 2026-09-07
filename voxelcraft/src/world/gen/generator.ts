@@ -13,12 +13,23 @@ import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
 import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
 import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
+import { buildTemple, TEMPLE_SIZE, type TempleKind } from './temples.ts';
 
-/** A chest or spawner a structure placed, for the main thread to give its block entity. */
-export interface StructureSpot { x: number; y: number; z: number; table?: string; mob?: string }
+/** Structures vanilla lays out in code, keyed by the placement name their index entry carries. */
+const TEMPLE_KINDS = new Set<string>(['desert_pyramid', 'jungle_temple', 'swamp_hut']);
 
-/** A structure that has been worked out for a start chunk: template pieces, or a mineshaft's walk. */
-interface StructureInstance { pieces: StructurePlacement[]; shaft?: { kind: ShaftKind; pieces: ShaftPiece[] } }
+/**
+ * Something a structure placed that the main thread has to finish: a chest with the loot table that
+ * fills it, a spawner with the mob it turns, or a mob the structure comes with (a hut's witch).
+ */
+export interface StructureSpot { x: number; y: number; z: number; table?: string; mob?: string; entity?: string }
+
+/** A structure worked out for a start chunk: template pieces, a mineshaft's walk, or a temple. */
+interface StructureInstance {
+  pieces: StructurePlacement[];
+  shaft?: { kind: ShaftKind; pieces: ShaftPiece[] };
+  temple?: { kind: TempleKind; x: number; y: number; z: number; rotation: number; seed: number };
+}
 const EMPTY_STRUCTURE: StructureInstance = { pieces: [] };
 
 const st = (id: string) => blocks.defaultState(id);
@@ -824,6 +835,7 @@ export class WorldGenerator {
     const clip = { x0: chunk.cx * 16, x1: chunk.cx * 16 + 15, z0: chunk.cz * 16, z1: chunk.cz * 16 + 15 };
     const loot = (lx: number, ly: number, lz: number, table: string) => this.structureSpots.push({ x: lx, y: ly, z: lz, table });
     const spawner = (lx: number, ly: number, lz: number, mob: string) => this.structureSpots.push({ x: lx, y: ly, z: lz, mob });
+    const entity = (lx: number, ly: number, lz: number, mob: string) => this.structureSpots.push({ x: lx, y: ly, z: lz, entity: mob });
     for (const set of this.structures) {
       for (const start of this.nearbyStarts(set, chunk.cx, chunk.cz)) {
         const instance = this.structureAt(set, start.cx, start.cz);
@@ -833,6 +845,13 @@ export class WorldGenerator {
           const written = new Set<string>();
           stampStructure(world, piece, written, loot, clip);
           this.fitStructureToTerrain(world, box, written, piece.placement ?? 'surface', clip);
+        }
+        if (instance.temple) {
+          const t = instance.temple;
+          const [tw, , td] = TEMPLE_SIZE[t.kind];
+          const [w, d] = (t.rotation & 1) === 1 ? [td, tw] : [tw, td];
+          if (t.x <= clip.x1 && t.x + w - 1 >= clip.x0 && t.z <= clip.z1 && t.z + d - 1 >= clip.z0)
+            buildTemple({ world, clip, x: t.x, y: t.y, z: t.z, rotation: t.rotation, seed: t.seed, kind: t.kind, onLoot: loot, onEntity: entity });
         }
         if (!instance.shaft) continue;
         for (const piece of instance.shaft.pieces) {
@@ -881,6 +900,7 @@ export class WorldGenerator {
     if (!set.biomeSet.has(biomes[this.columnInfo(wx, wz).biome].id)) return EMPTY_STRUCTURE;
     const decaySeed = mix(this.seed ^ set.salt, cx, cz, 0x0d3c);
     if (set.placement === 'mineshaft') return this.buildMineshaft(set, cx, cz, wx, wz, rng);
+    if (TEMPLE_KINDS.has(set.placement)) return this.buildTempleAt(set, wx, wz, rng);
     if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, wx, wz, rng, decaySeed) };
     const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
     const rotation = rng.int(4);
@@ -947,6 +967,24 @@ export class WorldGenerator {
     const pieces = [at(bottom, IGLOO_LADDER.bottom, y - 3 - sections * 3)];
     for (let i = 0; i < sections - 1; i++) pieces.push(at(middle, IGLOO_LADDER.middle, y - 3 - i * 3));
     return pieces;
+  }
+
+  /**
+   * The temples vanilla builds in code: a desert pyramid or jungle temple sits its floor on the
+   * ground, and a swamp hut stands on stilts on the water the way vanilla puts it on the surface
+   * heightmap rather than the ground.
+   */
+  private buildTempleAt(set: StructureSet, wx: number, wz: number, rng: Rng): StructureInstance {
+    const kind = set.placement as TempleKind;
+    const rotation = rng.int(4);
+    const [tw, , td] = TEMPLE_SIZE[kind];
+    const [w, d] = (rotation & 1) === 1 ? [td, tw] : [tw, td];
+    const ground = this.structureGroundY(wx, wz, w, d, kind === 'swamp_hut' ? 'water_surface' : 'temple');
+    if (ground === null) return EMPTY_STRUCTURE;
+    // a temple's own floor is its local y 0, which sits on the ground rather than one above it
+    const y = kind === 'swamp_hut' ? ground : ground - 1;
+    this.lastStructure = { name: set.name, x: wx, y, z: wz, variant: kind };
+    return { pieces: [], temple: { kind, x: wx, y, z: wz, rotation, seed: mix(this.seed, wx, wz, 0x7e39) } };
   }
 
   /**
@@ -1020,6 +1058,10 @@ export class WorldGenerator {
         highest = Math.max(highest, h);
       }
     if (!Number.isFinite(lowest)) return null;
+    // a temple carries its own foundation down to the ground, so it does not need level ground first
+    if (placement === 'temple') return lowest < SEA_LEVEL ? null : lowest + 1;
+    // and a swamp hut stands on stilts on the water it is built over, following the surface
+    if (placement === 'water_surface') return Math.max(lowest, SEA_LEVEL);
     // vanilla only starts a structure where the ground is close to level; ours allows a small slope
     if (highest - lowest > 3) return null;
     if (placement === 'ocean_floor') {

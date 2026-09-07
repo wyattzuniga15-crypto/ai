@@ -269,6 +269,9 @@ for (const want of JIGSAW) {
  */
 const PROCEDURAL: { name: string; set: string }[] = [
   { name: 'mineshaft', set: 'mineshafts' },
+  { name: 'desert_pyramid', set: 'desert_pyramids' },
+  { name: 'jungle_temple', set: 'jungle_temples' },
+  { name: 'swamp_hut', set: 'swamp_huts' },
 ];
 
 for (const want of PROCEDURAL) {

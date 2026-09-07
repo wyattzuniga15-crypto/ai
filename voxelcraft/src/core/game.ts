@@ -1093,6 +1093,15 @@ export class Game {
     }
     c.pendingSpots = null;
     for (const spot of spots) {
+      if (spot.entity) {
+        // mobs a structure comes with: the witch in her hut, and the black cat vanilla gives her
+        const m = this.entities.spawn(spot.entity, spot.x + 0.5, spot.y, spot.z + 0.5, Math.random() * Math.PI * 2);
+        if (m) {
+          m.persistent = true;
+          if (spot.entity === 'cat') m.extra.variant = 'all_black';
+        }
+        continue;
+      }
       const state = this.world.getBlock(spot.x, spot.y, spot.z);
       if (!state) continue;
       const id = blocks.blockOf(state).id;

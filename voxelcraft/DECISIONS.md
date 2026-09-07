@@ -414,3 +414,17 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     until the next batch. Light is ignored, as vanilla ignores it for spawner spawns, but a mob still
     needs room and a floor. Mining a spawner or an ore now drops experience from vanilla's own
     ranges, and silk touch takes the block instead.
+
+70. **Temples are built in code, like vanilla, and shaped by eye where the Java is not.** Desert
+    pyramids, jungle temples and swamp huts have no templates to convert: vanilla lays each one out
+    block by block. `src/world/gen/temples.ts` does the same through the clipped writer the
+    mineshafts use, so a temple straddling four chunks comes out the same however they are visited.
+    The pyramid follows vanilla's own loop — a ring of sandstone per layer with the inside cut away,
+    towers on the front, the orange and blue mark on the floor, and the room eleven blocks under it
+    with a chest in each wall and nine TNT under the pressure plate. The jungle temple and the hut
+    are faithful in what they contain (the lever puzzle and its chest, the tripwire between two
+    dispensers of arrows, the cauldron and crafting table, the witch and her black cat) and
+    approximate in their trim, since matching every block of the Java from memory would be guesswork.
+    A pyramid or temple carries its own foundation down to the ground, so unlike a template structure
+    it does not ask for level ground first, and a hut stands on stilts on the water surface the way
+    vanilla puts it on the motion-blocking heightmap rather than the ground.

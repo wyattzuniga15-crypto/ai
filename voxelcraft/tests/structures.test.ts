@@ -68,7 +68,9 @@ describe('structure templates', () => {
   it.runIf(hasTemplates)('loads the vanilla templates and stamps one into a world', () => {
     const { index, templates, pools } = load();
     const sets = buildStructureSets(index, templates, pools);
-    expect(sets.map((s) => s.name).sort()).toEqual(['igloo', 'mineshaft', 'pillager_outpost', 'ruined_portal', 'shipwreck', 'village']);
+    expect(sets.map((s) => s.name).sort()).toEqual([
+      'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft', 'pillager_outpost', 'ruined_portal', 'shipwreck', 'swamp_hut', 'village',
+    ]);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
     expect(igloo.spacing).toBe(32);
