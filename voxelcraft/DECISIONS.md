@@ -586,3 +586,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     way vanilla draws them, the liquid tinted by the potion's colour under the glass, and the tooltip
     names the bottle and lists what it does. Mobs take the instant effects from a splash; lasting
     effects on mobs wait until mobs carry status effects of their own.
+
+85. **Beds, banners, shulker boxes, skulls and the conduit are drawn the same way chests are.** Their
+    block models are empty too, so all sixty-odd of them were invisible. Each is built from vanilla's
+    own model layer and given the transform vanilla's renderer applies: a bed is drawn once from its
+    head end and reaches a block further to cover its foot; a standing banner is two thirds scale and
+    turned by its sixteenth of a circle, a wall banner hangs a block lower with no pole; a shulker
+    box turns so its lid opens the way it faces; a skull sits in the bottom half of its block and a
+    wall skull halfway up; the conduit floats in the middle and turns on the spot. Finding them uses
+    the sweep that already finds chests, and the colour of a dyed banner is a material tint on the
+    cloth, exactly as the icons do it.

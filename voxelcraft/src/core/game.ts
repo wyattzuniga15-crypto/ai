@@ -74,6 +74,7 @@ import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts'
 import { PlayerPreview } from '../ui/playerPreview.ts';
 import { SignRenderer, isSignBlock } from '../blocks/signs.ts';
 import { ChestRenderer, chestModel, chestStates, isChestBlock } from '../blocks/chests.ts';
+import { BlockEntityRenderer, drawnStates } from '../blocks/blockEntityRender.ts';
 import { compost, composterLevel, composterState } from '../blocks/composter.ts';
 import { openSignEditor } from '../ui/signEditor.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
@@ -179,6 +180,10 @@ export class Game {
   private bobberLine: THREE.Line | null = null;
   /** Chests are drawn as block entities, the way vanilla draws them. */
   private readonly chests: ChestRenderer;
+  /** Beds, banners, shulker boxes, skulls and the conduit, which vanilla also draws itself. */
+  private readonly blockEntities: BlockEntityRenderer;
+  /** Every one of those in the loaded world. */
+  private readonly drawnBlocks = new Set<string>();
   /** Every chest in the loaded world, so their meshes can be kept in step. */
   private readonly chestBlocks = new Set<string>();
   readonly particles: ParticleSystem;
@@ -377,6 +382,7 @@ export class Game {
     };
     this.signs = new SignRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.chests = new ChestRenderer(this.renderer.scene, import.meta.env.BASE_URL);
+    this.blockEntities = new BlockEntityRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.audio.setVolume(opts.options.volume);
     const unlock = () => this.audio.unlock();
     this.renderer.canvas.addEventListener('mousedown', unlock);
@@ -496,6 +502,8 @@ export class Game {
     this.signs.clear();
     this.chests.prune(new Set());
     this.chestBlocks.clear();
+    this.blockEntities.prune(new Set());
+    this.drawnBlocks.clear();
     this.loop.stop();
     window.removeEventListener('beforeunload', this.unloadHandler);
     await this.saveAll();
@@ -3266,11 +3274,12 @@ export class Game {
     const { blocks: data } = c;
     for (let i = 0; i < data.length; i++) {
       const state = data[i];
-      if (!chestStates[state] && !hopperStates[state]) continue;
+      if (!chestStates[state] && !hopperStates[state] && !drawnStates[state]) continue;
       const x = cx * 16 + (i & 15);
       const z = cz * 16 + ((i >> 4) & 15);
       const y = (i >> 8) + WORLD_MIN_Y;
       if (chestStates[state]) this.chestBlocks.add(`${x},${y},${z}`);
+      else if (drawnStates[state]) this.drawnBlocks.add(`${x},${y},${z}`);
       else this.ensureHopper(x, y, z);
     }
   }
@@ -3285,6 +3294,16 @@ export class Game {
   /** Keeps the chest list right as blocks come and go. */
   private chestChanged(x: number, y: number, z: number, oldState: number, newState: number): void {
     if (hopperStates[newState]) this.ensureHopper(x, y, z);
+    if (drawnStates[newState] || drawnStates[oldState]) {
+      const key = `${x},${y},${z}`;
+      if (drawnStates[newState]) {
+        this.drawnBlocks.add(key);
+        this.blockEntities.update(x, y, z, newState);
+      } else {
+        this.drawnBlocks.delete(key);
+        this.blockEntities.remove(x, y, z);
+      }
+    }
     const was = chestStates[oldState] === 1;
     const is = chestStates[newState] === 1;
     if (!was && !is) return;
@@ -3317,6 +3336,19 @@ export class Game {
       this.chests.update(x, y, z, state);
     }
     this.chests.prune(seen);
+
+    const drawn = new Set<string>();
+    for (const key of this.drawnBlocks) {
+      const [x, y, z] = key.split(',').map(Number);
+      const state = this.world.getBlock(x, y, z);
+      if (!this.world.getChunk(x >> 4, z >> 4) || !drawnStates[state]) {
+        this.drawnBlocks.delete(key);
+        continue;
+      }
+      drawn.add(key);
+      this.blockEntities.update(x, y, z, state);
+    }
+    this.blockEntities.prune(drawn);
   }
 
   private syncSigns(): void {
@@ -3475,6 +3507,7 @@ export class Game {
     for (const e of this.primedTnt) e.updateMesh(alpha);
     for (const e of this.minecarts) e.updateMesh(alpha);
     this.chests.animate();
+    this.blockEntities.animate(this.tickCount + partialTime / 50);
     this.bobber?.updateMesh(alpha);
     this.updateBobberLine(alpha);
     mobFireAssets.viewYaw = this.player.yaw;
