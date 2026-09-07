@@ -8,6 +8,7 @@ import { LAVA_DELAY, WATER_DELAY, tickFluid, type FluidWorld } from '../world/fl
 import { placeTree, type BlockAccess } from '../world/gen/features.ts';
 import { SEA_LEVEL } from '../core/constants.ts';
 import { emitted, isPowered, powerAt, updateWireNetwork, wireState } from '../world/redstone.ts';
+import { updateAround } from '../world/tripwire.ts';
 import { extend, retract, FACING_OFFSET } from '../world/piston.ts';
 import { railPowered, railShape } from '../world/rails.ts';
 
@@ -92,6 +93,11 @@ function redstoneChanged(ctx: BlockContext): void {
   switch (id) {
     case 'redstone_wire':
       updateWireNetwork(w, x, y, z);
+      return;
+    case 'tripwire':
+    case 'tripwire_hook':
+      // the run is restrung around the change; whatever is standing on the wire stays standing on it
+      updateAround(w, x, y, z);
       return;
     case 'redstone_torch':
     case 'redstone_wall_torch':
@@ -221,6 +227,11 @@ function redstoneTick(ctx: BlockContext): void {
   }
   if (id === 'dispenser' || id === 'dropper') {
     w.dispense(x, y, z);
+    return;
+  }
+  if (id === 'target') {
+    // vanilla holds a target's signal for a moment after the shot and then lets it go
+    if (blocks.prop(state, 'power') !== '0') w.setBlock(x, y, z, blocks.withProp(state, 'power', '0'));
     return;
   }
   if (id === 'daylight_detector') {

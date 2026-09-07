@@ -20,6 +20,8 @@ export interface ManagerHost extends MobWorld {
   onMobDeath(mob: Mob): void;
   getBiome(x: number, z: number): number;
   topBlock(x: number, z: number): number;
+  /** Told where an arrow stuck, so the game can wake a target block. */
+  arrowHitBlock?: (x: number, y: number, z: number, point: THREE.Vector3) => void;
   arrowHitMob?: (box: AABB, damage: number) => boolean;
 }
 
@@ -100,6 +102,7 @@ export class EntityManager {
     // launch speed; scaling it by the speed ratio keeps a faster crossbow bolt on the same line.
     dir.y += dist * 0.2 * (1.6 / velocity);
     const a = new Arrow(this.host.base, from, dir, velocity, damage, fromPlayer);
+    a.onHitBlock = (x, y, z, point) => this.host.arrowHitBlock?.(x, y, z, point);
     this.arrows.push(a);
     this.host.scene.add(a.mesh);
     return a;

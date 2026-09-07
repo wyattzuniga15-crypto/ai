@@ -10,6 +10,8 @@ export class Arrow {
   readonly prev = new THREE.Vector3();
   readonly vel = new THREE.Vector3();
   stuck = false;
+  /** Told where the arrow stuck, which is how a target block learns it was hit. */
+  onHitBlock: ((x: number, y: number, z: number, point: THREE.Vector3) => void) | null = null;
   age = 0;
   removed = false;
   readonly mesh: THREE.Mesh;
@@ -77,6 +79,7 @@ export class Arrow {
             this.stuck = true;
             this.vel.set(0, 0, 0);
             this.age = 900;
+            this.onHitBlock?.(Math.floor(px), Math.floor(py), Math.floor(pz), this.pos.clone());
             return;
           }
         }

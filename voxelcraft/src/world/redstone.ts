@@ -85,6 +85,11 @@ export function emitted(w: PowerWorld, x: number, y: number, z: number, dir: str
       return strongOnly ? 0 : Number(prop(state, 'power') ?? '0');
     case 'detector_rail':
       return isOn(state, 'powered') ? (strongOnly && dir !== 'up' ? 0 : 15) : 0;
+    case 'tripwire_hook': {
+      if (!isOn(state, 'powered')) return 0;
+      // like a button, it charges the block it hangs on and gives everything else a weak signal
+      return strongOnly ? (dir === OPPOSITE[prop(state, 'facing') ?? 'north'] ? 15 : 0) : 15;
+    }
     case 'redstone_wire': {
       if (strongOnly) return 0;
       const power = Number(prop(state, 'power') ?? '0');
@@ -161,7 +166,7 @@ function connectsToWire(state: number, dir: string): boolean {
     const facing = prop(state, 'facing');
     return facing === dir || facing === OPPOSITE[dir];
   }
-  return ['redstone_block', 'redstone_torch', 'redstone_wall_torch', 'lever', 'observer', 'daylight_detector', 'target', 'detector_rail', 'trapped_chest']
+  return ['redstone_block', 'redstone_torch', 'redstone_wall_torch', 'lever', 'observer', 'daylight_detector', 'target', 'detector_rail', 'tripwire_hook', 'trapped_chest']
     .includes(id) || id.endsWith('_button') || id.endsWith('_pressure_plate');
 }
 
@@ -269,4 +274,17 @@ export function wireState(w: PowerWorld, x: number, y: number, z: number, power:
   if (props.north === 'none' && noEW) props.north = 'side';
   if (props.south === 'none' && noEW) props.south = 'side';
   return blocks.stateWith('redstone_wire', props);
+}
+
+/**
+ * How hard a target block was hit: vanilla scores the shot by how near the middle of the face the
+ * arrow struck, from 1 at the rim to 15 in the bullseye.
+ */
+export function targetStrength(bx: number, by: number, bz: number, px: number, py: number, pz: number): number {
+  const dx = Math.abs(px - bx - 0.5);
+  const dy = Math.abs(py - by - 0.5);
+  const dz = Math.abs(pz - bz - 0.5);
+  // the axis the arrow came in along does not count, so the smallest of the three pairs wins
+  const off = Math.min(Math.max(dy, dz), Math.max(dx, dz), Math.max(dx, dy));
+  return Math.max(1, Math.ceil(15 * Math.max(0, Math.min(1, (0.5 - off) / 0.5))));
 }

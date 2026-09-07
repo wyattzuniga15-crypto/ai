@@ -44,6 +44,8 @@ import { FallingBlockEntity } from '../entities/fallingBlock.ts';
 import { PrimedTnt } from '../entities/primedTnt.ts';
 import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type CartKind } from '../entities/minecart.ts';
 import { FACING_OFFSET } from '../world/piston.ts';
+import { hooksFor, updateRun } from '../world/tripwire.ts';
+import { targetStrength } from '../world/redstone.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
 import { EntityManager, type ManagerHost } from '../entities/manager.ts';
@@ -155,6 +157,9 @@ export class Game {
   private cart: Minecart | null = null;
   /** Detector rails a cart has crossed, with the tick it last saw one, so the pulse can be held. */
   private readonly detectorsOn = new Map<string, number>();
+  /** Tripwire strings something is standing in, and the ones that were still held last tick. */
+  private readonly tripwiresOn = new Map<string, number>();
+  private tripwiresChanged = new Set<string>();
   /** Pressure plates currently held down, and the tick the last thing stood on them. */
   private readonly platesDown = new Map<string, number>();
   private eating: { ticks: number; total: number; id: string } | null = null;
@@ -297,6 +302,7 @@ export class Game {
       onMobDeath: (m) => this.onMobDeath(m),
       getBiome: (x, z) => this.world.getBiome(x, z),
       topBlock: (x, z) => this.world.topBlock(x, z),
+      arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
       arrowHitMob: (box, damage) => {
         const hit = this.entities.mobsIntersecting(box)[0];
         if (!hit) return false;
@@ -539,6 +545,7 @@ export class Game {
     this.tickFallingBlocks();
     this.tickPrimedTnt();
     this.tickPressurePlates();
+    this.tickTripwires();
     this.tickMinecarts();
     this.tickEffects();
     this.attackTicks++;
@@ -1751,6 +1758,57 @@ export class Game {
       if (state === 0 || !blocks.blockOf(state).id.endsWith('_pressure_plate')) continue;
       this.world.setBlock(x, y, z, this.plateState(state, false));
     }
+  }
+
+  /**
+   * Tripwire: anything standing in a string powers the whole run, hooks included, and vanilla lets
+   * the signal go again half a second after the last thing steps off.
+   */
+  private tickTripwires(): void {
+    const touched = new Set<string>();
+    const cross = (x: number, y: number, z: number, height: number): void => {
+      const bx = Math.floor(x);
+      const bz = Math.floor(z);
+      for (let by = Math.floor(y); by <= Math.floor(y + height); by++) {
+        const state = this.world.getBlock(bx, by, bz);
+        if (state !== 0 && blocks.blockOf(state).id === 'tripwire') touched.add(`${bx},${by},${bz}`);
+      }
+    };
+    if (!this.player.dead) cross(this.player.pos.x, this.player.pos.y, this.player.pos.z, this.player.sneaking ? 1.5 : 1.8);
+    for (const m of this.entities.mobs) if (!m.dead) cross(m.pos.x, m.pos.y, m.pos.z, m.height);
+    for (const e of this.itemEntities) cross(e.pos.x, e.pos.y, e.pos.z, 0.25);
+    for (const c of this.minecarts) cross(c.pos.x, c.pos.y, c.pos.z, 0.7);
+
+    for (const key of touched) this.tripwiresOn.set(key, this.tickCount);
+    const held = new Set<string>();
+    for (const [key, when] of this.tripwiresOn) {
+      if (!touched.has(key) && this.tickCount - when >= 10) this.tripwiresOn.delete(key);
+      else held.add(key);
+    }
+    // rewrite every run a change touches, which is what carries the signal to the hooks
+    const runs = new Set<string>();
+    for (const key of new Set([...touched, ...this.tripwiresChanged])) {
+      const [x, y, z] = key.split(',').map(Number);
+      for (const [hx, hy, hz] of hooksFor(this.world, x, y, z)) runs.add(`${hx},${hy},${hz}`);
+    }
+    this.tripwiresChanged = new Set(held);
+    for (const key of runs) {
+      const [x, y, z] = key.split(',').map(Number);
+      updateRun(this.world, x, y, z, ([px, py, pz]) => held.has(`${px},${py},${pz}`));
+    }
+  }
+
+  /**
+   * An arrow in a target block: vanilla reads how near the middle of the face it struck and holds
+   * that signal for a second before letting it go.
+   */
+  private hitTarget(x: number, y: number, z: number, point: THREE.Vector3): void {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0 || blocks.blockOf(state).id !== 'target') return;
+    const power = targetStrength(x, y, z, point.x, point.y, point.z);
+    this.world.setBlock(x, y, z, blocks.withProp(state, 'power', String(power)));
+    this.simulation.schedule(x, y, z, 20, this.tickCount);
+    this.audio.play('click', { x, y, z, pitch: 0.5 + power / 15 });
   }
 
   /** A plate's pressed state, whichever of the two ways its block counts its load. */

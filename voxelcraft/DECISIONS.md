@@ -522,3 +522,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     five, a TNT cart lights on a powered activator rail and goes off like a stick of TNT, and the
     block a loaded cart carries is drawn inside it at three quarters size. Carts are saved with the
     entities of the chunk they are standing in and come back when it loads.
+
+79. **A target scores the shot, and tripwire is walked from its hooks.** Vanilla reads where an arrow
+    struck a target block and turns the distance from the middle of that face into a signal from 1 at
+    the rim to 15 in the bullseye, then lets it go a second later; ours takes the same measurement
+    from the point the arrow stuck and schedules the release twenty ticks out. Tripwire is a run
+    rather than a block: a hook walks up to forty-two blocks the way it faces, and a run exists only
+    when it ends at the hook facing back down it. Placing or breaking anything along a run restrings
+    it — attachment only — while whether the wire is stood on is the game's to say each tick, so the
+    two never fight each other. Anything with a body in the string powers both hooks and every piece
+    of wire between them, and the signal is held for half a second after the last thing steps off.
