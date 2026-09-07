@@ -539,3 +539,65 @@ export function beaconScreen(inv: Inventory, e: BeaconEntity, host: { icons: { i
     },
   };
 }
+
+/**
+ * The cartography table: a map and something to do to it. Paper zooms it out, an empty map copies
+ * it, and a glass pane locks it so it stops filling in.
+ */
+export function cartographyScreen(inv: Inventory, state: { map: Slot; extra: Slot }, describe: (stack: ItemStack) => string, onTake: (kind: 'copy' | 'zoom' | 'lock') => ItemStack | null): ScreenDef {
+  const player = playerSlots(inv);
+  const mapSlot: SlotDef = { x: 15, y: 15, group: 'container', get: () => state.map, set: (s) => { state.map = s; }, accepts: (s) => s.id === 'filled_map' };
+  const extra: SlotDef = { x: 15, y: 52, group: 'container', get: () => state.extra, set: (s) => { state.extra = s; }, accepts: (s) => s.id === 'paper' || s.id === 'map' || s.id === 'glass_pane' };
+  /** What the two slots would make, which is what vanilla shows in the result. */
+  const kind = (): 'copy' | 'zoom' | 'lock' | null => {
+    if (!state.map || state.map.id !== 'filled_map' || !state.extra) return null;
+    if (state.extra.id === 'paper') return 'zoom';
+    if (state.extra.id === 'map') return 'copy';
+    if (state.extra.id === 'glass_pane') return 'lock';
+    return null;
+  };
+  const result: SlotDef = {
+    x: 145, y: 39, group: 'result', result: true,
+    get: () => {
+      const k = kind();
+      if (!k || !state.map) return null;
+      return { ...state.map, count: 1 };
+    },
+    set: () => {},
+    onTake: (taken) => {
+      const k = kind();
+      if (!k) return;
+      const made = onTake(k);
+      if (made) {
+        taken.map = made.map;
+        taken.id = made.id;
+      }
+      if (state.extra && --state.extra.count <= 0) state.extra = null;
+      // copying leaves the original behind; zooming and locking use it up
+      if (k !== 'copy' && state.map && --state.map.count <= 0) state.map = null;
+    },
+  };
+  return {
+    texture: 'container/cartography_table.png', width: 176, height: 166,
+    slots: [mapSlot, extra, result, ...player],
+    labels: [{ text: 'Cartography Table', x: 8, y: 6 }, { text: 'Inventory', x: 8, y: 72 }],
+    overlay(root) {
+      let label = root.querySelector('.carto-label') as HTMLElement | null;
+      const s = Number(getComputedStyle(document.documentElement).getPropertyValue('--gui')) || 3;
+      if (!label) {
+        label = document.createElement('div');
+        label.className = 'carto-label';
+        label.style.cssText = `position:absolute;left:${60 * s}px;top:${20 * s}px;width:${70 * s}px;color:#404040;font-size:${6 * s}px;line-height:1.4;`;
+        root.append(label);
+      }
+      label.textContent = state.map ? describe(state.map) : '';
+    },
+    quickMove(from, stack) {
+      if (from.group === 'container' || from.group === 'result') return reversePlayer(player);
+      if (stack.id === 'filled_map') return [mapSlot];
+      if (stack.id === 'paper' || stack.id === 'map' || stack.id === 'glass_pane') return [extra];
+      if (from.group === 'hotbar') return byGroup(player, 'inventory');
+      return byGroup(player, 'hotbar');
+    },
+  };
+}

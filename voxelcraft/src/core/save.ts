@@ -16,6 +16,8 @@ export interface WorldMeta {
   version: number;
   /** Chunks that already received their initial animal spawn. */
   animalChunks?: string[];
+  /** Maps the player has made, as base64 colours. */
+  maps?: { id: number; scale: number; cx: number; cz: number; locked?: boolean; colors: string }[];
 }
 
 interface ChunkRecord {

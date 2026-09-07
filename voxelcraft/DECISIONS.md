@@ -634,3 +634,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     within ten blocks per level eleven seconds of what it is set to. The beam is drawn as vanilla
     draws it, a bright inner column and a softer outer one climbing into the sky, taking its colour
     from the last pane of stained glass the light passes through.
+
+90. **Maps are drawn from the blocks' own textures.** Vanilla gives every block a map colour chosen
+    by hand; rather than transcribe that table, each block's colour is averaged from its own top
+    texture in the atlas and tinted the way the world tints it, so grass, sand and stone come out
+    looking like themselves. Water and lava have no model to average, so they take the biome's water
+    colour and lava's orange. The rest is vanilla's: a map is a hundred and twenty-eight pixels
+    square, centred on the square the player is standing in, filled in as it is carried, and each
+    pixel shaded one of four ways by how its column compares with the one to its north. A
+    cartography table copies a map, zooms it out a step, or locks it so it stops filling in. Vanilla
+    draws a held map in the hand; with no first-person hand to draw one in, using a map opens it as
+    a page of its own.

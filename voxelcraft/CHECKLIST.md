@@ -92,12 +92,12 @@ coverage counts in `COVERAGE.md`.
 - [x] The crafter (a three-by-three that crafts on a signal and pushes what it made into whatever it faces, with slots that can be switched off) and the lectern (a book on the stand, opened at the page it was left at, taken back with a sneak), plus books that can be read, written and signed
 - [x] The loom: vanilla's pattern list (and the eight that need their own pattern item), weaving up to six layers onto a banner, with the patterns drawn on the banner in the world, in the hand and on the icon
 - [x] The beacon: the pyramid counted the way vanilla counts it, the effect screen with a tier per level and the second column a full pyramid opens, an effect given to everyone within range and refreshed every four seconds, and the beam pouring into the sky in the colour of the glass over it
-- [ ] Cartography table and maps
+- [x] Maps and the cartography table: an empty map centred the way vanilla centres one, filled in from the world as it is carried, drawn from the colours of the blocks' own textures with vanilla's four shades, saved with the world, and a table that copies, zooms out and locks them
+- [ ] Weather, moon phases affecting spawns, raids
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
 - [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)
 - [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)
 - [x] Brewing stand and potions: vanilla's whole brewing graph (the four bases, every awkward potion, redstone lengthening and glowstone strengthening, fermented spider eye corrupting, gunpowder and dragon's breath changing the bottle), the stand's screen with its fuel, bubbles and 400-tick brew, bottles filled from water, potions drunk for their effects and splash and lingering bottles thrown
-- [ ] Weather, moon phases affecting spawns, raids
 - [ ] Every enchantment and status effect
 
 ## Phase 4 – Nether

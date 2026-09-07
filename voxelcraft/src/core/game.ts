@@ -34,7 +34,7 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { beaconScreen, brewingScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
 import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { tickBrewing } from '../blocks/brewing.ts';
@@ -80,6 +80,9 @@ import { BeaconBeamRenderer, BlockEntityRenderer, drawnStates } from '../blocks/
 import { compost, composterLevel, composterState } from '../blocks/composter.ts';
 import { openSignEditor } from '../ui/signEditor.ts';
 import { openBookEditor, openBookReader } from '../ui/bookScreen.ts';
+import { openMapScreen } from '../ui/mapScreen.ts';
+import { createMap, deserializeMap, fillAround, serializeMap, type MapData } from '../world/maps.ts';
+import { MapColors, shade } from '../render/mapColors.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
 
 export interface GameAssets {
@@ -187,6 +190,10 @@ export class Game {
   private readonly blockEntities: BlockEntityRenderer;
   /** The beams beacons pour into the sky. */
   private readonly beams: BeaconBeamRenderer;
+  /** Every map the player has made, by id, and the colours a map draws blocks with. */
+  private readonly maps = new Map<number, MapData>();
+  private nextMapId = 0;
+  private mapColors!: MapColors;
   /** Every one of those in the loaded world. */
   private readonly drawnBlocks = new Set<string>();
   /** Every chest in the loaded world, so their meshes can be kept in step. */
@@ -391,6 +398,12 @@ export class Game {
     this.chests = new ChestRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.blockEntities = new BlockEntityRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.beams = new BeaconBeamRenderer(this.renderer.scene, import.meta.env.BASE_URL);
+    this.mapColors = new MapColors(opts.assets.blocks, this.baker);
+    for (const saved of opts.meta.maps ?? []) {
+      const map = deserializeMap(saved);
+      this.maps.set(map.id, map);
+      this.nextMapId = Math.max(this.nextMapId, map.id + 1);
+    }
     this.audio.setVolume(opts.options.volume);
     const unlock = () => this.audio.unlock();
     this.renderer.canvas.addEventListener('mousedown', unlock);
@@ -556,6 +569,7 @@ export class Game {
     this.meta.time = this.time;
     this.meta.lastPlayed = Date.now();
     this.meta.player = this.player.serialize();
+    this.meta.maps = [...this.maps.values()].map(serializeMap);
     this.meta.gamemode = this.player.gamemode === 'creative' ? 'creative' : 'survival';
     try {
       await Promise.all([this.save.saveChunks(this.meta.id, dirty), this.save.saveWorld(this.meta)]);
@@ -585,6 +599,7 @@ export class Game {
     this.tickTripwires();
     this.tickMinecarts();
     this.tickBobber();
+    if (this.tickCount % 10 === 0) this.tickMap();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -1574,6 +1589,88 @@ export class Game {
   }
 
   /**
+   * What a cartography table does to a map: copy it as it stands, zoom it out a step (up to
+   * vanilla's four), or lock it so it never fills in again.
+   */
+  private useCartography(stack: Slot, kind: 'copy' | 'zoom' | 'lock'): ItemStack | null {
+    const map = stack?.map !== undefined ? this.maps.get(stack.map) : undefined;
+    if (!map) return null;
+    if (kind === 'copy') {
+      // a copy shares what the original has drawn so far, and fills in on its own from here
+      const copy = createMap(this.nextMapId++, map.cx, map.cz, map.scale);
+      copy.cx = map.cx;
+      copy.cz = map.cz;
+      copy.colors.set(map.colors);
+      copy.locked = map.locked;
+      this.maps.set(copy.id, copy);
+      return { id: 'filled_map', count: 1, map: copy.id };
+    }
+    if (kind === 'lock') {
+      const locked = createMap(this.nextMapId++, map.cx, map.cz, map.scale);
+      locked.cx = map.cx;
+      locked.cz = map.cz;
+      locked.colors.set(map.colors);
+      locked.locked = true;
+      this.maps.set(locked.id, locked);
+      return { id: 'filled_map', count: 1, map: locked.id };
+    }
+    if (map.scale >= 4) return null;
+    const wider = createMap(this.nextMapId++, map.cx, map.cz, map.scale + 1);
+    this.maps.set(wider.id, wider);
+    this.fillMap(wider);
+    return { id: 'filled_map', count: 1, map: wider.id };
+  }
+
+  /** An empty map becomes a map of where the player is standing, as vanilla centres a new one. */
+  private makeMap(): void {
+    const p = this.player;
+    const map = createMap(this.nextMapId++, Math.floor(p.pos.x), Math.floor(p.pos.z));
+    this.maps.set(map.id, map);
+    const stack: ItemStack = { id: 'filled_map', count: 1, map: map.id };
+    if (p.gamemode !== 'creative') p.inventory.consumeSelected();
+    if (p.inventory.add(stack) > 0) this.dropStack(stack, p.pos.x, p.pos.y + 1, p.pos.z, true);
+    this.fillMap(map);
+    this.chat.addLine(`Map #${map.id} drawn`, '#aaa');
+  }
+
+  /** Opens a map to look at, since there is no hand to hold it in. */
+  private openMap(stack: ItemStack): void {
+    const map = stack.map !== undefined ? this.maps.get(stack.map) : undefined;
+    if (!map) return;
+    this.fillMap(map);
+    this.pauseForOverlay();
+    const p = this.player;
+    this.overlayClose = openMapScreen(this.renderer.canvas.parentElement ?? document.body, map, { x: p.pos.x, z: p.pos.z, yaw: p.yaw }, () => {
+      this.overlayClose = null;
+      this.resumeFromOverlay();
+    });
+  }
+
+  /** A carried map fills in around whoever is carrying it. */
+  private tickMap(): void {
+    const held = this.player.heldItem();
+    if (held?.id !== 'filled_map' || held.map === undefined) return;
+    const map = this.maps.get(held.map);
+    if (map) this.fillMap(map);
+  }
+
+  /** Draws the ground around the player onto a map, colour and shade both. */
+  private fillMap(map: MapData): void {
+    const p = this.player;
+    const sample = {
+      color: (x: number, z: number): number => {
+        const y = this.world.topBlock(x, z);
+        if (y < WORLD_MIN_Y) return -1;
+        const state = this.world.getBlock(x, y, z);
+        if (state === 0) return -1;
+        return this.mapColors.colorOf(state, this.world.getBiome(x, z));
+      },
+      height: (x: number, z: number): number => this.world.topBlock(x, z),
+    };
+    fillAround(map, sample, Math.floor(p.pos.x), Math.floor(p.pos.z), 48, shade);
+  }
+
+  /**
    * A lectern holds one book: an empty one takes whatever book is held, and one with a book on it
    * opens at the page it was left at. Sneaking takes the book back.
    */
@@ -2018,6 +2115,19 @@ export class Game {
     }
     if (def.id === 'composter') return this.useComposter(t);
     if (def.id.endsWith('cauldron')) return this.useCauldron(t, def.id);
+    if (def.id === 'cartography_table') {
+      const state = { map: null as Slot, extra: null as Slot };
+      const screen = cartographyScreen(inv, state, (stack) => {
+        const m = stack.map !== undefined ? this.maps.get(stack.map) : undefined;
+        return m ? `Map #${m.id}\nScale 1:${1 << m.scale}${m.locked ? '\nLocked' : ''}` : '';
+      }, (kind) => this.useCartography(state.map, kind));
+      this.openScreen(screen, () => {
+        for (const slot of [state.map, state.extra]) {
+          if (slot && p.inventory.add(slot) > 0) this.dropStack(slot, p.pos.x, p.pos.y + 1, p.pos.z, true);
+        }
+      });
+      return true;
+    }
     if (def.id === 'beacon') {
       let entity = this.world.getBlockEntity(t.x, t.y, t.z) as BeaconEntity | undefined;
       if (!entity || entity.type !== 'beacon') {
@@ -2189,6 +2299,14 @@ export class Game {
     }
     if (def.behavior === 'fishing_rod') {
       this.useRod();
+      return;
+    }
+    if (held.id === 'map') {
+      this.makeMap();
+      return;
+    }
+    if (held.id === 'filled_map') {
+      this.openMap(held);
       return;
     }
     if (held.id === 'writable_book' || held.id === 'written_book') {
