@@ -19,6 +19,10 @@ export class Arrow {
   fromPlayer: boolean;
   /** Status effect given to the player on hit (stray arrows: slowness). */
   effect?: { id: string; ticks: number; amplifier?: number };
+  /** Ticks of fire the arrow sets what it hits alight for (Flame). */
+  fire = 0;
+  /** Extra knockback from Punch. */
+  knockback = 0;
   /** Splash potions burst on anything they touch instead of sticking. */
   kind: 'arrow' | 'potion' = 'arrow';
   onSplash: ((pos: THREE.Vector3) => void) | null = null;

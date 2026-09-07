@@ -8,6 +8,7 @@ import type { BeaconEntity, BrewingEntity, CrafterEntity, FurnaceEntity } from '
 import { crafterResult, toggleSlot } from '../../blocks/crafter.ts';
 import { LOOM_PATTERNS, PATTERN_ITEMS, dyeColor, isBanner, loomResult, type BannerLayer } from '../../items/banners.ts';
 import { BEACON_EFFECTS, BEACON_PAYMENT, BEACON_SECONDARY } from '../../blocks/beacon.ts';
+import { hasCurse } from '../../items/enchantEffects.ts';
 import { BREW_TICKS, FUEL_BREWS } from '../../blocks/brewing.ts';
 import { isBrewingIngredient } from '../../items/potions.ts';
 
@@ -84,7 +85,8 @@ function armorAccepts(slotIndex: number) {
 export function inventoryScreen(inv: Inventory, grid: CraftingGrid): ScreenDef {
   const armor: SlotDef[] = [3, 2, 1, 0].map((ai, row) => ({
     x: 8, y: 8 + row * 18, group: 'armor', icon: ARMOR_ICONS[ai], maxCount: 1,
-    get: () => inv.armor[ai], set: (s) => { inv.armor[ai] = s; inv.version++; }, accepts: armorAccepts(ai),
+    // a piece cursed with binding cannot be taken off, which is the whole of that curse
+    get: () => inv.armor[ai], set: (s) => { if (hasCurse(inv.armor[ai], 'binding') && !s) return; inv.armor[ai] = s; inv.version++; }, accepts: armorAccepts(ai),
   }));
   const offhand: SlotDef = { x: 77, y: 62, group: 'offhand', icon: 'sprites/container/slot/shield.png', get: () => inv.offhand, set: (s) => { inv.offhand = s; inv.version++; } };
   const player = playerSlots(inv);

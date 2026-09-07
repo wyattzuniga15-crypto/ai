@@ -24,6 +24,7 @@ import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
 import { blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
+import { bowBaseDamage, bowCharge, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
 import { effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
@@ -196,6 +197,10 @@ export class Game {
   private readonly blockEntities: BlockEntityRenderer;
   /** The beams beacons pour into the sky. */
   private readonly beams: BeaconBeamRenderer;
+  /** The absorption level the pool was last filled for. */
+  private absorptionLevel = 0;
+  /** Ticks the bow has been drawn for. */
+  private drawTicks = 0;
   /** The raid on the village the player walked into, while one is running. */
   private raid: RaidState | null = null;
   private raiders: Mob[] = [];
@@ -352,10 +357,12 @@ export class Game {
       getBiome: (x, z) => this.world.getBiome(x, z),
       topBlock: (x, z) => this.world.topBlock(x, z),
       arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
-      arrowHitMob: (box, damage) => {
+      arrowHitMob: (box, damage, fire, knockback) => {
         const hit = this.entities.mobsIntersecting(box)[0];
         if (!hit) return false;
-        hit.hurt(damage, this.player.pos, 'player', 0.3);
+        // Punch throws the mob further and Flame sets it alight, as vanilla's arrows do
+        hit.hurt(damage, this.player.pos, 'player', 0.3 + knockback * 0.5);
+        if (fire > 0) hit.fireTicks = Math.max(hit.fireTicks, fire);
         return true;
       },
     };
@@ -619,6 +626,7 @@ export class Game {
     if (this.tickCount % 10 === 0) this.tickMap();
     this.tickWeather();
     this.tickRaid();
+    this.tickWornEnchantments();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -741,7 +749,8 @@ export class Game {
     const eyeState = this.world.getBlock(Math.floor(eye.x), Math.floor(eye.y), Math.floor(eye.z));
     const submerged = eyeState !== 0 && blocks.blockOf(eyeState).id === 'water';
     if (submerged && !p.effects.get('water_breathing')) {
-      p.air--;
+      // respiration gives a chance to keep the breath, which is how vanilla stretches it out
+      if (p.extraBreath <= 0 || Math.random() < 300 / (p.extraBreath + 300)) p.air--;
       if (p.air <= -20) {
         p.air = 0;
         this.damage(2, true);
@@ -754,18 +763,25 @@ export class Game {
       else p.food = Math.max(0, p.food - 1);
     }
     if (p.food >= 18 && p.health < 20 && this.tickCount % 80 === 0) {
-      p.health = Math.min(20, p.health + 1);
+      p.health = Math.min(p.maxHealth, p.health + 1);
       p.exhaustion += 6;
     }
     if (p.food <= 0 && this.tickCount % 80 === 0 && p.health > 10) this.damage(1, true);
   }
 
-  damage(amount: number, ignoreCooldown = false): void {
+  damage(amount: number, ignoreCooldown = false, source: DamageSource = 'generic'): void {
     const p = this.player;
     if (p.gamemode !== 'survival' || p.dead) return;
     if (!ignoreCooldown && p.hurtTime > 0) return;
     const resistance = p.effects.level('resistance');
     if (resistance) amount = Math.max(0, amount * (1 - 0.2 * resistance));
+    // armour enchantments take their share, then absorption soaks what it can
+    amount *= 1 - protectionFactor(p.inventory.armor, source);
+    if (p.absorption > 0) {
+      const soaked = Math.min(p.absorption, amount);
+      p.absorption -= soaked;
+      amount -= soaked;
+    }
     p.health = Math.max(0, p.health - amount);
     p.hurtTime = 10;
     this.audio.play(p.health <= 0 ? 'death' : 'hurt', { pitch: 0.9 + Math.random() * 0.2 });
@@ -776,11 +792,20 @@ export class Game {
       this.input.enabled = false;
       this.input.exitLock();
       this.menus.showDeath();
-      // drop inventory
+      // drop inventory; anything cursed with vanishing is destroyed instead, as vanilla destroys it
       for (let i = 0; i < 36; i++) {
         const s = p.inventory.slots[i];
-        if (s) this.dropStack(s, p.pos.x, p.pos.y + 1, p.pos.z, true);
+        if (s && !hasCurse(s, 'vanishing')) this.dropStack(s, p.pos.x, p.pos.y + 1, p.pos.z, true);
         p.inventory.slots[i] = null;
+      }
+      for (let i = 0; i < 4; i++) {
+        const s = p.inventory.armor[i];
+        if (s && !hasCurse(s, 'vanishing')) this.dropStack(s, p.pos.x, p.pos.y + 1, p.pos.z, true);
+        p.inventory.armor[i] = null;
+      }
+      if (p.inventory.offhand) {
+        if (!hasCurse(p.inventory.offhand, 'vanishing')) this.dropStack(p.inventory.offhand, p.pos.x, p.pos.y + 1, p.pos.z, true);
+        p.inventory.offhand = null;
       }
       p.inventory.version++;
     }
@@ -863,7 +888,7 @@ export class Game {
     // mining
     if (this.input.isDown('attack') && t && !p.dead) {
       if (!this.breaking || this.breaking.x !== t.x || this.breaking.y !== t.y || this.breaking.z !== t.z || this.breaking.state !== t.state) {
-        const ticks = breakTicks(t.state, p.heldItem(), { onGround: p.onGround, inWater: p.inWater, creative: p.gamemode === 'creative', haste: p.effects.level('haste'), miningFatigue: p.effects.level('mining_fatigue') });
+        const ticks = breakTicks(t.state, p.heldItem(), { onGround: p.onGround, inWater: p.inWater, aquaAffinity: p.aquaAffinity, creative: p.gamemode === 'creative', haste: p.effects.level('haste'), miningFatigue: p.effects.level('mining_fatigue') });
         this.breaking = { x: t.x, y: t.y, z: t.z, state: t.state, progress: 0, ticks };
       }
       const b = this.breaking;
@@ -904,6 +929,13 @@ export class Game {
     }
     const held = p.heldItem();
     const heldDef = held ? items.byId.get(held.id) : undefined;
+    // drawing a bow: vanilla charges it while the button is held and looses it when let go
+    if (held?.id === 'bow' && !p.dead && this.input.isDown('use') && this.canShoot(held)) {
+      this.drawTicks++;
+    } else if (this.drawTicks > 0) {
+      this.shootBow(held, this.drawTicks);
+      this.drawTicks = 0;
+    }
     const drinking = held?.id === 'potion';
     if (this.input.isDown('use') && !p.dead && (drinking || (heldDef?.food && this.canEat(heldDef)))) {
       if (!this.eating || this.eating.id !== held!.id) this.eating = { ticks: 0, total: drinking ? 32 : heldDef!.food!.eatTicks ?? 32, id: held!.id };
@@ -1445,7 +1477,7 @@ export class Game {
   private drinkPotion(stack: ItemStack): void {
     const p = this.player;
     for (const e of effectsOf(stack)) {
-      if (e.effect === 'instant_health') p.health = Math.min(20, p.health + 4 * (e.amplifier + 1));
+      if (e.effect === 'instant_health') p.health = Math.min(p.maxHealth, p.health + 4 * (e.amplifier + 1));
       else if (e.effect === 'instant_damage') this.damage(3 * (e.amplifier + 1));
       else p.effects.add(e.effect, e.duration, e.amplifier);
     }
@@ -1638,6 +1670,101 @@ export class Game {
     this.maps.set(wider.id, wider);
     this.fillMap(wider);
     return { id: 'filled_map', count: 1, map: wider.id };
+  }
+
+  /**
+   * What the gear does while it is worn: depth strider and soul speed hurry the player along, frost
+   * walker freezes the water under them, respiration holds their breath and swift sneak lets them
+   * crouch faster.
+   */
+  private tickWornEnchantments(): void {
+    const p = this.player;
+    const boots = p.inventory.armor[0];
+    const leggings = p.inventory.armor[1];
+    const helmet = p.inventory.armor[3];
+    p.waterSpeed = 1 + depthStriderFactor(boots) * 2;
+    p.sneakSpeed = 1 + swiftSneakLevel(leggings) * 0.3;
+    p.extraBreath = respirationTicks(helmet);
+    p.aquaAffinity = hasAquaAffinity(helmet);
+    const soul = soulSpeedLevel(boots);
+    if (soul > 0 && p.onGround) {
+      const under = this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y - 0.1), Math.floor(p.pos.z));
+      const id = under === 0 ? 'air' : blocks.blockOf(under).id;
+      p.soulSpeed = id === 'soul_sand' || id === 'soul_soil' ? 1 + soul * 0.35 : 1;
+    } else p.soulSpeed = 1;
+    // frost walker turns the water under the player to ice, which melts again when they leave
+    const frost = frostWalkerLevel(boots);
+    if (frost > 0 && p.onGround) {
+      const radius = Math.min(16, 2 + frost);
+      const y = Math.floor(p.pos.y) - 1;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          if (dx * dx + dz * dz > radius * radius) continue;
+          const x = Math.floor(p.pos.x) + dx;
+          const z = Math.floor(p.pos.z) + dz;
+          const state = this.world.getBlock(x, y, z);
+          if (state === 0 || blocks.blockOf(state).id !== 'water' || blocks.prop(state, 'level') !== '0') continue;
+          if (this.world.getBlock(x, y + 1, z) !== 0) continue;
+          this.world.setBlock(x, y, z, blocks.defaultState('frosted_ice'));
+        }
+      }
+    }
+  }
+
+  /** Whether the player has an arrow to loose, which Infinity and creative both answer for. */
+  private canShoot(bow: ItemStack): boolean {
+    if (this.player.gamemode === 'creative' || hasInfinity(bow)) return true;
+    return this.player.inventory.slots.some((s) => s?.id === 'arrow' || s?.id === 'spectral_arrow' || s?.id === 'tipped_arrow');
+  }
+
+  /**
+   * Looses the arrow. Vanilla needs the bow drawn for a moment before it fires at all, gives a fully
+   * drawn shot three blocks a tick, and only spends an arrow when the bow is not Infinity.
+   */
+  private shootBow(bow: ItemStack | null, ticks: number): void {
+    if (!bow || bow.id !== 'bow') return;
+    const charge = bowCharge(ticks);
+    if (charge < 0.1) return;
+    const p = this.player;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir);
+    const from = eye.clone().addScaledVector(dir, 0.4);
+    const to = from.clone().addScaledVector(dir, 16);
+    const arrow = this.entities.shootArrow(from, to, charge * 3, bowBaseDamage(bow), true);
+    arrow.vel.copy(dir).multiplyScalar(charge * 3);
+    if (hasFlame(bow)) arrow.fire = 100;
+    arrow.knockback = punchKnockback(bow);
+    this.audio.play('bow', { pitch: 1 / (Math.random() * 0.4 + 1.2) + charge * 0.5 });
+    if (p.gamemode === 'creative') return;
+    p.inventory.damageSelected(1);
+    if (!hasInfinity(bow)) {
+      const slot = p.inventory.slots.findIndex((sl) => sl?.id === 'arrow' || sl?.id === 'spectral_arrow' || sl?.id === 'tipped_arrow');
+      if (slot >= 0) {
+        const stack = p.inventory.slots[slot]!;
+        if (--stack.count <= 0) p.inventory.slots[slot] = null;
+        p.inventory.version++;
+      }
+    }
+  }
+
+  /**
+   * Mending: experience goes into the damaged gear that carries it before it goes to the player's
+   * level, two points of durability for each point of experience.
+   */
+  private mendGear(amount: number): number {
+    const p = this.player;
+    let left = amount;
+    for (let i = 0; i < 4 && left > 0; i++) {
+      const gear = [...p.inventory.armor, p.heldItem(), p.inventory.offhand];
+      const target = mendingTarget(gear);
+      if (!target) break;
+      const repair = Math.min(target.damage ?? 0, left * 2);
+      target.damage = (target.damage ?? 0) - repair;
+      if (!target.damage) delete target.damage;
+      left -= Math.ceil(repair / 2);
+      p.inventory.version++;
+    }
+    return Math.max(0, left);
   }
 
   /**
@@ -2594,13 +2721,25 @@ export class Game {
 
   private tickEffects(): void {
     const p = this.player;
+    // absorption gives four hearts a level, filled when the effect lands and gone when it ends
+    const absorption = p.effects.level('absorption');
+    if (absorption !== this.absorptionLevel) {
+      p.absorption = absorption * 4;
+      this.absorptionLevel = absorption;
+    }
+    const boost = p.effects.level('health_boost');
+    p.maxHealth = 20 + boost * 4;
+    if (p.health > p.maxHealth) p.health = p.maxHealth;
+    // levitation lifts, which is the one effect that moves the player itself
+    const levitation = p.effects.level('levitation');
+    if (levitation > 0 && !p.flying) p.vel.y = 0.05 * levitation;
     if (p.dead) return;
     p.effects.tick();
     for (const e of p.effects.active.values()) {
       const lvl = e.amplifier + 1;
       switch (e.id) {
         case 'regeneration':
-          if (this.tickCount % Math.max(1, 50 >> e.amplifier) === 0 && p.health < 20) p.health = Math.min(20, p.health + 1);
+          if (this.tickCount % Math.max(1, 50 >> e.amplifier) === 0 && p.health < p.maxHealth) p.health = Math.min(p.maxHealth, p.health + 1);
           break;
         case 'poison':
           if (this.tickCount % Math.max(1, 25 >> e.amplifier) === 0 && p.health > 1) this.damage(1, true);
@@ -2616,7 +2755,7 @@ export class Game {
           p.effects.remove('saturation');
           break;
         case 'instant_health':
-          p.health = Math.min(20, p.health + 4 * 2 ** e.amplifier);
+          p.health = Math.min(p.maxHealth, p.health + 4 * 2 ** e.amplifier);
           p.effects.remove('instant_health');
           break;
         case 'instant_damage':
@@ -3143,7 +3282,7 @@ export class Game {
       const factor = 1 - d / reach;
       for (const e of effects) {
         if (e.effect === 'instant_damage') this.damage(Math.max(1, Math.round(3 * (e.amplifier + 1) * factor)));
-        else if (e.effect === 'instant_health') p.health = Math.min(20, p.health + Math.round(4 * (e.amplifier + 1) * factor));
+        else if (e.effect === 'instant_health') p.health = Math.min(p.maxHealth, p.health + Math.round(4 * (e.amplifier + 1) * factor));
         else p.effects.add(e.effect, Math.round(e.duration * factor + 0.5), e.amplifier);
       }
     });
@@ -3246,12 +3385,18 @@ export class Game {
     p.inventory.version++;
   }
 
-  hurtByMob(amount: number, from: THREE.Vector3): void {
+  hurtByMob(amount: number, from: THREE.Vector3, source: DamageSource = 'generic'): void {
     const p = this.player;
     if (p.gamemode !== 'survival' || p.dead || p.hurtTime > 0) return;
     const reduced = this.armorReduction(amount);
-    this.damage(reduced);
+    this.damage(reduced, false, source ?? 'generic');
     this.damageArmor();
+    // thorns pays the hurt back, and costs the armour that did it
+    const thorns = thornsDamage(this.player.inventory.armor, Math.random);
+    if (thorns > 0) {
+      const attacker = this.entities.mobs.find((m) => !m.dead && m.pos.distanceTo(from) < 1.5);
+      attacker?.hurt(thorns, this.player.pos, 'player', 0);
+    }
     // knockback
     const dx = p.pos.x - from.x;
     const dz = p.pos.z - from.z;
@@ -3271,8 +3416,8 @@ export class Game {
     const cooldownTicks = 20 / speed;
     const progress = Math.min(1, this.attackTicks / cooldownTicks);
     this.attackTicks = 0;
-    const sharpness = held?.enchantments?.sharpness ?? 0;
-    if (sharpness) damage += 0.5 * (sharpness - 1) + 1;
+    // sharpness, smite and bane of arthropods all land here, each against what it is for
+    damage += weaponBonus(held ?? null, mob.def.id);
     damage *= 0.2 + progress * progress * 0.8;
     let knockback = 0.4;
     if (p.sprinting) knockback += 0.5;
@@ -3281,6 +3426,8 @@ export class Game {
     if (crit) damage *= 1.5;
     if (progress > 0.9) mob.hurt(damage, p.pos, 'player', knockback);
     else mob.hurt(damage, p.pos, 'player', 0.2);
+    const burn = fireAspectTicks(held ?? null);
+    if (burn > 0) mob.fireTicks = Math.max(mob.fireTicks, burn);
     if (mob.def.id !== 'wolf' || mob.extra.tamed !== true) this.lastVictim = mob;
     const mid = mob.pos.y + mob.height / 2;
     if (crit) this.particles.crits(mob.pos.x, mid, mob.pos.z, 8, Math.random, 'crit');
@@ -4425,7 +4572,10 @@ export class Game {
 
   addXp(n: number): void {
     const p = this.player;
-    p.xp += n;
+    // mending takes its share first, which is where vanilla sends experience before the bar
+    const left = this.mendGear(n);
+    if (left <= 0) return;
+    p.xp += left;
     let leveled = false;
     while (p.xp >= xpForLevel(p.xpLevel)) {
       p.xp -= xpForLevel(p.xpLevel);

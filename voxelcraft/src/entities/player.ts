@@ -35,6 +35,15 @@ export class Player {
   inLava = false;
   gamemode: GameMode = 'survival';
   health = 20;
+  /** Twenty, plus four a level of health boost. */
+  maxHealth = 20;
+  /** Multipliers the worn gear sets: depth strider, swift sneak and soul speed. */
+  waterSpeed = 1;
+  sneakSpeed = 1;
+  soulSpeed = 1;
+  /** Extra ticks of breath from respiration, and whether mining underwater is unhindered. */
+  extraBreath = 0;
+  aquaAffinity = false;
   food = 20;
   saturation = 5;
   exhaustion = 0;
@@ -213,13 +222,15 @@ export class Player {
     }
 
     if (this.inWater || this.inLava) {
-      const speed = 0.02 * (this.sprinting ? 1.3 : 1);
+      // depth strider both pushes harder and lets the water drag less, as vanilla speeds a swimmer
+      const speed = 0.02 * (this.sprinting ? 1.3 : 1) * this.waterSpeed;
+      const drag = 0.8 + (this.waterSpeed - 1) * 0.06;
       this.vel.x += wx * speed;
       this.vel.z += wz * speed;
       if (jump) this.vel.y += 0.04;
       this.move(world, 0);
-      this.vel.x *= 0.8;
-      this.vel.z *= 0.8;
+      this.vel.x *= Math.min(0.95, drag);
+      this.vel.z *= Math.min(0.95, drag);
       this.vel.y *= 0.8;
       this.vel.y -= 0.02;
       if (this.onGround && jump && !eyeInWater) this.vel.y = 0.3;
@@ -229,8 +240,8 @@ export class Player {
 
     let speed = this.onGround ? 0.1 : 0.02;
     if (this.sprinting) speed *= 1.3;
-    if (this.sneaking) speed *= 0.3;
-    speed *= speedMultiplier(this.effects);
+    if (this.sneaking) speed *= 0.3 * this.sneakSpeed;
+    speed *= speedMultiplier(this.effects) * this.soulSpeed;
     if (this.onGround) {
       const friction = 0.6 * 0.91; // default block slipperiness
       speed = speed * (0.16277136 / (friction * friction * friction));

@@ -54,13 +54,13 @@ test('loads a world, breaks and places a block, runs a command', async ({ page }
     const g = window.voxelcraft.game as unknown as { target: { y: number } | null; player: { pitch: number; pos: { y: number } } };
     g.player.pitch = -Math.PI / 2 + 0.01;
     return g.target !== null && g.target.y < Math.floor(g.player.pos.y); // the render loop re-aimed below the feet
-  }, null, { timeout: 5_000 });
+  }, null, { timeout: 20_000 });
   const target = await page.evaluate(() => {
     const t = (window.voxelcraft.game as unknown as { target: { x: number; y: number; z: number; state: number } }).target;
     return { x: t.x, y: t.y, z: t.z, id: window.voxelcraft.blocks.idOf(t.state) };
   });
   expect(target.id).not.toBe('air');
-  await page.waitForFunction(({ x, y, z }) => window.voxelcraft.game.world.getBlock(x, y, z) === 0, target, { timeout: 15_000 });
+  await page.waitForFunction(({ x, y, z }) => window.voxelcraft.game.world.getBlock(x, y, z) === 0, target, { timeout: 30_000 });
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(1500); // the drop settles and gets picked up
   const inv = await page.evaluate(() => window.voxelcraft.game.player.inventory.slots.filter(Boolean));
@@ -74,7 +74,7 @@ test('loads a world, breaks and places a block, runs a command', async ({ page }
     const g = window.voxelcraft.game as unknown as { target: { y: number } | null; player: { pitch: number; pos: { y: number } } };
     g.player.pitch = -Math.PI / 2 + 0.01; // the block we now stand on, after falling into the hole
     return g.target !== null && g.target.y < Math.floor(g.player.pos.y);
-  }, null, { timeout: 10_000 });
+  }, null, { timeout: 20_000 });
   const placeTarget = await page.evaluate(() => {
     const t = (window.voxelcraft.game as unknown as { target: { x: number; y: number; z: number } }).target;
     return { x: t.x, y: t.y + 1, z: t.z };

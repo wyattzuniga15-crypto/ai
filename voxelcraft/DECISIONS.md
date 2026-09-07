@@ -665,3 +665,16 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     in the third, witches in the fourth, evokers in the fifth. A bar across the top names the wave
     and shows what is left of it, the next wave waits until the last one is dead, and seeing them all
     off earns Hero of the Village.
+
+93. **Enchantments that do something, and the bow to use them with.** Vanilla scores armour by an
+    enchantment protection factor: a point a level of Protection, two for the specialised ones
+    against their own damage, three a level of Feather Falling against a fall, capped at twenty and
+    four percent off each. That is what the damage path now runs through, with a damage source
+    threaded down to it, and absorption soaking what is left before health. Weapons take their bonus
+    from Sharpness, Smite against the undead and Bane of Arthropods against the spiders, with Fire
+    Aspect setting what it hits alight. The player could not shoot a bow at all, so drawing and
+    loosing one is here too: vanilla's draw curve, three blocks a tick at full draw, an arrow spent
+    unless the bow has Infinity, and Power, Punch and Flame on the arrow that leaves it. Mending
+    takes experience into damaged gear before it reaches the bar, the boots and helmet enchantments
+    change how the player swims, sneaks, walks on soul sand, freezes water, holds their breath and
+    mines underwater, and the two curses do what they are named for.

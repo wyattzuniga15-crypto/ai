@@ -6,6 +6,8 @@ import type { ItemStack } from '../items/inventory.ts';
 export interface MiningContext {
   onGround: boolean;
   inWater: boolean;
+  /** Aqua Affinity: mining underwater is not slowed. */
+  aquaAffinity?: boolean;
   creative: boolean;
   haste?: number;
   miningFatigue?: number;
@@ -49,7 +51,7 @@ export function breakTicks(state: number, held: ItemStack | null, ctx: MiningCon
   }
   if (ctx.haste) speed *= 1 + 0.2 * ctx.haste;
   if (ctx.miningFatigue) speed *= Math.pow(0.3, Math.min(ctx.miningFatigue, 4));
-  if (ctx.inWater) speed /= 5;
+  if (ctx.inWater && !ctx.aquaAffinity) speed /= 5;
   if (!ctx.onGround) speed /= 5;
   let damage = speed / def.hardness;
   damage /= canHarvest(state, held) ? 30 : 100;
