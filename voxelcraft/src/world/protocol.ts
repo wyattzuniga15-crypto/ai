@@ -7,7 +7,10 @@ export interface StructureBundle { index: StructureIndexEntry[]; templates: Reco
 import type { AtlasJson } from '../render/atlasIndex.ts';
 import type { MeshBuffers } from './mesher.ts';
 
-export interface InitMessage { type: 'init'; seed: number; models: ModelsJson; atlas: AtlasJson; /** One port per terrain generation worker (see genWorker.ts). */ genPorts?: MessagePort[]; structures?: StructureBundle }
+/** The worlds a player can stand in. */
+export type Dimension = 'overworld' | 'nether' | 'end';
+
+export interface InitMessage { type: 'init'; seed: number; models: ModelsJson; atlas: AtlasJson; /** One port per terrain generation worker (see genWorker.ts). */ genPorts?: MessagePort[]; structures?: StructureBundle; /** Which world to generate: the overworld unless told otherwise. */ dimension?: Dimension }
 export interface ViewMessage { type: 'view'; cx: number; cz: number; distance: number }
 export interface ChunkSourceMessage { type: 'chunkSource'; cx: number; cz: number; blocks: Uint16Array | null; biomes: Uint8Array | null }
 export interface SetBlockMessage { type: 'setBlock'; x: number; y: number; z: number; state: number }
@@ -30,6 +33,6 @@ export const packKey = (cx: number, cz: number): number => (cx + 32768) * 65536 
 export const unpackKey = (k: number): [number, number] => [Math.floor(k / 65536) - 32768, (k % 65536) - 32768];
 
 // Terrain generation pool (main thread -> gen worker, then gen worker <-> world worker over a port)
-export interface GenInit { type: 'init'; seed: number; port: MessagePort; structures?: StructureBundle }
+export interface GenInit { type: 'init'; seed: number; port: MessagePort; structures?: StructureBundle; dimension?: Dimension }
 export interface GenRequest { type: 'gen'; cx: number; cz: number }
 export interface GenResult { type: 'terrain'; cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; heightmap: Int16Array }

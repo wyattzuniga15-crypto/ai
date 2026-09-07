@@ -13,9 +13,11 @@ import { createChunkMaterials, type ChunkUniforms } from '../render/chunkMateria
 import { Sky } from '../render/sky.ts';
 import { applyMipLimit, type LoadedAtlas } from '../render/atlas.ts';
 import { AtlasIndex } from '../render/atlasIndex.ts';
-import { World, FACE_NORMALS, type RaycastHit } from '../world/world.ts';
+import { World, FACE_NORMALS, type LoadedChunk, type RaycastHit, type WorldOptions } from '../world/world.ts';
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
-import type { StructureBundle } from '../world/protocol.ts';
+import type { Dimension, StructureBundle } from '../world/protocol.ts';
+import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
+import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
 import { Player } from '../entities/player.ts';
@@ -112,6 +114,14 @@ const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behav
 
 /** Vanilla's lightmap never reaches black: about 0.03 at Moody, lifted further by the brightness slider. */
 const lightFloor = (gamma: number): number => 0.03 + gamma * 0.1;
+/**
+ * Vanilla's nether dimension carries an ambient light of 0.1, which it lays over the brightness
+ * curve rather than under it: the darkest block down there is a tenth lit, and the brightness
+ * option's own floor takes what is left.
+ */
+const NETHER_AMBIENT = 0.1;
+const ambientFor = (dimension: Dimension, floor: number): number =>
+  (dimension === 'overworld' ? floor : NETHER_AMBIENT + (1 - NETHER_AMBIENT) * floor);
 
 /** Synthesized sound to play when a mob dies; variants reuse their base mob's voice. */
 const MOB_DEATH_SOUNDS: Record<string, string> = {
@@ -129,7 +139,10 @@ const MOON_NAMES = ['full', 'waning gibbous', 'third quarter', 'waning crescent'
 
 export class Game {
   readonly renderer: GameRenderer;
-  readonly world: World;
+  /** Rebuilt when the player steps through a portal: each dimension gets its own workers. */
+  world: World;
+  /** Everything a world needs but the dimension, kept so another one can be built on the spot. */
+  private readonly worldOptions: WorldOptions;
   readonly player = new Player();
   readonly input: Input;
   readonly loop: GameLoop;
@@ -153,6 +166,13 @@ export class Game {
   private breaking: { x: number; y: number; z: number; state: number; progress: number; ticks: number } | null = null;
   private useCooldown = 0;
   private autosaveTimer = 0;
+  /** Ticks the player has stood in a portal, and how long before one will take them again. */
+  /** The darkest a block can be drawn, which the Nether raises the way vanilla's ambient light does. */
+  private ambientFloor = 0.03;
+  private portalTicks = 0;
+  private portalCooldown = 0;
+  /** True while a dimension is being built, so nothing else tries to start another. */
+  private travelling = false;
   private lastSaveAt = 0;
   /** The mob the player is riding, its jump charge and the buck timer for untamed horses. */
   private mount: Mob | null = null;
@@ -244,7 +264,7 @@ export class Game {
     const atlasIndex = new AtlasIndex({ width: opts.assets.blocks.index.width, height: opts.assets.blocks.index.height, tiles: opts.assets.blocks.index.tiles });
     this.baker = new ModelBaker(opts.assets.models, atlasIndex);
     this.icons = new ItemIcons(opts.assets.blocks, opts.assets.items, this.baker);
-    this.world = new World({
+    this.worldOptions = {
       seed: opts.meta.seed,
       renderDistance: opts.options.renderDistance,
       scene: this.renderer.scene,
@@ -253,9 +273,11 @@ export class Game {
       models: opts.assets.models,
       structures: opts.assets.structures,
       atlas: { width: atlasIndex.width, height: atlasIndex.height, tiles: atlasIndex.tiles },
-      loadChunk: (cx, cz) => this.save.loadChunk(this.meta.id, cx, cz),
+      loadChunk: () => Promise.resolve(null),
       genWorkers: opts.options.genWorkers,
-    });
+    };
+    this.world = this.makeWorld(opts.meta.dimension ?? 'overworld');
+    this.sky.setDimension(this.world.dimension);
     this.input = new Input(this.renderer.canvas);
     this.input.setBindings(opts.options.bindings);
     this.blockMeshes = new BlockMeshFactory(this.baker, opts.assets.blocks);
@@ -265,7 +287,8 @@ export class Game {
     });
     mobFireAssets.material = mats.solid;
     this.uniforms.gamma.value = opts.options.gamma;
-    this.uniforms.ambient.value = lightFloor(opts.options.gamma);
+    this.ambientFloor = lightFloor(opts.options.gamma);
+    this.uniforms.ambient.value = ambientFor(this.world.dimension, this.ambientFloor);
     mobFireAssets.tiles = [atlasIndex.tile('block/fire_0'), atlasIndex.tile('block/fire_1')];
     const rng = new Rng((Date.now() ^ opts.meta.seed) >>> 0);
     const blockWorld: BlockWorld = {
@@ -289,10 +312,6 @@ export class Game {
       dispense: (x, y, z) => this.dispense(x, y, z),
     };
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
-    this.world.onBlockChanged = (x, y, z, o, n) => {
-      this.simulation.onBlockChanged(x, y, z, o, n);
-      this.chestChanged(x, y, z, o, n);
-    };
     this.animalChunks = new Set(opts.meta.animalChunks ?? []);
     const game = this;
     const host: ManagerHost = {
@@ -370,25 +389,6 @@ export class Game {
       },
     };
     this.entities = new EntityManager(host);
-    this.world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
-    this.world.onChunkUnloaded = (c) => {
-      const mobs = this.serializeChunkEntities(c.cx, c.cz);
-      for (const m of this.entities.mobs.slice()) if ((Math.floor(m.pos.x) >> 4) === c.cx && (Math.floor(m.pos.z) >> 4) === c.cz) this.entities.remove(m);
-      for (let i = this.itemEntities.length - 1; i >= 0; i--) {
-        const e = this.itemEntities[i];
-        if ((Math.floor(e.pos.x) >> 4) === c.cx && (Math.floor(e.pos.z) >> 4) === c.cz) {
-          this.renderer.scene.remove(e.sprite);
-          this.itemEntities.splice(i, 1);
-        }
-      }
-      for (let i = this.minecarts.length - 1; i >= 0; i--) {
-        const cart = this.minecarts[i];
-        if (cart === this.cart || (Math.floor(cart.pos.x) >> 4) !== c.cx || (Math.floor(cart.pos.z) >> 4) !== c.cz) continue;
-        this.renderer.scene.remove(cart.mesh);
-        this.minecarts.splice(i, 1);
-      }
-      if (mobs.length) void this.save.saveChunks(this.meta.id, [{ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: JSON.stringify(mobs) }]);
-    };
     this.hud = new Hud(opts.container, this.icons);
     this.chat = new Chat(opts.container);
     this.chat.onSubmit = (t) => this.handleChat(t);
@@ -573,7 +573,8 @@ export class Game {
       this.world.update(this.player.pos.x, this.player.pos.z);
     }
     this.uniforms.gamma.value = o.gamma;
-    this.uniforms.ambient.value = lightFloor(o.gamma);
+    this.ambientFloor = lightFloor(o.gamma);
+    this.uniforms.ambient.value = ambientFor(this.world.dimension, this.ambientFloor);
     this.audio.setVolume(o.volume);
   }
 
@@ -599,11 +600,148 @@ export class Game {
     this.meta.weather = { ...this.weather };
     this.meta.gamemode = this.player.gamemode === 'creative' ? 'creative' : 'survival';
     try {
-      await Promise.all([this.save.saveChunks(this.meta.id, dirty), this.save.saveWorld(this.meta)]);
+      await Promise.all([this.save.saveChunks(this.meta.id, dirty, this.world.dimension), this.save.saveWorld(this.meta)]);
     } catch (e) {
       console.error('save failed', e);
     }
     this.lastSaveAt = performance.now();
+  }
+
+  /**
+   * Standing in a portal takes the player to the other world. Vanilla counts eighty ticks of it in
+   * survival and goes at once in creative, then holds the traveller for a while so they do not
+   * bounce straight back through the portal they arrived in.
+   */
+  private portalTick(): void {
+    if (this.portalCooldown > 0) this.portalCooldown--;
+    const p = this.player;
+    const inPortal = !p.dead && blocks.blockOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.5), Math.floor(p.pos.z))).id === 'nether_portal';
+    if (!inPortal || this.travelling) {
+      if (this.portalTicks > 0) this.portalTicks -= 2;
+      if (this.portalTicks < 0) this.portalTicks = 0;
+      return;
+    }
+    if (this.portalCooldown > 0) return;
+    this.portalTicks++;
+    const wait = p.gamemode === 'creative' ? 1 : PORTAL_WAIT;
+    if (this.portalTicks < wait) return;
+    this.portalTicks = 0;
+    void this.travel(this.world.dimension === 'nether' ? 'overworld' : 'nether');
+  }
+
+  /** How far a portal is worth looking for on arrival, as vanilla searches around the target. */
+  private static readonly PORTAL_SEARCH = 16;
+
+  /**
+   * Takes the player to another world: the chunks here are saved and thrown away, the next
+   * dimension's are built, and the traveller comes out at a portal there — one that was already
+   * standing, or one built for them the way vanilla builds one when its search comes up empty.
+   */
+  async travel(to: Dimension): Promise<void> {
+    if (this.travelling || this.world.dimension === to) return;
+    this.travelling = true;
+    const from = this.world.dimension;
+    const p = this.player;
+    try {
+      this.meta.dimensionSpots = { ...this.meta.dimensionSpots, [from]: [p.pos.x, p.pos.y, p.pos.z] };
+      await this.saveAll();
+      // everything drawn belongs to the world being left
+      for (const m of this.entities.mobs.slice()) this.entities.remove(m);
+      for (const e of this.itemEntities) this.renderer.scene.remove(e.sprite);
+      this.itemEntities.length = 0;
+      for (const cart of this.minecarts) this.renderer.scene.remove(cart.mesh);
+      this.minecarts.length = 0;
+      this.cart = null;
+      this.signs.clear();
+      this.chests.prune(new Set());
+      this.chestBlocks.clear();
+      this.blockEntities.prune(new Set());
+      this.beams.prune(new Set());
+      this.drawnBlocks.clear();
+      this.animalChunks.clear();
+      this.world.dispose();
+      this.world = this.makeWorld(to);
+      this.meta.dimension = to;
+      const [tx, tz] = scalePosition(p.pos.x, p.pos.z, from, to);
+      const minY = to === 'nether' ? NETHER_FLOOR + 1 : WORLD_MIN_Y + 1;
+      const maxY = to === 'nether' ? NETHER_ROOF - 1 : 319;
+      const ty = to === 'nether' ? Math.min(maxY - 6, Math.max(minY + 2, Math.round(p.pos.y))) : Math.round(p.pos.y);
+      p.pos.set(tx + 0.5, ty, tz + 0.5);
+      p.vel.set(0, 0, 0);
+      await this.waitForChunks(tx, tz);
+      // coming back up, the height a traveller left the Nether at means nothing: aim for the ground
+      const surface = to === 'overworld' ? this.world.topBlock(tx, tz) + 1 : ty;
+      const aim = Math.min(maxY - 6, Math.max(minY + 2, surface));
+      const world = this.portalBlocks();
+      const near = findPortalNear(world, tx, aim, tz, Game.PORTAL_SEARCH, minY, maxY);
+      const [ax, ay, az] = near ?? buildPortal(world, tx, aim, tz, minY, maxY);
+      p.pos.set(ax + 0.5, ay, az + 0.5);
+      p.vel.set(0, 0, 0);
+      p.fallDistance = 0;
+      p.onGround = false;
+      this.portalCooldown = PORTAL_COOLDOWN;
+      this.portalTicks = 0;
+      this.sky.setDimension(to);
+      this.uniforms.ambient.value = ambientFor(to, this.ambientFloor);
+      this.chat.addLine(to === 'nether' ? 'Entering the Nether' : 'Leaving the Nether');
+    } finally {
+      this.travelling = false;
+    }
+  }
+
+  /**
+   * Waits for the chunks a traveller is arriving in: the one they land in and its neighbours, since
+   * a portal built for them can reach a little way into the next chunk along.
+   */
+  private async waitForChunks(x: number, z: number): Promise<void> {
+    const cx = Math.floor(x) >> 4;
+    const cz = Math.floor(z) >> 4;
+    for (let i = 0; i < 300; i++) {
+      let ready = true;
+      for (let dx = -1; dx <= 1 && ready; dx++) for (let dz = -1; dz <= 1 && ready; dz++) if (!this.world.getChunk(cx + dx, cz + dz)) ready = false;
+      if (ready) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  /** A chunk going out of view: its mobs and dropped items go with it, saved if it holds any. */
+  private onChunkUnloaded(c: LoadedChunk): void {
+    const mobs = this.serializeChunkEntities(c.cx, c.cz);
+    for (const m of this.entities.mobs.slice()) if ((Math.floor(m.pos.x) >> 4) === c.cx && (Math.floor(m.pos.z) >> 4) === c.cz) this.entities.remove(m);
+    for (let i = this.itemEntities.length - 1; i >= 0; i--) {
+      const e = this.itemEntities[i];
+      if ((Math.floor(e.pos.x) >> 4) === c.cx && (Math.floor(e.pos.z) >> 4) === c.cz) {
+        this.renderer.scene.remove(e.sprite);
+        this.itemEntities.splice(i, 1);
+      }
+    }
+    for (let i = this.minecarts.length - 1; i >= 0; i--) {
+      const cart = this.minecarts[i];
+      if (cart === this.cart || (Math.floor(cart.pos.x) >> 4) !== c.cx || (Math.floor(cart.pos.z) >> 4) !== c.cz) continue;
+      this.renderer.scene.remove(cart.mesh);
+      this.minecarts.splice(i, 1);
+    }
+    if (mobs.length) void this.save.saveChunks(this.meta.id, [{ cx: c.cx, cz: c.cz, blocks: c.blocks, biomes: c.biomes, entities: this.world.serializeEntities(c), mobs: JSON.stringify(mobs) }], this.world.dimension);
+  }
+
+  /**
+   * Builds the world for one dimension and wires it to the game. Each dimension has its own workers
+   * and its own chunks in the save, so stepping through a portal means throwing one away and
+   * building the next.
+   */
+  private makeWorld(dimension: Dimension): World {
+    const world = new World({
+      ...this.worldOptions,
+      dimension,
+      loadChunk: (cx, cz) => this.save.loadChunk(this.meta.id, cx, cz, dimension),
+    });
+    world.onBlockChanged = (x, y, z, o, n) => {
+      this.simulation.onBlockChanged(x, y, z, o, n);
+      this.chestChanged(x, y, z, o, n);
+    };
+    world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
+    world.onChunkUnloaded = (c) => this.onChunkUnloaded(c);
+    return world;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -653,7 +791,9 @@ export class Game {
       this.syncSigns();
       this.syncChests();
     }
-    if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
+    // the Nether spawns nothing yet: its own mobs come with the fortress, and overworld ones
+    // have no business down there
+    if (this.world.dimension === 'overworld') this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
     this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
     this.entities.traderSpawnTick(this.isDay());
@@ -698,6 +838,7 @@ export class Game {
     }
     if (p.hurtTime > 0) p.hurtTime--;
     if (this.useCooldown > 0) this.useCooldown--;
+    this.portalTick();
     if (++this.autosaveTimer >= 20 * 60) {
       this.autosaveTimer = 0;
       void this.saveAll();
@@ -2682,6 +2823,10 @@ export class Game {
       this.fillBottle();
       return;
     }
+    if (held.id === 'flint_and_steel' && t) {
+      this.strikeFlint(t);
+      return;
+    }
     if (def.behavior === 'hoe' && t && this.tillSoil(t)) return;
     if (held.id === 'bone_meal' && t) {
       if (applyBoneMeal(this.simulationWorld(), t.x, t.y, t.z, t.state)) {
@@ -2690,6 +2835,34 @@ export class Game {
       return;
     }
     if (t) this.placeBlock(t);
+  }
+
+  /**
+   * Flint and steel: vanilla lights a nether portal when the face struck opens into an obsidian
+   * frame, and otherwise sets a fire on the face itself.
+   */
+  private strikeFlint(t: RaycastHit): void {
+    const p = this.player;
+    const [dx, dy, dz] = FACE_NORMALS[t.face];
+    const x = t.x + dx, y = t.y + dy, z = t.z + dz;
+    const world = this.portalBlocks();
+    const lit = blocks.blockOf(t.state).id === 'obsidian' && lightPortal(world, x, y, z);
+    if (!lit) {
+      if (this.world.getBlock(x, y, z) !== 0) return;
+      const under = this.world.getBlock(x, y - 1, z);
+      if (under === 0 || !blocks.blockOf(under).solid) return;
+      this.world.setBlock(x, y, z, blocks.defaultState('fire'));
+    }
+    this.audio.play('fizz', { x, y, z });
+    if (p.gamemode === 'survival') p.inventory.damageSelected(1);
+  }
+
+  /** The world as the portal code wants it: plain block reads and writes. */
+  private portalBlocks(): PortalBlocks {
+    return {
+      get: (x, y, z) => this.world.getBlock(x, y, z),
+      set: (x, y, z, state) => this.world.setBlock(x, y, z, state),
+    };
   }
 
   private useBucket(id: string): void {
@@ -3278,7 +3451,8 @@ export class Game {
     const key = `${cx},${cz}`;
     if (!this.animalChunks.has(key)) {
       this.animalChunks.add(key);
-      this.entities.spawnAnimalsInChunk(cx, cz);
+      // cows and sheep belong to the overworld; the Nether gets its own animals with its mobs
+      if (this.world.dimension === 'overworld') this.entities.spawnAnimalsInChunk(cx, cz);
       this.populateStructures(cx, cz);
     }
     this.applyStructureSpots(c);

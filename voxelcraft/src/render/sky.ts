@@ -1,11 +1,14 @@
 /** Day/night sky: background and fog colours, sun and moon sprites, light factor for the shader. */
 import * as THREE from 'three';
+import type { Dimension } from '../world/protocol.ts';
 import { DAY_LENGTH } from '../core/constants.ts';
 
 const DAY_SKY = new THREE.Color(0x78a7ff);
 const NIGHT_SKY = new THREE.Color(0x02040c);
 const DAY_FOG = new THREE.Color(0xc0d8ff);
 const NIGHT_FOG = new THREE.Color(0x03050f);
+/** Vanilla's nether_wastes fog: the red the whole dimension is seen through. */
+const NETHER_FOG = new THREE.Color(0x330808);
 const SUNSET = new THREE.Color(0xffa040);
 /** What the sky and fog fade toward while it is raining. */
 const STORM_SKY = new THREE.Color(0x4c5566);
@@ -26,6 +29,8 @@ export class Sky {
   dayLightClear = 1;
   /** Sun elevation in [-1, 1]. */
   elevation = 1;
+  /** Which world is overhead: the Nether has no sky at all, only its red murk. */
+  private dimension: Dimension = 'overworld';
 
   constructor(base: string) {
     const loader = new THREE.TextureLoader();
@@ -44,8 +49,24 @@ export class Sky {
     this.group.frustumCulled = false;
   }
 
+  /** The Nether hides the sun and the moon and paints its own fog; the End would do the same. */
+  setDimension(dimension: Dimension): void {
+    this.dimension = dimension;
+    this.group.visible = dimension === 'overworld';
+  }
+
   /** @param time world time in ticks; @param rain how hard it is coming down, 0 to 1. */
   update(time: number, cameraPos: THREE.Vector3, rain = 0): void {
+    if (this.dimension !== 'overworld') {
+      // vanilla lights the Nether evenly from nowhere, under a low red fog
+      this.elevation = 0;
+      this.dayLight = 0;
+      this.dayLightClear = 0;
+      this.skyColor.copy(NETHER_FOG);
+      this.fogColor.copy(NETHER_FOG);
+      this.group.position.set(0, 0, 0);
+      return;
+    }
     const f = ((time % DAY_LENGTH) + DAY_LENGTH) % DAY_LENGTH / DAY_LENGTH; // 0 = 6:00
     const angle = f * Math.PI * 2; // sun angle: 0 at sunrise (east), pi/2 at noon
     const elev = Math.sin(angle);

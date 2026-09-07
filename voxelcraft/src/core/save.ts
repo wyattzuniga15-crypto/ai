@@ -1,5 +1,6 @@
 /** IndexedDB persistence for worlds, chunks and players, plus zip export/import. */
 import { deflateSync, inflateSync, unzipSync, zipSync } from 'fflate';
+import type { Dimension } from '../world/protocol.ts';
 import type { PlayerSave } from '../entities/player.ts';
 
 export interface WorldMeta {
@@ -20,11 +21,16 @@ export interface WorldMeta {
   maps?: { id: number; scale: number; cx: number; cz: number; locked?: boolean; colors: string }[];
   /** The state of the sky: whether it is raining, and how long until it changes. */
   weather?: { rainTime: number; thunderTime: number; raining: boolean; thundering: boolean; rainLevel: number; thunderLevel: number };
+  /** Which world the player logged out in, and where they stood in the ones they have left. */
+  dimension?: Dimension;
+  dimensionSpots?: Partial<Record<Dimension, [number, number, number]>>;
 }
 
 interface ChunkRecord {
   key: string;
   world: string;
+  /** Which of the world's dimensions the chunk belongs to; absent means the overworld. */
+  dimension?: string;
   cx: number;
   cz: number;
   blocks: Uint8Array;
@@ -70,7 +76,12 @@ function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) 
   );
 }
 
-export const chunkRecordKey = (world: string, cx: number, cz: number) => `${world}:${cx},${cz}`;
+/**
+ * A chunk's key. The overworld keeps the plain key it always had, so old saves still load; another
+ * dimension's chunks hang off the same world under their own name.
+ */
+export const chunkRecordKey = (world: string, cx: number, cz: number, dimension = 'overworld') =>
+  (dimension === 'overworld' ? `${world}:${cx},${cz}` : `${world}/${dimension}:${cx},${cz}`);
 
 export class SaveManager {
   async listWorlds(): Promise<WorldMeta[]> {
@@ -126,14 +137,14 @@ export class SaveManager {
     });
   }
 
-  async loadChunk(world: string, cx: number, cz: number): Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities: string | null; mobs: string | null } | null> {
-    const rec = await tx<ChunkRecord | undefined>('chunks', 'readonly', (s) => s.get(chunkRecordKey(world, cx, cz)));
+  async loadChunk(world: string, cx: number, cz: number, dimension = 'overworld'): Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities: string | null; mobs: string | null } | null> {
+    const rec = await tx<ChunkRecord | undefined>('chunks', 'readonly', (s) => s.get(chunkRecordKey(world, cx, cz, dimension)));
     if (!rec) return null;
     const raw = inflateSync(rec.blocks);
     return { blocks: new Uint16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2).slice(), biomes: rec.biomes ? rec.biomes.slice() : null, entities: rec.entities ?? null, mobs: rec.mobs ?? null };
   }
 
-  async saveChunks(world: string, chunks: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities?: string | null; mobs?: string | null }[]): Promise<void> {
+  async saveChunks(world: string, chunks: { cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; entities?: string | null; mobs?: string | null }[], dimension = 'overworld'): Promise<void> {
     if (!chunks.length) return;
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
@@ -141,8 +152,9 @@ export class SaveManager {
       const s = t.objectStore('chunks');
       for (const c of chunks) {
         const rec: ChunkRecord = {
-          key: chunkRecordKey(world, c.cx, c.cz),
+          key: chunkRecordKey(world, c.cx, c.cz, dimension),
           world,
+          ...(dimension === 'overworld' ? {} : { dimension }),
           cx: c.cx,
           cz: c.cz,
           blocks: deflateSync(new Uint8Array(c.blocks.buffer, c.blocks.byteOffset, c.blocks.byteLength), { level: 6 }),
@@ -174,10 +186,12 @@ export class SaveManager {
     const files: Record<string, Uint8Array> = {};
     files['level.json'] = new TextEncoder().encode(JSON.stringify(meta, null, 2));
     for (const r of recs) {
-      files[`chunks/${r.cx}.${r.cz}.bin`] = r.blocks;
-      if (r.biomes) files[`chunks/${r.cx}.${r.cz}.biomes`] = r.biomes;
-      if (r.entities) files[`chunks/${r.cx}.${r.cz}.entities.json`] = new TextEncoder().encode(r.entities);
-      if (r.mobs) files[`chunks/${r.cx}.${r.cz}.mobs.json`] = new TextEncoder().encode(r.mobs);
+      // the overworld keeps the flat layout old exports use; another dimension goes in its own folder
+      const dir = r.dimension && r.dimension !== 'overworld' ? `chunks/${r.dimension}` : 'chunks';
+      files[`${dir}/${r.cx}.${r.cz}.bin`] = r.blocks;
+      if (r.biomes) files[`${dir}/${r.cx}.${r.cz}.biomes`] = r.biomes;
+      if (r.entities) files[`${dir}/${r.cx}.${r.cz}.entities.json`] = new TextEncoder().encode(r.entities);
+      if (r.mobs) files[`${dir}/${r.cx}.${r.cz}.mobs.json`] = new TextEncoder().encode(r.mobs);
     }
     const zip = zipSync(files, { level: 0 });
     return new Blob([zip as unknown as BlobPart], { type: 'application/zip' });
@@ -196,14 +210,20 @@ export class SaveManager {
       const t = db.transaction('chunks', 'readwrite');
       const s = t.objectStore('chunks');
       for (const [name, bytes] of Object.entries(files)) {
-        const m = /^chunks\/(-?\d+)\.(-?\d+)\.bin$/.exec(name);
+        const m = /^chunks\/(?:([a-z_]+)\/)?(-?\d+)\.(-?\d+)\.bin$/.exec(name);
         if (!m) continue;
-        const cx = Number(m[1]);
-        const cz = Number(m[2]);
-        const biomes = files[`chunks/${cx}.${cz}.biomes`] ?? null;
-        const ent = files[`chunks/${cx}.${cz}.entities.json`];
-        const mobs = files[`chunks/${cx}.${cz}.mobs.json`];
-        s.put({ key: chunkRecordKey(meta.id, cx, cz), world: meta.id, cx, cz, blocks: bytes, biomes, entities: ent ? new TextDecoder().decode(ent) : null, mobs: mobs ? new TextDecoder().decode(mobs) : null } satisfies ChunkRecord);
+        const dimension = m[1] ?? 'overworld';
+        const cx = Number(m[2]);
+        const cz = Number(m[3]);
+        const dir = dimension === 'overworld' ? 'chunks' : `chunks/${dimension}`;
+        const biomes = files[`${dir}/${cx}.${cz}.biomes`] ?? null;
+        const ent = files[`${dir}/${cx}.${cz}.entities.json`];
+        const mobs = files[`${dir}/${cx}.${cz}.mobs.json`];
+        s.put({
+          key: chunkRecordKey(meta.id, cx, cz, dimension), world: meta.id, cx, cz, blocks: bytes, biomes,
+          ...(dimension === 'overworld' ? {} : { dimension }),
+          entities: ent ? new TextDecoder().decode(ent) : null, mobs: mobs ? new TextDecoder().decode(mobs) : null,
+        } satisfies ChunkRecord);
       }
       t.oncomplete = () => resolve();
       t.onerror = () => reject(t.error);

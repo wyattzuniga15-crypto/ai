@@ -8,7 +8,7 @@ import { CHUNK_SIZE, SECTION_COUNT, WORLD_MAX_Y, WORLD_MIN_Y } from '../core/con
 import { blocks } from '../blocks/registry.ts';
 import { chunkKey } from './chunk.ts';
 import type { MeshBuffers } from './mesher.ts';
-import type { FromWorker, GenInit, ToWorker } from './protocol.ts';
+import type { Dimension, FromWorker, GenInit, ToWorker } from './protocol.ts';
 import type { ModelsJson } from './models.ts';
 import type { StructureBundle } from './protocol.ts';
 import type { AtlasJson } from '../render/atlasIndex.ts';
@@ -58,6 +58,8 @@ export interface WorldOptions {
   structures?: StructureBundle;
   /** Terrain generation workers to start (default: cores minus two, 1..4). */
   genWorkers?: number;
+  /** Which world to generate; the overworld unless told otherwise. */
+  dimension?: Dimension;
   /** Supplies saved chunk data, or null to generate. */
   loadChunk: (cx: number, cz: number) => Promise<{ blocks: Uint16Array; biomes: Uint8Array | null; entities?: string | null; mobs?: string | null } | null>;
 }
@@ -75,6 +77,7 @@ export class World {
   private viewCz = NaN;
   renderDistance: number;
   readonly seed: number;
+  readonly dimension: Dimension;
   ready = false;
   stats = { chunks: 0, pending: 0, meshed: 0, drawn: 0, generating: 0 };
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
@@ -88,6 +91,7 @@ export class World {
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;
+    this.dimension = opts.dimension ?? 'overworld';
     this.renderDistance = opts.renderDistance;
     this.scene = opts.scene;
     this.solidMaterial = opts.solidMaterial;
@@ -102,11 +106,11 @@ export class World {
     for (let i = 0; i < poolSize; i++) {
       const w = new Worker(new URL('./genWorker.ts', import.meta.url), { type: 'module' });
       const channel = new MessageChannel();
-      w.postMessage({ type: 'init', seed: opts.seed, port: channel.port2, structures: opts.structures } satisfies GenInit, [channel.port2]);
+      w.postMessage({ type: 'init', seed: opts.seed, port: channel.port2, structures: opts.structures, dimension: this.dimension } satisfies GenInit, [channel.port2]);
       this.genWorkers.push(w);
       genPorts.push(channel.port1);
     }
-    this.send({ type: 'init', seed: opts.seed, models: opts.models, atlas: opts.atlas, genPorts, structures: opts.structures }, genPorts);
+    this.send({ type: 'init', seed: opts.seed, models: opts.models, atlas: opts.atlas, genPorts, structures: opts.structures, dimension: this.dimension }, genPorts);
   }
 
   private send(msg: ToWorker, transfer?: Transferable[]): void {

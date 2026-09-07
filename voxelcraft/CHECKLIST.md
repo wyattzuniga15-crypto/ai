@@ -103,7 +103,8 @@ coverage counts in `COVERAGE.md`.
 - [x] The status effects that are left: invisibility (mobs lose sight of you), blindness and darkness (a closing radial murk), nausea (the view warping), glowing (a stencil outline seen through walls), conduit power, dolphin's grace, strength, weakness, slow falling and the 1.21 four (wind charged, weaving, oozing, infested); mobs carry effects of their own, `/effect` takes vanilla's selectors, and spectral and tipped arrows leave their effect on what they hit
 
 ## Phase 4 – Nether
-- [ ] Portals, nether biomes, fortress, bastion, netherite, Wither
+- [x] Nether, first slice: the dimension itself — a hundred and twenty-eight blocks of netherrack between two sheets of bedrock with a lava sea in the bottom, vanilla's five biomes from its own climate points, the surfaces and growth each one wears, nether ores and ancient debris; nether portals lit with flint and steel in any frame vanilla accepts, the eighty ticks of standing in one, the eight-to-one journey, a portal found or built on the far side, and each dimension's chunks saved under their own name
+- [ ] Nether, next: fortress and bastion, the mobs that live in them, netherite, and the Wither
 
 ## Phase 5 – End
 - [ ] Stronghold + end portal, dragon fight, credits/poem, end cities, elytra, gateways

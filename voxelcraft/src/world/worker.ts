@@ -8,6 +8,8 @@ import { blocks } from '../blocks/registry.ts';
 import { ChunkData } from './chunk.ts';
 import { buildStructureSets } from './gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from './gen/generator.ts';
+import { NetherGenerator } from './gen/nether.ts';
+import type { TerrainGenerator } from './gen/terrain.ts';
 import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
 import { SectionMesher } from './mesher.ts';
@@ -19,7 +21,7 @@ const post = (msg: FromWorker, transfer?: Transferable[]) => ctx.postMessage(msg
 
 const chunks = new Map<number, ChunkData>();
 const provider = { getChunk: (cx: number, cz: number) => chunks.get(packKey(cx, cz)) };
-let gen: WorldGenerator;
+let gen: TerrainGenerator;
 let baker: ModelBaker;
 let mesher: SectionMesher;
 const light = new LightEngine(provider);
@@ -343,7 +345,7 @@ ctx.onmessage = (ev: MessageEvent<ToWorker>) => {
   const msg = ev.data;
   switch (msg.type) {
     case 'init': {
-      gen = new WorldGenerator(msg.seed);
+      gen = msg.dimension === 'nether' ? new NetherGenerator(msg.seed) : new WorldGenerator(msg.seed);
       if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates, msg.structures.pools);
       const atlas = new AtlasIndex(msg.atlas);
       baker = new ModelBaker(msg.models, atlas);

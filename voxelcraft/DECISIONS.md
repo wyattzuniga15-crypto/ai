@@ -727,3 +727,32 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     lines of Java with no data behind it to read. Whatever the building does not fill is flooded,
     so it never leaves an air pocket under the ocean, and it is written chunk by chunk from the
     same seed, so it comes out the same however a player swims up to it.
+
+96. **The Nether, and how a second world fits in.** A dimension is a whole world: its own terrain
+    generator, its own workers, its own chunks in the save. Rather than teach one world to hold
+    two, stepping through a portal throws the current one away and builds the next — the chunks
+    are flushed first, the entities and block-entity renderers cleared, and a fresh `World` is
+    made for the dimension being entered. Chunks are keyed by dimension in IndexedDB, with the
+    overworld keeping the plain key it always had so saves made before this still load, and an
+    exported world puts another dimension's chunks in a folder of their own for the same reason.
+
+    The terrain is vanilla's shape rather than vanilla's noise router: a hundred and twenty-eight
+    blocks between two sheets of bedrock, 3D noise stretched wide and squashed short so the
+    caverns come out broad and low, closing over near the floor and the roof so the dimension
+    stays a closed box, and everything under y 31 flooded with lava. The biomes are vanilla's own
+    five climate points searched for the nearest, which is how vanilla picks a nether biome, and
+    each wears what it should: nylium and fungi in the forests, soul sand and soul soil in the
+    valley, basalt and blackstone in the deltas, with glowstone hanging from the ceilings, fires
+    on the netherrack, quartz and gold through the rock and ancient debris buried deep where no
+    air touches it.
+
+    Portals follow vanilla's rules exactly where they are stated: an opening two to twenty-one
+    wide and three to twenty-one tall inside an obsidian frame, lit by flint and steel from
+    anywhere inside it, portal blocks taking the frame's own axis; eighty ticks of standing in one
+    in survival and no wait in creative; x and z divided by eight going down and multiplied going
+    back; a portal looked for within sixteen blocks of where the traveller comes out and one built
+    for them when the search comes up empty. Coming back up the height they left at means nothing,
+    so the return aims at the ground instead. The Nether hides the sun and the moon, paints
+    vanilla's `0x330808` fog over everything and carries vanilla's ambient light of 0.1 laid over
+    the brightness curve, so its caverns are gloomy rather than pitch black. Nothing spawns down
+    there yet: its mobs come with the fortress, and overworld animals have no business in it.
