@@ -41,6 +41,7 @@ import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
 import { BlockMeshFactory } from '../render/blockMesh.ts';
 import { FallingBlockEntity } from '../entities/fallingBlock.ts';
+import { PrimedTnt } from '../entities/primedTnt.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
 import { EntityManager, type ManagerHost } from '../entities/manager.ts';
@@ -142,6 +143,10 @@ export class Game {
   readonly simulation: Simulation;
   readonly blockMeshes: BlockMeshFactory;
   readonly fallingBlocks: FallingBlockEntity[] = [];
+  /** TNT that has been lit and is counting down. */
+  readonly primedTnt: PrimedTnt[] = [];
+  /** Pressure plates currently held down, and the tick the last thing stood on them. */
+  private readonly platesDown = new Map<string, number>();
   private eating: { ticks: number; total: number; id: string } | null = null;
   private sleeping = 0;
   entities!: EntityManager;
@@ -214,6 +219,8 @@ export class Game {
       addXp: (n) => this.addXp(n),
       feed: (n, sat) => this.feed(n, sat),
       dropItem: (id, count, x, y, z) => { this.dropStack({ id, count }, x, y, z, true); },
+      igniteTnt: (x, y, z) => this.igniteTnt(x, y, z),
+      playNote: (x, y, z) => this.playNote(x, y, z),
     };
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
     this.world.onBlockChanged = (x, y, z, o, n) => this.simulation.onBlockChanged(x, y, z, o, n);
@@ -504,6 +511,8 @@ export class Game {
     const pcz = Math.floor(this.player.pos.z) >> 4;
     this.simulation.tick(this.tickCount, pcx, pcz);
     this.tickFallingBlocks();
+    this.tickPrimedTnt();
+    this.tickPressurePlates();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -1637,6 +1646,82 @@ export class Game {
     this.uniforms.gamma.value = Math.max(this.options.gamma, p.effects.level('night_vision') ? 1 : 0);
   }
 
+  /** Lights a block of TNT: the block goes and a primed one takes its place, fuse burning. */
+  igniteTnt(x: number, y: number, z: number): void {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0 || blocks.blockOf(state).id !== 'tnt') return;
+    this.world.setBlock(x, y, z, 0);
+    const e = new PrimedTnt(x + 0.5, y, z + 0.5, this.blockMeshes.mesh(state));
+    this.primedTnt.push(e);
+    this.renderer.scene.add(e.mesh);
+    this.audio.play('fuse', { x, y, z });
+  }
+
+  /** A note block sounds the pitch its state carries, two octaves over twenty-five steps. */
+  playNote(x: number, y: number, z: number): void {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0) return;
+    const note = Number(blocks.prop(state, 'note') ?? '0');
+    this.audio.play('note', { x, y, z, pitch: 2 ** ((note - 12) / 12) });
+  }
+
+  /**
+   * Pressure plates: vanilla checks what is standing on a plate every tick and holds it down for
+   * twenty ticks after the last thing steps off. Wooden plates count entities, stone ones only take
+   * players and mobs, and the weighted plates scale with how much is on them.
+   */
+  private tickPressurePlates(): void {
+    const pressed = new Set<string>();
+    const feet = (x: number, y: number, z: number): void => {
+      const bx = Math.floor(x);
+      const by = Math.floor(y + 0.01);
+      const bz = Math.floor(z);
+      for (const py of [by, by - 1]) {
+        const state = this.world.getBlock(bx, py, bz);
+        if (state === 0 || !blocks.blockOf(state).id.endsWith('_pressure_plate')) continue;
+        pressed.add(`${bx},${py},${bz}`);
+        break;
+      }
+    };
+    if (!this.player.dead) feet(this.player.pos.x, this.player.pos.y, this.player.pos.z);
+    for (const m of this.entities.mobs) if (!m.dead) feet(m.pos.x, m.pos.y, m.pos.z);
+    for (const e of this.itemEntities) feet(e.pos.x, e.pos.y, e.pos.z);
+
+    for (const key of pressed) {
+      this.platesDown.set(key, this.tickCount);
+      const [x, y, z] = key.split(',').map(Number);
+      const state = this.world.getBlock(x, y, z);
+      if (blocks.prop(state, 'powered') === 'true' || blocks.prop(state, 'power') === '15') continue;
+      this.world.setBlock(x, y, z, this.plateState(state, true));
+    }
+    // and let go of the ones nothing is standing on any more
+    for (const [key, when] of this.platesDown) {
+      if (pressed.has(key) || this.tickCount - when < 20) continue;
+      this.platesDown.delete(key);
+      const [x, y, z] = key.split(',').map(Number);
+      const state = this.world.getBlock(x, y, z);
+      if (state === 0 || !blocks.blockOf(state).id.endsWith('_pressure_plate')) continue;
+      this.world.setBlock(x, y, z, this.plateState(state, false));
+    }
+  }
+
+  /** A plate's pressed state, whichever of the two ways its block counts its load. */
+  private plateState(state: number, down: boolean): number {
+    if (blocks.prop(state, 'power') !== undefined) return blocks.withProp(state, 'power', down ? '15' : '0');
+    return blocks.withProp(state, 'powered', down ? 'true' : 'false');
+  }
+
+  private tickPrimedTnt(): void {
+    for (let i = this.primedTnt.length - 1; i >= 0; i--) {
+      const e = this.primedTnt[i];
+      e.tick(this.world);
+      if (!e.dead) continue;
+      this.renderer.scene.remove(e.mesh);
+      this.primedTnt.splice(i, 1);
+      this.explodeAt(e.pos.x, e.pos.y + 0.5, e.pos.z, 4, null);
+    }
+  }
+
   private startFalling(x: number, y: number, z: number, state: number): void {
     this.world.setBlock(x, y, z, 0);
     const e = new FallingBlockEntity(state, x, y, z, this.blockMeshes.mesh(state));
@@ -2608,6 +2693,7 @@ export class Game {
     this.updateOutline();
     for (const e of this.itemEntities) e.updateSprite(alpha, partialTime / 20);
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
+    for (const e of this.primedTnt) e.updateMesh(alpha);
     mobFireAssets.viewYaw = this.player.yaw;
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
     this.particles.render(alpha, this.renderer.canvas.height, (x, y, z) => this.brightnessAt(x, y, z));

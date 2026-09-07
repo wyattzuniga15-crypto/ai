@@ -89,6 +89,7 @@ const SOUNDS: Record<string, Synth> = {
   door: (c, o, p, t) => { burst(c, o, t, 'bandpass', 300, 2, 0.005, 0.07, 0.4, p); tone(c, o, t + 0.02, 'sawtooth', 220, 320, 0.15, 0.08, p); },
   chest: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 180, 260, 0.25, 0.1, p); burst(c, o, t, 'bandpass', 400, 2, 0.005, 0.1, 0.2, p); },
   splash: (c, o, p, t) => burst(c, o, t, 'bandpass', 1100, 1, 0.02, 0.4, 0.4, p),
+  note: (c, o, p, t) => { tone(c, o, t, 'sine', 440 * p, 440 * p, 0.5, 0.25, 1, 0.005); tone(c, o, t, 'triangle', 880 * p, 880 * p, 0.25, 0.08, 1, 0.005); },
   click: (c, o, p, t) => burst(c, o, t, 'bandpass', 2000, 3, 0.002, 0.04, 0.4, p),
   fuse: (c, o, p, t) => burst(c, o, t, 'highpass', 3000, 0.5, 0.05, 0.4, 0.3, p),
   fizz: (c, o, p, t) => burst(c, o, t, 'highpass', 4000, 0.5, 0.05, 0.6, 0.4, p),

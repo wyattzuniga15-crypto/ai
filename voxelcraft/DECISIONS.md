@@ -493,3 +493,16 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     even though vanilla treats them as a feature rather than a structure: the bones are stamped a
     little rotted and their coal twin over the top at a low chance, in the three biomes whose feature
     lists mention them.
+
+77. **Redstone follows vanilla's two kinds of signal.** A source emits a level from 0 to 15, weakly
+    to everything beside it and strongly into the one block it is fixed to; a solid block strongly
+    powered is charged, and anything touching that block reads the signal, which is what lets a torch
+    under a block light a lamp on the far side of it. Dust is recomputed a whole network at a time:
+    gather the connected pieces, take the strongest source feeding each, then let the power fall away
+    one level a block. Writing the result is what wakes the doors, lamps and TNT attached to it,
+    through the ordinary neighbour updates, and because the recompute is idempotent the cascade
+    settles in a tick or two. Two details matter more than they look: dust carries its signal along
+    the shape it is *drawn* in, so vanilla's rule that a line with nothing on the cross axis reaches
+    both ways is what lets a run of dust light the lamp it ends at; and a change to anything that can
+    move a signal wakes the neighbours of its neighbours, since that is how a charged block passes
+    the news on.

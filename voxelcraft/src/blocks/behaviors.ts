@@ -7,6 +7,7 @@ import type { Rng } from '../core/rng.ts';
 import { LAVA_DELAY, WATER_DELAY, tickFluid, type FluidWorld } from '../world/fluids.ts';
 import { placeTree, type BlockAccess } from '../world/gen/features.ts';
 import { SEA_LEVEL } from '../core/constants.ts';
+import { emitted, isPowered, powerAt, updateWireNetwork, wireState } from '../world/redstone.ts';
 
 export interface BlockWorld extends FluidWorld {
   /** Light level at a position (max of sky and block light). */
@@ -24,6 +25,10 @@ export interface BlockWorld extends FluidWorld {
   /** Feed the player (cake). */
   feed(nutrition: number, saturation: number): void;
   dropItem(id: string, count: number, x: number, y: number, z: number): void;
+  /** Light a block of TNT, which is what a signal or a flint and steel does to it. */
+  igniteTnt(x: number, y: number, z: number): void;
+  /** Sound a note block, at the pitch and instrument its state carries. */
+  playNote(x: number, y: number, z: number): void;
 }
 
 export interface BlockContext {
@@ -57,6 +62,136 @@ function needsSupportBelow(ctx: BlockContext, nx: number, ny: number, nz: number
 }
 
 const OPPOSITE: Record<string, [number, number, number]> = { north: [0, 0, 1], south: [0, 0, -1], west: [1, 0, 0], east: [-1, 0, 0], up: [0, -1, 0], down: [0, 1, 0] };
+
+/** Trapdoors and gates simply follow whatever signal reaches them. */
+function openOnPower(ctx: BlockContext): void {
+  const powered = isPowered(ctx.w, ctx.x, ctx.y, ctx.z);
+  if (powered === (blocks.prop(ctx.state, 'open') === 'true')) return;
+  ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'open', powered ? 'true' : 'false'));
+}
+
+/** Delay in ticks before a component answers a change, as vanilla times each of them. */
+function redstoneDelay(id: string, state: number): number {
+  if (id === 'repeater') return Number(blocks.prop(state, 'delay') ?? '1') * 2;
+  if (id === 'comparator') return 2;
+  if (id === 'redstone_lamp') return 4;
+  return 2;
+}
+
+/**
+ * Something changed beside a redstone component: dust recomputes its whole network at once, and
+ * everything with a delay (torches, repeaters, comparators, lamps going out) waits its turn.
+ */
+function redstoneChanged(ctx: BlockContext): void {
+  const id = ctx.def.id;
+  const { w, x, y, z } = ctx;
+  switch (id) {
+    case 'redstone_wire':
+      updateWireNetwork(w, x, y, z);
+      return;
+    case 'redstone_torch':
+    case 'redstone_wall_torch':
+    case 'repeater':
+    case 'comparator':
+      w.schedule(x, y, z, redstoneDelay(id, ctx.state));
+      return;
+    case 'redstone_lamp': {
+      const powered = isPowered(w, x, y, z);
+      const lit = blocks.prop(ctx.state, 'lit') === 'true';
+      // a lamp lights the moment it is powered but takes four ticks to go dark again
+      if (powered && !lit) w.setBlock(x, y, z, blocks.withProp(ctx.state, 'lit', 'true'));
+      else if (!powered && lit) w.schedule(x, y, z, 4);
+      return;
+    }
+    case 'copper_bulb': case 'exposed_copper_bulb': case 'weathered_copper_bulb': case 'oxidized_copper_bulb':
+    case 'waxed_copper_bulb': case 'waxed_exposed_copper_bulb': case 'waxed_weathered_copper_bulb': case 'waxed_oxidized_copper_bulb': {
+      // a bulb flips each time the signal arrives, and stays that way when it goes
+      const powered = isPowered(w, x, y, z);
+      if (powered === (blocks.prop(ctx.state, 'powered') === 'true')) return;
+      const lit = powered ? blocks.prop(ctx.state, 'lit') !== 'true' : blocks.prop(ctx.state, 'lit') === 'true';
+      w.setBlock(x, y, z, blocks.stateWith(id, { powered: powered ? 'true' : 'false', lit: lit ? 'true' : 'false' }));
+      return;
+    }
+    case 'tnt':
+      if (isPowered(w, x, y, z)) w.igniteTnt(x, y, z);
+      return;
+    case 'note_block': {
+      const powered = isPowered(w, x, y, z);
+      if (powered === (blocks.prop(ctx.state, 'powered') === 'true')) return;
+      w.setBlock(x, y, z, blocks.withProp(ctx.state, 'powered', powered ? 'true' : 'false'));
+      if (powered) w.playNote(x, y, z);
+      return;
+    }
+    case 'powered_rail': case 'activator_rail': {
+      const powered = isPowered(w, x, y, z);
+      if (powered !== (blocks.prop(ctx.state, 'powered') === 'true')) {
+        w.setBlock(x, y, z, blocks.withProp(ctx.state, 'powered', powered ? 'true' : 'false'));
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+/** The delayed half: a torch inverts what holds it up, a repeater and comparator pass their input on. */
+function redstoneTick(ctx: BlockContext): void {
+  const { w, x, y, z } = ctx;
+  const id = ctx.def.id;
+  const state = w.getBlock(x, y, z);
+  if (state === 0 || blocks.blockOf(state).id !== id) return;
+  if (id === 'redstone_torch' || id === 'redstone_wall_torch') {
+    // the block it is fixed to: a floor torch stands on the one below, a wall torch hangs off its facing
+    const [bx, by, bz] = id === 'redstone_torch'
+      ? [x, y - 1, z]
+      : [x + OPPOSITE[blocks.prop(state, 'facing') ?? 'north'][0], y, z + OPPOSITE[blocks.prop(state, 'facing') ?? 'north'][2]];
+    const lit = !isPowered(w, bx, by, bz);
+    if (lit !== (blocks.prop(state, 'lit') === 'true')) w.setBlock(x, y, z, blocks.withProp(state, 'lit', lit ? 'true' : 'false'));
+    return;
+  }
+  if (id === 'repeater') {
+    const facing = blocks.prop(state, 'facing') ?? 'north';
+    const back = OPPOSITE[facing];
+    const input = powerAt(w, x + back[0], y, z + back[2]) > 0 || emitted(w, x + back[0], y, z + back[2], facing) > 0;
+    if (input !== (blocks.prop(state, 'powered') === 'true')) w.setBlock(x, y, z, blocks.withProp(state, 'powered', input ? 'true' : 'false'));
+    return;
+  }
+  if (id === 'comparator') {
+    const facing = blocks.prop(state, 'facing') ?? 'north';
+    const back = OPPOSITE[facing];
+    const rear = powerAt(w, x + back[0], y, z + back[2]);
+    // the two sides feed the comparison; the stronger of them is what the rear is measured against
+    const sides = facing === 'north' || facing === 'south' ? ['west', 'east'] : ['north', 'south'];
+    let side = 0;
+    for (const dir of sides) {
+      const [dx, , dz] = OPPOSITE[dir];
+      side = Math.max(side, powerAt(w, x - dx, y, z - dz));
+    }
+    const out = blocks.prop(state, 'mode') === 'subtract' ? Math.max(0, rear - side) : rear >= side ? rear : 0;
+    const powered = out > 0;
+    if (powered !== (blocks.prop(state, 'powered') === 'true')) w.setBlock(x, y, z, blocks.withProp(state, 'powered', powered ? 'true' : 'false'));
+    return;
+  }
+  if (id === 'redstone_lamp') {
+    const powered = isPowered(w, x, y, z);
+    if (powered !== (blocks.prop(state, 'lit') === 'true')) w.setBlock(x, y, z, blocks.withProp(state, 'lit', powered ? 'true' : 'false'));
+    return;
+  }
+  if (id === 'redstone_wire') updateWireNetwork(w, x, y, z);
+  if (id === 'observer') {
+    // the pulse is two ticks long, as vanilla times it
+    if (blocks.prop(state, 'powered') === 'true') w.setBlock(x, y, z, blocks.withProp(state, 'powered', 'false'));
+    return;
+  }
+  if (id === 'daylight_detector') {
+    const inverted = blocks.prop(state, 'inverted') === 'true';
+    const sky = w.getSkyLight(x, y + 1, z);
+    // vanilla scales the sky light by the time of day; ours reads the light the sky is giving now
+    const power = Math.max(0, Math.min(15, inverted ? 15 - sky : sky));
+    if (power !== Number(blocks.prop(state, 'power') ?? '0')) w.setBlock(x, y, z, blocks.withProp(state, 'power', String(power)));
+    w.schedule(x, y, z, 20);
+  }
+}
 
 function growCrop(ctx: BlockContext, maxAge: number): void {
   const age = Number(blocks.prop(ctx.state, 'age') ?? 0);
@@ -200,8 +335,18 @@ const behaviors: Record<string, Behavior> = {
       const oy = half === 'lower' ? ctx.y + 1 : ctx.y - 1;
       if (nx === ctx.x && ny === oy && nz === ctx.z) {
         const o = ctx.w.getBlock(nx, ny, nz);
-        if (o === 0 || blocks.blockOf(o).id !== ctx.def.id) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, 0);
+        if (o === 0 || blocks.blockOf(o).id !== ctx.def.id) {
+          ctx.w.setBlock(ctx.x, ctx.y, ctx.z, 0);
+          return;
+        }
       }
+      // a door opens on a signal to either of its halves, and both halves swing together
+      const powered = isPowered(ctx.w, ctx.x, ctx.y, ctx.z) || isPowered(ctx.w, ctx.x, oy, ctx.z);
+      if (powered === (blocks.prop(ctx.state, 'open') === 'true')) return;
+      const open = powered ? 'true' : 'false';
+      ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'open', open));
+      const other = ctx.w.getBlock(ctx.x, oy, ctx.z);
+      if (other !== 0 && blocks.blockOf(other).id === ctx.def.id) ctx.w.setBlock(ctx.x, oy, ctx.z, blocks.withProp(other, 'open', open));
     },
   },
   trapdoor: {
@@ -210,12 +355,14 @@ const behaviors: Record<string, Behavior> = {
       ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'open', blocks.prop(ctx.state, 'open') === 'true' ? 'false' : 'true'));
       return true;
     },
+    onNeighborChanged: (ctx) => openOnPower(ctx),
   },
   fence_gate: {
     onUse: (ctx) => {
       ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'open', blocks.prop(ctx.state, 'open') === 'true' ? 'false' : 'true'));
       return true;
     },
+    onNeighborChanged: (ctx) => openOnPower(ctx),
   },
   button: {
     onUse: (ctx) => {
@@ -226,6 +373,54 @@ const behaviors: Record<string, Behavior> = {
     },
     scheduledTick: (ctx) => ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'powered', 'false')),
   },
+  // ---------------------------------------------------------------- redstone
+  redstone: {
+    onUse: (ctx) => {
+      const id = ctx.def.id;
+      if (id === 'lever') {
+        const powered = blocks.prop(ctx.state, 'powered') === 'true' ? 'false' : 'true';
+        ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'powered', powered));
+        return true;
+      }
+      if (id === 'repeater') {
+        // right-clicking a repeater steps its delay round one to four ticks, as vanilla does
+        const delay = String((Number(blocks.prop(ctx.state, 'delay') ?? '1') % 4) + 1);
+        ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'delay', delay));
+        return true;
+      }
+      if (id === 'comparator') {
+        const mode = blocks.prop(ctx.state, 'mode') === 'compare' ? 'subtract' : 'compare';
+        ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'mode', mode));
+        ctx.w.schedule(ctx.x, ctx.y, ctx.z, 2);
+        return true;
+      }
+      return false;
+    },
+    onPlaced: (ctx) => {
+      redstoneChanged(ctx);
+      // a daylight sensor reads the sky as soon as it is down, and keeps checking
+      if (ctx.def.id === 'daylight_detector') ctx.w.schedule(ctx.x, ctx.y, ctx.z, 1);
+    },
+    onNeighborChanged: (ctx, nx, ny, nz) => {
+      const id = ctx.def.id;
+      if (id === 'redstone_wire' || id === 'redstone_torch' || id === 'lever' || id === 'repeater' || id === 'comparator') {
+        needsSupportBelow(ctx, nx, ny, nz, (b) => blocks.get(b).solid);
+      }
+      // an observer watches one block and pulses when it changes, whatever the change was
+      if (id === 'observer') {
+        const facing = blocks.prop(ctx.state, 'facing') ?? 'north';
+        const [dx, dy, dz] = OPPOSITE[facing];
+        if (nx === ctx.x - dx && ny === ctx.y - dy && nz === ctx.z - dz && blocks.prop(ctx.state, 'powered') !== 'true') {
+          ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'powered', 'true'));
+          ctx.w.schedule(ctx.x, ctx.y, ctx.z, 2);
+        }
+        return;
+      }
+      redstoneChanged(ctx);
+    },
+    scheduledTick: (ctx) => redstoneTick(ctx),
+  },
+
   // ---------------------------------------------------------------- beds
   bed: {
     onUse: (ctx) => {

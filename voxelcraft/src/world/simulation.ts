@@ -63,6 +63,14 @@ class MinHeap {
 
 const NEIGHBORS: [number, number, number][] = [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
 
+/** Blocks whose change can move a redstone signal, and so need the wider update. */
+function carriesSignal(state: number): boolean {
+  if (state === 0) return false;
+  const def = blocks.blockOf(state);
+  return def.behavior === 'redstone' || def.behavior === 'button' || def.behavior === 'pressure_plate'
+    || def.id === 'redstone_block' || def.id === 'redstone_wall_torch' || !!blocks.stateOpaque[state];
+}
+
 export class Simulation {
   private readonly heap = new MinHeap();
   private readonly pending = new Set<string>();
@@ -90,6 +98,14 @@ export class Simulation {
       if (b?.onPlaced) b.onPlaced({ w: this.w, x, y, z, state: newState, def });
     }
     for (const [dx, dy, dz] of NEIGHBORS) this.neighborQueue.push(x + dx, y + dy, z + dz, x, y, z);
+    // a redstone change also wakes the neighbours of its neighbours, which is how a signal reaches
+    // through a block it charges to the torch or dust on the far side of it
+    if (!carriesSignal(oldState) && !carriesSignal(newState)) return;
+    for (const [dx, dy, dz] of NEIGHBORS)
+      for (const [ex, ey, ez] of NEIGHBORS) {
+        if (dx + ex === 0 && dy + ey === 0 && dz + ez === 0) continue;
+        this.neighborQueue.push(x + dx + ex, y + dy + ey, z + dz + ez, x + dx, y + dy, z + dz);
+      }
   }
 
   tick(now: number, centerCx: number, centerCz: number): void {

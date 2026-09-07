@@ -38,6 +38,18 @@ class TestWorld implements BlockWorld {
     if (!this.scheduled.some((s) => s[0] === x && s[1] === y && s[2] === z)) this.scheduled.push([x, y, z, delay]);
   }
 
+  readonly ignited: [number, number, number][] = [];
+  readonly notes: [number, number, number][] = [];
+
+  igniteTnt(x: number, y: number, z: number): void {
+    this.ignited.push([x, y, z]);
+    this.setBlock(x, y, z, 0);
+  }
+
+  playNote(x: number, y: number, z: number): void {
+    this.notes.push([x, y, z]);
+  }
+
   getLight(): number {
     return this.light;
   }
