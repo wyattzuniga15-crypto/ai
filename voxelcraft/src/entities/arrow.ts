@@ -23,8 +23,14 @@ export class Arrow {
   fire = 0;
   /** Extra knockback from Punch. */
   knockback = 0;
-  /** Splash potions burst on anything they touch instead of sticking. */
-  kind: 'arrow' | 'potion' = 'arrow';
+  /** How many more mobs a Piercing bolt goes through before it stops. */
+  pierce = 0;
+  /** What it has already gone through, so one bolt never hits the same mob twice. */
+  readonly pierced: unknown[] = [];
+  /** Splash potions burst on anything they touch instead of sticking; a trident comes back. */
+  kind: 'arrow' | 'potion' | 'trident' = 'arrow';
+  /** The trident that was thrown, handed back when it lands. */
+  onLanded: ((pos: THREE.Vector3, hitMob: boolean) => void) | null = null;
   onSplash: ((pos: THREE.Vector3) => void) | null = null;
 
   constructor(base: string, from: THREE.Vector3, dir: THREE.Vector3, speed: number, readonly damage: number, fromPlayer = false) {
@@ -67,6 +73,13 @@ export class Arrow {
         return;
       }
       if (this.fromPlayer && hitMob && hitMob(box)) {
+        // a Piercing bolt carries on through what it hit, as vanilla's does
+        if (this.pierce > 0) {
+          this.pierce--;
+          continue;
+        }
+        this.pos.set(px, py, pz);
+        this.onLanded?.(this.pos.clone(), true);
         this.removed = true;
         return;
       }
@@ -84,6 +97,11 @@ export class Arrow {
             this.vel.set(0, 0, 0);
             this.age = 900;
             this.onHitBlock?.(Math.floor(px), Math.floor(py), Math.floor(pz), this.pos.clone());
+            // a trident is not left in the ground: it is given back where it fell
+            if (this.kind === 'trident') {
+              this.onLanded?.(this.pos.clone(), false);
+              this.removed = true;
+            }
             return;
           }
         }
@@ -92,6 +110,19 @@ export class Arrow {
     this.pos.copy(next);
     this.vel.multiplyScalar(0.99);
     this.vel.y -= 0.05;
+  }
+
+  /** Turns the projectile into a thrown trident, which is drawn longer and spins as it flies. */
+  asTrident(texture: THREE.Texture): this {
+    this.kind = 'trident';
+    this.mesh.geometry.dispose();
+    const geo = new THREE.PlaneGeometry(1.4, 0.5);
+    this.mesh.geometry = geo;
+    const mat = this.mesh.material as THREE.MeshBasicMaterial;
+    mat.map = texture;
+    mat.side = THREE.DoubleSide;
+    mat.needsUpdate = true;
+    return this;
   }
 
   /** Turns the projectile into a tumbling splash-potion bottle. */

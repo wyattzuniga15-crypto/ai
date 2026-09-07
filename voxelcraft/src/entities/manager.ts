@@ -24,7 +24,7 @@ export interface ManagerHost extends MobWorld {
   topBlock(x: number, z: number): number;
   /** Told where an arrow stuck, so the game can wake a target block. */
   arrowHitBlock?: (x: number, y: number, z: number, point: THREE.Vector3) => void;
-  arrowHitMob?: (box: AABB, damage: number, fire: number, knockback: number, effects: { id: string; ticks: number; amplifier?: number }[]) => boolean;
+  arrowHitMob?: (box: AABB, damage: number, fire: number, knockback: number, effects: { id: string; ticks: number; amplifier?: number }[], pierced?: unknown[]) => boolean;
 }
 
 /** Biomes whose animal groups can be horse or donkey herds (vanilla plains and savannas). */
@@ -156,7 +156,7 @@ export class EntityManager {
       a.tick(h, playerBox, (amount, from) => {
         h.hurtPlayer(amount, from);
         for (const e of a.effects) h.addPlayerEffect(e.id, e.ticks, e.amplifier ?? 0);
-      }, a.fromPlayer && h.arrowHitMob ? (box) => h.arrowHitMob!(box, Math.max(1, Math.ceil(a.damage * Math.max(1, a.vel.length()))), a.fire, a.knockback, a.effects) : undefined);
+      }, a.fromPlayer && h.arrowHitMob ? (box) => h.arrowHitMob!(box, Math.max(1, Math.ceil(a.damage * Math.max(1, a.vel.length()))), a.fire, a.knockback, a.effects, a.pierced) : undefined);
       if (a.removed) {
         h.scene.remove(a.mesh);
         this.arrows.splice(i, 1);

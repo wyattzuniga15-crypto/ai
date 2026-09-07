@@ -68,6 +68,39 @@ export function bowBaseDamage(bow: Slot): number {
 }
 
 export const punchKnockback = (bow: Slot): number => level(bow, 'punch');
+
+/** Vanilla draws a crossbow in twenty-five ticks, five fewer for each level of Quick Charge. */
+export const crossbowChargeTicks = (bow: Slot): number => Math.max(1, 25 - 5 * level(bow, 'quick_charge'));
+/** Multishot looses three bolts for the price of one. */
+export const hasMultishot = (bow: Slot): boolean => level(bow, 'multishot') > 0;
+/** How many mobs a bolt goes through before it stops. */
+export const piercingCount = (bow: Slot): number => level(bow, 'piercing');
+/**
+ * The mace's smash: vanilla adds four damage a block for the first three blocks of the fall, two a
+ * block for the next five and one a block after that, and Density adds half a point a level a block.
+ */
+export function maceDamage(mace: Slot, fallDistance: number): number {
+  if (fallDistance <= 1.5) return 0;
+  const d = fallDistance;
+  let bonus = 0;
+  bonus += Math.min(d, 3) * 4;
+  if (d > 3) bonus += Math.min(d - 3, 5) * 2;
+  if (d > 8) bonus += (d - 8) * 1;
+  return bonus + level(mace, 'density') * 0.5 * d;
+}
+/** How far Wind Burst throws the wielder back up, in vanilla's own steps. */
+export const windBurstLift = (mace: Slot): number => [0, 0.7, 0.8, 0.9][Math.min(3, level(mace, 'wind_burst'))];
+/** Sweeping Edge: vanilla's share of the blow that the sweep passes on, a level over a level plus one. */
+export function sweepingRatio(sword: Slot): number {
+  const l = level(sword, 'sweeping_edge');
+  return l > 0 ? l / (l + 1) : 0;
+}
+
+/** Impaling: vanilla adds two and a half points a level against anything wet. */
+export const impalingBonus = (trident: Slot): number => level(trident, 'impaling') * 2.5;
+export const loyaltyLevel = (trident: Slot): number => level(trident, 'loyalty');
+export const riptideLevel = (trident: Slot): number => level(trident, 'riptide');
+export const hasChanneling = (trident: Slot): boolean => level(trident, 'channeling') > 0;
 export const hasFlame = (bow: Slot): boolean => level(bow, 'flame') > 0;
 export const hasInfinity = (bow: Slot): boolean => level(bow, 'infinity') > 0;
 

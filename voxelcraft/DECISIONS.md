@@ -989,3 +989,25 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      And the light engine's spread queue trusted entries that were queued before a removal walk ran,
      so taking a torch away lit the room straight back up from the light it had just cleared: an
      entry that names light the cell no longer holds is now skipped.
+
+110. **The three weapons that had no behaviour.** The crossbow is drawn once and then held loaded —
+     vanilla's twenty-five ticks, five fewer for each level of Quick Charge — and its bolt leaves
+     faster than a fully drawn bow's. Multishot throws three for the price of one arrow, ten degrees
+     apart, and Piercing carries a bolt through what it hits, never through the same mob twice. A
+     loaded crossbow draws itself with the bolt in it, as vanilla's own model does.
+
+     The trident is wound up like a bow and thrown when it is let go. Vanilla leaves the thrown one
+     stuck in the ground until somebody walks into it; this game has no entity for that, so it is
+     handed back as a dropped item where it landed — the same place, and the same thing to pick up —
+     and Loyalty hands it back at the thrower's feet instead. Channeling calls the lightning down on
+     what it hits in a storm, Impaling adds two and a half points a level against anything wet, and
+     Riptide throws the thrower along their line of sight rather than throwing the trident at all.
+
+     The mace turns a fall into the blow at vanilla's own rate — four damage a block for the first
+     three, two for the next five, one after that, and half a point a level a block for Density —
+     throws everything within a few blocks back, and lands the wielder as if they had not fallen.
+     Wind Burst throws them straight back up for another swing. Breach is the one mace enchantment
+     left out: it works on the target's armour, and mobs here have none to pierce.
+
+     A sword's sweep went in with them: swung at full reach, standing, and not landing a crit, it
+     passes a point plus Sweeping Edge's share of the blow to everything beside what it hit.

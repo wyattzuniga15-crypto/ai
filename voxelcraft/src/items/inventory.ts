@@ -23,13 +23,15 @@ export interface ItemStack {
   banner?: { pattern: string; color: string }[];
   /** The map a filled map shows. */
   map?: number;
+  /** A crossbow that has been drawn and is holding its shot. */
+  charged?: boolean;
 }
 
 export type Slot = ItemStack | null;
 
 export function stackable(a: ItemStack, b: ItemStack): boolean {
   return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null) && JSON.stringify(a.contents ?? null) === JSON.stringify(b.contents ?? null)
-    && (a.potion ?? '') === (b.potion ?? '') && JSON.stringify(a.pages ?? null) === JSON.stringify(b.pages ?? null) && JSON.stringify(a.banner ?? null) === JSON.stringify(b.banner ?? null) && (a.map ?? -1) === (b.map ?? -1);
+    && (a.potion ?? '') === (b.potion ?? '') && JSON.stringify(a.pages ?? null) === JSON.stringify(b.pages ?? null) && JSON.stringify(a.banner ?? null) === JSON.stringify(b.banner ?? null) && (a.map ?? -1) === (b.map ?? -1) && !a.charged === !b.charged;
 }
 
 export function cloneStack(s: ItemStack, count = s.count): ItemStack {
@@ -45,6 +47,7 @@ export function cloneStack(s: ItemStack, count = s.count): ItemStack {
   if (s.author) c.author = s.author;
   if (s.banner) c.banner = s.banner.map((l) => ({ ...l }));
   if (s.map !== undefined) c.map = s.map;
+  if (s.charged) c.charged = true;
   return c;
 }
 

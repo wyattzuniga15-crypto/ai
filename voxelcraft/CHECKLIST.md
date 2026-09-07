@@ -120,4 +120,5 @@ coverage counts in `COVERAGE.md`.
 - [x] Polish, first slice: the creative menu — vanilla's tabbed list of every item with its scroll bar, its search tab and the survival inventory beside it; and the item models behind the icons, so a compass and a clock draw as themselves
 - [x] Polish, second slice: the block behaviours that were still stubbed — fire with vanilla's spread, burn-out and rain, candles lit and put out, and coral that dies out of water
 - [x] Polish, third slice: light that depends on the block's state — a lit furnace, a lit lamp, a candle by how many candles — and the two bugs behind it: light the worker worked out never reaching the main thread, and a torch that left its light behind when it was broken
+- [x] Polish, fourth slice: the three weapons that had no behaviour — the crossbow held loaded with multishot and piercing, the trident thrown with loyalty, riptide and channeling, and the mace that turns a fall into the blow — and the sword sweep
 - [ ] Polish, next: the rest of what `COVERAGE.md` still lists, performance pass (60 fps at 8 chunks on integrated graphics), audio (music, ambient loops, records)

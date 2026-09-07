@@ -28,7 +28,7 @@ import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
 import { blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
-import { bowBaseDamage, bowCharge, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
+import { bowBaseDamage, bowCharge, crossbowChargeTicks, hasChanneling, hasMultishot, impalingBonus, loyaltyLevel, maceDamage, piercingCount, riptideLevel, sweepingRatio, windBurstLift, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
 import { arrowEffects, effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
@@ -232,6 +232,8 @@ export class Game {
   private absorptionLevel = 0;
   /** Ticks the bow has been drawn for. */
   private drawTicks = 0;
+  /** Ticks a trident has been wound up for. */
+  private tridentTicks = 0;
   /** The raid on the village the player walked into, while one is running. */
   private raid: RaidState | null = null;
   /** Where the HUD and the screens over it are mounted. */
@@ -398,9 +400,11 @@ export class Game {
       getBiome: (x, z) => this.world.getBiome(x, z),
       topBlock: (x, z) => this.world.topBlock(x, z),
       arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
-      arrowHitMob: (box, damage, fire, knockback, effects) => {
-        const hit = this.entities.mobsIntersecting(box)[0];
+      arrowHitMob: (box, damage, fire, knockback, effects, pierced) => {
+        // a bolt that has already gone through a mob never hits the same one twice
+        const hit = this.entities.mobsIntersecting(box).find((m) => !pierced?.includes(m));
         if (!hit) return false;
+        pierced?.push(hit);
         // Punch throws the mob further and Flame sets it alight, as vanilla's arrows do
         hit.hurt(damage, this.player.pos, 'player', 0.3 + knockback * 0.5);
         if (fire > 0) hit.fireTicks = Math.max(hit.fireTicks, fire);
@@ -1313,9 +1317,31 @@ export class Game {
     // drawing a bow: vanilla charges it while the button is held and looses it when let go
     if (held?.id === 'bow' && !p.dead && this.input.isDown('use') && this.canShoot(held)) {
       this.drawTicks++;
-    } else if (this.drawTicks > 0) {
+    } else if (this.drawTicks > 0 && held?.id !== 'crossbow') {
       this.shootBow(held, this.drawTicks);
       this.drawTicks = 0;
+    }
+    // a trident is wound up like a bow and thrown when it is let go, unless Riptide carries the
+    // thrower instead
+    if (held?.id === 'trident' && !p.dead && this.input.isDown('use')) {
+      this.tridentTicks++;
+    } else if (this.tridentTicks > 0) {
+      if (held?.id === 'trident' && this.tridentTicks >= 10) this.throwTrident(held);
+      this.tridentTicks = 0;
+    }
+    // a crossbow keeps its charge instead: it is drawn once and then held loaded until it is fired
+    if (held?.id === 'crossbow' && !p.dead) {
+      if (held.charged) {
+        this.drawTicks = 0;
+        if (this.input.tickPressed('use')) this.shootCrossbow(held);
+      } else if (this.input.isDown('use') && this.canShoot(held)) {
+        if (++this.drawTicks >= crossbowChargeTicks(held)) {
+          held.charged = true;
+          this.drawTicks = 0;
+          p.inventory.version++;
+          this.audio.play('click', { pitch: 0.7 });
+        }
+      } else this.drawTicks = 0;
     }
     const drinking = held?.id === 'potion';
     if (this.input.isDown('use') && !p.dead && (drinking || (heldDef?.food && this.canEat(heldDef)))) {
@@ -2203,6 +2229,88 @@ export class Game {
     // Infinity only pays for plain arrows; a spectral or tipped one is still spent
     if (ammo && (!hasInfinity(bow) || ammo.id !== 'arrow')) {
       if (--ammo.count <= 0) p.inventory.slots[slot] = null;
+      p.inventory.version++;
+    }
+  }
+
+  /**
+   * Looses a loaded crossbow. Vanilla's bolt leaves faster than a bow's fully drawn arrow, Multishot
+   * throws three for the price of one, and Piercing carries a bolt through what it hits.
+   */
+  private shootCrossbow(bow: ItemStack): void {
+    const p = this.player;
+    if (!bow.charged) return;
+    bow.charged = false;
+    p.inventory.version++;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir).clone();
+    const slot = p.inventory.slots.findIndex((sl) => sl?.id === 'arrow' || sl?.id === 'spectral_arrow' || sl?.id === 'tipped_arrow');
+    const ammo = slot >= 0 ? p.inventory.slots[slot]! : null;
+    const pierce = piercingCount(bow);
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const deg of hasMultishot(bow) ? [-10, 0, 10] : [0]) {
+      const d = dir.clone().applyAxisAngle(up, (deg * Math.PI) / 180);
+      const from = eye.clone().addScaledVector(d, 0.4);
+      const arrow = this.entities.shootArrow(from, from.clone().addScaledVector(d, 16), 3.15, 2, true);
+      arrow.vel.copy(d).multiplyScalar(3.15);
+      arrow.pierce = pierce;
+      if (ammo) arrow.effects = arrowEffects(ammo);
+    }
+    this.audio.play('bow', { pitch: 1.3 });
+    if (p.gamemode === 'creative') return;
+    p.inventory.damageSelected(1);
+    if (ammo && --ammo.count <= 0) p.inventory.slots[slot] = null;
+    p.inventory.version++;
+  }
+
+  /**
+   * The trident. Vanilla throws it end over end for eight damage, more with Impaling against
+   * anything wet, calls lightning down on what it hits when it is Channeling in a storm, and hands
+   * it back where it lands — or straight back to the thrower when it is Loyal. In water or rain a
+   * Riptide trident is not thrown at all: it carries the thrower instead.
+   */
+  private throwTrident(trident: ItemStack): void {
+    const p = this.player;
+    const riptide = riptideLevel(trident);
+    const wet = p.inWater || (this.weather.raining && this.world.getSkyLight(Math.floor(p.pos.x), Math.floor(p.pos.y + 1), Math.floor(p.pos.z)) > 0);
+    const dir = p.lookDirection(this.tmpDir).clone();
+    if (riptide > 0) {
+      if (!wet) return;
+      // vanilla throws the player along their line of sight, harder for each level
+      p.vel.addScaledVector(dir, 0.6 * (1 + riptide));
+      p.onGround = false;
+      p.fallDistance = 0;
+      if (p.gamemode === 'survival') p.inventory.damageSelected(1);
+      this.audio.play('splash', { pitch: 1.2 });
+      return;
+    }
+    const eye = p.eyePosition(1, this.tmpEye);
+    const from = eye.clone().addScaledVector(dir, 0.4);
+    const damage = 8 + impalingBonus(trident);
+    const arrow = this.entities.shootArrow(from, from.clone().addScaledVector(dir, 16), 2.5, damage, true);
+    arrow.vel.copy(dir).multiplyScalar(2.5);
+    if (!this.tridentTexture) {
+      this.tridentTexture = new THREE.TextureLoader().load(this.icons.icon('trident'));
+      this.tridentTexture.magFilter = THREE.NearestFilter;
+      this.tridentTexture.minFilter = THREE.NearestFilter;
+      this.tridentTexture.colorSpace = THREE.SRGBColorSpace;
+    }
+    arrow.asTrident(this.tridentTexture);
+    const thrown = cloneStack(trident, 1);
+    const loyal = loyaltyLevel(trident) > 0;
+    const channeling = hasChanneling(trident);
+    arrow.onLanded = (pos, hitMob) => {
+      if (channeling && hitMob && this.weather.thundering && this.world.getSkyLight(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)) > 0) {
+        this.strikeLightning(Math.floor(pos.x), Math.floor(pos.z));
+      }
+      if (p.gamemode === 'creative') return;
+      // Loyalty brings it back to the thrower; without it, it waits where it fell
+      const at = loyal ? p.pos : pos;
+      this.dropStack(thrown, at.x, at.y + (loyal ? 0.5 : 0), at.z, false).pickupDelay = loyal ? 0 : 10;
+    };
+    this.audio.play('bow', { pitch: 0.8 });
+    if (p.gamemode !== 'creative') {
+      p.inventory.slots[p.inventory.selected] = null;
       p.inventory.version++;
     }
   }
@@ -3884,6 +3992,7 @@ export class Game {
 
   /** Light-curve brightness at a block position for entity rendering. */
   private potionTexture: THREE.Texture | null = null;
+  private tridentTexture: THREE.Texture | null = null;
 
   /**
    * A bottle the player threw: everything within four blocks of the burst takes the potion, weaker
@@ -4068,8 +4177,40 @@ export class Game {
     knockback += 0.5 * (held?.enchantments?.knockback ?? 0);
     const crit = progress > 0.9 && !p.onGround && p.vel.y < 0 && !p.inWater && !p.sprinting;
     if (crit) damage *= 1.5;
+    // the mace: vanilla turns the fall into the blow, throws everything nearby back, and lets the
+    // wielder land as if they had not fallen at all
+    let smash = 0;
+    if (held?.id === 'mace' && !p.onGround && p.vel.y < 0) {
+      smash = maceDamage(held, p.fallDistance);
+      if (smash > 0) {
+        damage += smash;
+        for (const other of this.entities.mobsNear(mob.pos.x, mob.pos.y, mob.pos.z, 3.5)) {
+          if (other === mob || other.dead) continue;
+          other.hurt(Math.min(4, smash * 0.25), p.pos, 'player', 0.6);
+        }
+        p.fallDistance = 0;
+        p.landed = 0;
+        // Wind Burst throws the wielder straight back up for another swing
+        const lift = windBurstLift(held);
+        if (lift > 0) p.vel.y = lift;
+        this.particles.crits(mob.pos.x, mob.pos.y, mob.pos.z, 24, Math.random, 'crit');
+        this.audio.play('explode', { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z, volume: 0.5, pitch: 1.6 });
+      }
+    }
     if (progress > 0.9) mob.hurt(damage, p.pos, 'player', knockback);
     else mob.hurt(damage, p.pos, 'player', 0.2);
+    // vanilla's sweep: a sword swung at full reach, standing and not landing a crit, carries a share
+    // of the blow to everything beside what it hit
+    if (def?.behavior === 'sword' && progress > 0.9 && !crit && !p.sprinting && p.onGround) {
+      const sweep = 1 + damage * sweepingRatio(held ?? null);
+      let swept = 0;
+      for (const other of this.entities.mobsNear(mob.pos.x, mob.pos.y, mob.pos.z, 2)) {
+        if (other === mob || other.dead) continue;
+        other.hurt(sweep, p.pos, 'player', 0.4);
+        swept++;
+      }
+      if (swept) this.audio.play('hurt', { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z, pitch: 0.8, volume: 0.4 });
+    }
     const burn = fireAspectTicks(held ?? null);
     if (burn > 0) mob.fireTicks = Math.max(mob.fireTicks, burn);
     // a guardian's spikes are out while it holds still, and vanilla puts two damage back on whoever
@@ -4080,7 +4221,7 @@ export class Game {
     if (crit) this.particles.crits(mob.pos.x, mid, mob.pos.z, 8, Math.random, 'crit');
     if (damage > 2) this.particles.crits(mob.pos.x, mid, mob.pos.z, Math.floor(damage * 0.5), Math.random, 'damage');
     this.audio.play(crit ? 'anvil' : 'hurt', { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z, pitch: crit ? 1.5 : 1.2, volume: 0.6 });
-    if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe')) p.inventory.damageSelected(def.behavior === 'sword' ? 1 : 2);
+    if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe' || def.behavior === 'mace' || def.behavior === 'trident')) p.inventory.damageSelected(def.behavior === 'sword' || def.behavior === 'trident' ? 1 : 2);
     p.exhaustion += 0.1;
     if (p.gamemode === 'survival') this.hud.showToast('');
   }
