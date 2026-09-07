@@ -779,3 +779,25 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     cooldown up rather than counting it down, so a traveller has to step out before the way back
     opens. Without it a player who arrives and stands still is sent home five minutes later, which
     is exactly what the first run of the Nether did.
+
+98. **The fortress and the bastion, on one spread.** Vanilla puts both in a single structure set —
+    the nether complexes, spacing 27, separation 4 — and picks between them by weight at each start,
+    three in five to the bastion and two to the fortress. That is now a general thing here: a set
+    can declare its share of a spread, and each start falls to exactly one of the structures on it,
+    so the two never collide and neither is rarer than vanilla makes it.
+
+    The bastion is vanilla's own, templates and all: its hundred and sixty-seven pieces and their
+    pools go through the same jigsaw assembly a village does, built at the y its data names. What it
+    needed was the beardifier — vanilla pushes terrain away from a structure with a falloff, which is
+    what makes a bastion a courtyard standing in the open rather than a warren packed in solid
+    netherrack. Ours clears each piece's box and six blocks around and above it, with two rules
+    learned the hard way: every piece of a start is stamped before any of it is cleared around, and
+    no cell inside another piece's box is ever cleared — otherwise one piece's margin eats the
+    next's walls, or the chunk next door carves away the half of the structure this chunk wrote.
+
+    The fortress is built in code, as vanilla builds it: a bridge crossing to start, then a walk of
+    bridges with their fenced decks and columns dropped to the ground, corridors with windows,
+    crossings, stairs, wart rooms with soul sand and a chest of vanilla's `nether_bridge` loot, and
+    blaze spawner rooms with the spawner on its platform behind a fence. The plan is ours, as the
+    mansion's is; the pieces are vanilla's. Wither skeletons and zombified piglins are put in as it
+    is built, and the blaze spawners keep the blazes coming.

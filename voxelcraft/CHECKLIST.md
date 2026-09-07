@@ -105,7 +105,8 @@ coverage counts in `COVERAGE.md`.
 ## Phase 4 – Nether
 - [x] Nether, first slice: the dimension itself — a hundred and twenty-eight blocks of netherrack between two sheets of bedrock with a lava sea in the bottom, vanilla's five biomes from its own climate points, the surfaces and growth each one wears, nether ores and ancient debris; nether portals lit with flint and steel in any frame vanilla accepts, the eighty ticks of standing in one, the eight-to-one journey, a portal found or built on the far side, and each dimension's chunks saved under their own name
 - [x] Nether, second slice: the mobs that live there — piglins that leave a player wearing gold alone, piglin brutes that never do, zombified piglins, hoglins and zoglins, striders walking on their lava sea, blazes charging rounds of three fireballs, ghasts that howl before they spit, and magma cubes in vanilla's three sizes; all fireproof, spawning at any light on vanilla's own per-biome lists
-- [ ] Nether, next: fortress and bastion, netherite, and the Wither
+- [x] Nether, third slice: the fortress and the bastion — vanilla's own bastion templates through the jigsaw pipeline, carved out of the netherrack the way its beardifier does; a fortress of nether brick bridges, corridors, crossings, stairs, wart rooms with their chests and blaze spawner rooms, with wither skeletons and zombified piglins already in it; both on the one spread vanilla gives them, three starts in five to the bastion and two to the fortress
+- [ ] Nether, next: netherite, and the Wither
 
 ## Phase 5 – End
 - [ ] Stronghold + end portal, dragon fight, credits/poem, end cities, elytra, gateways

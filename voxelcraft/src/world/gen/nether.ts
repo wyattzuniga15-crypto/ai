@@ -15,13 +15,16 @@ import { biomeIndex, biomes } from '../biomes.ts';
 import type { ChunkData } from '../chunk.ts';
 import type { BlockAccess } from './features.ts';
 import type { StructureSpot } from './generator.ts';
-import type { StructureSet } from './structures.ts';
+import { assembleJigsaw, claimsStart, nearbyStarts, pickVariant, placementBox, stampStructure, type StructurePlacement, type StructureSet } from './structures.ts';
+import { FORTRESS_Y, assembleFortress, fillFortressPiece, type FortressPiece } from './fortress.ts';
 
 /** The Nether is generated between these, with bedrock at both ends, as vanilla builds it. */
 export const NETHER_FLOOR = 0;
 export const NETHER_ROOF = 127;
 /** Vanilla's lava sea fills to here. */
 export const NETHER_LAVA_LEVEL = 31;
+/** The biomes that belong to this world, for picking out the structures that can stand in it. */
+const NETHER_BIOMES = new Set(['nether_wastes', 'soul_sand_valley', 'crimson_forest', 'warped_forest', 'basalt_deltas']);
 
 /** Vanilla's nether climate points: temperature, humidity, and the offset that breaks ties. */
 const CLIMATE: { id: string; t: number; h: number; offset: number }[] = [
@@ -44,6 +47,10 @@ export class NetherGenerator {
   private readonly patch: Noise;
   private readonly S: Record<string, number> = {};
   private readonly biomeCache = new Map<number, number>();
+  private readonly structureCache = new Map<string, StructurePlacement[]>();
+  private readonly fortresses = new Map<string, FortressPiece[]>();
+  /** Where the last structure was worked out, for `/locate`. */
+  lastStructure: { name: string; x: number; y: number; z: number } | null = null;
 
   constructor(seed: number) {
     this.seed = seed >>> 0;
@@ -208,6 +215,7 @@ export class NetherGenerator {
    */
   decorate(chunk: ChunkData, world: BlockAccess): void {
     this.structureSpots = [];
+    this.placeStructures(chunk, world);
     const rng = new Rng(mix(this.seed, chunk.cx, chunk.cz, 0xdec1));
     const ox = chunk.cx * 16;
     const oz = chunk.cz * 16;
@@ -274,6 +282,103 @@ export class NetherGenerator {
         for (let dy = 1; dy <= 1 + rng.int(4); dy++) if (world.get(x, y + dy, z) === AIR) world.set(x, y + dy, z, vine);
       }
     }
+  }
+
+  /**
+   * The Nether's own structures, stamped the way the overworld's are: a chunk asks each set which
+   * nearby starts could reach it and writes their pieces clipped to its own columns.
+   */
+  private placeStructures(chunk: ChunkData, world: BlockAccess): void {
+    const clip = { x0: chunk.cx * 16, x1: chunk.cx * 16 + 15, z0: chunk.cz * 16, z1: chunk.cz * 16 + 15 };
+    const loot = (x: number, y: number, z: number, table: string) => this.structureSpots.push({ x, y, z, table });
+    const spawner = (x: number, y: number, z: number, mob: string) => this.structureSpots.push({ x, y, z, mob });
+    const entity = (x: number, y: number, z: number, mob: string) => this.structureSpots.push({ x, y, z, entity: mob });
+    for (const set of this.structures) {
+      if (!set.biomes.some((b) => NETHER_BIOMES.has(b))) continue;
+      for (const start of nearbyStarts(this.seed, set, chunk.cx, chunk.cz)) {
+        if (!claimsStart(this.seed, set, start.cx, start.cz)) continue;
+        const all = this.structureAt(set, start.cx, start.cz);
+        const boxes = all.map(placementBox);
+        const pieces = all.filter((_piece, i) => {
+          const box = boxes[i];
+          return box.x1 >= clip.x0 && box.x0 <= clip.x1 && box.z1 >= clip.z0 && box.z0 <= clip.z1;
+        });
+        // a fortress is built in code rather than from templates: its own pieces write themselves
+        const fortress = this.fortressAt(set, start.cx, start.cz);
+        for (const piece of fortress) {
+          const b = piece.box;
+          if (b.x1 < clip.x0 || b.x0 > clip.x1 || b.z1 < clip.z0 || b.z0 > clip.z1) continue;
+          fillFortressPiece(piece, world, clip, loot, spawner, entity);
+        }
+        // the whole structure is stamped before any of it is cleared around, or one piece's margin
+        // would eat the next piece's walls
+        const written = new Set<string>();
+        for (const piece of pieces) stampStructure(world, piece, { written, clip, onLoot: loot, onEntity: entity, onSpawner: spawner });
+        // vanilla's beardifier pushes terrain away from a structure with a falloff around it, which
+        // is what makes a bastion a courtyard standing in the open rather than a warren packed in
+        // solid netherrack. Ours clears each piece's box and a margin around and above it.
+        const MARGIN = 6;
+        // never clear a cell another piece stands in: the chunk beside this one writes its own half
+        // of the structure and its blocks must survive this chunk's margin
+        const inAPiece = (x: number, y: number, z: number): boolean => {
+          for (const b of boxes) if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1 && z >= b.z0 && z <= b.z1) return true;
+          return false;
+        };
+        for (const piece of pieces) {
+          const box = placementBox(piece);
+          for (let x = Math.max(box.x0 - MARGIN, clip.x0); x <= Math.min(box.x1 + MARGIN, clip.x1); x++)
+            for (let z = Math.max(box.z0 - MARGIN, clip.z0); z <= Math.min(box.z1 + MARGIN, clip.z1); z++)
+              for (let y = box.y0; y <= Math.min(NETHER_ROOF - 1, box.y1 + MARGIN); y++) {
+                if (written.has(`${x},${y},${z}`) || inAPiece(x, y, z)) continue;
+                if (world.get(x, y, z) !== blocks.AIR) world.set(x, y, z, blocks.AIR);
+              }
+        }
+      }
+    }
+  }
+
+  /** A fortress's pieces, worked out once per start like everything else here. */
+  private fortressAt(set: StructureSet, cx: number, cz: number): FortressPiece[] {
+    if (set.placement !== 'fortress') return [];
+    const key = `${set.name}:${cx}:${cz}`;
+    if (!this.fortresses.has(key)) this.structureAt(set, cx, cz);
+    return this.fortresses.get(key) ?? [];
+  }
+
+  /** The pieces of one start, worked out once and kept: every chunk it covers asks for the same. */
+  private structureAt(set: StructureSet, cx: number, cz: number): StructurePlacement[] {
+    const key = `${set.name}:${cx}:${cz}`;
+    const cached = this.structureCache.get(key);
+    if (cached) return cached;
+    const rng = new Rng(mix(this.seed ^ set.salt, cx, cz, 0x5747));
+    const wx = cx * 16 + rng.int(8);
+    const wz = cz * 16 + rng.int(8);
+    const biome = biomes[this.biomeAt(wx, wz)].id;
+    let pieces: StructurePlacement[] = [];
+    if (set.placement === 'fortress' && set.biomeSet.has(biome)) {
+      this.fortresses.set(key, assembleFortress(mix(this.seed ^ set.salt, cx, cz, 0xf027), wx, wz));
+      this.lastStructure = { name: set.name, x: wx, y: FORTRESS_Y, z: wz };
+    } else if (set.biomeSet.has(biome)) {
+      const variant = pickVariant(set, biome, rng);
+      // the bastion is one of vanilla's jigsaw structures, built at the height its own data names
+      if (variant && set.placement === 'jigsaw') {
+        const baseY = (set.startY ?? 33) + (set.startYMax && set.startYMax > (set.startY ?? 33) ? rng.int(set.startYMax - (set.startY ?? 33) + 1) : 0);
+        const assembled = assembleJigsaw(set, variant.start, wx, baseY, wz, rng);
+        if (assembled.length >= 2) {
+          pieces = assembled.map((piece) => ({
+            set, template: piece.template, x: piece.x, y: piece.y, z: piece.z,
+            rotation: piece.rotation, integrity: 1, decaySeed: mix(this.seed ^ set.salt, cx, cz, 0x0d3c), placement: 'buried' as const,
+          }));
+          this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz };
+        }
+      }
+    }
+    if (this.structureCache.size > 256) {
+      this.structureCache.clear();
+      this.fortresses.clear(); // both are only a stamping aid: either is safe to work out again
+    }
+    this.structureCache.set(key, pieces);
+    return pieces;
   }
 
   /** A huge crimson or warped fungus: a stem with a cap of wart blocks and a shroomlight or two. */

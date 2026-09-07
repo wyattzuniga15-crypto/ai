@@ -11,7 +11,7 @@ import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
-import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
+import { claimsStart, assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
 import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
 import { buildTemple, TEMPLE_SIZE, type TempleKind } from './temples.ts';
 import { assembleStronghold, fillStrongholdPiece, type StrongholdPiece } from './stronghold.ts';
@@ -936,6 +936,8 @@ export class WorldGenerator {
     const wz = cz * 16 + rng.int(8);
     const biome = this.structureBiome(set, wx, wz);
     if (biome === null) return EMPTY_STRUCTURE;
+    // a shared spread (the fortress and the bastion) gives each start to one of them, by weight
+    if (!claimsStart(this.seed, set, cx, cz)) return EMPTY_STRUCTURE;
     const decaySeed = mix(this.seed ^ set.salt, cx, cz, 0x0d3c);
     if (set.placement === 'mineshaft') return this.buildMineshaft(set, cx, cz, biome, rng);
     if (TEMPLE_KINDS.has(set.placement)) return this.buildTempleAt(set, wx, wz, rng);

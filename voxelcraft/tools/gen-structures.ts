@@ -212,10 +212,12 @@ function convert(file: string, structure: string, piece: string): Template | nul
 }
 
 /** Structures assembled from template pools (villages); every reachable piece is converted. */
-const JIGSAW: { name: string; set: string }[] = [
+const JIGSAW: { name: string; set: string; only?: string }[] = [
   { name: 'village', set: 'villages' },
   { name: 'ancient_city', set: 'ancient_cities' },
   { name: 'trial_chambers', set: 'trial_chambers' },
+  // the nether complexes hold two structures on one spread: the bastion is the jigsaw half of it
+  { name: 'bastion_remnant', set: 'nether_complexes', only: 'bastion_remnant' },
 ];
 
 /**
@@ -253,7 +255,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; aliases?: PoolAlias[]; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; share?: { before: number; weight: number; total: number }; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; aliases?: PoolAlias[]; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -315,6 +317,7 @@ for (const want of JIGSAW) {
   let startYMax: number | null = null;
   for (const entry of set.structures) {
     const name = entry.structure.replace('minecraft:', '');
+    if (want.only && name !== want.only) continue;
     const file = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
     if (!fs.existsSync(file)) continue;
     const def = JSON.parse(fs.readFileSync(file, 'utf8')) as {
@@ -325,6 +328,7 @@ for (const want of JIGSAW) {
       start_height?: { absolute?: number; min_inclusive?: { absolute: number }; max_inclusive?: { absolute: number } };
       pool_aliases?: Record<string, unknown>[];
     };
+    if (!def.start_pool) continue; // a structure in the set that is not a jigsaw one (the fortress)
     const start = def.start_pool.replace('minecraft:', '');
     const own = biomesFor(mc, [name]);
     variants.push({ start, weight: entry.weight ?? 1, biomes: own });
@@ -378,9 +382,13 @@ for (const want of JIGSAW) {
   const bundleJson = JSON.stringify({ pieces: bundle, pools });
   fs.writeFileSync(path.join(outDir, `${want.name}.json`), bundleJson);
   bytes += bundleJson.length;
+  const total = set.structures.reduce((n, e) => n + (e.weight ?? 1), 0);
+  const own = set.structures.filter((e) => !want.only || e.structure.replace('minecraft:', '') === want.only).reduce((n, e) => n + (e.weight ?? 1), 0);
   index.push({
     name: want.name, placement: 'jigsaw',
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
+    // structures sharing one spread (the fortress and the bastion) split its starts by weight
+    ...(want.only ? { share: { before: 0, weight: own, total } } : {}),
     pieces, biomes: [...biomes].sort(), variants, maxDepth: depth, maxDistance,
     ...(startY !== null ? { startY, startYMax } : {}),
     ...(aliases.length ? { aliases } : {}),
@@ -391,7 +399,7 @@ for (const want of JIGSAW) {
  * Structures vanilla builds in code rather than from templates. Only their placement comes out of
  * the data files: the spread, the per-chunk frequency and each variant's biome list.
  */
-const PROCEDURAL: { name: string; set: string }[] = [
+const PROCEDURAL: { name: string; set: string; only?: string }[] = [
   { name: 'mineshaft', set: 'mineshafts' },
   { name: 'desert_pyramid', set: 'desert_pyramids' },
   { name: 'jungle_temple', set: 'jungle_temples' },
@@ -399,6 +407,7 @@ const PROCEDURAL: { name: string; set: string }[] = [
   { name: 'stronghold', set: 'strongholds' },
   { name: 'buried_treasure', set: 'buried_treasures' },
   { name: 'monument', set: 'ocean_monuments' },
+  { name: 'fortress', set: 'nether_complexes', only: 'fortress' },
 ];
 
 for (const want of PROCEDURAL) {
@@ -412,6 +421,7 @@ for (const want of PROCEDURAL) {
   const biomes = new Set<string>();
   for (const entry of set.structures) {
     const name = entry.structure.replace('minecraft:', '');
+    if (want.only && name !== want.only) continue;
     const file = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
     if (!fs.existsSync(file)) continue;
     // the mineshaft's own JSON says which kind of shaft it builds (normal timbers or mesa's dark oak)
@@ -420,10 +430,14 @@ for (const want of PROCEDURAL) {
     variants.push({ start: def.mineshaft_type ?? name, weight: entry.weight ?? 1, biomes: own });
     for (const b of own) biomes.add(b);
   }
+  const shareTotal = set.structures.reduce((n, e) => n + (e.weight ?? 1), 0);
+  const shareOwn = set.structures.filter((e) => !want.only || e.structure.replace('minecraft:', '') === want.only).reduce((n, e) => n + (e.weight ?? 1), 0);
   index.push({
     name: want.name, placement: want.name,
     // strongholds are spread in rings round the origin rather than on a grid
     spacing: set.placement.spacing ?? 1, separation: set.placement.separation ?? 0, salt: set.placement.salt,
+    // the fortress takes its share of the nether complexes' starts, the bastion the rest
+    ...(want.only ? { share: { before: shareTotal - shareOwn, weight: shareOwn, total: shareTotal } } : {}),
     frequency: set.placement.frequency, pieces: [], biomes: [...biomes].sort(), variants,
     ...(set.placement.count ? { count: set.placement.count, distance: set.placement.distance, spread: set.placement.spread } : {}),
   });

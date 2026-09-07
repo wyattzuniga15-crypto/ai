@@ -26,10 +26,15 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion' | 'monument';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion' | 'monument' | 'fortress';
   spacing: number;
   separation: number;
   salt: number;
+  /**
+   * Structures that share one spread: vanilla picks one of them per start, by weight. `before` is
+   * the weight of the ones ahead of this in the set, so each start falls to exactly one of them.
+   */
+  share?: { before: number; weight: number; total: number };
   /** Structures spread one per chunk (mineshafts) roll this chance in every chunk instead. */
   frequency?: number;
   /** Ocean ruins scatter more of themselves this far around the one they start with. */
@@ -160,6 +165,31 @@ export function buildStructureSets(
  * belongs in the biome at the start (`ChunkGenerator.tryGenerateStructure`), which is what makes a
  * village in a desert a desert village and one in a taiga a taiga village.
  */
+/**
+ * Starts of a set that could reach a chunk. Both generators ask this: a chunk stamps the pieces of
+ * every start whose structure can extend into it, which is what lets one be written a chunk at a
+ * time and still come out whole.
+ */
+export function nearbyStarts(seed: number, set: StructureSet, cx: number, cz: number): { cx: number; cz: number }[] {
+  const out: { cx: number; cz: number }[] = [];
+  const r = set.reach;
+  for (let rx = Math.floor((cx - r) / set.spacing); rx <= Math.floor((cx + r) / set.spacing); rx++)
+    for (let rz = Math.floor((cz - r) / set.spacing); rz <= Math.floor((cz + r) / set.spacing); rz++) {
+      const start = structureStart(seed, set, rx, rz);
+      if (Math.abs(start.cx - cx) > r || Math.abs(start.cz - cz) > r) continue;
+      if (set.frequency !== undefined && hashPos(seed ^ set.salt, start.cx, 0x5eed, start.cz) >= set.frequency) continue;
+      out.push(start);
+    }
+  return out;
+}
+
+/** Whether a shared spread (the fortress and the bastion) gives this start to this set. */
+export function claimsStart(seed: number, set: StructureSet, cx: number, cz: number): boolean {
+  if (!set.share) return true;
+  const roll = hashPos(seed ^ set.salt, cx, 0x5ba5, cz) * set.share.total;
+  return roll >= set.share.before && roll < set.share.before + set.share.weight;
+}
+
 export function pickVariant(set: StructureSet, biome: string, rng: Rng): StructureVariant | null {
   const left = (set.variants ?? []).map((v, i) => ({ v, biomes: set.variantBiomes[i] }));
   let total = left.reduce((sum, e) => sum + Math.max(1, e.v.weight), 0);
