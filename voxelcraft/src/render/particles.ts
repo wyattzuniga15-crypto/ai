@@ -5,13 +5,67 @@
  */
 import * as THREE from 'three';
 import type { LoadedAtlas } from './atlas.ts';
+import type { FireworkExplosion } from '../items/inventory.ts';
 
-export type SpriteName = 'heart' | 'crit' | 'damage' | 'poof' | 'smoke' | 'angry' | 'happy' | 'note';
+export type SpriteName = 'heart' | 'crit' | 'damage' | 'poof' | 'smoke' | 'angry' | 'happy' | 'note' | 'spark' | 'flash';
 const SPRITE_FILES: Record<SpriteName, string[]> = {
-  heart: ['heart'], crit: ['critical_hit'], damage: ['damage'], angry: ['angry'], happy: ['glint'], note: ['note'],
+  heart: ['heart'], crit: ['critical_hit'], damage: ['damage'], angry: ['angry'], happy: ['glint'], note: ['note'], spark: ['glow'], flash: ['flash'],
   poof: ['generic_0', 'generic_1', 'generic_2', 'generic_3', 'generic_4', 'generic_5', 'generic_6', 'generic_7'],
   smoke: ['big_smoke_0', 'big_smoke_1', 'big_smoke_2', 'big_smoke_3', 'big_smoke_4', 'big_smoke_5', 'big_smoke_6', 'big_smoke_7'],
 };
+/**
+ * The directions a burst throws its sparks in, by the shape the star was made in. The balls are
+ * spheres; the star and the creeper are vanilla's own outlines, spread over a plane and puffed out
+ * a little so they read from any angle.
+ */
+function fireworkShape(shape: string, rng: () => number): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  const sphere = (n: number) => {
+    for (let i = 0; i < n; i++) {
+      // an even scattering over the sphere, so the ball has no poles
+      const u = rng() * 2 - 1;
+      const a = rng() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      out.push([r * Math.cos(a), u, r * Math.sin(a)]);
+    }
+  };
+  const outline = (points: [number, number][], per: number) => {
+    for (let i = 0; i < points.length; i++) {
+      const [ax, ay] = points[i];
+      const [bx, by] = points[(i + 1) % points.length];
+      for (let k = 0; k < per; k++) {
+        const t = k / per;
+        out.push([ax + (bx - ax) * t, ay + (by - ay) * t, (rng() - 0.5) * 0.25]);
+      }
+    }
+  };
+  if (shape === 'large_ball') sphere(160);
+  else if (shape === 'small_ball') sphere(60);
+  else if (shape === 'burst') {
+    // a flat sheet rather than a ball, which is what vanilla's burst looks like
+    for (let i = 0; i < 90; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 0.4 + rng() * 0.6;
+      out.push([Math.cos(a) * r, (rng() - 0.5) * 0.35, Math.sin(a) * r]);
+    }
+  } else if (shape === 'star') {
+    const points: [number, number][] = [];
+    for (let i = 0; i < 10; i++) {
+      const a = (Math.PI / 2) + (i * Math.PI) / 5;
+      const r = i % 2 === 0 ? 1 : 0.4;
+      points.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    outline(points, 9);
+  } else {
+    // the creeper's face: the head's outline with its two eyes and its mouth
+    outline([[-0.9, 1], [0.9, 1], [0.9, -1], [-0.9, -1]], 12);
+    for (const [ex, ey] of [[-0.45, 0.35], [0.45, 0.35]] as [number, number][])
+      outline([[ex - 0.22, ey + 0.22], [ex + 0.22, ey + 0.22], [ex + 0.22, ey - 0.22], [ex - 0.22, ey - 0.22]], 4);
+    outline([[-0.22, -0.05], [0.22, -0.05], [0.22, -0.7], [-0.22, -0.7]], 5);
+  }
+  return out;
+}
+
 const SHEET_CELL = 16;
 const MAX_POINTS = 4096;
 
@@ -203,6 +257,33 @@ export class ParticleSystem {
       | (Math.round(Math.max(0, Math.sin((f + 1 / 3) * Math.PI * 2) * 0.65 + 0.35) * 255) << 8)
       | Math.round(Math.max(0, Math.sin((f + 2 / 3) * Math.PI * 2) * 0.65 + 0.35) * 255);
     this.spawnSprite('note', x, y, z, 0, 0.06, 0, 26, 0.5, 0, color);
+  }
+
+  /**
+   * A firework going off. Vanilla throws its sparks out in the shape the star was made in — a ball,
+   * a big ball, a star, a creeper's face or a flat burst — in the star's own colours, and a star
+   * with a trail leaves the sparks falling behind it for longer.
+   */
+  firework(x: number, y: number, z: number, explosion: FireworkExplosion, rng: () => number): void {
+    const colors = explosion.colors.length ? explosion.colors : [0xffffff];
+    const dirs = fireworkShape(explosion.shape, rng);
+    const speed = explosion.shape === 'large_ball' ? 0.34 : explosion.shape === 'small_ball' ? 0.17 : 0.24;
+    const life = explosion.trail ? 40 : 26;
+    this.spawnSprite('flash', x, y, z, 0, 0, 0, 4, 2.5, 0, colors[0]);
+    dirs.forEach((d, i) => {
+      const color = colors[i % colors.length];
+      // vanilla scatters the speeds a little so the ball has some thickness to it
+      const s = speed * (0.8 + rng() * 0.4);
+      this.spawnSprite('spark', x, y, z, d[0] * s, d[1] * s, d[2] * s, life + Math.floor(rng() * 8), 0.3, 0.004, color);
+    });
+    // the fade colours come out behind the first ones, which is how vanilla shows a fading burst
+    for (const fade of explosion.fade ?? []) {
+      for (let i = 0; i < dirs.length; i += 3) {
+        const d = dirs[i];
+        const s = speed * 0.6 * (0.8 + rng() * 0.4);
+        this.spawnSprite('spark', x, y, z, d[0] * s, d[1] * s, d[2] * s, life + 14, 0.24, 0.004, fade);
+      }
+    }
   }
 
   poof(x: number, y: number, z: number, count: number, rng: () => number, w = 1, h = 1): void {

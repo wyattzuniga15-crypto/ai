@@ -1163,3 +1163,32 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      compared with what it was, and anything that has changed wakes the blocks around it the way
      vanilla's `updateNeighbourForOutputSignal` does. Two ticks is the delay vanilla's comparator
      runs on anyway.
+
+119. **The recipes vanilla writes in code.** Twelve of Minecraft's crafting recipes have no pattern
+     to match: their result depends on what went in, so vanilla writes them as classes. Ten of them
+     were missing here. They are all in `src/items/specialRecipes.ts` now, each following its own
+     vanilla matcher — which items it takes, how many of each, and what it makes.
+
+     Dyeing is the fiddly one. Vanilla does not simply overwrite the colour: `DyedItemColor.applyDyes`
+     averages the dyes and whatever the leather already wears channel by channel, then scales the
+     result back up so its strongest channel matches the average of the inputs' strongest channels.
+     That last step is what stops a mix of dyes turning muddy, and it is why dyeing the same piece
+     twice with the same dye leaves it where it was. Two recipes leave an ingredient in the grid
+     rather than eating it — the banner being copied and the book being cloned — which is what
+     vanilla's remaining items do, so `consumeIngredients` now takes the slots to keep.
+
+     Map extending is the one recipe the grid cannot finish on its own: a wider map is a new map,
+     and only the world keeps them. Vanilla marks the item for the server to widen; here the grid
+     carries a hook the game fills in, so the map is made when the result is taken off the slot.
+
+     Three of the recipes make fireworks, which meant fireworks had to do something. A rocket used
+     while gliding still pushes the flier along; used anywhere else it now goes up, on vanilla's own
+     climb — a fifteenth faster sideways every tick and four hundredths more lift — for ten ticks a
+     charge plus two small rolls, and then bursts. The burst throws its sparks in the shape the star
+     was made in: spheres for the two balls, a flat sheet for a burst, and vanilla's own outlines
+     for the five-pointed star and the creeper's face, each in the star's colours with the fade
+     colours coming out behind them.
+
+     What the new data does not do yet is show on the blocks and items that carry it: a decorated
+     pot draws plain, a decorated shield draws plain, and dyed leather is tinted in the inventory
+     but nothing wears armour in this game to tint. The recipes are right; the models can catch up.

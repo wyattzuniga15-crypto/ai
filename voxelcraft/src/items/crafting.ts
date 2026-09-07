@@ -3,6 +3,9 @@ import craftingJson from '../../data/recipes/crafting.json';
 import type { ItemStack, Slot } from './inventory.ts';
 import { cloneStack } from './inventory.ts';
 import { items } from './registry.ts';
+import { matchSpecial, repairItems, tippedArrows } from './specialRecipes.ts';
+
+export { repairItems, tippedArrows };
 
 export type Ingredient = string | string[];
 
@@ -39,10 +42,16 @@ function ingredientIds(ing: Ingredient): string[] {
 export interface CraftResult {
   recipe: CraftingRecipe;
   result: ItemStack;
+  /** Grid slots the craft leaves alone, as vanilla's remaining items do. */
+  keep?: number[];
+  /** A map the world has to widen when the result is taken. */
+  mapScale?: boolean;
 }
 
 export class CraftingMatcher {
   private readonly byItem = new Map<string, CraftingRecipe[]>();
+  /** How far a map has already been zoomed out; the world installs this, since it owns the maps. */
+  mapScale: (id: number) => number = () => 0;
 
   constructor(recipes: CraftingRecipe[] = craftingRecipes, private readonly repairable = true) {
     for (const r of recipes) {
@@ -76,6 +85,16 @@ export class CraftingMatcher {
     }
     const tipped = tippedArrows(grid, width, height);
     if (tipped) return { recipe: { id: 'tipped_arrow', type: 'shaped', result: { item: 'tipped_arrow', count: 8 } }, result: tipped };
+    // the recipes vanilla works out in code, whose result depends on what went into the grid
+    const special = matchSpecial(grid, width, height, this.mapScale);
+    if (special) {
+      return {
+        recipe: { id: special.id, type: 'shapeless', result: { item: special.result.id, count: special.result.count } },
+        result: special.result,
+        keep: special.keep,
+        mapScale: special.mapScale,
+      };
+    }
     if (this.repairable) {
       const repaired = repairItems(grid);
       if (repaired) return { recipe: { id: 'repair_item', type: 'shapeless', result: { item: repaired.id, count: 1 } }, result: repaired };
@@ -169,39 +188,14 @@ export class CraftingMatcher {
 }
 
 /**
- * Vanilla "tipped arrow" special recipe: a lingering potion in the middle of eight arrows tips them
- * all, each carrying the potion the bottle held.
+ * Removes one of each ingredient from the grid, leaving container items behind. `keep` names the
+ * slots a recipe hands back untouched, which is what vanilla's remaining items do for the banner
+ * being copied and the book being cloned.
  */
-export function tippedArrows(grid: Slot[], width: number, height: number): ItemStack | null {
-  if (width !== 3 || height !== 3) return null;
-  const middle = grid[4];
-  if (middle?.id !== 'lingering_potion') return null;
-  for (let i = 0; i < 9; i++) {
-    if (i === 4) continue;
-    if (grid[i]?.id !== 'arrow') return null;
-  }
-  const out: ItemStack = { id: 'tipped_arrow', count: 8 };
-  if (middle.potion) out.potion = middle.potion;
-  return out;
-}
-
-/** Vanilla "repair item" special recipe: two damaged copies of a tool combine their durability. */
-export function repairItems(grid: Slot[]): ItemStack | null {
-  const present = grid.filter((s): s is ItemStack => !!s);
-  if (present.length !== 2 || present[0].id !== present[1].id) return null;
-  const def = items.byId.get(present[0].id);
-  if (!def?.durability || present[0].count !== 1 || present[1].count !== 1) return null;
-  if (!present[0].damage && !present[1].damage) return null;
-  const a = def.durability - (present[0].damage ?? 0);
-  const b = def.durability - (present[1].damage ?? 0);
-  const total = Math.min(def.durability, a + b + Math.floor(def.durability * 0.05));
-  return { id: def.id, count: 1, damage: def.durability - total };
-}
-
-/** Removes one of each ingredient from the grid, leaving container items behind. */
-export function consumeIngredients(grid: Slot[]): Slot[] {
-  return grid.map((s) => {
+export function consumeIngredients(grid: Slot[], keep: number[] = []): Slot[] {
+  return grid.map((s, i) => {
     if (!s) return null;
+    if (keep.includes(i)) return cloneStack(s);
     const remainder = CRAFTING_REMAINDER[s.id];
     if (s.count <= 1) return remainder ? { id: remainder, count: 1 } : null;
     return cloneStack(s, s.count - 1);

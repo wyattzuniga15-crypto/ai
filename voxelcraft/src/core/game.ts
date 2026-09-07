@@ -42,6 +42,8 @@ import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { craftingMatcher } from '../items/crafting.ts';
+import { Firework, fireworkLifetime } from '../entities/firework.ts';
 import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { songForDisc, type JukeboxSong } from '../items/jukebox.ts';
 import { loadSoundDefinitions } from '../audio/sounds.ts';
@@ -340,6 +342,8 @@ export class Game {
       dispense: (x, y, z) => this.dispense(x, y, z),
     };
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
+    // map extending has to know how wide a map already is, and only the world keeps the maps
+    craftingMatcher.mapScale = (id) => this.maps.get(id)?.scale ?? 0;
     this.animalChunks = new Set(opts.meta.animalChunks ?? []);
     const game = this;
     const host: ManagerHost = {
@@ -1013,6 +1017,7 @@ export class Game {
     this.tickRaid();
     this.tickWither();
     this.tickDragon();
+    this.tickFireworks();
     this.tickAmbience();
     this.tickWornEnchantments();
     this.tickEffects();
@@ -2668,6 +2673,59 @@ export class Game {
     }
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Fireworks
+  // ---------------------------------------------------------------------------------------------
+  private readonly fireworks: Firework[] = [];
+  private fireworkTexture: THREE.Texture | null = null;
+
+  /** Lets a rocket go: it rises on its own and bursts into whatever stars went into it. */
+  launchFirework(stack: ItemStack, x: number, y: number, z: number, aim: THREE.Vector3 | null): Firework {
+    if (!this.fireworkTexture) {
+      this.fireworkTexture = new THREE.TextureLoader().load(this.icons.icon('firework_rocket'));
+      this.fireworkTexture.magFilter = THREE.NearestFilter;
+      this.fireworkTexture.minFilter = THREE.NearestFilter;
+      this.fireworkTexture.colorSpace = THREE.SRGBColorSpace;
+    }
+    const flight = stack.firework?.flight ?? 1;
+    const rocket = new Firework(this.fireworkTexture, x, y, z, fireworkLifetime(flight), stack.firework?.explosions ?? [], aim);
+    this.fireworks.push(rocket);
+    this.renderer.scene.add(rocket.sprite);
+    this.audio.play('firework', { x, y, z });
+    return rocket;
+  }
+
+  /** Runs the rockets up and sets them off, which is all a firework does. */
+  private tickFireworks(): void {
+    for (let i = this.fireworks.length - 1; i >= 0; i--) {
+      const f = this.fireworks[i];
+      if (!f.tick()) {
+        // vanilla leaves a little smoke behind a climbing rocket
+        if (f.age % 2 === 0) this.particles.spawnSprite('smoke', f.pos.x, f.pos.y, f.pos.z, 0, 0, 0, 8, 0.12);
+        continue;
+      }
+      this.renderer.scene.remove(f.sprite);
+      this.fireworks.splice(i, 1);
+      for (const e of f.explosions) this.particles.firework(f.pos.x, f.pos.y, f.pos.z, e, Math.random);
+      // a rocket with nothing in it still pops, as vanilla's plain one does
+      this.audio.play(f.explosions.length ? 'explode' : 'firework', { x: f.pos.x, y: f.pos.y, z: f.pos.z, volume: 0.7, pitch: f.explosions.length ? 1.6 : 1.2 });
+    }
+  }
+
+  /**
+   * Finishes a craft the recipe could not finish on its own. Only map extending needs it: vanilla
+   * marks the map for the server to widen, and here the world is what owns the maps.
+   */
+  private finishCraft(stack: ItemStack, recipe: string): void {
+    if (recipe !== 'map_extending' || stack.map === undefined) return;
+    const old = this.maps.get(stack.map);
+    if (!old || old.scale >= 4) return;
+    const wider = createMap(this.nextMapId++, old.cx, old.cz, old.scale + 1);
+    this.maps.set(wider.id, wider);
+    stack.map = wider.id;
+    this.fillMap(wider);
+  }
+
   /** An empty map becomes a map of where the player is standing, as vanilla centres a new one. */
   private makeMap(): void {
     const p = this.player;
@@ -3230,7 +3288,7 @@ export class Game {
       if (this.usePot(t, def.id)) return true;
     }
     if (def.id === 'crafting_table') {
-      const grid = makeGrid(3, 3);
+      const grid = makeGrid(3, 3, (stack, recipe) => this.finishCraft(stack, recipe));
       const screen = craftingTableScreen(inv, grid);
       let book: ReturnType<typeof attachRecipeBook> | null = null;
       screen.overlay = (root) => {
@@ -3441,12 +3499,16 @@ export class Game {
       this.useRod();
       return;
     }
-    // a firework lit while gliding pushes the flier along, as vanilla's rocket does
+    // a firework lit while gliding pushes the flier along; otherwise it goes up on its own
     if (def.behavior === 'firework') {
-      if (!p.gliding) return;
-      p.boostTicks = FIREWORK_BOOST_TICKS;
+      if (p.gliding) {
+        p.boostTicks = FIREWORK_BOOST_TICKS;
+        if (p.gamemode === 'survival') p.inventory.consumeSelected();
+        this.audio.play('firework', { x: p.pos.x, y: p.pos.y, z: p.pos.z });
+        return;
+      }
+      this.launchFirework(held, p.pos.x, p.pos.y + p.eyeHeight - 0.2, p.pos.z, null);
       if (p.gamemode === 'survival') p.inventory.consumeSelected();
-      this.audio.play('firework', { x: p.pos.x, y: p.pos.y, z: p.pos.z });
       return;
     }
     if (held.id === 'map') {
@@ -5224,7 +5286,7 @@ export class Game {
   }
 
   private openSurvivalInventory(): void {
-    const grid = makeGrid(2, 2);
+    const grid = makeGrid(2, 2, (stack, recipe) => this.finishCraft(stack, recipe));
     const def = inventoryScreen(this.player.inventory, grid);
     let preview: PlayerPreview | null = null;
     let book: ReturnType<typeof attachRecipeBook> | null = null;
@@ -5378,6 +5440,7 @@ export class Game {
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
     this.particles.render(alpha, this.renderer.canvas.height, (x, y, z) => this.brightnessAt(x, y, z));
     for (const orb of this.xpOrbs) orb.render(alpha, partialTime / 20);
+    for (const f of this.fireworks) f.render(alpha);
     this.audio.listener = { x: eye.x, y: eye.y, z: eye.z };
     this.world.flush();
     this.renderer.render();

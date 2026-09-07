@@ -38,9 +38,13 @@ export interface CraftingGrid {
   height: number;
   result: Slot;
   update(): void;
+  /** Slots this craft leaves where they are, which vanilla calls its remaining items. */
+  keep?: number[];
+  /** Finishes a result only the world can (a map that has been zoomed out), when it is taken. */
+  finish?: (stack: ItemStack) => void;
 }
 
-export function makeGrid(width: number, height: number): CraftingGrid {
+export function makeGrid(width: number, height: number, finish?: (stack: ItemStack, recipe: string) => void): CraftingGrid {
   const grid: CraftingGrid = {
     cells: new Array(width * height).fill(null),
     width,
@@ -49,6 +53,8 @@ export function makeGrid(width: number, height: number): CraftingGrid {
     update() {
       const m = craftingMatcher.match(grid.cells, width, height);
       grid.result = m ? m.result : null;
+      grid.keep = m?.keep;
+      grid.finish = m && finish ? (stack) => finish(stack, m.recipe.id) : undefined;
     },
   };
   return grid;
@@ -65,8 +71,10 @@ function craftSlots(grid: CraftingGrid, x0: number, y0: number, rx: number, ry: 
     x: rx, y: ry, group: 'result', result: true,
     get: () => grid.result,
     set: () => {},
-    onTake: () => {
-      grid.cells = consumeIngredients(grid.cells);
+    onTake: (stack) => {
+      // the taken stack is the one that lands on the cursor, so finishing it in place is enough
+      grid.finish?.(stack);
+      grid.cells = consumeIngredients(grid.cells, grid.keep);
       grid.update();
     },
   });

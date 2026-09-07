@@ -25,13 +25,38 @@ export interface ItemStack {
   map?: number;
   /** A crossbow that has been drawn and is holding its shot. */
   charged?: boolean;
+  /** The dye worked into a piece of leather, as vanilla's dyed colour component. */
+  color?: number;
+  /** Which copy of a written book this is: an original, a copy, or a copy of a copy. */
+  generation?: number;
+  /** The banner colour a decorated shield wears under its patterns. */
+  bannerColor?: string;
+  /** The four faces of a decorated pot, back, left, right and front. */
+  sherds?: string[];
+  /** What a firework star bursts into. */
+  explosion?: FireworkExplosion;
+  /** A rocket: how long it flies and what it lets off at the top. */
+  firework?: { flight: number; explosions: FireworkExplosion[] };
+}
+
+/** One burst of a firework, as vanilla packs it into a star or a rocket. */
+export interface FireworkExplosion {
+  /** small_ball, large_ball, star, creeper or burst. */
+  shape: string;
+  colors: number[];
+  fade?: number[];
+  trail?: boolean;
+  twinkle?: boolean;
 }
 
 export type Slot = ItemStack | null;
 
 export function stackable(a: ItemStack, b: ItemStack): boolean {
   return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null) && JSON.stringify(a.contents ?? null) === JSON.stringify(b.contents ?? null)
-    && (a.potion ?? '') === (b.potion ?? '') && JSON.stringify(a.pages ?? null) === JSON.stringify(b.pages ?? null) && JSON.stringify(a.banner ?? null) === JSON.stringify(b.banner ?? null) && (a.map ?? -1) === (b.map ?? -1) && !a.charged === !b.charged;
+    && (a.potion ?? '') === (b.potion ?? '') && JSON.stringify(a.pages ?? null) === JSON.stringify(b.pages ?? null) && JSON.stringify(a.banner ?? null) === JSON.stringify(b.banner ?? null) && (a.map ?? -1) === (b.map ?? -1) && !a.charged === !b.charged
+    && (a.color ?? -1) === (b.color ?? -1) && (a.generation ?? 0) === (b.generation ?? 0) && (a.bannerColor ?? '') === (b.bannerColor ?? '')
+    && JSON.stringify(a.sherds ?? null) === JSON.stringify(b.sherds ?? null) && JSON.stringify(a.explosion ?? null) === JSON.stringify(b.explosion ?? null)
+    && JSON.stringify(a.firework ?? null) === JSON.stringify(b.firework ?? null);
 }
 
 export function cloneStack(s: ItemStack, count = s.count): ItemStack {
@@ -48,6 +73,12 @@ export function cloneStack(s: ItemStack, count = s.count): ItemStack {
   if (s.banner) c.banner = s.banner.map((l) => ({ ...l }));
   if (s.map !== undefined) c.map = s.map;
   if (s.charged) c.charged = true;
+  if (s.color !== undefined) c.color = s.color;
+  if (s.generation) c.generation = s.generation;
+  if (s.bannerColor) c.bannerColor = s.bannerColor;
+  if (s.sherds) c.sherds = [...s.sherds];
+  if (s.explosion) c.explosion = { ...s.explosion, colors: [...s.explosion.colors], ...(s.explosion.fade ? { fade: [...s.explosion.fade] } : {}) };
+  if (s.firework) c.firework = { flight: s.firework.flight, explosions: s.firework.explosions.map((e) => ({ ...e, colors: [...e.colors], ...(e.fade ? { fade: [...e.fade] } : {}) })) };
   return c;
 }
 

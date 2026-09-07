@@ -133,6 +133,8 @@ export class ItemIcons {
   /** Icon for a particular stack: a potion is tinted by what is in the bottle. */
   forStack(stack: ItemStack): string {
     if (stack.banner?.length && stack.id.endsWith('_banner')) return this.bannerIcon(stack.id.slice(0, -7), stack.banner);
+    // dyed leather: vanilla paints the base layer with the dye and leaves the overlay alone
+    if (stack.color !== undefined) return this.dyedIcon(stack.id, stack.color);
     // a loaded crossbow is drawn with the bolt in it, as vanilla's own model does
     if (stack.id === 'crossbow' && stack.charged) return this.icon('crossbow_arrow');
     const potion = potionOf(stack);
@@ -145,6 +147,16 @@ export class ItemIcons {
     const url = this.drawSprite([`item/${stack.id}_overlay`, `item/${stack.id}`], [color, 0xffffff])
       || this.drawSprite([`item/potion_overlay`, `item/${stack.id}`], [color, 0xffffff])
       || this.icon(stack.id);
+    this.cache.set(key, url);
+    return url;
+  }
+
+  /** Leather worked with a dye: the base layer takes the colour, the overlay stays as it is. */
+  dyedIcon(id: string, color: number): string {
+    const key = `dyed:${id}#${color.toString(16)}`;
+    const cached = this.cache.get(key);
+    if (cached !== undefined) return cached;
+    const url = this.drawSprite([`item/${id}`, `item/${id}_overlay`], [color, 0xffffff]) || this.icon(id);
     this.cache.set(key, url);
     return url;
   }
