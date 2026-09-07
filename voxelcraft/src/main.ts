@@ -3,14 +3,13 @@ import { Menus } from './ui/menus.ts';
 import { SaveManager, loadOptions, saveOptions, type Options, type WorldMeta } from './core/save.ts';
 import { loadAtlas, type LoadedAtlas } from './render/atlas.ts';
 import type { ModelsJson } from './world/models.ts';
-import type { StructureIndexEntry, TemplateJson } from './world/gen/structures.ts';
+import type { PoolEntry, StructureIndexEntry, TemplateJson } from './world/gen/structures.ts';
+import type { StructureBundle } from './world/protocol.ts';
 import { Game } from './core/game.ts';
 import { parseSeed } from './core/rng.ts';
 import { blocks } from './blocks/registry.ts';
 import { items } from './items/registry.ts';
 
-/** Structure templates and their spreads, passed to the world workers at init. */
-export interface StructureBundle { index: StructureIndexEntry[]; templates: Record<string, TemplateJson> }
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -59,15 +58,19 @@ async function main() {
   async function loadStructures(base: string): Promise<StructureBundle> {
     try {
       const index = await fetch(`${base}structures/index.json`).then((r) => (r.ok ? (r.json() as Promise<StructureIndexEntry[]>) : null));
-      if (!index) return { index: [], templates: {} };
+      if (!index) return { index: [], templates: {}, pools: {} };
       const templates: Record<string, TemplateJson> = {};
-      await Promise.all(index.flatMap((e) => e.pieces).map(async (piece) => {
-        const r = await fetch(`${base}structures/${piece}.json`);
-        if (r.ok) templates[piece] = (await r.json()) as TemplateJson;
+      const pools: Record<string, Record<string, PoolEntry[]>> = {};
+      await Promise.all(index.map(async (entry) => {
+        const r = await fetch(`${base}structures/${entry.name}.json`);
+        if (!r.ok) return;
+        const bundle = (await r.json()) as { pieces: Record<string, TemplateJson>; pools?: Record<string, PoolEntry[]> };
+        Object.assign(templates, bundle.pieces);
+        if (bundle.pools) pools[entry.name] = bundle.pools;
       }));
-      return { index, templates };
+      return { index, templates, pools };
     } catch {
-      return { index: [], templates: {} };
+      return { index: [], templates: {}, pools: {} };
     }
   }
 

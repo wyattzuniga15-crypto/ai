@@ -11,7 +11,7 @@ import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
-import { stampStructure, structureStart, type StructureSet } from './structures.ts';
+import { assembleJigsaw, stampStructure, structureStart, type StructureSet } from './structures.ts';
 
 const st = (id: string) => blocks.defaultState(id);
 
@@ -815,11 +815,15 @@ export class WorldGenerator {
       const wz = chunk.cz * 16 + rng.int(8);
       const info = this.columnInfo(wx, wz);
       if (!set.biomeSet.has(biomes[info.biome].id)) continue;
+      if (set.placement === 'jigsaw') {
+        this.placeJigsaw(set, world, wx, wz, rng);
+        continue;
+      }
       const template = set.templates[rng.int(set.templates.length)];
       const rotation = rng.int(4);
       const [sx, , sz] = template.size;
       const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
-      const y = this.structureGroundY(chunk, world, wx, wz, rw, rd, set.placement);
+      const y = this.structureGroundY(wx, wz, rw, rd, set.placement);
       if (y === null) continue;
       // ruined portals crumble; everything else is placed whole
       const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
@@ -830,6 +834,30 @@ export class WorldGenerator {
         this.lastStructure = { name: set.name, x: wx, y, z: wz };
       }
     }
+  }
+
+  /**
+   * Villages: assemble the jigsaw pieces around a town centre and stamp each one, sitting every
+   * piece on the ground under it the way vanilla's rigid projection does.
+   */
+  private placeJigsaw(set: StructureSet, world: BlockAccess, wx: number, wz: number, rng: Rng): void {
+    const starts = set.starts ?? [];
+    if (!starts.length) return;
+    const startPool = starts[rng.int(starts.length)];
+    const baseY = Math.floor(this.columnInfo(wx, wz).height) + 1;
+    const pieces = assembleJigsaw(set, startPool, wx, baseY, wz, rng);
+    if (pieces.length < 2) return;
+    for (const piece of pieces) {
+      const [sx, sy, sz] = piece.template.size;
+      const [w, d] = (piece.rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+      // rigid pieces follow the ground under themselves, which keeps a village on a slope walkable
+      const ground = this.structureGroundY(piece.x, piece.z, w, d);
+      const y = ground === null ? piece.y : ground;
+      const written = new Set<string>();
+      stampStructure(world, { set, template: piece.template, x: piece.x, y, z: piece.z, rotation: piece.rotation, integrity: 1, rng }, written);
+      this.fitStructureToTerrain(world, piece.x, y, piece.z, w, sy, d, written, 'surface');
+    }
+    this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length };
   }
 
   /**
@@ -870,7 +898,7 @@ export class WorldGenerator {
   }
 
   /** Ground height a structure should sit on: the lowest surface under its footprint. */
-  private structureGroundY(chunk: ChunkData, world: BlockAccess, wx: number, wz: number, w: number, d: number, placement: string): number | null {
+  private structureGroundY(wx: number, wz: number, w: number, d: number, placement = 'surface'): number | null {
     let lowest = Infinity;
     let highest = -Infinity;
     // sample a grid over the footprint, not just its corners
@@ -889,13 +917,11 @@ export class WorldGenerator {
       return lowest + 1;
     }
     if (lowest < SEA_LEVEL) return null;
-    void chunk;
-    void world;
     return lowest + 1;
   }
 
   /** Where the last structure was stamped, for tests and the `/locate` command. */
-  lastStructure: { name: string; x: number; y: number; z: number } | null = null;
+  lastStructure: { name: string; x: number; y: number; z: number; pieces?: number } | null = null;
 
   /** Pale gardens hang moss from their canopy and spread pale moss over the ground, as vanilla does. */
   private decoratePaleGarden(chunk: ChunkData, world: BlockAccess, rng: Rng, biomeAt: (lx: number, lz: number) => BiomeDef): void {

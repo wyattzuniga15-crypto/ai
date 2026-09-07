@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import { blocks } from '../src/blocks/registry.ts';
-import { buildStructureSets, parseState, rotate, rotateState, stampStructure, structureStart, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
+import { assembleJigsaw, buildStructureSets, jigsawFront, parseState, rotate, rotateState, stampStructure, structureStart, type PoolEntry, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
+import { Rng } from '../src/core/rng.ts';
 
 const hasTemplates = fs.existsSync('public/structures/index.json');
 const load = () => {
   const index = JSON.parse(fs.readFileSync('public/structures/index.json', 'utf8')) as StructureIndexEntry[];
   const templates: Record<string, TemplateJson> = {};
-  for (const e of index) for (const p of e.pieces) templates[p] = JSON.parse(fs.readFileSync(`public/structures/${p}.json`, 'utf8')) as TemplateJson;
-  return { index, templates };
+  const pools: Record<string, Record<string, PoolEntry[]>> = {};
+  for (const e of index) {
+    const bundle = JSON.parse(fs.readFileSync(`public/structures/${e.name}.json`, 'utf8')) as { pieces: Record<string, TemplateJson>; pools?: Record<string, PoolEntry[]> };
+    Object.assign(templates, bundle.pieces);
+    if (bundle.pools) pools[e.name] = bundle.pools;
+  }
+  return { index, templates, pools };
 };
 
 describe('structure templates', () => {
@@ -39,7 +45,7 @@ describe('structure templates', () => {
   });
 
   it('spreads starts one per region, inside the free part of it', () => {
-    const set = { name: 't', placement: 'surface', spacing: 32, separation: 8, salt: 14357618, pieces: [], biomes: [], templates: [], biomeSet: new Set<string>() };
+    const set = { name: 't', placement: 'surface' as const, spacing: 32, separation: 8, salt: 14357618, pieces: [], biomes: [], templates: [], byKey: new Map(), pools: {}, biomeSet: new Set<string>() };
     const seen = new Set<string>();
     for (let rx = -4; rx <= 4; rx++)
       for (let rz = -4; rz <= 4; rz++) {
@@ -57,9 +63,9 @@ describe('structure templates', () => {
   });
 
   it.runIf(hasTemplates)('loads the vanilla templates and stamps one into a world', () => {
-    const { index, templates } = load();
-    const sets = buildStructureSets(index, templates);
-    expect(sets.map((s) => s.name).sort()).toEqual(['igloo', 'pillager_outpost', 'ruined_portal', 'shipwreck']);
+    const { index, templates, pools } = load();
+    const sets = buildStructureSets(index, templates, pools);
+    expect(sets.map((s) => s.name).sort()).toEqual(['igloo', 'pillager_outpost', 'ruined_portal', 'shipwreck', 'village']);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
     expect(igloo.spacing).toBe(32);
@@ -85,5 +91,36 @@ describe('structure templates', () => {
     const zs = [...world.keys()].map((k) => Number(k.split(',')[2]));
     expect(Math.max(...xs) - Math.min(...xs)).toBe(7);
     expect(Math.max(...zs) - Math.min(...zs)).toBe(6);
+  });
+});
+
+describe('jigsaw villages', () => {
+  it.runIf(hasTemplates)('assembles a village of streets and houses around a town centre', () => {
+    const { index, templates, pools } = load();
+    const village = buildStructureSets(index, templates, pools).find((s) => s.name === 'village')!;
+    expect(village.starts?.length).toBe(5); // one start pool per village type
+    expect(village.templates.length).toBeGreaterThan(300);
+
+    const rng = new Rng(12345);
+    const pieces = assembleJigsaw(village, 'village/plains/town_centers', 0, 70, 0, rng);
+    expect(pieces.length).toBeGreaterThan(10);
+    expect(pieces[0].template.key).toContain('town_centers');
+    const kinds = new Set(pieces.map((p) => p.template.key.split('_')[2]));
+    expect(kinds.has('streets')).toBe(true);
+    expect(kinds.has('houses')).toBe(true);
+    // pieces stay near the centre and only ever share space with the piece they hang off
+    for (const p of pieces) {
+      expect(Math.abs(p.x)).toBeLessThan(140);
+      expect(Math.abs(p.z)).toBeLessThan(140);
+    }
+    // the same seed rebuilds the same village
+    const again = assembleJigsaw(village, 'village/plains/town_centers', 0, 70, 0, new Rng(12345));
+    expect(again.map((p) => `${p.template.key}@${p.x},${p.z}`)).toEqual(pieces.map((p) => `${p.template.key}@${p.x},${p.z}`));
+  });
+
+  it('reads a jigsaw block\'s front from its orientation', () => {
+    expect(jigsawFront('up_north')).toBe('up');
+    expect(jigsawFront('east_up')).toBe('east');
+    expect(jigsawFront('north_up')).toBe('north');
   });
 });

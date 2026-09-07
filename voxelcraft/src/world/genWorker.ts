@@ -24,7 +24,7 @@ ctx.onmessage = (ev: MessageEvent<GenInit>) => {
   const msg = ev.data;
   if (msg.type !== 'init') return;
   gen = new WorldGenerator(msg.seed);
-  if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates);
+  if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates, msg.structures.pools);
   port = msg.port;
   port.onmessage = (e: MessageEvent<GenRequest>) => {
     if (e.data.type === 'gen') generate(e.data);

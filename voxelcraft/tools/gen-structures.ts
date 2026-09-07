@@ -68,7 +68,8 @@ const versionDir = (): string => {
 
 const num = (v: NbtValue): number => Number(v as number);
 
-interface Template { size: [number, number, number]; palette: string[]; blocks: number[] }
+interface Jigsaw { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
+interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[] }
 
 /** Turns a template's palette entry into our `id[prop=value,...]` state string. */
 function stateString(entry: NbtTag): string {
@@ -82,6 +83,7 @@ function stateString(entry: NbtTag): string {
 function convert(file: string): Template | null {
   const root = readNbt(fs.readFileSync(file));
   const size = (root.size as NbtValue[]).map(num) as [number, number, number];
+  const jigsaws: Jigsaw[] = [];
   // some templates carry several palettes (block variants); vanilla picks one, we take the first
   const paletteTag = (root.palette ?? (root.palettes as NbtValue[] | undefined)?.[0]) as NbtTag[] | undefined;
   if (!paletteTag) return null;
@@ -91,12 +93,32 @@ function convert(file: string): Template | null {
     const pos = (b.pos as NbtValue[]).map(num);
     const state = num(b.state);
     const id = palette[state];
-    // structure voids and jigsaw markers are scaffolding, not blocks
-    if (id.startsWith('structure_void') || id.startsWith('jigsaw') || id.startsWith('structure_block')) continue;
+    // jigsaw blocks are connection points, kept as data rather than placed
+    if (id.startsWith('jigsaw')) {
+      const nbt = b.nbt as NbtTag | undefined;
+      if (nbt) {
+        jigsaws.push({
+          pos: pos as [number, number, number],
+          orientation: /orientation=([a-z_]+)/.exec(id)?.[1] ?? 'north_up',
+          name: String(nbt.name ?? '').replace('minecraft:', ''),
+          target: String(nbt.target ?? '').replace('minecraft:', ''),
+          pool: String(nbt.pool ?? '').replace('minecraft:', ''),
+          final: String(nbt.final_state ?? 'air').replace('minecraft:', ''),
+        });
+      }
+      continue;
+    }
+    // structure voids leave whatever is already there
+    if (id.startsWith('structure_void') || id.startsWith('structure_block')) continue;
     blocks.push(pos[0], pos[1], pos[2], state);
   }
-  return blocks.length ? { size, palette, blocks } : null;
+  return blocks.length || jigsaws.length ? { size, palette, blocks, ...(jigsaws.length ? { jigsaws } : {}) } : null;
 }
+
+/** Structures assembled from template pools (villages); every reachable piece is converted. */
+const JIGSAW: { name: string; set: string; structures: string[] }[] = [
+  { name: 'village', set: 'villages', structures: ['village_plains', 'village_desert', 'village_savanna', 'village_snowy', 'village_taiga'] },
+];
 
 const mc = versionDir();
 const structureDir = path.join(mc, 'data', 'minecraft', 'structure');
@@ -105,7 +127,7 @@ const outDir = path.join(PUBLIC, 'structures');
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[] }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[]; starts?: string[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -123,22 +145,81 @@ for (const want of WANTED) {
     ? want.pieces
     : fs.readdirSync(dir).filter((f) => f.endsWith('.nbt')).map((f) => `${want.name}/${path.basename(f, '.nbt')}`);
   const written: string[] = [];
+  const bundle: Record<string, Template> = {};
   for (const piece of pieces) {
     const file = path.join(structureDir, `${piece}.nbt`);
     if (!fs.existsSync(file)) continue;
     const template = convert(file);
     if (!template) continue;
-    const out = path.join(outDir, `${piece.replace('/', '_')}.json`);
-    const json = JSON.stringify(template);
-    fs.writeFileSync(out, json);
-    bytes += json.length;
+    bundle[piece.replace('/', '_')] = template;
     files++;
     written.push(piece.replace('/', '_'));
   }
+  const bundleJson = JSON.stringify({ pieces: bundle });
+  fs.writeFileSync(path.join(outDir, `${want.name}.json`), bundleJson);
+  bytes += bundleJson.length;
   index.push({
     name: want.name, placement: want.placement,
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
     pieces: written, biomes: biomesFor(mc, want.structures),
+  });
+}
+
+// jigsaw structures: walk the template pools from each start pool and convert what they reach
+const pools: Record<string, { location: string; weight: number; projection: string }[]> = {};
+for (const want of JIGSAW) {
+  const setFile = path.join(setDir, `${want.set}.json`);
+  if (!fs.existsSync(setFile)) continue;
+  const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as { placement: { spacing: number; separation: number; salt: number } };
+  const starts: string[] = [];
+  const biomes = new Set<string>();
+  const queue: string[] = [];
+  for (const name of want.structures) {
+    const file = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
+    if (!fs.existsSync(file)) continue;
+    const def = JSON.parse(fs.readFileSync(file, 'utf8')) as { start_pool: string; size: number };
+    const start = def.start_pool.replace('minecraft:', '');
+    starts.push(start);
+    queue.push(start);
+    for (const b of biomesFor(mc, [name])) biomes.add(b);
+  }
+  const pieces: string[] = [];
+  const bundle: Record<string, Template> = {};
+  const seenPools = new Set<string>();
+  while (queue.length) {
+    const poolName = queue.pop()!;
+    if (seenPools.has(poolName)) continue;
+    seenPools.add(poolName);
+    const poolFile = path.join(mc, 'data', 'minecraft', 'worldgen', 'template_pool', `${poolName}.json`);
+    if (!fs.existsSync(poolFile)) continue;
+    const pool = JSON.parse(fs.readFileSync(poolFile, 'utf8')) as { elements: { element: { location?: string; projection?: string; element_type: string }; weight: number }[] };
+    const entries: { location: string; weight: number; projection: string }[] = [];
+    for (const e of pool.elements) {
+      const loc = e.element.location?.replace('minecraft:', '');
+      if (!loc) continue; // empty pool elements and feature pools are skipped
+      entries.push({ location: loc, weight: e.weight ?? 1, projection: e.element.projection ?? 'rigid' });
+      const file = path.join(structureDir, `${loc}.nbt`);
+      if (!fs.existsSync(file)) continue;
+      const key = loc.replace(/\//g, '_');
+      if (!pieces.includes(key)) {
+        const template = convert(file);
+        if (template) {
+          bundle[key] = template;
+          files++;
+          pieces.push(key);
+          for (const j of template.jigsaws ?? []) if (j.pool && !seenPools.has(j.pool)) queue.push(j.pool);
+        }
+      }
+    }
+    pools[poolName] = entries;
+  }
+  const bundleJson = JSON.stringify({ pieces: bundle, pools });
+  fs.writeFileSync(path.join(outDir, `${want.name}.json`), bundleJson);
+  bytes += bundleJson.length;
+  index.push({
+    name: want.name, placement: 'jigsaw',
+    spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
+    pieces, biomes: [...biomes].sort(), starts, maxDepth: 6,
   });
 }
 

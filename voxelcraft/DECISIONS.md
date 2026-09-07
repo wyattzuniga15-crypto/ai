@@ -346,3 +346,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     terrain adaptation in miniature. Igloos, shipwrecks, ruined portals (with vanilla's decay) and
     pillager outposts land first; the outpost's banners tell the game where to put its pillagers.
 
+63. **Villages are assembled by a jigsaw placer, not hand-built.** The converter keeps each
+    template's jigsaw blocks (their connector name, target, pool and facing) and walks the template
+    pools from every village start pool, so all five village types come across with their streets,
+    houses, farms and workstations. Assembly follows vanilla: start from the town centre, shuffle
+    each piece's connectors, attach a weighted pick from the connector's pool so the two jigsaw
+    blocks meet face to face, and reject anything that would run into another piece — except the
+    piece it hangs off, which is how a house is allowed to sit on the edge of its street. A villager
+    spawns per bed (dirt paths tell a village bed from an igloo's) and takes a job from the
+    village's own workstations, and a cat moves in.
+

@@ -6,20 +6,37 @@ import { blocks } from '../../blocks/registry.ts';
 import { Rng, mix } from '../../core/rng.ts';
 import type { BlockAccess } from './features.ts';
 
-export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[] }
+export interface JigsawJson { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
+export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[] }
+export interface PoolEntry { location: string; weight: number; projection: string }
 export interface StructureIndexEntry {
   name: string;
-  placement: 'surface' | 'ocean_floor';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw';
   spacing: number;
   separation: number;
   salt: number;
   pieces: string[];
   biomes: string[];
+  /** Jigsaw structures: the pools a village can start from, and how far pieces may chain. */
+  starts?: string[];
+  maxDepth?: number;
+}
+
+export interface RuntimeTemplate {
+  states: Int32Array;
+  known: Uint8Array;
+  size: [number, number, number];
+  blocks: number[];
+  jigsaws: JigsawJson[];
+  /** Key in the bundle, for pool lookups. */
+  key: string;
 }
 
 export interface StructureSet extends StructureIndexEntry {
   /** Templates with their palettes resolved to block states (`known` marks entries we can place). */
-  templates: { states: Int32Array; known: Uint8Array; size: [number, number, number]; blocks: number[] }[];
+  templates: RuntimeTemplate[];
+  byKey: Map<string, RuntimeTemplate>;
+  pools: Record<string, PoolEntry[]>;
   biomeSet: Set<string>;
 }
 
@@ -37,21 +54,31 @@ export function parseState(entry: string): number {
   return blocks.stateWith(id, props);
 }
 
-export function buildStructureSets(index: StructureIndexEntry[], templates: Record<string, TemplateJson>): StructureSet[] {
-  return index.map((entry) => ({
-    ...entry,
-    biomeSet: new Set(entry.biomes),
-    templates: entry.pieces
-      .map((p) => templates[p])
-      .filter((t): t is TemplateJson => !!t)
-      .map((t) => ({
-        size: t.size,
-        blocks: t.blocks,
-        states: Int32Array.from(t.palette.map(parseState)),
-        // air is a real instruction in a template (it hollows the structure out), unknown blocks are not
-        known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
-      })),
-  })).filter((s) => s.templates.length > 0);
+const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
+  key,
+  size: t.size,
+  blocks: t.blocks,
+  jigsaws: t.jigsaws ?? [],
+  states: Int32Array.from(t.palette.map(parseState)),
+  // air is a real instruction in a template (it hollows the structure out), unknown blocks are not
+  known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
+});
+
+export function buildStructureSets(
+  index: StructureIndexEntry[],
+  templates: Record<string, TemplateJson>,
+  pools: Record<string, Record<string, PoolEntry[]>> = {},
+): StructureSet[] {
+  return index.map((entry) => {
+    const built = entry.pieces.map((p) => (templates[p] ? runtimeTemplate(p, templates[p]) : null)).filter((t): t is RuntimeTemplate => !!t);
+    return {
+      ...entry,
+      biomeSet: new Set(entry.biomes),
+      templates: built,
+      byKey: new Map(built.map((t) => [t.key, t])),
+      pools: pools[entry.name] ?? {},
+    };
+  }).filter((s) => s.templates.length > 0);
 }
 
 /**
@@ -134,6 +161,134 @@ export function stampStructure(world: BlockAccess, p: StructurePlacement, writte
     world.set(p.x + rx, p.y + ly, p.z + rz, rotateState(state, rotation));
     written?.add(`${p.x + rx},${p.y + ly},${p.z + rz}`);
     placed++;
+  }
+  return placed;
+}
+
+// -------------------------------------------------------------------------------------------
+// Jigsaw assembly (villages)
+// -------------------------------------------------------------------------------------------
+
+/** Horizontal jigsaw fronts, in the rotation order used above. */
+const HORIZONTAL: Record<string, number> = { north: 0, east: 1, south: 2, west: 3 };
+const DIR_VECTORS: [number, number, number][] = [[0, 0, -1], [1, 0, 0], [0, 0, 1], [-1, 0, 0]];
+
+/** Front face a jigsaw block points at, from its `orientation` property (`front_top`). */
+export function jigsawFront(orientation: string): string {
+  return orientation.split('_')[0];
+}
+
+export interface PlacedPiece {
+  template: RuntimeTemplate;
+  x: number;
+  y: number;
+  z: number;
+  rotation: number;
+  box: { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number };
+}
+
+const boxOf = (t: RuntimeTemplate, x: number, y: number, z: number, rotation: number) => {
+  const [sx, sy, sz] = t.size;
+  const [w, d] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+  return { x0: x, y0: y, z0: z, x1: x + w - 1, y1: y + sy - 1, z1: z + sz * 0 + d - 1 };
+};
+
+const overlaps = (a: PlacedPiece['box'], b: PlacedPiece['box']): boolean =>
+  a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0 && a.z0 <= b.z1 && a.z1 >= b.z0;
+
+/** World position of a jigsaw block once its piece has been rotated and placed. */
+function jigsawWorld(piece: PlacedPiece, j: JigsawJson): { x: number; y: number; z: number; front: number } {
+  const [sx, , sz] = piece.template.size;
+  const [rx, rz] = rotate(j.pos[0], j.pos[2], sx, sz, piece.rotation);
+  const front = HORIZONTAL[jigsawFront(j.orientation)];
+  return { x: piece.x + rx, y: piece.y + j.pos[1], z: piece.z + rz, front: front === undefined ? -1 : (front + piece.rotation) & 3 };
+}
+
+/** Weighted pick from a template pool, skipping entries whose template we do not have. */
+function pickFromPool(set: StructureSet, pool: string, rng: Rng): RuntimeTemplate | null {
+  const entries = (set.pools[pool] ?? []).filter((e) => set.byKey.has(e.location.replace(/\//g, '_')));
+  if (!entries.length) return null;
+  let total = 0;
+  for (const e of entries) total += Math.max(1, e.weight);
+  let r = rng.next() * total;
+  for (const e of entries) {
+    r -= Math.max(1, e.weight);
+    if (r <= 0) return set.byKey.get(e.location.replace(/\//g, '_')) ?? null;
+  }
+  return set.byKey.get(entries[entries.length - 1].location.replace(/\//g, '_')) ?? null;
+}
+
+/**
+ * Vanilla's jigsaw assembly, simplified: start from a piece of the start pool, then walk its jigsaw
+ * blocks outward, attaching a piece from each connector's target pool so the two jigsaws meet face
+ * to face. Pieces that would overlap something already placed are skipped, and the chain stops at
+ * the structure's depth (six for villages).
+ */
+export function assembleJigsaw(set: StructureSet, startPool: string, x: number, y: number, z: number, rng: Rng, trace?: (msg: string) => void): PlacedPiece[] {
+  const start = pickFromPool(set, startPool, rng);
+  if (!start) return [];
+  const rotation = rng.int(4);
+  const placed: PlacedPiece[] = [{ template: start, x, y, z, rotation, box: boxOf(start, x, y, z, rotation) }];
+  const maxDepth = set.maxDepth ?? 6;
+  const maxDistance = 80;
+  let queue: { piece: PlacedPiece; depth: number }[] = [{ piece: placed[0], depth: 0 }];
+  while (queue.length) {
+    const next: typeof queue = [];
+    for (const { piece, depth } of queue) {
+      if (depth >= maxDepth) continue;
+      // vanilla shuffles a piece's connectors, which is what stops the streets from taking every slot
+      const connectors = piece.template.jigsaws.slice();
+      for (let i = connectors.length - 1; i > 0; i--) {
+        const k = rng.int(i + 1);
+        [connectors[i], connectors[k]] = [connectors[k], connectors[i]];
+      }
+      for (const j of connectors) {
+        const from = jigsawWorld(piece, j);
+        if (from.front < 0) continue; // vertical connectors (iron golem spawns) are ignored
+        const [dx, , dz] = DIR_VECTORS[from.front];
+        if (Math.abs(from.x + dx - x) > maxDistance || Math.abs(from.z + dz - z) > maxDistance) continue;
+        const candidates = (set.pools[j.pool] ?? []).length;
+        if (!candidates) {
+          trace?.(`no pool ${j.pool}`);
+          continue;
+        }
+        // a few tries to find a piece that fits without overlapping what is already there
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const template = pickFromPool(set, j.pool, rng);
+          if (!template) {
+            trace?.(`empty pool ${j.pool}`);
+            break;
+          }
+          const targets = template.jigsaws.filter((t) => t.name === j.target && HORIZONTAL[jigsawFront(t.orientation)] !== undefined);
+          if (!targets.length) {
+            trace?.(`no connector '${j.target}' in ${template.key}`);
+            continue;
+          }
+          const target = targets[rng.int(targets.length)];
+          const targetFront = HORIZONTAL[jigsawFront(target.orientation)];
+          // rotate the candidate so its connector faces back along ours
+          const wantFront = (from.front + 2) & 3;
+          const rot = (wantFront - targetFront + 4) & 3;
+          const [tsx, , tsz] = template.size;
+          const [trx, trz] = rotate(target.pos[0], target.pos[2], tsx, tsz, rot);
+          const px = from.x + dx - trx;
+          const py = from.y - target.pos[1];
+          const pz = from.z + dz - trz;
+          const box = boxOf(template, px, py, pz, rot);
+          // vanilla checks a candidate against the space its parent leaves free, so a house may
+          // share the edge of the street piece it hangs off, but not run into anything else
+          if (placed.some((p) => p !== piece && overlaps(p.box, box))) {
+            trace?.(`overlap placing ${template.key} from ${piece.template.key}`);
+            continue;
+          }
+          const child: PlacedPiece = { template, x: px, y: py, z: pz, rotation: rot, box };
+          placed.push(child);
+          next.push({ piece: child, depth: depth + 1 });
+          break;
+        }
+      }
+    }
+    queue = next;
   }
   return placed;
 }

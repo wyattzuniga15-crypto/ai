@@ -335,7 +335,7 @@ ctx.onmessage = (ev: MessageEvent<ToWorker>) => {
   switch (msg.type) {
     case 'init': {
       gen = new WorldGenerator(msg.seed);
-      if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates);
+      if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates, msg.structures.pools);
       const atlas = new AtlasIndex(msg.atlas);
       baker = new ModelBaker(msg.models, atlas);
       mesher = new SectionMesher(provider, baker, atlas);

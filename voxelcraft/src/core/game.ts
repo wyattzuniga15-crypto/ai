@@ -46,7 +46,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS, VILLAGER_TYPES, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -1010,7 +1010,7 @@ export class Game {
   private get structureSets(): StructureSet[] {
     if (!this.builtStructureSets) {
       const bundle = this.structureBundle;
-      this.builtStructureSets = bundle ? buildStructureSets(bundle.index, bundle.templates) : [];
+      this.builtStructureSets = bundle ? buildStructureSets(bundle.index, bundle.templates, bundle.pools) : [];
     }
     return this.builtStructureSets;
   }
@@ -1040,6 +1040,8 @@ export class Game {
    */
   private populateStructures(cx: number, cz: number): void {
     let outpost: { x: number; y: number; z: number } | null = null;
+    const beds: { x: number; y: number; z: number }[] = [];
+    let paths = 0;
     for (let x = 0; x < 16; x++)
       for (let z = 0; z < 16; z++) {
         const wx = cx * 16 + x, wz = cz * 16 + z;
@@ -1052,9 +1054,32 @@ export class Game {
           const id = blocks.blockOf(state).id;
           if (id === 'bee_nest') this.populateBeeNest(wx, y, wz);
           else if (id === 'white_wall_banner' && !outpost) outpost = { x: wx, y, z: wz };
+          else if (id === 'dirt_path') paths++;
+          else if (id.endsWith('_bed') && blocks.prop(state, 'part') === 'head') beds.push({ x: wx, y, z: wz });
         }
       }
     if (outpost) this.populateOutpost(outpost.x, outpost.y, outpost.z);
+    // a bed beside village paths means a villager sleeps there; igloo beds stand alone
+    if (paths > 8) this.populateVillage(cx, cz, beds);
+  }
+
+  /** Vanilla puts a villager per bed in a village, and a cat or two around the houses. */
+  private populateVillage(cx: number, cz: number, beds: { x: number; y: number; z: number }[]): void {
+    const biome = biomes[this.world.getBiome(cx * 16 + 8, cz * 16 + 8)]?.id ?? 'plains';
+    for (const bed of beds) {
+      const top = this.world.topBlock(bed.x, bed.z);
+      const m = this.entities.spawn('villager', bed.x + 0.5, Math.max(bed.y, top) + 1, bed.z + 0.5, Math.random() * Math.PI * 2);
+      if (m) {
+        m.extra.villagerType = villagerTypeFor(biome);
+        m.extra.home = `${bed.x},${bed.y},${bed.z}`;
+        m.persistent = true;
+      }
+    }
+    if (beds.length && Math.random() < 0.5) {
+      const bed = beds[Math.floor(Math.random() * beds.length)];
+      const cat = this.entities.spawn('cat', bed.x + 1.5, bed.y + 1, bed.z + 0.5, Math.random() * Math.PI * 2);
+      if (cat) cat.persistent = true;
+    }
   }
 
   /** Every generated bee nest comes with three bees, as vanilla's nests do. */
