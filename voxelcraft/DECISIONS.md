@@ -310,3 +310,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     reachable now. Village-only behaviour (beds, breeding, gossip, raids and iron golems) waits for
     the structures phase.
 
+58. **Bee nests are placed by the tree feature, and their bees are entities from the start.** A tree
+    that generates in a bee biome hangs a nest on the trunk under the leaves (vanilla's chances:
+    every meadow tree, five in a hundred in plains and cherry groves, two in the flowery biomes),
+    and the three bees vanilla puts inside the nest are spawned as real bees bound to it the first
+    time the chunk is populated. They pollinate flowers, carry the nectar home, and the honey level
+    rises when they come back out, which is what a hive's `beehive` block entity tracks.
+

@@ -27,7 +27,16 @@ export interface SignEntity {
   color?: string;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | SignEntity;
+/** Bee nests and hives: the bees living inside and how long each has been in there. */
+export interface HiveEntity {
+  type: 'beehive';
+  /** Ticks each resident bee has spent inside; vanilla lets them out after 600 (2400 at night). */
+  bees: number[];
+  /** Whether each stored bee arrived carrying nectar, which is what raises the honey level. */
+  nectar: boolean[];
+}
+
+export type BlockEntity = ContainerEntity | FurnaceEntity | SignEntity | HiveEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -48,6 +57,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign') && !blockId.includes('hanging')) return { type: 'sign', lines: ['', '', '', ''] };
+  if (blockId === 'beehive' || blockId === 'bee_nest') return { type: 'beehive', bees: [], nectar: [] };
   return null;
 }
 

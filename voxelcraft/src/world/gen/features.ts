@@ -318,6 +318,32 @@ export function placeTree(w: BlockAccess, rng: Rng, type: string, x: number, y: 
   }
 }
 
+/**
+ * Vanilla bee nest: hangs on the side of a trunk just under the leaves, facing outward, and starts
+ * with three bees inside. Returns the position so the caller can create the hive's block entity.
+ */
+export function placeBeeNest(w: BlockAccess, rng: Rng, x: number, y: number, z: number): { x: number; y: number; z: number } | null {
+  // find the highest log of the trunk we just placed
+  let top = y;
+  for (let dy = 0; dy < 12; dy++) {
+    const id = blocks.idOf(w.get(x, y + dy, z));
+    if (!id.endsWith('_log') && !id.endsWith('_wood')) break;
+    top = y + dy;
+  }
+  if (top === y && !blocks.idOf(w.get(x, y, z)).endsWith('_log')) return null;
+  const sides: [number, number, string][] = [[0, -1, 'north'], [0, 1, 'south'], [-1, 0, 'west'], [1, 0, 'east']];
+  const start = rng.int(4);
+  for (let i = 0; i < 4; i++) {
+    const [dx, dz, facing] = sides[(start + i) % 4];
+    const nx = x + dx, nz = z + dz, ny = top;
+    if (w.get(nx, ny, nz) !== AIR) continue;
+    if (w.get(nx, ny - 1, nz) !== AIR) continue; // vanilla hangs the nest with air below it
+    w.set(nx, ny, nz, blocks.stateWith('bee_nest', { facing, honey_level: '0' }));
+    return { x: nx, y: ny, z: nz };
+  }
+  return null;
+}
+
 /** Two-block-tall plants use lower/upper halves. */
 export function placeTallPlant(w: BlockAccess, id: string, x: number, y: number, z: number): boolean {
   if (w.get(x, y, z) !== AIR || w.get(x, y + 1, z) !== AIR) return false;

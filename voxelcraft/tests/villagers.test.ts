@@ -6,7 +6,10 @@ import {
   LEVEL_NAMES, LEVEL_XP, PROFESSIONS, buildOffers, costOf, levelFor, offerSatisfied,
   professionForBlock, professionName, tableFor, takeTrade, tierTrades, type Offer,
 } from '../src/entities/villagers.ts';
-import { villagerTypeFor, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, VILLAGER_TYPES, mobStats, MOB_SPECS } from '../src/entities/mobTypes.ts';
+import { villagerTypeFor, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, VILLAGER_TYPES, mobStats, MOB_SPECS, beeTexture, BEE_FLOWERS, isBreedingFood } from '../src/entities/mobTypes.ts';
+import { BEE_FLOWER_IDS } from '../src/entities/ai.ts';
+import { createBlockEntity } from '../src/blocks/blockEntity.ts';
+import { blocks } from '../src/blocks/registry.ts';
 
 const tables = tradesJson as unknown as Record<string, { xp: number; trades: unknown[] }[]>;
 
@@ -118,5 +121,51 @@ describe('villager trades', () => {
 
   it('keeps every tier reachable from the tables the tools generated', () => {
     for (const p of PROFESSIONS) for (let tier = 0; tier < 5; tier++) expect(tierTrades(p.table, tier).length, `${p.id} tier ${tier}`).toBeGreaterThan(0);
+  });
+});
+
+describe('bees', () => {
+  it('registers the bee with vanilla stats and a flying model', () => {
+    const stats = mobStats('bee');
+    expect(stats).not.toBeNull();
+    expect(stats!.flying).toBe(true);
+    expect(stats!.health).toBe(10);
+    expect(stats!.damage).toBe(2);
+    const names = MOB_SPECS.bee.model.parts.map((p) => p.name);
+    expect(names).toEqual(['body', 'stinger', 'right_wing', 'left_wing', 'leg_front', 'leg_mid', 'leg_back']);
+  });
+
+  it('swaps between the four vanilla bee skins', () => {
+    expect(beeTexture(false, false)).toBe('bee/bee.png');
+    expect(beeTexture(true, false)).toBe('bee/bee_angry.png');
+    expect(beeTexture(false, true)).toBe('bee/bee_nectar.png');
+    expect(beeTexture(true, true)).toBe('bee/bee_angry_nectar.png');
+  });
+
+  it('pollinates and breeds with the vanilla flowers', () => {
+    expect(BEE_FLOWERS).toContain('dandelion');
+    expect(BEE_FLOWERS).toContain('cherry_leaves');
+    expect(BEE_FLOWERS).not.toContain('grass');
+    expect(isBreedingFood('bee', 'poppy')).toBe(true);
+    expect(isBreedingFood('bee', 'wheat')).toBe(false);
+    // the goal reads the same list, so a bee looks for exactly what it breeds with
+    expect(BEE_FLOWER_IDS).toEqual(BEE_FLOWERS);
+  });
+
+  it('gives hives a block entity that holds bees', () => {
+    for (const id of ['bee_nest', 'beehive']) {
+      const e = createBlockEntity(id);
+      expect(e, id).toEqual({ type: 'beehive', bees: [], nectar: [] });
+    }
+    expect(createBlockEntity('stone')).toBeNull();
+  });
+
+  it('keeps the vanilla honey levels on both hive blocks', () => {
+    for (const id of ['bee_nest', 'beehive']) {
+      const def = blocks.byId.get(id);
+      expect(def, id).toBeDefined();
+      const levels = def!.states?.find((s) => s.name === 'honey_level');
+      expect(levels?.values).toEqual(['0', '1', '2', '3', '4', '5']);
+    }
   });
 });

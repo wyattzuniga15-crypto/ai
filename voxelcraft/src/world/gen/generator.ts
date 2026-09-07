@@ -10,7 +10,7 @@ import { Rng, hashPos, mix } from '../../core/rng.ts';
 import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
-import { placeTallPlant, placeTree, type BlockAccess } from './features.ts';
+import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
 
 const st = (id: string) => blocks.defaultState(id);
 
@@ -57,6 +57,15 @@ const ORES: OreConfig[] = [
   { block: 'diorite', count: 1 / 6, min: 64, max: 128, distribution: 'uniform', size: 64 },
   { block: 'andesite', count: 1 / 6, min: 64, max: 128, distribution: 'uniform', size: 64 },
 ];
+
+/**
+ * Vanilla bee nest chances per biome: nearly every meadow tree carries one, plains and cherry
+ * groves five in a hundred, and the flowery biomes two.
+ */
+const BEE_NEST_CHANCE: Record<string, number> = {
+  meadow: 1, cherry_grove: 0.05, plains: 0.05, sunflower_plains: 0.02, flower_forest: 0.02,
+  forest: 0.002, birch_forest: 0.002, old_growth_birch_forest: 0.002,
+};
 
 /** Vanilla 1.18+ canyon carver probability per chunk. */
 const RAVINE_CHANCE = 0.01;
@@ -692,7 +701,9 @@ export class WorldGenerator {
         const { y, block } = surfaceAt(lx, lz);
         if (y < SEA_LEVEL - 1 || (block !== grass && blocks.blockOf(block).id !== 'podzol' && blocks.blockOf(block).id !== 'mud' && blocks.blockOf(block).id !== 'snow_block' && blocks.blockOf(block).id !== 'dirt')) continue;
         const type = rng.weighted(tl);
-        placeTree(world, rng, type, ox + lx, y + 1, oz + lz);
+        if (placeTree(world, rng, type, ox + lx, y + 1, oz + lz) && rng.chance(BEE_NEST_CHANCE[b.id] ?? 0)) {
+          placeBeeNest(world, rng, ox + lx, y + 1, oz + lz);
+        }
       }
     }
     // vegetation

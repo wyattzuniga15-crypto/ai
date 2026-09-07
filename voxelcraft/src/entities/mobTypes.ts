@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, avoidMonstersGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { BEE_FLOWER_IDS, avoidCatsGoal, avoidMonstersGoal, beeGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -417,6 +417,33 @@ export function villagerTypeFor(biomeId: string): string {
   return 'plains';
 }
 
+/** Vanilla bee model (converted from the shipped geometry); the wings beat as the bee flies. */
+const beeModel: ModelDef = {
+  texture: 'bee/bee.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0.5, 19, 0], boxes: [{ uv: [0, 0], box: [-3.5, -4, -5, 7, 7, 10] }, { uv: [2, 0], box: [1.5, -4, -8, 1, 2, 3] }, { uv: [2, 3], box: [-2.5, -4, -8, 1, 2, 3] }] },
+    { name: 'stinger', parent: 'body', pivot: [0.5, 18, 1], boxes: [{ uv: [26, 7], box: [0, 0, 4, 0, 1, 2] }] },
+    { name: 'right_wing', parent: 'body', pivot: [-1, 15, -3], rotation: [-0.2618, 0.2618, 0], boxes: [{ uv: [0, 18], box: [-9, 0, 0, 9, 0, 6] }] },
+    { name: 'left_wing', parent: 'body', pivot: [2, 15, -3], rotation: [-0.2618, -0.2618, 0], boxes: [{ uv: [9, 24], box: [0, 0, 0, 9, 0, 6] }] },
+    { name: 'leg_front', parent: 'body', pivot: [2, 22, -2], boxes: [{ uv: [26, 1], box: [-5, 0, 0, 7, 2, 0] }] },
+    { name: 'leg_mid', parent: 'body', pivot: [2, 22, 0], boxes: [{ uv: [26, 3], box: [-5, 0, 0, 7, 2, 0] }] },
+    { name: 'leg_back', parent: 'body', pivot: [2, 22, 2], boxes: [{ uv: [26, 5], box: [-5, 0, 0, 7, 2, 0] }] },
+  ],
+};
+
+/** Bee skins: angry and nectar-carrying bees swap texture like vanilla's four variants. */
+export function beeTexture(angry: boolean, nectar: boolean): string {
+  return `bee/bee${angry ? '_angry' : ''}${nectar ? '_nectar' : ''}.png`;
+}
+
+/** Flowers a bee will pollinate and breed with (vanilla's `#minecraft:flowers`, small ones). */
+export const BEE_FLOWERS = [
+  'dandelion', 'poppy', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip',
+  'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'wither_rose', 'torchflower', 'sunflower',
+  'lilac', 'rose_bush', 'peony', 'pink_petals', 'flowering_azalea', 'flowering_azalea_leaves', 'cherry_leaves',
+  'open_eyeblossom', 'closed_eyeblossom',
+];
+
 interface MobSpec {
   model: ModelDef;
   animation: MobStats['animation'];
@@ -448,6 +475,8 @@ export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_F
 export const WOLF_FOODS = ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit', 'rotten_flesh'];
 BREEDING_FOODS.wolf = WOLF_FOODS;
 BREEDING_FOODS.cat = ['cod', 'salmon'];
+BREEDING_FOODS.bee = BEE_FLOWERS;
+BEE_FLOWER_IDS.push(...BEE_FLOWERS);
 BREEDING_FOODS.ocelot = ['cod', 'salmon'];
 for (const e of ['horse', 'donkey', 'mule']) BREEDING_FOODS[e] = ['golden_carrot', 'golden_apple', 'enchanted_golden_apple'];
 
@@ -507,6 +536,8 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // cats and ocelots share the vanilla model; ocelots only ever grow to trust the player
   cat: { model: catModel('cat/tabby.png', true), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, sitGoal(), catAvoidGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), followOwnerGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
   ocelot: { model: catModel('cat/ocelot.png'), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, ocelotFleeGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // bees fly between flowers and their hive; vanilla stats are 10 health and a 2-damage sting
+  bee: { model: beeModel, animation: 'bee', eyeHeight: 0.45, followRange: 48, flying: true, goals: () => [beeGoal()] },
   // villagers keep a profession, level and trade list in `extra`; the wandering trader is unlayered
   villager: { model: villagerModel('villager/villager.png'), animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => villagerGoals() },
   wandering_trader: { model: villagerModel('wandering_trader.png', false), animation: 'biped', eyeHeight: 1.62, followRange: 16, data: 'villager', loot: 'wandering_trader', goals: () => villagerGoals() },

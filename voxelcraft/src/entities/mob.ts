@@ -6,7 +6,7 @@ import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './box
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -32,7 +32,7 @@ export interface MobStats {
   flying?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -54,6 +54,10 @@ export interface MobWorld extends BlockSource {
   playerHasEffect(id: string): boolean;
   /** Item id the player is holding, for goals that follow food (vanilla TemptGoal). */
   playerHolding(): string | null;
+  /** Nearest block matching any of `ids` (bees looking for flowers or their hive). */
+  findBlock?(x: number, y: number, z: number, range: number, ids: string[]): { x: number; y: number; z: number; block: string } | null;
+  /** A bee carrying nectar reached its hive: stores it and returns whether the bee went inside. */
+  enterHive?(m: Mob, x: number, y: number, z: number): boolean;
   /** Nearest job site block a villager can claim, optionally restricted to one profession. */
   findJobSite?(x: number, y: number, z: number, range: number, profession: string | null): { x: number; y: number; z: number; block: string } | null;
   /** Called when a villager reaches its job site: takes the profession or restocks. */
@@ -66,7 +70,7 @@ export interface MobWorld extends BlockSource {
   spawnMob(type: string, x: number, y: number, z: number, baby: boolean): Mob | null;
   dropItem(id: string, count: number, x: number, y: number, z: number): void;
   giveXp(amount: number, x: number, y: number, z: number): void;
-  emitParticles(kind: 'heart' | 'poof' | 'angry', x: number, y: number, z: number, count: number, w: number, h: number): void;
+  emitParticles(kind: 'heart' | 'poof' | 'angry' | 'happy', x: number, y: number, z: number, count: number, w: number, h: number): void;
   setBlock(x: number, y: number, z: number, state: number): void;
   playSound(name: string, x: number, y: number, z: number, pitch?: number): void;
   /** Deal damage to the player from a mob. */
@@ -671,6 +675,23 @@ export class Mob {
           const p = parts.get(n);
           if (p) p.visible = chested;
         }
+        break;
+      }
+      case 'bee': {
+        // the wings beat far faster than the body moves; a resting bee folds them
+        const flying = !this.onGround || !!this.moveTarget;
+        const beat = flying ? Math.sin((this.age + alpha) * 2.1) * 0.6 : 0;
+        const rw = parts.get('right_wing');
+        const lw = parts.get('left_wing');
+        const rb = this.model.basePose.get('right_wing');
+        const lb = this.model.basePose.get('left_wing');
+        if (rw && rb) rw.rotation.set(rb.x, rb.y, rb.z + beat);
+        if (lw && lb) lw.rotation.set(lb.x, lb.y, lb.z - beat);
+        for (const n of ['leg_front', 'leg_mid', 'leg_back']) {
+          const leg = parts.get(n);
+          if (leg) leg.rotation.x = flying ? -0.6 : 0;
+        }
+        this.setTexture(beeTexture(this.target !== null, this.extra.nectar === true));
         break;
       }
       case 'phantom': {

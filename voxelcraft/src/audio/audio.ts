@@ -114,6 +114,11 @@ const SOUNDS: Record<string, Synth> = {
   horse_gallop: (c, o, p, t) => { [0, 0.07, 0.16, 0.22].forEach((d) => burst(c, o, t + d, 'lowpass', 260, 1, 0.004, 0.09, 0.16, p)); },
   donkey: (c, o, p, t) => { [0, 0.18].forEach((d, i) => { tone(c, o, t + d, 'square', i ? 240 : 520, i ? 140 : 300, 0.28, 0.16, p); }); },
   saddle: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1200, 1.5, 0.01, 0.2, 0.15, p); tone(c, o, t, 'sine', 220, 160, 0.15, 0.08, p); },
+  // bees: a wing buzz, an angrier one and the sting; plus filling a bottle at a hive
+  bee: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 240, 220, 0.5, 0.06, p); tone(c, o, t, 'square', 120, 110, 0.5, 0.04, p); },
+  bee_angry: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 330, 300, 0.6, 0.09, p); tone(c, o, t, 'square', 165, 150, 0.6, 0.05, p); },
+  bee_sting: (c, o, p, t) => { tone(c, o, t, 'square', 700, 300, 0.12, 0.14, p); burst(c, o, t, 'highpass', 1800, 1, 0.005, 0.08, 0.14, p); },
+  bottle_fill: (c, o, p, t) => { [0, 0.06, 0.12].forEach((d, i) => tone(c, o, t + d, 'sine', 500 + i * 120, 600 + i * 120, 0.1, 0.1, p)); },
   // villagers: the vanilla "hmm", a bright note when a trade lands and a chime on level-up
   villager: (c, o, p, t) => { tone(c, o, t, 'square', 300, 220, 0.25, 0.12, p); burst(c, o, t, 'lowpass', 500, 1, 0.02, 0.2, 0.08, p); },
   villager_trade: (c, o, p, t) => { tone(c, o, t, 'square', 380, 520, 0.14, 0.12, p); tone(c, o, t + 0.09, 'square', 520, 640, 0.16, 0.1, p); },

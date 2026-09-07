@@ -598,6 +598,98 @@ export const avoidCatsGoal = (range = 6): Goal => ({
   },
 });
 
+/**
+ * Bees: vanilla's pollination loop. A bee without nectar looks for a flower, hovers over it for a
+ * couple of seconds, then flies home to its hive and goes inside, which raises the hive's honey.
+ * An angered bee chases the player instead, stings once for poison and dies soon after.
+ */
+export const beeGoal = (): Goal => {
+  const at = (p: { x: number; y: number; z: number }, dy = 0) => new THREE.Vector3(p.x + 0.5, p.y + dy, p.z + 0.5);
+  return {
+    flags: FLAG_MOVE | FLAG_LOOK,
+    canUse: () => true,
+    tick: (m, w) => {
+      const e = m.extra;
+      // stinging: an angry bee dives at the player and dies once it lands a hit
+      if (m.target === 'player' && w.playerTargetable()) {
+        const eye = w.playerEye();
+        m.moveTarget = eye.clone();
+        m.moveSpeed = 1.6;
+        m.moveTimeout = 40;
+        m.lookTarget = eye;
+        if (m.distanceTo(w.playerPos()) < 1.6 && m.attackCooldown === 0) {
+          w.hurtPlayer(m.def.damage, m.pos, m);
+          w.addPlayerEffect('poison', 200); // vanilla: 10 seconds on normal difficulty
+          m.attackCooldown = 20;
+          e.stung = true;
+          w.playSound('bee_sting', m.pos.x, m.pos.y, m.pos.z);
+        }
+        if (e.stung === true) {
+          // a bee that has stung loses its stinger and dies moments later
+          const fuse = typeof e.stingDeath === 'number' ? e.stingDeath - 1 : 30;
+          e.stingDeath = fuse;
+          if (fuse <= 0) m.hurt(20, null, 'other', 0);
+        }
+        return;
+      }
+      const home = typeof e.hiveX === 'number' ? { x: e.hiveX as number, y: e.hiveY as number, z: e.hiveZ as number } : null;
+      const night = !w.isDay();
+      // heading home: at night, in the rain or once the bee is carrying nectar
+      if (home && (e.nectar === true || night)) {
+        const target = at(home, 0.5);
+        m.moveTarget = target;
+        m.moveSpeed = 1.2;
+        m.moveTimeout = 60;
+        m.lookTarget = target;
+        if (m.distanceTo(target) < 1.2 && w.enterHive?.(m, home.x, home.y, home.z)) return;
+        return;
+      }
+      // pollinating: hover over a flower until the bee has nectar
+      const flower = typeof e.flowerX === 'number' ? { x: e.flowerX as number, y: e.flowerY as number, z: e.flowerZ as number } : null;
+      if (flower) {
+        const target = at(flower, 1);
+        m.moveTarget = target;
+        m.moveSpeed = 1;
+        m.moveTimeout = 60;
+        m.lookTarget = at(flower, 0);
+        if (m.distanceTo(target) < 1.4) {
+          const ticks = typeof e.pollen === 'number' ? e.pollen + 1 : 1;
+          e.pollen = ticks;
+          if (m.age % 5 === 0) w.emitParticles('happy', m.pos.x, m.pos.y, m.pos.z, 1, 0.4, 0.3);
+          if (ticks > 60) {
+            e.nectar = true;
+            delete e.pollen;
+            delete e.flowerX;
+            delete e.flowerY;
+            delete e.flowerZ;
+          }
+        }
+        return;
+      }
+      if (m.age % 40 === 0 && w.findBlock) {
+        const found = w.findBlock(m.pos.x, m.pos.y, m.pos.z, 12, BEE_FLOWER_IDS);
+        if (found) {
+          e.flowerX = found.x;
+          e.flowerY = found.y;
+          e.flowerZ = found.z;
+          return;
+        }
+      }
+      // nothing to do: drift around the hive (or wherever the bee is)
+      if (!m.moveTarget || m.age % 60 === 0) {
+        const base = home ? at(home, 1) : m.pos;
+        m.moveTarget = new THREE.Vector3(base.x + (w.rng() - 0.5) * 12, base.y + (w.rng() - 0.5) * 4, base.z + (w.rng() - 0.5) * 12);
+        m.moveSpeed = 0.8;
+        m.moveTimeout = 80;
+        m.lookTarget = null;
+      }
+    },
+  };
+};
+
+/** Blocks a bee treats as a flower, filled in by the mob table so the goal stays data-driven. */
+export const BEE_FLOWER_IDS: string[] = [];
+
 /** Villagers keep away from zombies and illagers (vanilla avoid goals with a wider radius). */
 export const avoidMonstersGoal = (range = 8): Goal => ({
   flags: FLAG_MOVE,

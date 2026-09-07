@@ -31,7 +31,7 @@ import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
-import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity } from '../blocks/blockEntity.ts';
+import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
@@ -237,6 +237,8 @@ export class Game {
       playSound: (name, x, y, z, pitch = 1) => this.audio.play(name, { x, y, z, pitch }),
       playerHolding: () => this.player.heldItem()?.id ?? null,
       findJobSite: (x, y, z, range, profession) => this.findJobSite(x, y, z, range, profession),
+      findBlock: (x, y, z, range, ids) => this.findBlockNear(x, y, z, range, ids),
+      enterHive: (m, x, y, z) => this.beeEntersHive(m, x, y, z),
       claimJobSite: (m, block) => this.claimJobSite(m, block),
       playerHasEffect: (id) => !!this.player.effects.get(id),
       playerHealth: () => this.player.health,
@@ -251,6 +253,7 @@ export class Game {
       emitParticles: (kind, x, y, z, count, w, hh) => {
         if (kind === 'heart') this.particles.hearts(x, y, z, count, Math.random, w, hh);
         else if (kind === 'poof') this.particles.poof(x, y, z, count, Math.random, w, hh);
+        else if (kind === 'happy') for (let i = 0; i < count; i++) this.particles.spawnSprite('happy', x + (Math.random() - 0.5) * w, y + Math.random() * hh, z + (Math.random() - 0.5) * w, 0, 0.02, 0, 20, 0.3);
         else for (let i = 0; i < count; i++) this.particles.spawnSprite('angry', x + (Math.random() - 0.5) * w, y + Math.random() * hh, z + (Math.random() - 0.5) * w, 0, 0.02, 0, 20, 0.3);
       },
       setBlock: (x, y, z, state) => this.world.setBlock(x, y, z, state),
@@ -982,6 +985,10 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   private tickBlockEntities(): void {
     this.world.forEachBlockEntity((x, y, z, e) => {
+      if (e.type === 'beehive') {
+        this.tickHive(x, y, z, e as HiveEntity);
+        return;
+      }
       if (e.type !== 'furnace' && e.type !== 'blast_furnace' && e.type !== 'smoker') return;
       const r = tickFurnace(e as FurnaceEntity);
       if (r.changed) this.world.markModifiedAt(x, z);
@@ -990,6 +997,168 @@ export class Game {
         if (st && blocks.blockOf(st).id === e.type) this.world.setBlock(x, y, z, blocks.withProp(st, 'lit', (e as FurnaceEntity).burnTime > 0 ? 'true' : 'false'));
       }
     });
+  }
+
+  /** Every generated bee nest comes with three bees, as vanilla's nests do. */
+  private populateBeeNests(cx: number, cz: number): void {
+    for (let x = 0; x < 16; x++)
+      for (let z = 0; z < 16; z++)
+        for (let y = 50; y < 200; y++) {
+          const wx = cx * 16 + x, wz = cz * 16 + z;
+          const state = this.world.getBlock(wx, y, wz);
+          if (!state || blocks.blockOf(state).id !== 'bee_nest') continue;
+          for (let i = 0; i < 3; i++) {
+            const spot = this.freeSpotNear(wx, y, wz);
+            if (!spot) break;
+            const bee = this.entities.spawn('bee', spot.x + (Math.random() - 0.5), spot.y + 0.2, spot.z + (Math.random() - 0.5), Math.random() * Math.PI * 2);
+            if (bee) {
+              bee.extra.hiveX = wx;
+              bee.extra.hiveY = y;
+              bee.extra.hiveZ = wz;
+              bee.persistent = true;
+            }
+          }
+        }
+  }
+
+  /**
+   * Harvesting a hive: shears cut three honeycombs out of a full hive and a glass bottle fills with
+   * honey. Vanilla angers the bees inside unless a campfire is burning under the hive.
+   */
+  private useHive(t: RaycastHit, id: string): boolean {
+    const held = this.player.heldItem();
+    if (!held || (held.id !== 'shears' && held.id !== 'glass_bottle')) return false;
+    const level = Number(blocks.prop(t.state, 'honey_level') ?? '0');
+    if (level < 5) return false;
+    const survival = this.player.gamemode === 'survival';
+    if (held.id === 'shears') {
+      this.dropStack({ id: 'honeycomb', count: 3 }, t.x + 0.5, t.y + 0.5, t.z + 0.5, true);
+      if (survival) this.player.inventory.damageSelected(1);
+      this.audio.play('shear', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+    } else {
+      if (survival) this.player.inventory.consumeSelected();
+      if (this.player.inventory.add({ id: 'honey_bottle', count: 1 }) > 0) this.dropStack({ id: 'honey_bottle', count: 1 }, this.player.pos.x, this.player.pos.y + 1, this.player.pos.z, true);
+      this.audio.play('bottle_fill', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+    }
+    this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'honey_level', '0'));
+    this.world.markModifiedAt(t.x, t.z);
+    if (!this.campfireUnder(t.x, t.y, t.z)) this.angerBees(t.x, t.y, t.z, id);
+    return true;
+  }
+
+  /** A lit campfire within five blocks below a hive calms the bees (vanilla's smoke rule). */
+  private campfireUnder(x: number, y: number, z: number): boolean {
+    for (let dy = 1; dy <= 5; dy++) {
+      const state = this.world.getBlock(x, y - dy, z);
+      if (!state) continue;
+      const def = blocks.blockOf(state);
+      if (def.id.endsWith('campfire')) return blocks.prop(state, 'lit') !== 'false';
+      if (def.solid) return false;
+    }
+    return false;
+  }
+
+  /** Sends the hive's bees after the player, releasing the ones still inside. */
+  private angerBees(x: number, y: number, z: number, id: string): void {
+    const e = this.world.getBlockEntity(x, y, z) as HiveEntity | null;
+    if (e && e.type === 'beehive') {
+      for (let i = e.bees.length - 1; i >= 0; i--) {
+        const spot = this.freeSpotNear(x, y, z);
+        if (!spot) break;
+        const bee = this.entities.spawn('bee', spot.x, spot.y, spot.z, Math.random() * Math.PI * 2);
+        if (bee) {
+          bee.extra.hiveX = x;
+          bee.extra.hiveY = y;
+          bee.extra.hiveZ = z;
+          bee.target = 'player';
+        }
+        e.bees.splice(i, 1);
+        e.nectar.splice(i, 1);
+      }
+      this.world.markModifiedAt(x, z);
+    }
+    for (const m of this.entities.mobsNear(x, y, z, 16)) if (m.def.id === 'bee') m.target = 'player';
+    void id;
+  }
+
+  /**
+   * Bee nests and hives: a bee that went in with nectar raises the honey level when it comes back
+   * out, and the hive drips honey particles once it is full (vanilla honey_level 5).
+   */
+  private tickHive(x: number, y: number, z: number, e: HiveEntity): void {
+    if (!e.bees.length) return;
+    const night = !this.isDay();
+    for (let i = e.bees.length - 1; i >= 0; i--) {
+      e.bees[i]++;
+      // vanilla keeps a bee inside for 600 ticks, or 2400 when it carried nectar home
+      if (e.bees[i] < (e.nectar[i] ? 2400 : 600) || night) continue;
+      const state = this.world.getBlock(x, y, z);
+      if (!state) {
+        e.bees.splice(i, 1);
+        e.nectar.splice(i, 1);
+        continue;
+      }
+      if (e.nectar[i]) {
+        const level = Number(blocks.prop(state, 'honey_level') ?? '0');
+        if (level < 5) this.world.setBlock(x, y, z, blocks.withProp(state, 'honey_level', String(level + 1)));
+      }
+      const spot = this.freeSpotNear(x, y, z);
+      if (!spot) continue;
+      const bee = this.entities.spawn('bee', spot.x, spot.y, spot.z, Math.random() * Math.PI * 2);
+      if (bee) {
+        bee.extra.hiveX = x;
+        bee.extra.hiveY = y;
+        bee.extra.hiveZ = z;
+        bee.persistent = true;
+      }
+      e.bees.splice(i, 1);
+      e.nectar.splice(i, 1);
+      this.world.markModifiedAt(x, z);
+    }
+  }
+
+  /** An air block beside a hive for a bee to appear in. */
+  private freeSpotNear(x: number, y: number, z: number): { x: number; y: number; z: number } | null {
+    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0]] as const) {
+      if (this.world.getBlock(x + dx, y + dy, z + dz) === 0) return { x: x + dx + 0.5, y: y + dy, z: z + dz + 0.5 };
+    }
+    return null;
+  }
+
+  /** A bee reaching its hive goes inside; the hive remembers whether it brought nectar. */
+  private beeEntersHive(m: Mob, x: number, y: number, z: number): boolean {
+    const state = this.world.getBlock(x, y, z);
+    const id = state ? blocks.blockOf(state).id : '';
+    if (id !== 'beehive' && id !== 'bee_nest') return false;
+    const e = this.world.getBlockEntity(x, y, z) as HiveEntity | null;
+    if (!e || e.type !== 'beehive' || e.bees.length >= 3) return false;
+    e.bees.push(0);
+    e.nectar.push(m.extra.nectar === true);
+    this.world.markModifiedAt(x, z);
+    this.entities.remove(m);
+    return true;
+  }
+
+  /** Nearest block matching any of `ids` around a point, searched outward from the centre. */
+  private findBlockNear(x: number, y: number, z: number, range: number, ids: string[]): { x: number; y: number; z: number; block: string } | null {
+    const want = new Set(ids);
+    const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
+    let best: { x: number; y: number; z: number; block: string } | null = null;
+    let bestDist = Infinity;
+    for (let dy = -4; dy <= 4; dy++)
+      for (let dx = -range; dx <= range; dx++)
+        for (let dz = -range; dz <= range; dz++) {
+          const state = this.world.getBlock(bx + dx, by + dy, bz + dz);
+          if (!state) continue;
+          const id = blocks.blockOf(state).id;
+          if (!want.has(id)) continue;
+          const d = dx * dx + dy * dy + dz * dz;
+          if (d < bestDist) {
+            bestDist = d;
+            best = { x: bx + dx, y: by + dy, z: bz + dz, block: id };
+          }
+        }
+    return best;
   }
 
   private static readonly CLOCKWISE: Record<string, [number, number, string]> = { north: [1, 0, 'east'], east: [0, 1, 'south'], south: [-1, 0, 'west'], west: [0, -1, 'north'] };
@@ -1036,6 +1205,9 @@ export class Game {
       if (def.behavior === 'door' || def.behavior === 'trapdoor' || def.behavior === 'fence_gate') this.audio.play('door', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
       else if (def.behavior === 'button' || def.id === 'lever') this.audio.play('click', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
       return true;
+    }
+    if (def.id === 'beehive' || def.id === 'bee_nest') {
+      if (this.useHive(t, def.id)) return true;
     }
     if (def.id === 'crafting_table') {
       const grid = makeGrid(3, 3);
@@ -1338,6 +1510,7 @@ export class Game {
     if (!this.animalChunks.has(key)) {
       this.animalChunks.add(key);
       this.entities.spawnAnimalsInChunk(cx, cz);
+      this.populateBeeNests(cx, cz);
     }
   }
 
