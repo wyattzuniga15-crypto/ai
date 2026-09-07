@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { blocks } from '../src/blocks/registry.ts';
 import { assembleJigsaw, buildStructureSets, jigsawFront, parseState, pickVariant, resolveAliases, rotate, rotateState, stampStructure, structureStart, type PoolEntry, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
 import { Rng } from '../src/core/rng.ts';
+import { assembleMansion, CELL, GRID } from '../src/world/gen/mansion.ts';
 import { WorldGenerator } from '../src/world/gen/generator.ts';
 import { ChunkData } from '../src/world/chunk.ts';
 
@@ -69,9 +70,9 @@ describe('structure templates', () => {
     const { index, templates, pools } = load();
     const sets = buildStructureSets(index, templates, pools);
     expect(sets.map((s) => s.name).sort()).toEqual([
-      'ancient_city', 'buried_treasure', 'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft',
-      'ocean_ruin_cold', 'ocean_ruin_warm', 'pillager_outpost', 'ruined_portal', 'shipwreck',
-      'stronghold', 'swamp_hut', 'trial_chambers', 'village',
+      'ancient_city', 'buried_treasure', 'desert_pyramid', 'fossil', 'igloo', 'jungle_temple',
+      'mansion', 'mineshaft', 'ocean_ruin_cold', 'ocean_ruin_warm', 'pillager_outpost',
+      'ruined_portal', 'shipwreck', 'stronghold', 'swamp_hut', 'trial_chambers', 'village',
     ]);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
@@ -189,6 +190,54 @@ describe('jigsaw villages', () => {
     expect(jigsawFront('up_north')).toBe('up');
     expect(jigsawFront('east_up')).toBe('east');
     expect(jigsawFront('north_up')).toBe('north');
+  });
+});
+
+describe('woodland mansions', () => {
+  it.runIf(hasTemplates)('lays vanilla rooms out on its grid, with chests and illagers in them', () => {
+    const { index, templates, pools } = load();
+    const mansion = buildStructureSets(index, templates, pools).find((s) => s.name === 'mansion')!;
+    expect(mansion.biomes).toEqual(['dark_forest', 'pale_garden']);
+    expect(mansion.templates.length).toBeGreaterThan(60);
+    // the mansion marks its chests with the way they face, and its rooms with the illagers in them
+    const chests = mansion.templates.flatMap((t) => t.loot);
+    expect(chests.length).toBeGreaterThan(5);
+    expect(chests.every((c) => c.table === 'chests/woodland_mansion')).toBe(true);
+    const illagers = new Set(mansion.templates.flatMap((t) => t.mobs.map((m) => m.id)));
+    expect(illagers.has('vindicator') || illagers.has('evoker')).toBe(true);
+
+    const laid = assembleMansion(mansion, 7, 0, 64, 0);
+    // two floors of rooms, the wall round each, the roof over the top and the entrance at the front
+    expect(laid.length).toBeGreaterThan(120);
+    expect(laid.some((p) => p.key.endsWith('entrance'))).toBe(true);
+    expect(laid.filter((p) => p.key.includes('roof')).length).toBeGreaterThan(GRID * GRID);
+    expect(laid.filter((p) => p.key.includes('wall_')).length).toBeGreaterThan(GRID * 8);
+    const floors = new Set(laid.filter((p) => p.key.includes('1x1_') || p.key.includes('2x2_')).map((p) => p.y));
+    expect([...floors].sort((a, b) => a - b)).toEqual([64, 72]);
+    // every piece stays inside the footprint the placement reserved for it
+    for (const p of laid) {
+      expect(p.x).toBeGreaterThanOrEqual(-2);
+      expect(p.x).toBeLessThanOrEqual(GRID * CELL + 2);
+      expect(p.z).toBeGreaterThanOrEqual(-2);
+      expect(p.z).toBeLessThanOrEqual(GRID * CELL + 2);
+    }
+  });
+});
+
+describe('fossils', () => {
+  it.runIf(hasTemplates)('buries bones with a seam of coal through them', () => {
+    const { index, templates, pools } = load();
+    const fossil = buildStructureSets(index, templates, pools).find((s) => s.name === 'fossil')!;
+    expect(fossil.biomes).toEqual(['desert', 'mangrove_swamp', 'swamp']); // the biomes whose features name it
+    expect(fossil.frequency).toBeCloseTo(1 / 64);
+    expect(fossil.mainTemplates.length).toBe(8); // four spines and four skulls
+    for (const base of fossil.mainTemplates) {
+      const coal = fossil.byKey.get(`${base.key}_coal`)!;
+      expect(coal, base.key).toBeDefined();
+      expect(coal.size).toEqual(base.size); // the seam lies exactly over the bones
+      expect(new Set([...base.states].map((st) => blocks.idOf(st)))).toEqual(new Set(['bone_block']));
+      expect(new Set([...coal.states].map((st) => blocks.idOf(st)))).toEqual(new Set(['coal_ore']));
+    }
   });
 });
 

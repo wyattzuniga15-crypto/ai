@@ -37,12 +37,14 @@ const ruinPieces = (warm: boolean): string[] => {
   return out;
 };
 
-const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor'; structures: string[]; main?: string[] }[] = [
+const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor' | 'mansion'; structures: string[]; main?: string[] }[] = [
   // the igloo's basement pieces are stamped by the generator under the top, never on their own
   { name: 'igloo', set: 'igloos', pieces: ['igloo/top', 'igloo/middle', 'igloo/bottom'], main: ['igloo_top'], placement: 'surface', structures: ['igloo'] },
   { name: 'shipwreck', set: 'shipwrecks', pieces: [], placement: 'ocean_floor', structures: ['shipwreck', 'shipwreck_beached'] },
   { name: 'ruined_portal', set: 'ruined_portals', pieces: [], placement: 'surface', structures: ['ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_mountain', 'ruined_portal_swamp'] },
   { name: 'pillager_outpost', set: 'pillager_outposts', pieces: ['pillager_outpost/watchtower'], placement: 'surface', structures: ['pillager_outpost'] },
+  // every mansion template; the generator lays them out on vanilla's eight-block grid
+  { name: 'mansion', set: 'woodland_mansions', pieces: [], placement: 'mansion', structures: ['mansion'] },
   // the two ocean ruin sets share one spread, so a start lands in whichever of them the biome allows
   { name: 'ocean_ruin_warm', set: 'ocean_ruins', pieces: ruinPieces(true), placement: 'ocean_floor', structures: ['ocean_ruin_warm'] },
   { name: 'ocean_ruin_cold', set: 'ocean_ruins', pieces: ruinPieces(false), placement: 'ocean_floor', structures: ['ocean_ruin_cold'] },
@@ -108,14 +110,18 @@ const DATA_TABLES: Record<string, string> = {
 
 /** Loot table a DATA marker stands for; plain `chest` means different things per structure. */
 function markerTable(structure: string, piece: string, meta: string): string | null {
+  if (CHEST_FACING[meta]) return structure === 'mansion' ? 'chests/woodland_mansion' : null;
   if (meta !== 'chest') return DATA_TABLES[meta] ?? null;
   if (structure === 'igloo') return 'chests/igloo_chest';
   if (structure.startsWith('ocean_ruin')) return piece.includes('big_') ? 'chests/underwater_ruin_big' : 'chests/underwater_ruin_small';
   return null;
 }
 
-/** Mobs a DATA marker stands for: an ocean ruin comes with the drowned that haunt it. */
-const DATA_MOBS: Record<string, string> = { drowned: 'drowned' };
+/** Mobs a DATA marker stands for: the drowned of an ocean ruin, the illagers of a mansion. */
+const DATA_MOBS: Record<string, string> = { drowned: 'drowned', Mage: 'evoker', Warrior: 'vindicator' };
+
+/** Chest markers that also say which way the chest faces (a mansion marks its chests this way). */
+const CHEST_FACING: Record<string, string> = { Chest: 'north', ChestNorth: 'north', ChestSouth: 'south', ChestEast: 'east', ChestWest: 'west' };
 
 /** Turns a template's palette entry into our `id[prop=value,...]` state string. */
 function stateString(entry: NbtTag): string {
@@ -168,9 +174,9 @@ function convert(file: string, structure: string, piece: string): Template | nul
       }
       const marked = markerTable(structure, piece, meta);
       if (!marked) continue;
-      // an ocean ruin's marker stands where its chest goes; everywhere else the chest is below it
-      if (structure.startsWith('ocean_ruin')) {
-        const chest = 'chest[facing=north,type=single,waterlogged=false]';
+      // an ocean ruin or a mansion marks where its chest goes; everywhere else it is below the marker
+      if (structure.startsWith('ocean_ruin') || CHEST_FACING[meta]) {
+        const chest = `chest[facing=${CHEST_FACING[meta] ?? 'north'},type=single,waterlogged=false]`;
         let entry = palette.indexOf(chest);
         if (entry < 0) entry = palette.push(chest) - 1;
         blocks.push(pos[0], pos[1], pos[2], entry);
@@ -260,10 +266,11 @@ for (const want of WANTED) {
   }
   const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as { placement: { spacing: number; separation: number; salt: number } };
   // an empty piece list means "every template in the structure's folder"
-  const dir = path.join(structureDir, want.name);
+  const dir = path.join(structureDir, want.name === 'mansion' ? 'woodland_mansion' : want.name);
+  const folder = path.basename(dir);
   const pieces = want.pieces.length
     ? want.pieces
-    : fs.readdirSync(dir).filter((f) => f.endsWith('.nbt')).map((f) => `${want.name}/${path.basename(f, '.nbt')}`);
+    : fs.readdirSync(dir).filter((f) => f.endsWith('.nbt')).map((f) => `${folder}/${path.basename(f, '.nbt')}`);
   const written: string[] = [];
   const bundle: Record<string, Template> = {};
   for (const piece of pieces) {
@@ -420,6 +427,41 @@ for (const want of PROCEDURAL) {
     ...(set.placement.count ? { count: set.placement.count, distance: set.placement.distance, spread: set.placement.spread } : {}),
   });
   console.log(`  ${want.name}: built in code, ${set.placement.count ? `${set.placement.count} in rings` : `frequency ${set.placement.frequency}`}, ${biomes.size} biomes`);
+}
+
+/**
+ * Fossils are a feature in vanilla rather than a structure, but they are templates buried in the
+ * ground like everything else here, so they come through the same pipeline: the biomes are the ones
+ * whose feature lists mention them, and the rarity is vanilla's one chunk in 64.
+ */
+const FOSSILS = ['spine_1', 'spine_2', 'spine_3', 'spine_4', 'skull_1', 'skull_2', 'skull_3', 'skull_4'];
+{
+  const biomeDir = path.join(mc, 'data', 'minecraft', 'worldgen', 'biome');
+  const biomes: string[] = [];
+  for (const file of fs.existsSync(biomeDir) ? fs.readdirSync(biomeDir) : []) {
+    const def = JSON.parse(fs.readFileSync(path.join(biomeDir, file), 'utf8')) as { features?: string[][] };
+    if ((def.features ?? []).some((step) => step.some((f) => f.includes('fossil')))) biomes.push(path.basename(file, '.json'));
+  }
+  const bundle: Record<string, Template> = {};
+  const written: string[] = [];
+  for (const name of FOSSILS) {
+    for (const piece of [`fossil/${name}`, `fossil/${name}_coal`]) {
+      const template = convert(path.join(structureDir, `${piece}.nbt`), 'fossil', piece);
+      if (!template) continue;
+      bundle[piece.replace('/', '_')] = template;
+      written.push(piece.replace('/', '_'));
+      files++;
+    }
+  }
+  const bundleJson = JSON.stringify({ pieces: bundle });
+  fs.writeFileSync(path.join(outDir, 'fossil.json'), bundleJson);
+  bytes += bundleJson.length;
+  index.push({
+    name: 'fossil', placement: 'fossil', spacing: 1, separation: 0, salt: 0x055170,
+    frequency: 1 / 64, pieces: written, biomes: biomes.sort(),
+    main: written.filter((k) => !k.endsWith('_coal')),
+  });
+  console.log(`  fossil: ${written.length} pieces, one chunk in 64, ${biomes.length} biomes`);
 }
 
 fs.writeFileSync(path.join(outDir, 'index.json'), `${JSON.stringify(index, null, 1)}\n`);

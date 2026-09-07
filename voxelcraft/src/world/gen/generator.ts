@@ -15,6 +15,7 @@ import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, stru
 import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
 import { buildTemple, TEMPLE_SIZE, type TempleKind } from './temples.ts';
 import { assembleStronghold, fillStrongholdPiece, type StrongholdPiece } from './stronghold.ts';
+import { assembleMansion, CELL, GRID } from './mansion.ts';
 
 /** Structures vanilla lays out in code, keyed by the placement name their index entry carries. */
 const TEMPLE_KINDS = new Set<string>(['desert_pyramid', 'jungle_temple', 'swamp_hut']);
@@ -932,6 +933,8 @@ export class WorldGenerator {
     if (TEMPLE_KINDS.has(set.placement)) return this.buildTempleAt(set, wx, wz, rng);
     if (set.placement === 'stronghold') return this.buildStronghold(set, cx, cz);
     if (set.placement === 'buried_treasure') return this.buildBuriedTreasure(set, wx, wz);
+    if (set.placement === 'fossil') return this.buildFossil(set, wx, wz, rng, decaySeed);
+    if (set.placement === 'mansion') return this.buildMansion(set, wx, wz, rng, decaySeed);
     if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, biome, wx, wz, rng, decaySeed) };
     const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
     const rotation = rng.int(4);
@@ -1024,6 +1027,57 @@ export class WorldGenerator {
     const pieces = [at(bottom, IGLOO_LADDER.bottom, y - 3 - sections * 3)];
     for (let i = 0; i < sections - 1; i++) pieces.push(at(middle, IGLOO_LADDER.middle, y - 3 - i * 3));
     return pieces;
+  }
+
+  /**
+   * Woodland mansions: two floors of vanilla's own rooms on its eight-block grid, walled, roofed and
+   * fronted by the entrance hall, sitting on the flattest ground the footprint can find.
+   */
+  private buildMansion(set: StructureSet, wx: number, wz: number, rng: Rng, decaySeed: number): StructureInstance {
+    const span = GRID * CELL;
+    const ground = this.structureGroundY(wx, wz, span, span, 'temple');
+    if (ground === null) return EMPTY_STRUCTURE;
+    const laid = assembleMansion(set, mix(this.seed, wx, wz, 0x3a11), wx, ground, wz);
+    const pieces: StructurePlacement[] = [];
+    for (const piece of laid) {
+      const template = set.byKey.get(piece.key);
+      if (!template) continue;
+      pieces.push({ set, template, x: piece.x, y: piece.y, z: piece.z, rotation: piece.rotation, integrity: 1, decaySeed, placement: 'surface' });
+    }
+    if (!pieces.length) return EMPTY_STRUCTURE;
+    this.lastStructure = { name: set.name, x: wx, y: ground, z: wz, pieces: pieces.length };
+    return { pieces };
+  }
+
+  /**
+   * Fossils: a spine or a skull buried in the ground, most of it bone and a little of it coal, the
+   * way vanilla lays the base template down rotted and its coal twin over the top.
+   */
+  private buildFossil(set: StructureSet, wx: number, wz: number, rng: Rng, decaySeed: number): StructureInstance {
+    const base = set.mainTemplates[rng.int(set.mainTemplates.length)];
+    const coal = set.byKey.get(`${base.key}_coal`);
+    const rotation = rng.int(4);
+    const surface = Math.floor(this.columnInfo(wx, wz).height);
+    // vanilla buries the upper fossil anywhere under the surface and the lower one in the deepslate
+    const deep = rng.next() < 0.5;
+    const y = deep
+      ? WORLD_MIN_Y + 8 + rng.int(40)
+      : Math.max(0, Math.min(surface - 12, rng.int(Math.max(1, surface - 12))));
+    if (y + base.size[1] >= surface - 2) return EMPTY_STRUCTURE;
+    // vanilla only buries one where the ground round it is solid, so it does not hang in a cave
+    const [sx, , sz] = base.size;
+    const [w, d] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+    for (const [cx2, cz2] of [[0, 0], [w - 1, 0], [0, d - 1], [w - 1, d - 1]] as [number, number][]) {
+      const at = this.columnInfo(wx + cx2, wz + cz2);
+      if (y > Math.floor(at.height) - 4) return EMPTY_STRUCTURE;
+    }
+    this.lastStructure = { name: set.name, x: wx, y, z: wz, variant: base.key };
+    const pieces: StructurePlacement[] = [
+      // the bones rot a little, and only a fraction of the coal seam comes through
+      { set, template: base, x: wx, y, z: wz, rotation, integrity: 0.9, decaySeed, placement: 'underground' },
+    ];
+    if (coal) pieces.push({ set, template: coal, x: wx, y, z: wz, rotation, integrity: 0.15, decaySeed: decaySeed ^ 0x5c0a1, placement: 'underground' });
+    return { pieces };
   }
 
   /**

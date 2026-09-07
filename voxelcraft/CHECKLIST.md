@@ -79,7 +79,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Ocean ruins: the warm sandstone and cold stone brick sets from Mojang's templates, scattered in clusters on the sea floor, with the chests their data markers mark and the drowned that haunt them
 - [x] Buried treasure (a chest packed in sand under a beach, where a treasure map would point) and ancient cities (vanilla's jigsaw pools stamped at their own depth in the deep dark, with the box hollowed out the way the beardifier hollows it)
 - [x] Trial chambers: vanilla's own pools with the pool aliases that decide a chamber's mobs, its trial spawners turning what their piece is named after, and the up-and-down jigsaw connections villages and chambers both need
-- [ ] Structures, next: monuments, mansions, fossils
+- [x] Fossils (bones and their coal seam buried in deserts and swamps, one chunk in 64) and woodland mansions (vanilla's own rooms laid on its eight-block grid, two floors walled and roofed, the entrance hall at the front, chests of mansion loot and the vindicators and evokers that live there)
+- [ ] Structures, last: ocean monuments (waiting on guardians)
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)

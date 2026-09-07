@@ -26,7 +26,7 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion';
   spacing: number;
   separation: number;
   salt: number;
@@ -122,6 +122,8 @@ function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]
   if (entry.placement === 'mineshaft') return 7;
   // a stronghold's rooms are kept inside 80 blocks of its staircase, and a room can be 16 more
   if (entry.placement === 'stronghold') return 6;
+  // a mansion is a seven-by-seven grid of eight-block cells, so it covers four chunks either way
+  if (entry.placement === 'mansion') return 5;
   // anything else built in code is one piece, and the largest of them (a pyramid) is 21 blocks
   if (!templates.length) return 3;
   let widest = 0;

@@ -481,3 +481,15 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     the converter reads that name and reports the trial spawner block with it; the game gives it the
     same block entity an ordinary spawner gets. Mobs we do not have yet (breeze, bogged, silverfish)
     keep their spawners, which simply turn nothing until those mobs exist.
+
+76. **A mansion is vanilla's rooms on our own floor plan.** Vanilla grows an irregular blob of rooms
+    with `MansionGrid` and then walks it placing templates; ours lays a seven-by-seven rectangle of
+    eight-block cells, fills it with the same room templates (a two-by-two hall now and then, a room
+    running two cells deep, otherwise a single room), walls each floor with vanilla's flat and window
+    segments, roofs it, and cuts the entrance hall into the middle of the south side. Every block
+    placed is Mojang's; only the plan is ours. The mansion's chests are marked with the way they face
+    (`ChestWest` and friends), so the converter puts the chest in facing that way, and its `Mage` and
+    `Warrior` markers become the evokers and vindicators that live there. Fossils came the same way
+    even though vanilla treats them as a feature rather than a structure: the bones are stamped a
+    little rotted and their coal twin over the top at a low chance, in the three biomes whose feature
+    lists mention them.
