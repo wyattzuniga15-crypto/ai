@@ -823,3 +823,23 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     where an out-of-range index quietly returned `undefined` and the first `.behavior` read threw.
     The goal now keeps a direction to fall back on, and the fluid check refuses a position that is
     not finite.
+
+100. **The End, and the lighting bug it turned up.** The island is vanilla's own function — a
+     hundred minus the distance from the middle, with any outer island whose own falloff reaches
+     further, found by walking the grid of noise samples around each column — so the middle island
+     comes out a hundred blocks across and the outer ones start past five hundred blocks of void.
+     How thick the lens is and what the crags do to its underside are ours; vanilla's is a density
+     function with nothing behind it to read. Chorus plants grow only out on the far islands, as
+     vanilla leaves the middle one bare. The way in is vanilla's too: an eye of ender in each of a
+     stronghold's twelve frames opens the portal, and standing in it puts the traveller on the
+     obsidian platform vanilla builds at (100, 49, 0), clearing whatever was in the way; the way
+     home puts them back where they sleep.
+
+     Building it turned up a bug that had been quietly spoiling the Nether as well. The world worker
+     runs chunks through terrain, decoration, lighting and meshing, and each step only runs on a
+     chunk the last one finished — but nothing in the worker marked a chunk *decorated*. The
+     overworld's generator happened to set that itself at the end of its own decorate, so the
+     overworld was fine and nothing else was: the Nether and the End never lit a chunk, never marked
+     a section dirty and so never meshed one. The Nether looked like it worked because its arrival
+     chunks were meshed by the block edits the portal builder made. The step now ends in the worker,
+     where it belongs, and the Nether has had its glowstone and lava lighting the rock ever since.

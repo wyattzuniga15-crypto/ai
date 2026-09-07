@@ -9,6 +9,7 @@ import { ChunkData } from './chunk.ts';
 import { buildStructureSets } from './gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from './gen/generator.ts';
 import { NetherGenerator } from './gen/nether.ts';
+import { EndGenerator } from './gen/end.ts';
 import type { TerrainGenerator } from './gen/terrain.ts';
 import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
@@ -179,6 +180,8 @@ function ensureDecorated(cx: number, cz: number): ChunkData | null {
     if (gen.structureSpots.length) structureSpots.set(packKey(cx, cz), gen.structureSpots.slice());
     c.updateHeightmapAll();
     flushPatches();
+    // the step is over whether or not the generator says so, and the next one only runs on this
+    c.status = 'decorated';
   }
   return c;
 }
@@ -345,7 +348,7 @@ ctx.onmessage = (ev: MessageEvent<ToWorker>) => {
   const msg = ev.data;
   switch (msg.type) {
     case 'init': {
-      gen = msg.dimension === 'nether' ? new NetherGenerator(msg.seed) : new WorldGenerator(msg.seed);
+      gen = msg.dimension === 'nether' ? new NetherGenerator(msg.seed) : msg.dimension === 'end' ? new EndGenerator(msg.seed) : new WorldGenerator(msg.seed);
       if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates, msg.structures.pools);
       const atlas = new AtlasIndex(msg.atlas);
       baker = new ModelBaker(msg.models, atlas);

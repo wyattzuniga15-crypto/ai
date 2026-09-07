@@ -109,7 +109,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Nether, last slice: netherite (ancient debris smelted to scrap and crafted up, gear that survives lava where everything else burns, and vanilla's tenth of knockback resistance a piece) and the Wither — summoned from three skulls over a T of soul sand, invulnerable while it rises, the blast when it comes up, three heads throwing withering skulls, armoured below half its health, its boss bar, and the nether star it leaves
 
 ## Phase 5 – End
-- [ ] Stronghold + end portal, dragon fight, credits/poem, end cities, elytra, gateways
+- [x] End, first slice: the dimension itself — vanilla's island noise for the middle island and the outer ones past the void, end stone and the chorus plants that grow out there, its violet sky and its own ambient light; and the way in: eyes of ender filling a stronghold's twelve frames opens the portal, and standing in it puts the traveller on vanilla's obsidian platform at (100, 49, 0), with the way home going back to where they sleep
+- [ ] End, next: the dragon fight (pillars, crystals, the dragon itself, the exit portal and the egg), credits/poem, end cities, elytra, gateways
 
 ## Phase 6 – polish
 - [ ] Everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio, creative inventory tabs and search

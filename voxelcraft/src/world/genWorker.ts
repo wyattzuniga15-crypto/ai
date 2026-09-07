@@ -7,6 +7,7 @@ import { ChunkData } from './chunk.ts';
 import { buildStructureSets } from './gen/structures.ts';
 import { WorldGenerator } from './gen/generator.ts';
 import { NetherGenerator } from './gen/nether.ts';
+import { EndGenerator } from './gen/end.ts';
 import type { TerrainGenerator } from './gen/terrain.ts';
 import type { GenInit, GenRequest, GenResult } from './protocol.ts';
 
@@ -25,7 +26,7 @@ function generate(msg: GenRequest): void {
 ctx.onmessage = (ev: MessageEvent<GenInit>) => {
   const msg = ev.data;
   if (msg.type !== 'init') return;
-  gen = msg.dimension === 'nether' ? new NetherGenerator(msg.seed) : new WorldGenerator(msg.seed);
+  gen = msg.dimension === 'nether' ? new NetherGenerator(msg.seed) : msg.dimension === 'end' ? new EndGenerator(msg.seed) : new WorldGenerator(msg.seed);
   if (msg.structures) gen.structures = buildStructureSets(msg.structures.index, msg.structures.templates, msg.structures.pools);
   port = msg.port;
   port.onmessage = (e: MessageEvent<GenRequest>) => {

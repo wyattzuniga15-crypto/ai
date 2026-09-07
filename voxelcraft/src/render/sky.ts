@@ -9,6 +9,8 @@ const DAY_FOG = new THREE.Color(0xc0d8ff);
 const NIGHT_FOG = new THREE.Color(0x03050f);
 /** Vanilla's nether_wastes fog: the red the whole dimension is seen through. */
 const NETHER_FOG = new THREE.Color(0x330808);
+/** Vanilla's end sky: the violet the whole dimension is seen through. */
+const END_FOG = new THREE.Color(0x0a0517);
 const SUNSET = new THREE.Color(0xffa040);
 /** What the sky and fog fade toward while it is raining. */
 const STORM_SKY = new THREE.Color(0x4c5566);
@@ -58,12 +60,13 @@ export class Sky {
   /** @param time world time in ticks; @param rain how hard it is coming down, 0 to 1. */
   update(time: number, cameraPos: THREE.Vector3, rain = 0): void {
     if (this.dimension !== 'overworld') {
-      // vanilla lights the Nether evenly from nowhere, under a low red fog
+      // the Nether is lit evenly from nowhere under a low red fog; the End is the same in violet
+      const tint = this.dimension === 'end' ? END_FOG : NETHER_FOG;
       this.elevation = 0;
       this.dayLight = 0;
       this.dayLightClear = 0;
-      this.skyColor.copy(NETHER_FOG);
-      this.fogColor.copy(NETHER_FOG);
+      this.skyColor.copy(tint);
+      this.fogColor.copy(tint);
       this.group.position.set(0, 0, 0);
       return;
     }

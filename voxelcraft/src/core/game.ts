@@ -17,6 +17,7 @@ import { World, FACE_NORMALS, type LoadedChunk, type RaycastHit, type WorldOptio
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
+import { END_PLATFORM } from '../world/gen/end.ts';
 import { WITHER_SPAWN_TICKS, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
@@ -121,8 +122,12 @@ const lightFloor = (gamma: number): number => 0.03 + gamma * 0.1;
  * option's own floor takes what is left.
  */
 const NETHER_AMBIENT = 0.1;
-const ambientFor = (dimension: Dimension, floor: number): number =>
-  (dimension === 'overworld' ? floor : NETHER_AMBIENT + (1 - NETHER_AMBIENT) * floor);
+const END_AMBIENT = 0.16;
+const ambientFor = (dimension: Dimension, floor: number): number => {
+  if (dimension === 'overworld') return floor;
+  const ambient = dimension === 'end' ? END_AMBIENT : NETHER_AMBIENT;
+  return ambient + (1 - ambient) * floor;
+};
 
 /** Synthesized sound to play when a mob dies; variants reuse their base mob's voice. */
 const MOB_DEATH_SOUNDS: Record<string, string> = {
@@ -620,7 +625,13 @@ export class Game {
   private portalTick(): void {
     if (this.portalCooldown > 0) this.portalCooldown--;
     const p = this.player;
-    const inPortal = !p.dead && blocks.blockOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.5), Math.floor(p.pos.z))).id === 'nether_portal';
+    const standingIn = blocks.blockOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.5), Math.floor(p.pos.z)))?.id ?? 'air';
+    // an end portal takes a traveller at once, as vanilla's does; a nether one counts them in
+    if (!p.dead && standingIn === 'end_portal' && !this.travelling && this.portalCooldown <= 0) {
+      void this.travel(this.world.dimension === 'end' ? 'overworld' : 'end');
+      return;
+    }
+    const inPortal = !p.dead && standingIn === 'nether_portal';
     if (!inPortal || this.travelling) {
       if (this.portalTicks > 0) this.portalTicks -= 2;
       if (this.portalTicks < 0) this.portalTicks = 0;
@@ -672,6 +683,12 @@ export class Game {
       this.world.dispose();
       this.world = this.makeWorld(to);
       this.meta.dimension = to;
+      // the End is not reached by scaling: vanilla puts a traveller on its own obsidian platform,
+      // and sends them home to where they slept or spawned
+      if (to === 'end' || from === 'end') {
+        await this.arriveInEnd(to);
+        return;
+      }
       const [tx, tz] = scalePosition(p.pos.x, p.pos.z, from, to);
       const minY = to === 'nether' ? NETHER_FLOOR + 1 : WORLD_MIN_Y + 1;
       const maxY = to === 'nether' ? NETHER_ROOF - 1 : 319;
@@ -697,6 +714,43 @@ export class Game {
     } finally {
       this.travelling = false;
     }
+  }
+
+  /**
+   * Arriving in the End, or coming home from it. Vanilla builds a five-by-five obsidian platform at
+   * (100, 49, 0) and drops the traveller onto it, clearing whatever was in the way; going the other
+   * way puts them back where they sleep, or at the world spawn.
+   */
+  private async arriveInEnd(to: Dimension): Promise<void> {
+    const p = this.player;
+    if (to === 'end') {
+      const [px, py, pz] = END_PLATFORM;
+      p.pos.set(px + 0.5, py + 1, pz + 0.5);
+      p.vel.set(0, 0, 0);
+      await this.waitForChunks(px, pz);
+      const obsidian = blocks.defaultState('obsidian');
+      for (let dx = -2; dx <= 2; dx++)
+        for (let dz = -2; dz <= 2; dz++) {
+          this.world.setBlock(px + dx, py, pz + dz, obsidian);
+          for (let dy = 1; dy <= 3; dy++) this.world.setBlock(px + dx, py + dy, pz + dz, 0);
+        }
+      p.pos.set(px + 0.5, py + 1, pz + 0.5);
+    } else {
+      const [sx, sy, sz] = p.spawn ?? [0, 70, 0];
+      p.pos.set(sx, sy, sz);
+      p.vel.set(0, 0, 0);
+      await this.waitForChunks(Math.floor(sx), Math.floor(sz));
+      // put them on top of whatever is there rather than inside it
+      const ground = this.world.topBlock(Math.floor(sx), Math.floor(sz));
+      p.pos.set(Math.floor(sx) + 0.5, Math.max(sy, ground + 1), Math.floor(sz) + 0.5);
+    }
+    p.fallDistance = 0;
+    p.onGround = false;
+    this.portalCooldown = PORTAL_COOLDOWN;
+    this.portalTicks = 0;
+    this.sky.setDimension(to);
+    this.uniforms.ambient.value = ambientFor(to, this.ambientFloor);
+    this.chat.addLine(to === 'end' ? 'Entering the End' : 'Leaving the End');
   }
 
   /**
@@ -2895,6 +2949,13 @@ export class Game {
       this.strikeFlint(t);
       return;
     }
+    if (held.id === 'ender_eye' && t && blocks.blockOf(t.state).id === 'end_portal_frame' && blocks.prop(t.state, 'eye') !== 'true') {
+      this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'eye', 'true'));
+      this.audio.play('click', { x: t.x, y: t.y, z: t.z, pitch: 1.4 });
+      if (p.gamemode === 'survival') p.inventory.consumeSelected();
+      this.tryOpenEndPortal(t.x, t.y, t.z);
+      return;
+    }
     if (def.behavior === 'hoe' && t && this.tillSoil(t)) return;
     if (held.id === 'bone_meal' && t) {
       if (applyBoneMeal(this.simulationWorld(), t.x, t.y, t.z, t.state)) {
@@ -2923,6 +2984,34 @@ export class Game {
     }
     this.audio.play('fizz', { x, y, z });
     if (p.gamemode === 'survival') p.inventory.damageSelected(1);
+  }
+
+  /**
+   * The end portal: twelve frames in a ring with an eye in every one, and the three by three inside
+   * them fills with portal. Vanilla checks the ring from each frame, so the last eye is the one
+   * that opens it.
+   */
+  private tryOpenEndPortal(x: number, y: number, z: number): void {
+    const frameAt = (bx: number, bz: number): boolean => {
+      const s = this.world.getBlock(bx, y, bz);
+      return s !== 0 && blocks.blockOf(s).id === 'end_portal_frame' && blocks.prop(s, 'eye') === 'true';
+    };
+    // the frame ring surrounds a three-by-three, so its middle is within two blocks of any frame
+    for (let dx = -2; dx <= 2; dx++)
+      for (let dz = -2; dz <= 2; dz++) {
+        const cx = x + dx;
+        const cz = z + dz;
+        let whole = true;
+        for (let i = -1; i <= 1 && whole; i++) {
+          if (!frameAt(cx + i, cz - 2) || !frameAt(cx + i, cz + 2) || !frameAt(cx - 2, cz + i) || !frameAt(cx + 2, cz + i)) whole = false;
+        }
+        if (!whole) continue;
+        const portal = blocks.defaultState('end_portal');
+        for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) this.world.setBlock(cx + i, y, cz + j, portal);
+        this.audio.play('enchant', { x: cx, y, z: cz });
+        this.chat.addLine('The end portal opens');
+        return;
+      }
   }
 
   /** The world as the portal code wants it: plain block reads and writes. */
