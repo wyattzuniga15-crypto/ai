@@ -97,6 +97,9 @@ function readSource(dir: string, prefix: string, file: string): Source | null {
   return { name, w: fw, h: fh, frames, seq, interpolate: anim.interpolate === true };
 }
 
+/** Entity textures the block atlas takes in, and the names block models reference them by. */
+const ENTITY_BLOCK_TEXTURES: [string, string][] = [['end_portal.png', 'block/end_portal_stars']];
+
 /** Simple shelf packer: rows of equal height, sorted tallest first. */
 function pack(sources: Source[], width: number): { placements: Map<Source, [number, number][]>; height: number } {
   const rects: { src: Source; frame: number; w: number; h: number }[] = [];
@@ -175,6 +178,16 @@ export function buildAtlases(): { name: string; tiles: number; width: number; he
     for (const f of listFiles(dir, '.png')) {
       const s = readSource(dir, cat, f);
       if (s) sources.push(s);
+    }
+    // vanilla draws the End portal and gateway with a shader rather than a block texture, so their
+    // starfield lives under textures/entity; the atlas takes it in so a block model can name it
+    if (cat === 'block') {
+      for (const [file, name] of ENTITY_BLOCK_TEXTURES) {
+        const src = path.join(ASSETS, 'textures', 'entity', file);
+        if (!fs.existsSync(src)) continue;
+        const s = readSource(path.dirname(src), 'block', path.basename(src));
+        if (s) sources.push({ ...s, name });
+      }
     }
     const { json, png } = buildAtlas(cat, sources);
     fs.writeFileSync(path.join(outDir, `${cat}s.png`), png);

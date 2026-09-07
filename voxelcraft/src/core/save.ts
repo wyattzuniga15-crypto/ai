@@ -21,6 +21,10 @@ export interface WorldMeta {
   maps?: { id: number; scale: number; cx: number; cz: number; locked?: boolean; colors: string }[];
   /** The state of the sky: whether it is raining, and how long until it changes. */
   weather?: { rainTime: number; thunderTime: number; raining: boolean; thundering: boolean; rainLevel: number; thunderLevel: number };
+  /** Set once the Ender Dragon has been beaten, so the End never puts another one up. */
+  dragonKilled?: boolean;
+  /** The level the End's exit portal stands at, kept as vanilla keeps the fight's portal position. */
+  endPodiumY?: number;
   /** Which world the player logged out in, and where they stood in the ones they have left. */
   dimension?: Dimension;
   dimensionSpots?: Partial<Record<Dimension, [number, number, number]>>;

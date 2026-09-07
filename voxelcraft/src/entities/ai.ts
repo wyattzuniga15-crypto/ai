@@ -1352,4 +1352,64 @@ export const witherGoal = (): Goal => ({
   },
 });
 
+// ---------------------------------------------------------------------------------------------
+// The Ender Dragon
+// ---------------------------------------------------------------------------------------------
+/** The circle vanilla flies the dragon around, and the height it holds. */
+const DRAGON_RADIUS = 45;
+export const DRAGON_HEIGHT = 78;
+
+/**
+ * Vanilla's dragon: it circles the middle island, dives at whoever is down there, and comes back to
+ * perch over the portal. While a crystal is still standing it heals, which is what makes the
+ * crystals the fight rather than the dragon.
+ */
+export const dragonGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const angle = (typeof m.extra.angle === 'number' ? m.extra.angle : (m.extra.angle = 0)) + 0.02;
+    m.extra.angle = angle;
+    // the crystals still standing heal it, one health every ten ticks each, as vanilla does
+    const crystals = w.mobsNear(0, DRAGON_HEIGHT, 0, 128).filter((o) => o.def.id === 'end_crystal' && !o.dead);
+    m.extra.crystals = crystals.length;
+    if (crystals.length && m.age % 10 === 0) m.health = Math.min(m.maxHealth, m.health + 1);
+    // vanilla draws a beam from every crystal that is healing it, which is how a player finds them
+    for (const c of crystals) {
+      c.extra.beam = 2;
+      c.extra.beamX = m.pos.x;
+      c.extra.beamY = m.pos.y + 1;
+      c.extra.beamZ = m.pos.z;
+    }
+    const p = w.playerPos();
+    const near = Math.hypot(p.x, p.z) < DRAGON_RADIUS + 20 && w.playerTargetable();
+    const diving = near && crystals.length === 0 && Math.sin(angle * 3) > 0.6;
+    if (diving) {
+      // a pass at the player, low over the island
+      m.moveTarget = new THREE.Vector3(p.x, p.y + 3, p.z);
+      m.moveSpeed = 1.6;
+      m.moveTimeout = 40;
+      m.lookTarget = w.playerEye();
+      const a = m.aabb();
+      const b = w.playerBox();
+      if (a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY && a.minZ < b.maxZ && a.maxZ > b.minZ && m.attackCooldown === 0) {
+        w.hurtPlayer(m.def.damage, m.pos, m);
+        m.attackCooldown = 20;
+      }
+      return;
+    }
+    // the circle: vanilla keeps it turning around the middle of the island
+    const x = Math.cos(angle) * DRAGON_RADIUS;
+    const z = Math.sin(angle) * DRAGON_RADIUS;
+    m.moveTarget = new THREE.Vector3(x, DRAGON_HEIGHT + Math.sin(angle * 2) * 6, z);
+    m.moveSpeed = 1.2;
+    m.moveTimeout = 60;
+    // it faces the way it is going, which is what makes the circling read as flight
+    m.lookTarget = new THREE.Vector3(Math.cos(angle + 0.4) * DRAGON_RADIUS, DRAGON_HEIGHT, Math.sin(angle + 0.4) * DRAGON_RADIUS);
+  },
+});
+
+/** Whether anything is still healing the dragon: vanilla lets nothing hurt it while one stands. */
+export const dragonShielded = (m: Mob): boolean => (typeof m.extra.crystals === 'number' ? m.extra.crystals : 0) > 0;
+
 export { FLAG_MOVE as _FLAG_MOVE };

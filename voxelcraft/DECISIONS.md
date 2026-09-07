@@ -843,3 +843,30 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      a section dirty and so never meshed one. The Nether looked like it worked because its arrival
      chunks were meshed by the block edits the portal builder made. The step now ends in the worker,
      where it belongs, and the Nether has had its glowstone and lava lighting the rock ever since.
+
+101. **The dragon fight.** The dragon belongs to the dimension, not to a chunk: vanilla keeps it in
+     the fight's own saved state, so ours is spawned by the game whenever the End has none and the
+     middle chunk is loaded, kept out of the chunk saves so a reload can never leave two of them,
+     and never put up again once `dragonKilled` is set. Every crystal still standing heals it one
+     health every ten ticks and draws vanilla's beam to it, and while one stands nothing can touch
+     it at all — that is what makes the crystals the fight rather than the dragon. Breaking one sets
+     off a power-six blast where it stood, which the obsidian pillar under it shrugs off exactly as
+     vanilla's does. It circles the island at radius forty-five and dives at whoever is down there
+     once the crystals are gone, is never knocked about, and rides vanilla's pink boss bar.
+
+     The exit portal is vanilla's `EndPodiumFeature`, transcribed: the nine-wide box walked from one
+     below the podium to well above it, the distance to the middle measured in three dimensions so
+     the disc narrows as it climbs and clears a dome rather than a shaft, the bedrock rim, the
+     four-block pillar and its four wall torches. It stands on the island from the start with an
+     empty middle, and the dragon's death fills that middle with the portal, lays the egg on the
+     pillar and gives up five hundred experience. Where it stands is the island's own top, worked
+     out once and kept in the save the way vanilla keeps the fight's portal position, so the
+     podium's own bedrock can never walk it upward.
+
+     Two things had to be fixed to see any of it. The End portal is drawn in vanilla by a block
+     entity renderer, so its model file carries no geometry at all and ours came out invisible: the
+     asset scripts now fold vanilla's own starfield texture into the block atlas and synthesize the
+     quad it belongs on, which is the same thing vanilla's client does in code. And a traveller was
+     being ticked while the next dimension was still being built — a world with no chunks in it yet
+     — so anyone crossing in survival fell through the floor and died of it before they arrived.
+     They are held still until they land, as vanilla holds them.

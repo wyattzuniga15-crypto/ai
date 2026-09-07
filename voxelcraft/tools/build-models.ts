@@ -53,6 +53,27 @@ function normalizeBlockstate(bs: Json): Json {
   return out;
 }
 
+/**
+ * Geometry vanilla's own client supplies in code rather than in JSON: the End portal and the End
+ * gateway are drawn by a block entity renderer, so their models carry no elements at all. These
+ * stand in for that renderer with the same starfield on a plain quad — the portal's surface sits
+ * three quarters of the way up the block, as its shape does in vanilla, and the gateway is a cube.
+ * The `uv` takes a sixteenth of the starfield so the stars land thickly over a single block.
+ */
+const SYNTHESIZED_MODELS: Record<string, Json> = {
+  'block/end_portal': {
+    textures: { particle: 'block/obsidian', portal: 'block/end_portal_stars' },
+    elements: [{ from: [0, 0, 0], to: [16, 12, 16], faces: { up: { uv: [0, 0, 4, 4], texture: '#portal' } } }],
+  },
+  'block/end_gateway': {
+    textures: { particle: 'block/obsidian', portal: 'block/end_portal_stars' },
+    elements: [{
+      from: [0, 0, 0], to: [16, 16, 16],
+      faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((f) => [f, { uv: [0, 0, 4, 4], texture: '#portal' }])),
+    }],
+  },
+};
+
 export function buildModels(): { blockstates: number; models: number; bytes: number } {
   const blockstatesDir = path.join(ASSETS, 'blockstates');
   const modelsDir = path.join(ASSETS, 'models');
@@ -70,6 +91,7 @@ export function buildModels(): { blockstates: number; models: number; bytes: num
       models[`${sub}/${f.slice(0, -5)}`] = normalizeModel(readJson<Json>(path.join(dir, f)));
     }
   }
+  for (const [name, model] of Object.entries(SYNTHESIZED_MODELS)) models[name] = model;
   const out = path.join(PUBLIC, 'models.json');
   writeJson(out, { blockstates, models });
   return { blockstates: Object.keys(blockstates).length, models: Object.keys(models).length, bytes: fs.statSync(out).size };

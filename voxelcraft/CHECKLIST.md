@@ -110,7 +110,8 @@ coverage counts in `COVERAGE.md`.
 
 ## Phase 5 – End
 - [x] End, first slice: the dimension itself — vanilla's island noise for the middle island and the outer ones past the void, end stone and the chorus plants that grow out there, its violet sky and its own ambient light; and the way in: eyes of ender filling a stronghold's twelve frames opens the portal, and standing in it puts the traveller on vanilla's obsidian platform at (100, 49, 0), with the way home going back to where they sleep
-- [ ] End, next: the dragon fight (pillars, crystals, the dragon itself, the exit portal and the egg), credits/poem, end cities, elytra, gateways
+- [x] End, second slice: the dragon fight — the ten obsidian pillars with their end crystals, three of them caged; the dragon itself circling the island and diving at whoever is on it, healed by every crystal still standing and untouchable while one is, on vanilla's pink boss bar; a crystal exploding where it stands when it is broken; and the exit portal vanilla's `EndPodiumFeature` builds, empty from the start and filled with the way home, the dragon egg and five hundred experience when the dragon falls
+- [ ] End, next: credits/poem, end cities, elytra, gateways
 
 ## Phase 6 – polish
 - [ ] Everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio, creative inventory tabs and search

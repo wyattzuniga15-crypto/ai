@@ -17,8 +17,8 @@ import { World, FACE_NORMALS, type LoadedChunk, type RaycastHit, type WorldOptio
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
-import { END_PLATFORM } from '../world/gen/end.ts';
-import { WITHER_SPAWN_TICKS, witherArmoured } from '../entities/ai.ts';
+import { END_PLATFORM, END_SURFACE, endPodium } from '../world/gen/end.ts';
+import { DRAGON_HEIGHT, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
@@ -231,6 +231,8 @@ export class Game {
   private raid: RaidState | null = null;
   /** True while the Wither's bar is up, so it can be taken down again when it dies. */
   private witherBar = false;
+  /** The same for the dragon's bar, which is up for as long as one is alive in the End. */
+  private dragonBar = false;
   private raiders: Mob[] = [];
   /** The sky's mood: whether it is raining and whether it is thundering. */
   readonly weather: WeatherState;
@@ -744,6 +746,9 @@ export class Game {
       const ground = this.world.topBlock(Math.floor(sx), Math.floor(sz));
       p.pos.set(Math.floor(sx) + 0.5, Math.max(sy, ground + 1), Math.floor(sz) + 0.5);
     }
+    // the wait for chunks is a wait in a world with no ground in it yet, so whatever gravity built
+    // up while it ran has to go: left in, it drops the traveller straight through the floor
+    p.vel.set(0, 0, 0);
     p.fallDistance = 0;
     p.onGround = false;
     this.portalCooldown = PORTAL_COOLDOWN;
@@ -766,6 +771,32 @@ export class Game {
       if (ready) return;
       await new Promise((r) => setTimeout(r, 50));
     }
+  }
+
+  /**
+   * The level vanilla builds the exit portal at: the top of the island under (0, 0). It is worked
+   * out once and kept, as vanilla keeps the fight's portal position, so the podium's own bedrock
+   * never moves it the next time it is asked for.
+   */
+  private podiumLevel(): number {
+    if (typeof this.meta.endPodiumY === 'number') return this.meta.endPodiumY;
+    const top = this.world.topBlock(0, 0);
+    const y = top > WORLD_MIN_Y ? top : END_SURFACE;
+    this.meta.endPodiumY = y;
+    return y;
+  }
+
+  /**
+   * Builds the exit portal's podium at the middle of the island. It stands there from the start
+   * with an empty middle, and the dragon's death fills that middle with the portal home.
+   */
+  private buildExitPortal(active: boolean): void {
+    const base = this.podiumLevel();
+    for (const b of endPodium(base, active)) {
+      const state = b.id === 'air' ? 0 : b.props && blocks.has(b.id) ? blocks.stateWith(b.id, b.props) : blocks.defaultState(b.id);
+      this.world.setBlock(b.x, b.y, b.z, state);
+    }
+    if (active) this.audio.play('enchant', { x: 0, y: base, z: 0 });
   }
 
   /** A chunk going out of view: its mobs and dropped items go with it, saved if it holds any. */
@@ -832,6 +863,7 @@ export class Game {
     this.tickWeather();
     this.tickRaid();
     this.tickWither();
+    this.tickDragon();
     this.tickWornEnchantments();
     this.tickEffects();
     this.attackTicks++;
@@ -875,6 +907,13 @@ export class Game {
     }
     const p = this.player;
     if (this.state === 'playing') this.handleHotbarKeys();
+    // vanilla holds a traveller still while the next dimension is built: ticking them through a
+    // world with no chunks in it yet is a fall through the floor, and a long enough one kills
+    if (this.travelling) {
+      p.prevPos.copy(p.pos);
+      p.vel.set(0, 0, 0);
+      return;
+    }
     p.tick(this.input, this.world, this.tickCount);
     if (this.cart) this.seatCart();
     this.trampleFarmland();
@@ -2060,7 +2099,7 @@ export class Game {
     const wither = this.entities.mobs.find((m) => m.def.id === 'wither' && !m.dead);
     if (!wither) {
       if (this.witherBar) {
-        this.hud.setRaidBar(null, 0);
+        this.hud.setBossBar(null, 0);
         this.witherBar = false;
       }
       return;
@@ -2069,7 +2108,37 @@ export class Game {
     const summoning = typeof wither.extra.spawning === 'number' && wither.extra.spawning > 0;
     // vanilla heals it up to full as it gathers itself, then the bar tracks its health
     if (summoning) wither.health = Math.min(wither.maxHealth, wither.maxHealth / 3 + (wither.maxHealth * 2 / 3) * (1 - (wither.extra.spawning as number) / WITHER_SPAWN_TICKS));
-    this.hud.setRaidBar(summoning ? 'Wither — rising' : witherArmoured(wither) ? 'Wither — armoured' : 'Wither', wither.health / wither.maxHealth);
+    this.hud.setBossBar(summoning ? 'Wither — rising' : witherArmoured(wither) ? 'Wither — armoured' : 'Wither', wither.health / wither.maxHealth, 'purple');
+  }
+
+  /**
+   * The dragon's bar, and the one dragon vanilla keeps in the End until it is beaten. Vanilla holds
+   * it in the dimension's own state rather than in a chunk, so it is put back if it ever drifts out
+   * of the loaded world; once it has been killed it stays killed.
+   */
+  private tickDragon(): void {
+    if (this.world.dimension !== 'end') {
+      if (this.dragonBar) {
+        this.hud.setBossBar(null, 0);
+        this.dragonBar = false;
+      }
+      return;
+    }
+    const dragon = this.entities.mobs.find((m) => m.def.id === 'ender_dragon' && !m.dead);
+    if (!dragon) {
+      if (this.dragonBar) {
+        this.hud.setBossBar(null, 0);
+        this.dragonBar = false;
+      }
+      if (this.tickCount % 40 !== 0 || !this.world.getChunk(0, 0)) return;
+      // vanilla's fountain stands on the island from the start, empty until the dragon falls
+      if (typeof this.meta.endPodiumY !== 'number') this.buildExitPortal(false);
+      if (!this.meta.dragonKilled) this.entities.spawn('ender_dragon', 0, DRAGON_HEIGHT, 0, 0);
+      return;
+    }
+    this.dragonBar = true;
+    const shielded = dragonShielded(dragon);
+    this.hud.setBossBar(shielded ? 'Ender Dragon — healing' : 'Ender Dragon', dragon.health / dragon.maxHealth, 'pink');
   }
 
   private tickRaid(): void {
@@ -2089,7 +2158,7 @@ export class Game {
     this.raiders = this.raiders.filter((m) => !m.dead && !m.removed);
     if (raid.over) {
       if (--raid.next > 0) return;
-      this.hud.setRaidBar(null, 0);
+      this.hud.setBossBar(null, 0);
       this.raid = null;
       return;
     }
@@ -2098,7 +2167,7 @@ export class Game {
         raid.over = true;
         raid.won = true;
         raid.next = 100;
-        this.hud.setRaidBar(raidTitle(raid), 1);
+        this.hud.setBossBar(raidTitle(raid), 1);
         this.chat.addLine('Raid defeated — Hero of the Village!', '#5f5');
         this.player.effects.add('hero_of_the_village', 48000, 0);
         return;
@@ -2106,7 +2175,7 @@ export class Game {
       this.spawnWave(raid);
     }
     const left = this.raiders.length;
-    this.hud.setRaidBar(raidTitle(raid), raid.waveSize ? left / raid.waveSize : 0);
+    this.hud.setBossBar(raidTitle(raid), raid.waveSize ? left / raid.waveSize : 0);
     // a raid gives up if the raiders can find nothing to fight
     if (this.player.dead) {
       raid.over = true;
@@ -3579,7 +3648,9 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   /** Mobs plus dropped items inside a chunk, for saving. */
   private serializeChunkEntities(cx: number, cz: number): import('../entities/mob.ts').MobSave[] {
-    const list = this.entities.serializeChunk(cx, cz);
+    // the dragon belongs to the dimension rather than to a chunk, the way vanilla keeps it in the
+    // fight's own state: saving it here would put a second one up beside the one `tickDragon` makes
+    const list = this.entities.serializeChunk(cx, cz).filter((m) => m.type !== 'ender_dragon');
     for (const e of this.itemEntities) {
       if (e.dead || (Math.floor(e.pos.x) >> 4) !== cx || (Math.floor(e.pos.z) >> 4) !== cz) continue;
       list.push({ type: 'item', x: e.pos.x, y: e.pos.y, z: e.pos.z, yaw: 0, health: 0, age: e.age, item: { ...e.stack } });
@@ -3728,7 +3799,9 @@ export class Game {
     let b = Math.max(sky, blk);
     const gamma = this.uniforms.gamma.value as number;
     b = b + (1 - Math.pow(1 - b, 2) - b) * gamma * 0.6;
-    const floor = lightFloor(gamma);
+    // the same floor the terrain shader gets, so a mob is never darker than the ground it stands on:
+    // in the Nether and the End that floor is the dimension's own ambient light
+    const floor = ambientFor(this.world.dimension, lightFloor(gamma));
     b = floor + b * (1 - floor);
     return Math.max(0.05, b);
   }
@@ -4302,6 +4375,19 @@ export class Game {
     if (byPlayer && m.extra.captain === true) {
       this.player.effects.add('bad_omen', 120000, 0);
       this.hud.showToast('Bad Omen');
+    }
+    // an end crystal goes off where it stood, taking the pillar's top with it
+    if (m.def.id === 'end_crystal') {
+      this.explodeAt(m.pos.x, m.pos.y + 1, m.pos.z, 6, null);
+      return;
+    }
+    // the dragon: vanilla opens the way home where it fell and leaves its egg on top
+    if (m.def.id === 'ender_dragon') {
+      this.meta.dragonKilled = true;
+      this.buildExitPortal(true);
+      this.spawnXp(500, 0, 68, 0);
+      this.chat.addLine('The Ender Dragon has been slain');
+      this.hud.showToast('Free the End');
     }
     // vanilla drops the Wither's nether star in code rather than from a table, and it always drops
     if (m.def.id === 'wither') {

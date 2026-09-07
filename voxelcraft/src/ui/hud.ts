@@ -7,6 +7,10 @@ import type { ItemStack } from '../items/inventory.ts';
 
 const T = (p: string) => `url('${import.meta.env.BASE_URL}textures/gui/sprites/hud/${p}.png')`;
 
+/** The boss bar colours vanilla uses for the bosses this game has. */
+export const BOSS_BAR_COLORS = ['red', 'purple', 'pink'] as const;
+export type BossBarColor = (typeof BOSS_BAR_COLORS)[number];
+
 export function renderSlot(el: HTMLElement, stack: ItemStack | null, icons: ItemIcons): void {
   el.replaceChildren();
   if (!stack) return;
@@ -124,14 +128,18 @@ export class Hud {
     this.root.classList.toggle('hidden', !v);
   }
 
-  /** Shows the raid bar, or hides it when `title` is null. */
-  setRaidBar(title: string | null, fraction: number): void {
+  /**
+   * Shows the boss bar, or hides it when `title` is null. Vanilla gives each boss its own colour:
+   * red for a raid, purple for the Wither, pink for the dragon.
+   */
+  setBossBar(title: string | null, fraction: number, color: BossBarColor = 'red'): void {
     if (!this.raidBar) {
       this.raidBar = h('div', { class: 'bossbar' }, h('div', { class: 'label' }), h('div', { class: 'track' }, h('div', { class: 'fill' })));
       this.root.append(this.raidBar);
     }
     this.raidBar.classList.toggle('hidden', !title);
     if (!title) return;
+    for (const c of BOSS_BAR_COLORS) this.raidBar.classList.toggle(c, c === color);
     (this.raidBar.querySelector('.label') as HTMLElement).textContent = title;
     (this.raidBar.querySelector('.fill') as HTMLElement).style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
   }

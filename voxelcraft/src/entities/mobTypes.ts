@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, blazeGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, blazeGoal, dragonGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -597,6 +597,81 @@ const witherModel: ModelDef = {
   ],
 };
 
+/**
+ * The end crystal: a glass cage around a core, standing on its base. Mojang doubled the texture's
+ * resolution at some point, so the boxes here are twice vanilla's numbers on a 128x64 sheet, which
+ * comes to the same size in the world.
+ */
+const endCrystalModel: ModelDef = {
+  texture: 'end_crystal/end_crystal.png', texW: 128, texH: 64,
+  parts: [
+    { name: 'base', pivot: [0, 24, 0], boxes: [{ uv: [0, 32], box: [-12, -8, -12, 24, 8, 24] }] },
+    { name: 'glass', pivot: [0, 12, 0], boxes: [{ uv: [0, 0], box: [-8, -8, -8, 16, 16, 16] }] },
+    { name: 'core', pivot: [0, 12, 0], boxes: [{ uv: [0, 0], box: [-6, -6, -6, 12, 12, 12] }] },
+  ],
+};
+
+/** Vanilla draws the dragon around its middle; ours stands it on its feet. */
+const DRAGON_LIFT = -61;
+
+/**
+ * The Ender Dragon, transcribed from vanilla's model: the long body with its ridge of scales, the
+ * neck and head with their upper lip and jaw, the two wings in two joints each, and four legs of
+ * three joints. The wing membranes are flat quads hanging off the bones, as vanilla draws them.
+ */
+const dragonModel: ModelDef = {
+  texture: 'enderdragon/dragon.png', texW: 256, texH: 256,
+  parts: [
+    // vanilla's own part offsets, lifted by DRAGON_LIFT so the hind feet come down on the ground
+    { name: 'body', pivot: [0, 4 + DRAGON_LIFT, 8], boxes: [
+      { uv: [0, 0], box: [-12, 0, -16, 24, 24, 64] },
+      { uv: [220, 53], box: [-1, -6, -10, 2, 6, 12] },
+      { uv: [220, 53], box: [-1, -6, 10, 2, 6, 12] },
+      { uv: [220, 53], box: [-1, -6, 30, 2, 6, 12] },
+    ] },
+    { name: 'neck', pivot: [0, DRAGON_LIFT, -8], boxes: [
+      { uv: [192, 104], box: [-5, -5, -5, 10, 10, 10] },
+      { uv: [48, 0], box: [-1, -9, -3, 2, 4, 6] },
+    ] },
+    { name: 'head', pivot: [0, DRAGON_LIFT, -20], boxes: [
+      { uv: [176, 44], box: [-6, -1, -24, 12, 5, 16] },
+      { uv: [112, 30], box: [-8, -8, -10, 16, 16, 16] },
+      { uv: [0, 0], box: [-5, -12, -4, 2, 4, 6] },
+      { uv: [0, 0], box: [3, -12, -4, 2, 4, 6], mirror: true },
+      { uv: [112, 0], box: [-5, -3, -22, 2, 2, 4] },
+      { uv: [112, 0], box: [3, -3, -22, 2, 2, 4], mirror: true },
+    ] },
+    { name: 'jaw', parent: 'head', pivot: [0, 4 + DRAGON_LIFT, -28], boxes: [{ uv: [176, 65], box: [-6, 0, -16, 12, 4, 16] }] },
+    { name: 'left_wing', pivot: [12, 5 + DRAGON_LIFT, 2], boxes: [
+      { uv: [112, 88], box: [0, -4, -4, 56, 8, 8], mirror: true },
+      { uv: [64, 88], box: [0, 0, 2, 56, 0, 56], mirror: true },
+    ] },
+    { name: 'left_wing_tip', parent: 'left_wing', pivot: [68, 5 + DRAGON_LIFT, 2], boxes: [
+      { uv: [112, 136], box: [0, -2, -2, 56, 4, 4], mirror: true },
+      { uv: [64, 88], box: [0, 0, 2, 56, 0, 56], mirror: true },
+    ] },
+    { name: 'right_wing', pivot: [-12, 5 + DRAGON_LIFT, 2], boxes: [
+      { uv: [112, 88], box: [-56, -4, -4, 56, 8, 8] },
+      { uv: [64, 88], box: [-56, 0, 2, 56, 0, 56] },
+    ] },
+    { name: 'right_wing_tip', parent: 'right_wing', pivot: [-68, 5 + DRAGON_LIFT, 2], boxes: [
+      { uv: [112, 136], box: [-56, -2, -2, 56, 4, 4] },
+      { uv: [64, 88], box: [-56, 0, 2, 56, 0, 56] },
+    ] },
+    ...([1, -1] as const).flatMap((m) => {
+      const side = m === 1 ? 'left' : 'right';
+      return [
+        { name: `${side}_front_leg`, pivot: [m * 12, 20 + DRAGON_LIFT, 2] as [number, number, number], boxes: [{ uv: [112, 104] as [number, number], box: [-4, -4, -4, 8, 24, 8] as [number, number, number, number, number, number] }] },
+        { name: `${side}_front_leg_tip`, parent: `${side}_front_leg`, pivot: [m * 12, 40 + DRAGON_LIFT, 1] as [number, number, number], boxes: [{ uv: [226, 138] as [number, number], box: [-3, -1, -3, 6, 24, 6] as [number, number, number, number, number, number] }] },
+        { name: `${side}_front_foot`, parent: `${side}_front_leg_tip`, pivot: [m * 12, 63 + DRAGON_LIFT, 1] as [number, number, number], boxes: [{ uv: [144, 104] as [number, number], box: [-4, 0, -12, 8, 4, 16] as [number, number, number, number, number, number] }] },
+        { name: `${side}_hind_leg`, pivot: [m * 16, 16 + DRAGON_LIFT, 42] as [number, number, number], boxes: [{ uv: [196, 0] as [number, number], box: [-8, -4, -8, 16, 32, 16] as [number, number, number, number, number, number] }] },
+        { name: `${side}_hind_leg_tip`, parent: `${side}_hind_leg`, pivot: [m * 16, 48 + DRAGON_LIFT, 38] as [number, number, number], boxes: [{ uv: [0, 0] as [number, number], box: [-6, -2, 0, 12, 32, 12] as [number, number, number, number, number, number] }] },
+        { name: `${side}_hind_foot`, parent: `${side}_hind_leg_tip`, pivot: [m * 16, 79 + DRAGON_LIFT, 42] as [number, number, number], boxes: [{ uv: [112, 0] as [number, number], box: [-9, 0, -20, 18, 6, 24] as [number, number, number, number, number, number] }] },
+      ];
+    }),
+  ],
+};
+
 /** Bee skins: angry and nectar-carrying bees swap texture like vanilla's four variants. */
 export function beeTexture(angry: boolean, nectar: boolean): string {
   return `bee/bee${angry ? '_angry' : ''}${nectar ? '_nectar' : ''}.png`;
@@ -777,6 +852,10 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   ghast: { model: ghastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 64, flying: true, fireproof: true, scale: 4.5, override: { health: 10, damage: 6 }, goals: () => [loseTargetGoal(), targetPlayerGoal(64), ghastGoal()] },
   magma_cube: { model: magmaCubeModel, animation: 'slime', eyeHeight: 0.325, followRange: 16, fireproof: true, scale: 1, override: { width: 0.52, height: 0.52, health: 1, damage: 3, xp: 1 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
   magma_cube_medium: { model: magmaCubeModel, animation: 'slime', eyeHeight: 0.65, followRange: 16, fireproof: true, scale: 2, data: 'magma_cube', loot: 'magma_cube', override: { width: 1.04, height: 1.04, health: 4, damage: 4, xp: 2 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
+  // the dragon: it circles the middle island and cannot be hurt while a crystal is still healing it
+  ender_dragon: { model: dragonModel, animation: 'dragon', eyeHeight: 4, followRange: 128, flying: true, fireproof: true, goals: () => [dragonGoal()] },
+  // the end crystal: it stands where it is put, heals the dragon, and goes off when it is hit
+  end_crystal: { model: endCrystalModel, animation: 'crystal', eyeHeight: 1, followRange: 0, flying: true, fireproof: true, data: 'end_crystal', override: { health: 1, damage: 0, xp: 0, width: 2, height: 2 }, goals: () => [] },
   // the Wither: summoned rather than spawned, flying, and armoured once it is half beaten
   wither: { model: witherModel, animation: 'wither', eyeHeight: 3.1, followRange: 64, flying: true, fireproof: true, scale: 2, goals: () => [witherGoal()] },
   magma_cube_big: { model: magmaCubeModel, animation: 'slime', eyeHeight: 1.3, followRange: 16, fireproof: true, scale: 4, data: 'magma_cube', loot: 'magma_cube', override: { width: 2.08, height: 2.08, health: 16, damage: 6, xp: 4 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },

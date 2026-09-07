@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -293,6 +293,11 @@ export class Mob {
       if (this.health <= this.maxHealth / 2) amount /= 2;
       knockback = 0;
     }
+    // and nothing touches the dragon while a crystal is still healing it
+    if (this.def.id === 'ender_dragon') {
+      if (typeof this.extra.crystals === 'number' && this.extra.crystals > 0) return false;
+      knockback = 0;
+    }
     // horse armour soaks damage with vanilla's armour formula (4% per point)
     const points = typeof this.extra.armor === 'string' ? horseArmorPoints(this.extra.armor) : 0;
     if (points > 0) amount *= 1 - Math.min(20, points) / 25;
@@ -323,6 +328,9 @@ export class Mob {
     if (this.invulnerable > 0) this.invulnerable--;
     if (this.hurtTime > 0) this.hurtTime--;
     if (this.attackCooldown > 0) this.attackCooldown--;
+    // the dragon renews a crystal's healing beam every tick it draws on it, so letting it run down
+    // here is what makes the link vanish the moment the dragon dies or flies out of reach
+    if (this.def.animation === 'crystal' && typeof this.extra.beam === 'number' && this.extra.beam > 0) this.extra.beam--;
     this.tickEffects();
     if (this.dead) {
       if (++this.deathTime >= 20) this.removed = true;
@@ -593,10 +601,12 @@ export class Mob {
   }
 
   /**
-   * The guardian's beam: vanilla draws a long quad from the eye to what it is aiming at, its
-   * texture scrolling along, thin while the charge builds and snapping wide just before it lands.
+   * Beams drawn between two points: the guardian's, which grows out of its eye and snaps wide just
+   * before it lands, and the end crystal's, which links it to whatever it is healing. Both are the
+   * same shape in vanilla, a quad down the axis with its texture scrolling along it.
    */
   private renderBeam(): void {
+    const crystal = this.def.animation === 'crystal';
     const charging = typeof this.extra.beam === 'number' ? this.extra.beam : 0;
     if (!charging || this.dead) {
       if (this.beamMesh) this.beamMesh.visible = false;
@@ -612,14 +622,15 @@ export class Mob {
       b.rotateY(Math.PI / 2);
       const geo = mergeGeometries([a, b]);
       geo.translate(0, 0.5, 0); // grows from the eye toward the target
-      const tex = entityTexture(this.base, 'guardian_beam.png');
+      const tex = entityTexture(this.base, crystal ? 'end_crystal/end_crystal_beam.png' : 'guardian_beam.png');
       tex.wrapT = THREE.RepeatWrapping;
       const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
       this.beamMesh = new THREE.Mesh(geo, mat);
       this.beamMesh.frustumCulled = false;
       this.model.group.parent?.add(this.beamMesh);
     }
-    const eye = this.eyePos();
+    // the guardian's beam leaves its eye; the crystal's leaves the spinning core over its base
+    const eye = crystal ? this.pos.clone().setY(this.pos.y + 1.3) : this.eyePos();
     const full = guardianAttackTicks(this.def.id === 'elder_guardian');
     const progress = charging / full;
     const length = eye.distanceTo(target);
@@ -627,13 +638,13 @@ export class Mob {
     this.beamMesh.position.copy(eye);
     // point the quad down the beam, and roll it to face the camera as vanilla's billboard does
     this.beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), target.clone().sub(eye).normalize());
-    this.beamMesh.scale.set(progress > 0.9 ? 0.35 : 0.05 + progress * 0.1, length, 1);
+    this.beamMesh.scale.set(crystal ? 0.4 : progress > 0.9 ? 0.35 : 0.05 + progress * 0.1, length, 1);
     const mat = this.beamMesh.material as THREE.MeshBasicMaterial;
     if (mat.map) {
       mat.map.repeat.set(1, Math.max(1, length));
       mat.map.offset.y = -(this.age % 20) / 20;
     }
-    mat.opacity = progress > 0.9 ? 1 : 0.6;
+    mat.opacity = crystal ? 0.8 : progress > 0.9 ? 1 : 0.6;
   }
 
   /** Draws the glowing outline while the effect lasts, and only builds it the first time. */
@@ -670,7 +681,7 @@ export class Mob {
     g.position.copy(this.prev).lerp(this.pos, alpha);
     this.renderFire();
     this.renderGlow();
-    if (this.def.animation === 'guardian') this.renderBeam();
+    if (this.def.animation === 'guardian' || this.def.animation === 'crystal') this.renderBeam();
     const baby = this.isBaby;
     g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
     const headPart = this.model.parts.get('head');
@@ -908,6 +919,40 @@ export class Mob {
         set('left_leg', legB * 1.2);
         const body = parts.get('body');
         if (body) body.rotation.z = Math.cos(swing * 0.6662) * 0.08 * amt;
+        break;
+      }
+      case 'crystal': {
+        // vanilla spins the cage and bobs it over the base
+        const t = (this.age + alpha) * 0.05;
+        for (const name of ['glass', 'core']) {
+          const part = parts.get(name);
+          if (!part) continue;
+          part.rotation.y = t * (name === 'core' ? -1.5 : 1);
+          part.position.y = -Math.sin(t * 1.6) * 2 - 2;
+          if (name === 'core') part.rotation.x = t * 0.8;
+        }
+        break;
+      }
+      case 'dragon': {
+        // the wings beat, the neck and tail sway, and the legs tuck up in flight
+        const beat = Math.sin((this.age + alpha) * 0.15);
+        const wing = parts.get('left_wing'), wingR = parts.get('right_wing');
+        const tipL = parts.get('left_wing_tip'), tipR = parts.get('right_wing_tip');
+        // the wings hold out level and beat around that, as vanilla's do
+        if (wing) wing.rotation.z = beat * 0.25;
+        if (wingR) wingR.rotation.z = -beat * 0.25;
+        if (tipL) tipL.rotation.z = -0.15 + beat * 0.3;
+        if (tipR) tipR.rotation.z = 0.15 - beat * 0.3;
+        const sway = Math.sin((this.age + alpha) * 0.08) * 0.1;
+        const neck = parts.get('neck'), headPart2 = parts.get('head');
+        if (neck) neck.rotation.x = sway - 0.1;
+        if (headPart2) headPart2.rotation.x = sway * 1.5;
+        const jaw = parts.get('jaw');
+        if (jaw) jaw.rotation.x = -(Math.sin((this.age + alpha) * 0.05) * 0.1 + 0.1);
+        for (const [name, part] of parts) {
+          if (!name.endsWith('_leg') && !name.endsWith('_leg_tip')) continue;
+          part.rotation.x = name.includes('hind') ? -0.6 : -0.4;
+        }
         break;
       }
       case 'phantom': {
