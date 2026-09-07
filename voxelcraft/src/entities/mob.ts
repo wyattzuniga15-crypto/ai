@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'silverfish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -828,6 +828,16 @@ export class Mob {
         for (let i = 1; i <= 8; i++) {
           const t = parts.get(`tentacle${i}`);
           if (t) t.rotation.x = 0.35 + swim * 0.5;
+        }
+        break;
+      }
+      case 'silverfish': {
+        // vanilla ripples a silverfish's segments along its length as it scuttles
+        let i = 0;
+        for (const [name, part] of parts) {
+          if (!name.startsWith('body_part') && !name.startsWith('section')) continue;
+          part.rotation.y = Math.cos((this.age + alpha) * 0.9 + i) * 0.4 * amt;
+          i++;
         }
         break;
       }

@@ -1018,6 +1018,7 @@ export class Game {
     this.tickWither();
     this.tickDragon();
     this.tickFireworks();
+    this.tickCuring();
     this.tickAmbience();
     this.tickWornEnchantments();
     this.tickEffects();
@@ -1445,6 +1446,11 @@ export class Game {
       if (xp > 0) this.spawnXp(xp, x + 0.5, y + 0.5, z + 0.5);
       if (held && items.byId.get(held.id)?.durability && def.hardness > 0) p.inventory.damageSelected(1);
       p.exhaustion += 0.005;
+    }
+    // vanilla's infested blocks let a silverfish out when they are broken
+    if (def.id.startsWith('infested_')) {
+      this.entities.spawn('silverfish', x + 0.5, y, z + 0.5, Math.random() * Math.PI * 2);
+      this.particles.poof(x + 0.5, y + 0.5, z + 0.5, 10, Math.random, 1, 1);
     }
     // a jukebox that is knocked out stops its record before the disc falls out with everything else
     if (entity?.type === 'jukebox') this.stopRecord(x, y, z);
@@ -3046,6 +3052,28 @@ export class Game {
     if (!this.record || this.record.x !== x || this.record.y !== y || this.record.z !== z) return;
     this.record = null;
     this.audio.stopTrack();
+  }
+
+  /**
+   * Runs a zombie villager's cure down. Vanilla shakes it for three to five minutes and then it
+   * stands up a villager again, keeping how hurt it was.
+   */
+  private tickCuring(): void {
+    for (const m of this.entities.mobs) {
+      if (m.dead || m.def.id !== 'zombie_villager' || typeof m.extra.curing !== 'number') continue;
+      const left = (m.extra.curing as number) - 1;
+      m.extra.curing = left;
+      if (left % 40 === 0) this.particles.poof(m.pos.x, m.pos.y + m.height * 0.8, m.pos.z, 3, Math.random, m.width, 0.4);
+      if (left > 0) continue;
+      const villager = this.entities.spawn('villager', m.pos.x, m.pos.y, m.pos.z, m.yaw);
+      if (villager) {
+        villager.health = Math.min(villager.maxHealth, m.health);
+        villager.persistent = true;
+      }
+      this.entities.remove(m);
+      this.audio.play('orb', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.4 });
+      this.chat.addLine('The villager is cured', '#aaa');
+    }
   }
 
   /**
@@ -4760,6 +4788,19 @@ export class Game {
       this.dropStack({ id: `${String(m.extra.color ?? 'white')}_wool`, count: n }, m.pos.x, at.y, m.pos.z, true);
       if (survival) p.inventory.damageSelected(1);
       this.audio.play('shear', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (m.def.id === 'zombie_villager' && held.id === 'golden_apple' && m.effects.has('weakness')) {
+      // vanilla cures a weakened zombie villager with a golden apple, over three to five minutes
+      if (typeof m.extra.curing !== 'number') {
+        const ticks = 3600 + Math.floor(Math.random() * 2400);
+        m.extra.curing = ticks;
+        if (survival) p.inventory.consumeSelected();
+        m.addEffect('strength', ticks, 0);
+        this.particles.poof(m.pos.x, m.pos.y + m.height, m.pos.z, 12, Math.random, m.width, 0.5);
+        this.audio.play('orb', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
+        this.chat.addLine('The zombie villager shudders', '#aaa');
+      }
       return true;
     }
     if (held.id === 'shears' && m.def.id === 'mooshroom' && !m.isBaby) {

@@ -237,3 +237,29 @@ describe('the jungle, the ice and the hills', () => {
     expect(shots).toEqual([LLAMA_SPIT_DAMAGE]);
   });
 });
+
+describe('the variants of what was already here', () => {
+  it('registers the six that reuse a model already in the game', () => {
+    expect(MOB_SPECS.silverfish.animation).toBe('silverfish');
+    expect(MOB_SPECS.endermite.animation).toBe('silverfish');
+    expect(MOB_SPECS.silverfish.model.texture).toBe('silverfish.png');
+    expect(MOB_SPECS.endermite.model.texture).toBe('endermite.png');
+    expect(MOB_SPECS.trader_llama.model.texture).toBe('llama/brown.png');
+    expect(MOB_SPECS.trader_llama.loot).toBe('trader_llama');
+    expect(MOB_SPECS.skeleton_horse.model.texture).toBe('horse/horse_skeleton.png');
+    expect(MOB_SPECS.zombie_horse.model.texture).toBe('horse/horse_zombie.png');
+    expect(MOB_SPECS.zombie_villager.model.texture).toBe('zombie_villager/zombie_villager.png');
+    // the undead burn in the sun, and the little ones come for whoever is near
+    expect(MOB_SPECS.zombie_villager.burnsInSun).toBe(true);
+    expect(mobStats('silverfish')).toMatchObject({ health: 8, damage: 1, disposition: 'hostile' });
+    expect(mobStats('endermite')).toMatchObject({ health: 8, damage: 2, disposition: 'hostile' });
+    expect(mobStats('zombie_villager')).toMatchObject({ health: 20, damage: 3, disposition: 'hostile' });
+    expect(mobStats('trader_llama')).toMatchObject({ health: 22, disposition: 'neutral' });
+    expect(mobStats('skeleton_horse')).toMatchObject({ health: 15 });
+    expect(mobStats('zombie_horse')).toMatchObject({ health: 15 });
+  });
+
+  it('gives every registered mob stats to stand on', () => {
+    for (const id of Object.keys(MOB_SPECS)) expect(mobStats(id), id).not.toBeNull();
+  });
+});

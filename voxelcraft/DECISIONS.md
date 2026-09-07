@@ -1254,3 +1254,16 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 
      Three of the four needed vanilla's quarter turn on the body, the same one the cow and the
      turtle need: Bedrock authors a bear's, a panda's and a llama's barrel standing on end.
+
+123. **Six that reuse what was already here.** Not every mob needs a model of its own. A trader
+     llama is a llama in the coat vanilla gives it, arriving in a pair beside the wandering trader
+     with its chests showing; a skeleton horse and a zombie horse are the equine model in a bleached
+     and a rotted skin; a zombie villager is the villager model in the green one, burning in the sun
+     like the rest of the undead. Only the silverfish and the endermite needed geometry, and both
+     ripple their segments along their length rather than walking.
+
+     Each brought the vanilla behaviour that makes it worth having. Breaking one of the infested
+     blocks lets its silverfish out, which is the whole point of them. And a zombie villager that
+     something has weakened takes a golden apple and shakes for three to five minutes before
+     standing up a villager again, keeping how hurt it was — vanilla's cure, minus the villager's
+     memory of the prices it used to charge, which nothing here stores yet.

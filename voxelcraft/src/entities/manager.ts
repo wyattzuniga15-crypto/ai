@@ -460,6 +460,15 @@ export class EntityManager {
       if (m) {
         m.persistent = true;
         m.extra.despawnAt = 48000; // wanders off after a couple of days, like vanilla's timer
+        // vanilla brings two llamas along on leads, which is what carries the trader's goods
+        for (const dx of [-1.5, 1.5]) {
+          const llama = this.spawn('trader_llama', x + dx, top + 1, z, h.rng() * Math.PI * 2);
+          if (llama) {
+            llama.persistent = true;
+            llama.extra.chest = true;
+            llama.extra.trader = true;
+          }
+        }
       }
       return;
     }

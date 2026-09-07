@@ -249,6 +249,35 @@ const llamaModel = (texture = 'llama/creamy.png'): ModelDef => ({
   ],
 });
 
+
+/** The silverfish, a stack of body segments that ripple as it scuttles. */
+const silverfishModel: ModelDef = {
+  texture: 'silverfish.png', texW: 64, texH: 32,
+  parts: [
+    { name: 'body_part_2', pivot: [0, 20, 1], boxes: [{ uv: [0, 9], box: [-3, 0, -1.5, 6, 4, 3] }] },
+    { name: 'body_part_0', pivot: [0, 22, -3.5], boxes: [{ uv: [0, 0], box: [-1.5, 0, -1, 3, 2, 2] }] },
+    { name: 'body_part_1', pivot: [0, 21, -1.5], boxes: [{ uv: [0, 4], box: [-2, 0, -1, 4, 3, 2] }] },
+    { name: 'body_part_3', pivot: [0, 21, 4], boxes: [{ uv: [0, 16], box: [-1.5, 0, -1.5, 3, 3, 3] }] },
+    { name: 'body_part_4', pivot: [0, 22, 7], boxes: [{ uv: [0, 22], box: [-1, 0, -1.5, 2, 2, 3] }] },
+    { name: 'body_part_5', pivot: [0, 23, 9.5], boxes: [{ uv: [11, 0], box: [-1, 0, -1, 2, 1, 2] }] },
+    { name: 'body_part_6', pivot: [0, 23, 11.5], boxes: [{ uv: [13, 4], box: [-0.5, 0, -1, 1, 1, 2] }] },
+    { name: 'body_layer_0', pivot: [0, 16, 1], boxes: [{ uv: [20, 0], box: [-5, 0, -1.5, 10, 8, 3] }] },
+    { name: 'body_layer_1', pivot: [0, 20, 7], boxes: [{ uv: [20, 11], box: [-3, 0, -1.5, 6, 4, 3] }] },
+    { name: 'body_layer_2', pivot: [0, 19, -1.5], boxes: [{ uv: [20, 18], box: [-3, 0, -1.5, 6, 5, 2] }] },
+  ],
+};
+
+/** The endermite, four little sections of the same purple as the enderman that dropped it. */
+const endermiteModel: ModelDef = {
+  texture: 'endermite.png', texW: 64, texH: 32,
+  parts: [
+    { name: 'section_2', pivot: [0, 24, 2.5], boxes: [{ uv: [0, 14], box: [-1.5, -3, 0, 3, 3, 1] }] },
+    { name: 'section_0', pivot: [0, 24, 0], boxes: [{ uv: [0, 0], box: [-2, -3, -4.4, 4, 3, 2] }] },
+    { name: 'section_1', pivot: [0, 24, 0], boxes: [{ uv: [0, 5], box: [-3, -4, -2.4, 6, 4, 5] }] },
+    { name: 'section_3', pivot: [0, 24, 0], boxes: [{ uv: [0, 18], box: [-0.5, -2, 3.5, 1, 2, 1] }] },
+  ],
+};
+
 const phantomModel: ModelDef = {
   texture: 'phantom.png', texW: 64, texH: 64,
   // vanilla PhantomModel raised 20 px so the body hovers just above the entity position
@@ -1052,6 +1081,16 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   panda: { model: pandaModel(), animation: 'quadruped', eyeHeight: 1.1, followRange: 16, goals: () => pandaGoals() },
   polar_bear: { model: polarBearModel, animation: 'quadruped', eyeHeight: 1.3, followRange: 32, goals: () => bearGoals() },
   llama: { model: llamaModel(), animation: 'quadruped', eyeHeight: 1.75, followRange: 32, goals: () => llamaGoals() },
+  // a wandering trader's pair of llamas: the same animal in the coat vanilla gives them
+  trader_llama: { model: llamaModel('llama/brown.png'), animation: 'quadruped', eyeHeight: 1.75, followRange: 32, data: 'trader_llama', loot: 'trader_llama', goals: () => llamaGoals() },
+  // the two little ones that come out of a broken block and an enderman's teleport
+  silverfish: { model: silverfishModel, animation: 'silverfish', eyeHeight: 0.13, followRange: 16, goals: () => [loseTargetGoal(), targetPlayerGoal(16), meleeAttackGoal(), wanderGoal(80, 1, 6), randomLookGoal] },
+  endermite: { model: endermiteModel, animation: 'silverfish', eyeHeight: 0.13, followRange: 16, goals: () => [loseTargetGoal(), targetPlayerGoal(16), meleeAttackGoal(), wanderGoal(80, 1, 6), randomLookGoal] },
+  // the undead horses, which are the same animal in a rotted or bleached coat
+  skeleton_horse: { model: equineModel('horse/horse_skeleton.png', 'horse', null, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
+  zombie_horse: { model: equineModel('horse/horse_zombie.png', 'horse', null, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
+  // and the villager the plague took, which cures back into one given time and a golden apple
+  zombie_villager: { model: villagerModel('zombie_villager/zombie_villager.png'), animation: 'biped', eyeHeight: 1.74, followRange: 35, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(35), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   // vanilla phantom attack damage is 6
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
   witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
