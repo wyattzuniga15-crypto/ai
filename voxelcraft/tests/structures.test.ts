@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import { blocks } from '../src/blocks/registry.ts';
-import { assembleJigsaw, buildStructureSets, jigsawFront, parseState, rotate, rotateState, stampStructure, structureStart, type PoolEntry, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
+import { assembleJigsaw, buildStructureSets, jigsawFront, parseState, pickVariant, rotate, rotateState, stampStructure, structureStart, type PoolEntry, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
 import { Rng } from '../src/core/rng.ts';
 import { WorldGenerator } from '../src/world/gen/generator.ts';
 import { ChunkData } from '../src/world/chunk.ts';
@@ -47,7 +47,7 @@ describe('structure templates', () => {
   });
 
   it('spreads starts one per region, inside the free part of it', () => {
-    const set = { name: 't', placement: 'surface' as const, spacing: 32, separation: 8, salt: 14357618, pieces: [], biomes: [], templates: [], mainTemplates: [], byKey: new Map(), pools: {}, biomeSet: new Set<string>() };
+    const set = { name: 't', placement: 'surface' as const, spacing: 32, separation: 8, salt: 14357618, pieces: [], biomes: [], templates: [], mainTemplates: [], reach: 2, byKey: new Map(), pools: {}, biomeSet: new Set<string>(), variantBiomes: [] };
     const seen = new Set<string>();
     for (let rx = -4; rx <= 4; rx++)
       for (let rz = -4; rz <= 4; rz++) {
@@ -80,8 +80,7 @@ describe('structure templates', () => {
     };
     const written = new Set<string>();
     const placed = stampStructure(access, {
-      set: igloo, template: igloo.mainTemplates[0], x: 100, y: 64, z: -50, rotation: 1, integrity: 1,
-      rng: { next: () => 0.5 } as never,
+      set: igloo, template: igloo.mainTemplates[0], x: 100, y: 64, z: -50, rotation: 1, integrity: 1, decaySeed: 1,
     }, written);
     expect(placed).toBeGreaterThan(80);
     const ids = new Set([...world.values()].filter(Boolean).map((s) => blocks.idOf(s)));
@@ -130,7 +129,7 @@ describe('structure templates', () => {
     const world = new Map<string, number>();
     stampStructure(
       { get: (x, y, z) => world.get(`${x},${y},${z}`) ?? 0, set: (x, y, z, st) => { world.set(`${x},${y},${z}`, st); } },
-      { set: shipwreck, template: withMast, x: 0, y: 40, z: 0, rotation: 1, integrity: 1, rng: { next: () => 0.5 } as never },
+      { set: shipwreck, template: withMast, x: 0, y: 40, z: 0, rotation: 1, integrity: 1, decaySeed: 1 },
       undefined,
       (x, y, z, table) => reported.push(`${table}@${x},${y},${z}`),
     );
@@ -146,7 +145,8 @@ describe('jigsaw villages', () => {
   it.runIf(hasTemplates)('assembles a village of streets and houses around a town centre', () => {
     const { index, templates, pools } = load();
     const village = buildStructureSets(index, templates, pools).find((s) => s.name === 'village')!;
-    expect(village.starts?.length).toBe(5); // one start pool per village type
+    expect(village.variants?.length).toBe(5); // one entry per village type, each with its own biomes
+    expect(village.variants?.map((v) => v.start.split('/')[1]).sort()).toEqual(['desert', 'plains', 'savanna', 'snowy', 'taiga']);
     expect(village.templates.length).toBeGreaterThan(300);
 
     const rng = new Rng(12345);
@@ -166,10 +166,68 @@ describe('jigsaw villages', () => {
     expect(again.map((p) => `${p.template.key}@${p.x},${p.z}`)).toEqual(pieces.map((p) => `${p.template.key}@${p.x},${p.z}`));
   });
 
+  it.runIf(hasTemplates)('picks the village type the biome calls for', () => {
+    const { index, templates, pools } = load();
+    const village = buildStructureSets(index, templates, pools).find((s) => s.name === 'village')!;
+    const pick = (biome: string, seed: number) => pickVariant(village, biome, new Rng(seed))?.start ?? null;
+    // whatever the roll, only the type that belongs in the biome can come out of it
+    for (let seed = 0; seed < 40; seed++) {
+      expect(pick('desert', seed)).toBe('village/desert/town_centers');
+      expect(pick('snowy_plains', seed)).toBe('village/snowy/town_centers');
+      expect(pick('plains', seed)).toBe('village/plains/town_centers');
+      expect(pick('meadow', seed)).toBe('village/plains/town_centers'); // meadows get plains villages
+      expect(pick('jungle', seed)).toBeNull(); // no village type belongs in a jungle
+    }
+  });
+
   it('reads a jigsaw block\'s front from its orientation', () => {
     expect(jigsawFront('up_north')).toBe('up');
     expect(jigsawFront('east_up')).toBe('east');
     expect(jigsawFront('north_up')).toBe('north');
+  });
+});
+
+describe('clipped stamping', () => {
+  const stampInto = (world: Map<string, number>, p: Parameters<typeof stampStructure>[1], clip?: { x0: number; x1: number; z0: number; z1: number }) =>
+    stampStructure(
+      { get: (x, y, z) => world.get(`${x},${y},${z}`) ?? 0, set: (x, y, z, st) => { world.set(`${x},${y},${z}`, st); } },
+      p, undefined, undefined, clip,
+    );
+
+  it.runIf(hasTemplates)('writes the same world one chunk at a time as it does in one go', () => {
+    const { index, templates, pools } = load();
+    const sets = buildStructureSets(index, templates, pools);
+    const shipwreck = sets.find((s) => s.name === 'shipwreck')!;
+    // a 28-block hull spans three chunks, so the tiling has real seams to get wrong
+    const placement = { set: shipwreck, template: shipwreck.byKey.get('shipwreck_with_mast')!, x: 10, y: 40, z: -6, rotation: 3, integrity: 1, decaySeed: 99 };
+    const whole = new Map<string, number>();
+    const written = stampInto(whole, placement);
+    expect(written).toBeGreaterThan(400);
+
+    const tiled = new Map<string, number>();
+    let sum = 0;
+    for (let cx = -1; cx <= 2; cx++)
+      for (let cz = -2; cz <= 1; cz++) sum += stampInto(tiled, placement, { x0: cx * 16, x1: cx * 16 + 15, z0: cz * 16, z1: cz * 16 + 15 });
+    expect(sum).toBe(written);
+    expect([...tiled].sort()).toEqual([...whole].sort());
+  });
+
+  it.runIf(hasTemplates)('crumbles a ruined portal the same way however it is clipped', () => {
+    const { index, templates, pools } = load();
+    const portals = buildStructureSets(index, templates, pools).find((s) => s.name === 'ruined_portal')!;
+    const placement = { set: portals, template: portals.templates[0], x: -3, y: 64, z: -3, rotation: 0, integrity: 0.6, decaySeed: 7 };
+    const whole = new Map<string, number>();
+    const kept = stampInto(whole, placement);
+    // decay is a hash of the position, so the four chunks the portal touches agree on every block
+    const tiled = new Map<string, number>();
+    let sum = 0;
+    for (let cx = -1; cx <= 1; cx++)
+      for (let cz = -1; cz <= 1; cz++) sum += stampInto(tiled, placement, { x0: cx * 16, x1: cx * 16 + 15, z0: cz * 16, z1: cz * 16 + 15 });
+    expect(sum).toBe(kept);
+    expect([...tiled].sort()).toEqual([...whole].sort());
+    // and the decay actually removed something
+    const solid = stampInto(new Map(), { ...placement, integrity: 1 });
+    expect(kept).toBeLessThan(solid);
   });
 });
 

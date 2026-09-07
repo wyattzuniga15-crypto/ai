@@ -3,13 +3,16 @@
  * into the world on vanilla's random spread, one start per spacing×spacing region.
  */
 import { blocks } from '../../blocks/registry.ts';
-import { Rng, mix } from '../../core/rng.ts';
+import { Rng, hashPos, mix } from '../../core/rng.ts';
 import type { BlockAccess } from './features.ts';
 
 export interface JigsawJson { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 export interface LootSpot { pos: [number, number, number]; table: string }
 export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[] }
 export interface PoolEntry { location: string; weight: number; projection: string }
+/** One structure of a set: which pool it starts from, how often it is picked, and where it belongs. */
+export interface StructureVariant { start: string; weight: number; biomes: string[] }
+
 export interface StructureIndexEntry {
   name: string;
   placement: 'surface' | 'ocean_floor' | 'jigsaw';
@@ -20,8 +23,8 @@ export interface StructureIndexEntry {
   biomes: string[];
   /** Pieces that may be placed as the structure itself; the rest are extras the generator adds. */
   main?: string[];
-  /** Jigsaw structures: the pools a village can start from, and how far pieces may chain. */
-  starts?: string[];
+  /** Jigsaw structures: one entry per structure in the set (the five village types), and how far pieces may chain. */
+  variants?: StructureVariant[];
   maxDepth?: number;
 }
 
@@ -42,9 +45,13 @@ export interface StructureSet extends StructureIndexEntry {
   templates: RuntimeTemplate[];
   /** The subset a start is picked from: an igloo is always its top, never a basement piece. */
   mainTemplates: RuntimeTemplate[];
+  /** How many chunks out from its start a structure can reach, so a chunk knows which starts to ask about. */
+  reach: number;
   byKey: Map<string, RuntimeTemplate>;
   pools: Record<string, PoolEntry[]>;
   biomeSet: Set<string>;
+  /** Variant biome lists, resolved once. */
+  variantBiomes: Set<string>[];
 }
 
 /** Parses `id[prop=value,...]` into a block state, or 0 when the block is unknown to us. */
@@ -72,6 +79,17 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
   known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
 });
 
+/**
+ * Chunks a structure can reach from its start: its widest piece plus the offset the start is placed
+ * at, or for a jigsaw structure the radius its assembly is allowed to wander (80 blocks) plus a piece.
+ */
+function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]): number {
+  if (entry.placement === 'jigsaw') return 8;
+  let widest = 0;
+  for (const t of templates) widest = Math.max(widest, t.size[0], t.size[2]);
+  return Math.ceil((widest + 8) / 16);
+}
+
 export function buildStructureSets(
   index: StructureIndexEntry[],
   templates: Record<string, TemplateJson>,
@@ -85,10 +103,34 @@ export function buildStructureSets(
       biomeSet: new Set(entry.biomes),
       templates: built,
       mainTemplates: main.length ? main : built,
+      reach: structureReach(entry, built),
       byKey: new Map(built.map((t) => [t.key, t])),
       pools: pools[entry.name] ?? {},
+      variantBiomes: (entry.variants ?? []).map((v) => new Set(v.biomes)),
     };
   }).filter((s) => s.templates.length > 0);
+}
+
+/**
+ * Vanilla tries the structures of a set in weighted-random order and keeps the first one that
+ * belongs in the biome at the start (`ChunkGenerator.tryGenerateStructure`), which is what makes a
+ * village in a desert a desert village and one in a taiga a taiga village.
+ */
+export function pickVariant(set: StructureSet, biome: string, rng: Rng): StructureVariant | null {
+  const left = (set.variants ?? []).map((v, i) => ({ v, biomes: set.variantBiomes[i] }));
+  let total = left.reduce((sum, e) => sum + Math.max(1, e.v.weight), 0);
+  while (left.length) {
+    let r = rng.next() * total;
+    let i = 0;
+    for (; i < left.length - 1; i++) {
+      r -= Math.max(1, left[i].v.weight);
+      if (r <= 0) break;
+    }
+    const [entry] = left.splice(i, 1);
+    if (entry.biomes.has(biome)) return entry.v;
+    total -= Math.max(1, entry.v.weight);
+  }
+  return null;
 }
 
 /**
@@ -148,11 +190,24 @@ export interface StructurePlacement {
   rotation: number;
   /** Fraction of blocks kept; ruined portals decay like vanilla's block_rot processor. */
   integrity: number;
-  rng: Rng;
+  /** Seed for the decay hash, so a piece crumbles the same however its chunks are visited. */
+  decaySeed: number;
+  /** Terrain fitting to apply under the piece: ocean pieces keep their water. */
+  placement?: string;
 }
 
+/** World box a placed piece covers, once its rotation has been taken into account. */
+export function placementBox(p: StructurePlacement): { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number } {
+  const [sx, sy, sz] = p.template.size;
+  const [w, d] = (p.rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+  return { x0: p.x, y0: p.y, z0: p.z, x1: p.x + w - 1, y1: p.y + sy - 1, z1: p.z + d - 1 };
+}
+
+/** Column range a stamp may write in, so a chunk only ever writes its own blocks. */
+export interface ClipBox { x0: number; x1: number; z0: number; z1: number }
+
 /**
- * Writes one placed structure into the world, clipped to whatever chunks the access covers.
+ * Writes one placed structure into the world, clipped to the columns the caller asks for.
  * Returns the positions written so the caller can adapt the terrain around them.
  */
 export function stampStructure(
@@ -160,13 +215,15 @@ export function stampStructure(
   p: StructurePlacement,
   written?: Set<string>,
   onLoot?: (x: number, y: number, z: number, table: string) => void,
+  clip?: ClipBox,
 ): number {
   const { template, rotation } = p;
   const [sx, , sz] = template.size;
+  const inside = (x: number, z: number) => !clip || (x >= clip.x0 && x <= clip.x1 && z >= clip.z0 && z <= clip.z1);
   let placed = 0;
   for (const spot of template.loot) {
     const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
-    onLoot?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.table);
+    if (inside(p.x + rx, p.z + rz)) onLoot?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.table);
   }
   for (let i = 0; i < template.blocks.length; i += 4) {
     const lx = template.blocks[i];
@@ -174,11 +231,14 @@ export function stampStructure(
     const lz = template.blocks[i + 2];
     const entry = template.blocks[i + 3];
     if (!template.known[entry]) continue;
-    const state = template.states[entry];
-    if (p.integrity < 1 && p.rng.next() > p.integrity) continue;
     const [rx, rz] = rotate(lx, lz, sx, sz, rotation);
-    world.set(p.x + rx, p.y + ly, p.z + rz, rotateState(state, rotation));
-    written?.add(`${p.x + rx},${p.y + ly},${p.z + rz}`);
+    const x = p.x + rx;
+    const z = p.z + rz;
+    if (!inside(x, z)) continue;
+    // decay is hashed from the position, not drawn in template order, so clipping cannot change it
+    if (p.integrity < 1 && hashPos(p.decaySeed, x, p.y + ly, z) > p.integrity) continue;
+    world.set(x, p.y + ly, z, rotateState(template.states[entry], rotation));
+    written?.add(`${x},${p.y + ly},${z}`);
     placed++;
   }
   return placed;

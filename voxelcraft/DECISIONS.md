@@ -373,3 +373,22 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     generator lines the three columns up instead of copying vanilla's offsets. The basement pieces
     ship in the igloo bundle but are marked as extras, not starts, so a structure is never placed as
     a bare ladder section.
+
+66. **A chunk writes its own part of every structure that reaches it.** Structures used to be
+    stamped from the chunk they start in, writing outward through the neighbour-aware block access,
+    which meant a piece landed only where chunks happened to be loaded: villages came out with
+    houses missing and chests standing in chunks that never got their chest. Placement now follows
+    vanilla. A chunk asks each structure set which starts lie within reach of it (a set's reach is
+    its widest piece, or 128 blocks for a jigsaw structure, whose assembly wanders at most 97), the
+    start is worked out once from the seed and its chunk and kept in a small cache, and the pieces
+    are stamped clipped to the chunk's own columns. Nothing depends on load order any more: the same
+    seed gives the same structure whichever way the player arrives, and a ruined portal's decay is
+    hashed from each block's position instead of drawn in template order, so the crumbling matches
+    across a chunk boundary.
+
+67. **A village is of the type its biome calls for.** Vanilla's `villages` structure set holds all
+    five village types, each with its own start pool and biome list; the game tries them in
+    weighted-random order and keeps the first that belongs in the biome at the start. Ours had been
+    picking a start pool at random from the set, which put sandstone desert villages in plains. The
+    converter now writes one variant per structure in the set, with that structure's own biomes, and
+    the generator picks the same way vanilla does.

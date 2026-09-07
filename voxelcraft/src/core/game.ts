@@ -288,10 +288,6 @@ export class Game {
     };
     this.entities = new EntityManager(host);
     this.world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
-    this.world.onChunkLoot = (cx, cz) => {
-      const c = this.world.getChunk(cx, cz);
-      if (c) this.fillStructureChests(c);
-    };
     this.world.onChunkUnloaded = (c) => {
       const mobs = this.serializeChunkEntities(c.cx, c.cz);
       for (const m of this.entities.mobs.slice()) if ((Math.floor(m.pos.x) >> 4) === c.cx && (Math.floor(m.pos.z) >> 4) === c.cz) this.entities.remove(m);

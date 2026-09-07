@@ -12,7 +12,7 @@ import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
 import { SectionMesher } from './mesher.ts';
 import { AtlasIndex } from '../render/atlasIndex.ts';
-import { packKey, unpackKey, type FromWorker, type GenRequest, type GenResult, type ToWorker } from './protocol.ts';
+import { packKey, type FromWorker, type GenRequest, type GenResult, type ToWorker } from './protocol.ts';
 
 const ctx = self as unknown as Worker;
 const post = (msg: FromWorker, transfer?: Transferable[]) => ctx.postMessage(msg, transfer ?? []);
@@ -172,23 +172,11 @@ function ensureDecorated(cx: number, cz: number): ChunkData | null {
   const c = chunks.get(packKey(cx, cz))!;
   if (c.status === 'terrain') {
     gen.decorate(c, decorateAccess);
-    // structure chests are filled on the main thread, where the loot tables live; a structure
-    // started here can reach into a chunk that has already gone over, so that one is told directly
-    const late = new Map<number, typeof gen.lootSpots>();
-    for (const spot of gen.lootSpots) {
-      const key = packKey(spot.x >> 4, spot.z >> 4);
-      const target = delivered.has(key) ? late : lootSpots;
-      const list = target.get(key) ?? [];
-      list.push(spot);
-      target.set(key, list);
-    }
+    // a structure only ever writes into the chunk being decorated, so its chests belong to this one;
+    // they are filled on the main thread, where the loot tables live
+    if (gen.lootSpots.length) lootSpots.set(packKey(cx, cz), gen.lootSpots.slice());
     c.updateHeightmapAll();
     flushPatches();
-    // after the patches, so the chests are in place on the main thread before it fills them
-    for (const [key, list] of late) {
-      const [lx, lz] = unpackKey(key);
-      post({ type: 'loot', cx: lx, cz: lz, loot: JSON.stringify(list) });
-    }
   }
   return c;
 }

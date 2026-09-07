@@ -21,12 +21,10 @@ export interface UnloadMessage { type: 'unload'; cx: number; cz: number }
 export interface NeedChunkMessage { type: 'needChunk'; keys: [number, number][] }
 /** Block writes made by world generation into chunks the main thread already holds (local x,y,z,state). */
 export interface PatchMessage { type: 'patch'; cx: number; cz: number; edits: Int32Array }
-/** Structure chests placed into a chunk that had already been delivered, as JSON. */
-export interface LootMessage { type: 'loot'; cx: number; cz: number; loot: string }
 export interface LightMessage { type: 'light'; cx: number; cz: number; light: Uint8Array }
 export interface ReadyMessage { type: 'ready' }
 export interface StatsMessage { type: 'stats'; chunks: number; pending: number; meshed: number; generating: number }
-export type FromWorker = ChunkMessage | MeshMessage | UnloadMessage | NeedChunkMessage | PatchMessage | LootMessage | LightMessage | ReadyMessage | StatsMessage;
+export type FromWorker = ChunkMessage | MeshMessage | UnloadMessage | NeedChunkMessage | PatchMessage | LightMessage | ReadyMessage | StatsMessage;
 
 export const packKey = (cx: number, cz: number): number => (cx + 32768) * 65536 + (cz + 32768);
 export const unpackKey = (k: number): [number, number] => [Math.floor(k / 65536) - 32768, (k % 65536) - 32768];

@@ -148,8 +148,8 @@ function convert(file: string, structure: string): Template | null {
 }
 
 /** Structures assembled from template pools (villages); every reachable piece is converted. */
-const JIGSAW: { name: string; set: string; structures: string[] }[] = [
-  { name: 'village', set: 'villages', structures: ['village_plains', 'village_desert', 'village_savanna', 'village_snowy', 'village_taiga'] },
+const JIGSAW: { name: string; set: string }[] = [
+  { name: 'village', set: 'villages' },
 ];
 
 const mc = versionDir();
@@ -159,7 +159,8 @@ const outDir = path.join(PUBLIC, 'structures');
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[]; main?: string[]; starts?: string[]; maxDepth?: number }
+interface Variant { start: string; weight: number; biomes: string[] }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -203,18 +204,24 @@ const pools: Record<string, { location: string; weight: number; projection: stri
 for (const want of JIGSAW) {
   const setFile = path.join(setDir, `${want.set}.json`);
   if (!fs.existsSync(setFile)) continue;
-  const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as { placement: { spacing: number; separation: number; salt: number } };
-  const starts: string[] = [];
+  const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as {
+    placement: { spacing: number; separation: number; salt: number };
+    structures: { structure: string; weight: number }[];
+  };
+  // one structure set holds all five village types, each with its own start pool and biomes
+  const variants: Variant[] = [];
   const biomes = new Set<string>();
   const queue: string[] = [];
-  for (const name of want.structures) {
+  for (const entry of set.structures) {
+    const name = entry.structure.replace('minecraft:', '');
     const file = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
     if (!fs.existsSync(file)) continue;
     const def = JSON.parse(fs.readFileSync(file, 'utf8')) as { start_pool: string; size: number };
     const start = def.start_pool.replace('minecraft:', '');
-    starts.push(start);
+    const own = biomesFor(mc, [name]);
+    variants.push({ start, weight: entry.weight ?? 1, biomes: own });
     queue.push(start);
-    for (const b of biomesFor(mc, [name])) biomes.add(b);
+    for (const b of own) biomes.add(b);
   }
   const pieces: string[] = [];
   const bundle: Record<string, Template> = {};
@@ -252,7 +259,7 @@ for (const want of JIGSAW) {
   index.push({
     name: want.name, placement: 'jigsaw',
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
-    pieces, biomes: [...biomes].sort(), starts, maxDepth: 6,
+    pieces, biomes: [...biomes].sort(), variants, maxDepth: 6,
   });
 }
 

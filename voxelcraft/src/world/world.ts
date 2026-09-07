@@ -35,15 +35,6 @@ export interface LoadedChunk {
   pendingLoot: string | null;
 }
 
-/** Joins two lists of loot spots that arrived separately for one chunk. */
-function mergeLoot(a: string, b: string): string {
-  try {
-    return JSON.stringify([...(JSON.parse(a) as unknown[]), ...(JSON.parse(b) as unknown[])]);
-  } catch {
-    return b;
-  }
-}
-
 export interface RaycastHit {
   x: number;
   y: number;
@@ -89,8 +80,6 @@ export class World {
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
   onBlockChanged: ((x: number, y: number, z: number, oldState: number, newState: number) => void) | null = null;
   onChunkUnloaded: ((c: LoadedChunk) => void) | null = null;
-  /** Called when a structure drops chests into a chunk the game already holds. */
-  onChunkLoot: ((cx: number, cz: number) => void) | null = null;
   private pendingEdits: number[] = [];
   private readonly pendingMobs = new Map<string, string | null>();
   private readonly loadChunk: WorldOptions['loadChunk'];
@@ -375,14 +364,6 @@ export class World {
         for (let i = 0; i + 3 < e.length; i += 4) {
           c.blocks[((e[i + 1] - WORLD_MIN_Y) * CHUNK_SIZE + e[i + 2]) * CHUNK_SIZE + e[i]] = e[i + 3];
         }
-        break;
-      }
-      case 'loot': {
-        // chests a structure placed into a chunk that had already been delivered
-        const c = this.chunks.get(chunkKey(msg.cx, msg.cz));
-        if (!c) return;
-        c.pendingLoot = c.pendingLoot ? mergeLoot(c.pendingLoot, msg.loot) : msg.loot;
-        this.onChunkLoot?.(msg.cx, msg.cz);
         break;
       }
       case 'light': {

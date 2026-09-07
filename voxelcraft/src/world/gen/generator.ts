@@ -11,7 +11,7 @@ import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
-import { assembleJigsaw, rotate, stampStructure, structureStart, type StructureSet } from './structures.ts';
+import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
 
 const st = (id: string) => blocks.defaultState(id);
 
@@ -806,41 +806,73 @@ export class WorldGenerator {
   }
 
   /**
-   * Stamps any structure whose start lands in this chunk. Vanilla starts a structure in one chunk
-   * and writes it across the chunks it covers; ours fits the piece to the ground under its centre
-   * and writes through the neighbour-aware block access, so the parts that spill over land too.
+   * Vanilla computes a structure's start once and then lets every chunk it covers write its own
+   * part of it. Ours does the same: a chunk asks each structure set which nearby starts could reach
+   * it, and stamps the pieces of those starts clipped to its own columns. Placement depends only on
+   * the seed and the start chunk, so a structure comes out the same whichever way the player
+   * approaches it, and nothing is lost off the edge of what happens to be loaded.
    */
   private placeStructures(chunk: ChunkData, world: BlockAccess): void {
+    const clip = { x0: chunk.cx * 16, x1: chunk.cx * 16 + 15, z0: chunk.cz * 16, z1: chunk.cz * 16 + 15 };
     for (const set of this.structures) {
-      const regionX = Math.floor(chunk.cx / set.spacing);
-      const regionZ = Math.floor(chunk.cz / set.spacing);
-      const start = structureStart(this.seed, set, regionX, regionZ);
-      if (start.cx !== chunk.cx || start.cz !== chunk.cz) continue;
-      const rng = new Rng(mix(this.seed ^ set.salt, chunk.cx, chunk.cz, 0x5747));
-      const wx = chunk.cx * 16 + rng.int(8);
-      const wz = chunk.cz * 16 + rng.int(8);
-      const info = this.columnInfo(wx, wz);
-      if (!set.biomeSet.has(biomes[info.biome].id)) continue;
-      if (set.placement === 'jigsaw') {
-        this.placeJigsaw(set, world, wx, wz, rng);
-        continue;
-      }
-      const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
-      const rotation = rng.int(4);
-      const [sx, , sz] = template.size;
-      const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
-      const y = this.structureGroundY(wx, wz, rw, rd, set.placement);
-      if (y === null) continue;
-      // ruined portals crumble; everything else is placed whole
-      const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
-      const written = new Set<string>();
-      const placed = stampStructure(world, { set, template, x: wx, y, z: wz, rotation, integrity, rng }, written, (lx, ly, lz, table) => this.lootSpots.push({ x: lx, y: ly, z: lz, table }));
-      if (placed > 0) {
-        this.fitStructureToTerrain(world, wx, y, wz, rw, template.size[1], rd, written, set.placement);
-        if (set.name === 'igloo') this.placeIglooBasement(set, world, template, wx, y, wz, rotation, rng);
-        this.lastStructure = { name: set.name, x: wx, y, z: wz };
+      for (const start of this.nearbyStarts(set, chunk.cx, chunk.cz)) {
+        for (const piece of this.structurePieces(set, start.cx, start.cz)) {
+          const box = placementBox(piece);
+          if (box.x1 < clip.x0 || box.x0 > clip.x1 || box.z1 < clip.z0 || box.z0 > clip.z1) continue;
+          const written = new Set<string>();
+          stampStructure(world, piece, written, (lx, ly, lz, table) => this.lootSpots.push({ x: lx, y: ly, z: lz, table }), clip);
+          this.fitStructureToTerrain(world, box, written, piece.placement ?? 'surface', clip);
+        }
       }
     }
+  }
+
+  /** Start chunks of the structure set that lie close enough to reach the chunk being generated. */
+  private nearbyStarts(set: StructureSet, cx: number, cz: number): { cx: number; cz: number }[] {
+    const out: { cx: number; cz: number }[] = [];
+    const r = set.reach;
+    for (let rx = Math.floor((cx - r) / set.spacing); rx <= Math.floor((cx + r) / set.spacing); rx++)
+      for (let rz = Math.floor((cz - r) / set.spacing); rz <= Math.floor((cz + r) / set.spacing); rz++) {
+        const start = structureStart(this.seed, set, rx, rz);
+        if (Math.abs(start.cx - cx) <= r && Math.abs(start.cz - cz) <= r) out.push(start);
+      }
+    return out;
+  }
+
+  /**
+   * The pieces of the structure starting in a chunk, or none when the roll fails there. A start is
+   * worked out once and kept, because the chunks it covers all ask for the same one.
+   */
+  private structurePieces(set: StructureSet, cx: number, cz: number): StructurePlacement[] {
+    const key = `${set.name}:${cx}:${cz}`;
+    const cached = this.structureCache.get(key);
+    if (cached) return cached;
+    const pieces = this.buildStructure(set, cx, cz);
+    // the cache is only a stamping aid, so anything is safe to drop once it grows large
+    if (this.structureCache.size > 256) this.structureCache.clear();
+    this.structureCache.set(key, pieces);
+    return pieces;
+  }
+
+  private buildStructure(set: StructureSet, cx: number, cz: number): StructurePlacement[] {
+    const rng = new Rng(mix(this.seed ^ set.salt, cx, cz, 0x5747));
+    const wx = cx * 16 + rng.int(8);
+    const wz = cz * 16 + rng.int(8);
+    if (!set.biomeSet.has(biomes[this.columnInfo(wx, wz).biome].id)) return [];
+    const decaySeed = mix(this.seed ^ set.salt, cx, cz, 0x0d3c);
+    if (set.placement === 'jigsaw') return this.buildJigsaw(set, wx, wz, rng, decaySeed);
+    const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
+    const rotation = rng.int(4);
+    const [sx, , sz] = template.size;
+    const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+    const y = this.structureGroundY(wx, wz, rw, rd, set.placement);
+    if (y === null) return [];
+    // ruined portals crumble; everything else is placed whole
+    const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
+    const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: set.placement }];
+    if (set.name === 'igloo') pieces.push(...this.iglooBasement(set, template, wx, y, wz, rotation, rng, decaySeed));
+    this.lastStructure = { name: set.name, x: wx, y, z: wz };
+    return pieces;
   }
 
   /**
@@ -849,59 +881,55 @@ export class WorldGenerator {
    * Every piece turns about its own ladder column, which is what keeps the shaft lined up when the
    * igloo is rotated.
    */
-  private placeIglooBasement(
+  private iglooBasement(
     set: StructureSet,
-    world: BlockAccess,
     top: StructureSet['templates'][number],
     x: number,
     y: number,
     z: number,
     rotation: number,
     rng: Rng,
-  ): void {
+    decaySeed: number,
+  ): StructurePlacement[] {
     const middle = set.byKey.get('igloo_middle');
     const bottom = set.byKey.get('igloo_bottom');
-    if (!middle || !bottom || rng.next() >= 0.5) return;
+    if (!middle || !bottom || rng.next() >= 0.5) return [];
     const sections = 4 + rng.int(8);
     // world column the ladder runs down, taken from the trapdoor in the igloo's floor
     const [tx, tz] = rotate(IGLOO_LADDER.top[0], IGLOO_LADDER.top[1], top.size[0], top.size[2], rotation);
     const ax = x + tx;
     const az = z + tz;
-    const stamp = (template: StructureSet['templates'][number], ladder: [number, number], py: number): void => {
+    const at = (template: StructureSet['templates'][number], ladder: [number, number], py: number): StructurePlacement => {
       const [lx, lz] = rotate(ladder[0], ladder[1], template.size[0], template.size[2], rotation);
-      stampStructure(
-        world,
-        { set, template, x: ax - lx, y: py, z: az - lz, rotation, integrity: 1, rng },
-        undefined,
-        (bx, by, bz, table) => this.lootSpots.push({ x: bx, y: by, z: bz, table }),
-      );
+      // the basement is dug into solid ground, so it needs no foundation under it
+      return { set, template, x: ax - lx, y: py, z: az - lz, rotation, integrity: 1, decaySeed, placement: 'underground' };
     };
-    stamp(bottom, IGLOO_LADDER.bottom, y - 3 - sections * 3);
-    for (let i = 0; i < sections - 1; i++) stamp(middle, IGLOO_LADDER.middle, y - 3 - i * 3);
+    const pieces = [at(bottom, IGLOO_LADDER.bottom, y - 3 - sections * 3)];
+    for (let i = 0; i < sections - 1; i++) pieces.push(at(middle, IGLOO_LADDER.middle, y - 3 - i * 3));
+    return pieces;
   }
 
   /**
-   * Villages: assemble the jigsaw pieces around a town centre and stamp each one, sitting every
-   * piece on the ground under it the way vanilla's rigid projection does.
+   * Villages: assemble the jigsaw pieces around a town centre, sitting every piece on the ground
+   * under it the way vanilla's rigid projection does.
    */
-  private placeJigsaw(set: StructureSet, world: BlockAccess, wx: number, wz: number, rng: Rng): void {
-    const starts = set.starts ?? [];
-    if (!starts.length) return;
-    const startPool = starts[rng.int(starts.length)];
+  private buildJigsaw(set: StructureSet, wx: number, wz: number, rng: Rng, decaySeed: number): StructurePlacement[] {
+    // which of the set's structures belongs here: a desert village in a desert, a taiga one in a taiga
+    const variant = pickVariant(set, biomes[this.columnInfo(wx, wz).biome].id, rng);
+    if (!variant) return [];
+    const startPool = variant.start;
     const baseY = Math.floor(this.columnInfo(wx, wz).height) + 1;
-    const pieces = assembleJigsaw(set, startPool, wx, baseY, wz, rng);
-    if (pieces.length < 2) return;
-    for (const piece of pieces) {
-      const [sx, sy, sz] = piece.template.size;
+    const assembled = assembleJigsaw(set, startPool, wx, baseY, wz, rng);
+    if (assembled.length < 2) return [];
+    const pieces = assembled.map((piece) => {
+      const [sx, , sz] = piece.template.size;
       const [w, d] = (piece.rotation & 1) === 1 ? [sz, sx] : [sx, sz];
       // rigid pieces follow the ground under themselves, which keeps a village on a slope walkable
       const ground = this.structureGroundY(piece.x, piece.z, w, d);
-      const y = ground === null ? piece.y : ground;
-      const written = new Set<string>();
-      stampStructure(world, { set, template: piece.template, x: piece.x, y, z: piece.z, rotation: piece.rotation, integrity: 1, rng }, written, (lx, ly, lz, table) => this.lootSpots.push({ x: lx, y: ly, z: lz, table }));
-      this.fitStructureToTerrain(world, piece.x, y, piece.z, w, sy, d, written, 'surface');
-    }
-    this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length };
+      return { set, template: piece.template, x: piece.x, y: ground ?? piece.y, z: piece.z, rotation: piece.rotation, integrity: 1, decaySeed, placement: 'surface' };
+    });
+    this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length, variant: variant.start };
+    return pieces;
   }
 
   /**
@@ -911,32 +939,30 @@ export class WorldGenerator {
    */
   private fitStructureToTerrain(
     world: BlockAccess,
-    x: number,
-    y: number,
-    z: number,
-    w: number,
-    h: number,
-    d: number,
+    box: { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number },
     written: Set<string>,
     placement: string,
+    clip: ClipBox,
   ): void {
+    // a buried piece carves its own room out of the stone it sits in and needs no foundation
+    if (placement === 'underground') return;
     const filler = this.block('dirt');
-    for (let dx = 0; dx < w; dx++)
-      for (let dz = 0; dz < d; dz++) {
+    for (let x = Math.max(box.x0, clip.x0); x <= Math.min(box.x1, clip.x1); x++)
+      for (let z = Math.max(box.z0, clip.z0); z <= Math.min(box.z1, clip.z1); z++) {
         // carve the terrain that would poke into the piece
         if (placement !== 'ocean_floor') {
-          for (let dy = 0; dy < h; dy++) {
-            if (written.has(`${x + dx},${y + dy},${z + dz}`)) continue;
-            const cur = world.get(x + dx, y + dy, z + dz);
-            if (cur !== this.air && cur !== this.water) world.set(x + dx, y + dy, z + dz, this.air);
+          for (let y = box.y0; y <= box.y1; y++) {
+            if (written.has(`${x},${y},${z}`)) continue;
+            const cur = world.get(x, y, z);
+            if (cur !== this.air && cur !== this.water) world.set(x, y, z, this.air);
           }
         }
         // and hold it up where the ground falls away
         for (let dy = 1; dy <= 8; dy++) {
-          const cur = world.get(x + dx, y - dy, z + dz);
+          const cur = world.get(x, box.y0 - dy, z);
           if (cur !== this.air && cur !== this.water) break;
           if (placement === 'ocean_floor' && cur === this.water) break;
-          world.set(x + dx, y - dy, z + dz, filler);
+          world.set(x, box.y0 - dy, z, filler);
         }
       }
   }
@@ -964,10 +990,12 @@ export class WorldGenerator {
     return lowest + 1;
   }
 
-  /** Where the last structure was stamped, for tests and the `/locate` command. */
-  lastStructure: { name: string; x: number; y: number; z: number; pieces?: number } | null = null;
+  /** The last structure worked out, for tests and debugging. */
+  lastStructure: { name: string; x: number; y: number; z: number; pieces?: number; variant?: string } | null = null;
   /** Chests placed by structures in the chunk being decorated, with their loot tables. */
   lootSpots: { x: number; y: number; z: number; table: string }[] = [];
+  /** Structures already worked out, keyed by set and start chunk; every chunk they cover reuses them. */
+  private readonly structureCache = new Map<string, StructurePlacement[]>();
 
   /** Pale gardens hang moss from their canopy and spread pale moss over the ground, as vanilla does. */
   private decoratePaleGarden(chunk: ChunkData, world: BlockAccess, rng: Rng, biomeAt: (lx: number, lz: number) => BiomeDef): void {
