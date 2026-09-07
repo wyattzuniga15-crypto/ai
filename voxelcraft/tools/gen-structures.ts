@@ -160,7 +160,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -272,13 +272,14 @@ const PROCEDURAL: { name: string; set: string }[] = [
   { name: 'desert_pyramid', set: 'desert_pyramids' },
   { name: 'jungle_temple', set: 'jungle_temples' },
   { name: 'swamp_hut', set: 'swamp_huts' },
+  { name: 'stronghold', set: 'strongholds' },
 ];
 
 for (const want of PROCEDURAL) {
   const setFile = path.join(setDir, `${want.set}.json`);
   if (!fs.existsSync(setFile)) continue;
   const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as {
-    placement: { spacing: number; separation: number; salt: number; frequency?: number };
+    placement: { spacing?: number; separation?: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number };
     structures: { structure: string; weight: number }[];
   };
   const variants: Variant[] = [];
@@ -295,10 +296,12 @@ for (const want of PROCEDURAL) {
   }
   index.push({
     name: want.name, placement: want.name,
-    spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
+    // strongholds are spread in rings round the origin rather than on a grid
+    spacing: set.placement.spacing ?? 1, separation: set.placement.separation ?? 0, salt: set.placement.salt,
     frequency: set.placement.frequency, pieces: [], biomes: [...biomes].sort(), variants,
+    ...(set.placement.count ? { count: set.placement.count, distance: set.placement.distance, spread: set.placement.spread } : {}),
   });
-  console.log(`  ${want.name}: built in code, frequency ${set.placement.frequency}, ${biomes.size} biomes`);
+  console.log(`  ${want.name}: built in code, ${set.placement.count ? `${set.placement.count} in rings` : `frequency ${set.placement.frequency}`}, ${biomes.size} biomes`);
 }
 
 fs.writeFileSync(path.join(outDir, 'index.json'), `${JSON.stringify(index, null, 1)}\n`);

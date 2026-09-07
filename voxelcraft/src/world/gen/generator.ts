@@ -14,6 +14,7 @@ import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './fea
 import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
 import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
 import { buildTemple, TEMPLE_SIZE, type TempleKind } from './temples.ts';
+import { assembleStronghold, fillStrongholdPiece, type StrongholdPiece } from './stronghold.ts';
 
 /** Structures vanilla lays out in code, keyed by the placement name their index entry carries. */
 const TEMPLE_KINDS = new Set<string>(['desert_pyramid', 'jungle_temple', 'swamp_hut']);
@@ -29,6 +30,7 @@ interface StructureInstance {
   pieces: StructurePlacement[];
   shaft?: { kind: ShaftKind; pieces: ShaftPiece[] };
   temple?: { kind: TempleKind; x: number; y: number; z: number; rotation: number; seed: number };
+  rooms?: StrongholdPiece[];
 }
 const EMPTY_STRUCTURE: StructureInstance = { pieces: [] };
 
@@ -853,6 +855,11 @@ export class WorldGenerator {
           if (t.x <= clip.x1 && t.x + w - 1 >= clip.x0 && t.z <= clip.z1 && t.z + d - 1 >= clip.z0)
             buildTemple({ world, clip, x: t.x, y: t.y, z: t.z, rotation: t.rotation, seed: t.seed, kind: t.kind, onLoot: loot, onEntity: entity });
         }
+        for (const room of instance.rooms ?? []) {
+          const b = room.box;
+          if (b.x1 < clip.x0 || b.x0 > clip.x1 || b.z1 < clip.z0 || b.z0 > clip.z1) continue;
+          fillStrongholdPiece(room, world, clip, loot, spawner);
+        }
         if (!instance.shaft) continue;
         for (const piece of instance.shaft.pieces) {
           const b = piece.box;
@@ -867,6 +874,10 @@ export class WorldGenerator {
   private nearbyStarts(set: StructureSet, cx: number, cz: number): { cx: number; cz: number }[] {
     const out: { cx: number; cz: number }[] = [];
     const r = set.reach;
+    if (set.placement === 'stronghold') {
+      for (const ring of this.strongholdRings(set)) if (Math.abs(ring.cx - cx) <= r && Math.abs(ring.cz - cz) <= r) out.push(ring);
+      return out;
+    }
     for (let rx = Math.floor((cx - r) / set.spacing); rx <= Math.floor((cx + r) / set.spacing); rx++)
       for (let rz = Math.floor((cz - r) / set.spacing); rz <= Math.floor((cz + r) / set.spacing); rz++) {
         const start = structureStart(this.seed, set, rx, rz);
@@ -901,6 +912,7 @@ export class WorldGenerator {
     const decaySeed = mix(this.seed ^ set.salt, cx, cz, 0x0d3c);
     if (set.placement === 'mineshaft') return this.buildMineshaft(set, cx, cz, wx, wz, rng);
     if (TEMPLE_KINDS.has(set.placement)) return this.buildTempleAt(set, wx, wz, rng);
+    if (set.placement === 'stronghold') return this.buildStronghold(set, cx, cz);
     if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, wx, wz, rng, decaySeed) };
     const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
     const rotation = rng.int(4);
@@ -967,6 +979,47 @@ export class WorldGenerator {
     const pieces = [at(bottom, IGLOO_LADDER.bottom, y - 3 - sections * 3)];
     for (let i = 0; i < sections - 1; i++) pieces.push(at(middle, IGLOO_LADDER.middle, y - 3 - i * 3));
     return pieces;
+  }
+
+  /**
+   * Strongholds: vanilla spreads 128 of them in rings round the origin rather than on a grid, three
+   * in the first ring about 1400 blocks out, then more in each ring beyond it.
+   */
+  strongholdRings(set: StructureSet): { cx: number; cz: number }[] {
+    if (this.rings) return this.rings;
+    const rng = new Rng(mix(this.seed, 0, 0, 0x571a));
+    const count = set.count ?? 128;
+    const distance = set.distance ?? 32;
+    let spread = set.spread ?? 3;
+    let angle = rng.next() * Math.PI * 2;
+    let ring = 0;
+    let placed = 0;
+    const out: { cx: number; cz: number }[] = [];
+    for (let i = 0; i < count; i++) {
+      const away = 4 * distance + distance * ring * 6 + (rng.next() - 0.5) * distance * 2.5;
+      out.push({ cx: Math.round(Math.cos(angle) * away), cz: Math.round(Math.sin(angle) * away) });
+      angle += (Math.PI * 2) / spread;
+      if (++placed === spread) {
+        ring++;
+        placed = 0;
+        spread = Math.min(spread + Math.floor((2 * spread) / (ring + 1)), count - i);
+        angle += rng.next() * Math.PI * 2;
+      }
+    }
+    this.rings = out;
+    return out;
+  }
+  private rings: { cx: number; cz: number }[] | null = null;
+
+  /** The warren of one stronghold, put deep enough that its staircase stays underground. */
+  private buildStronghold(set: StructureSet, cx: number, cz: number): StructureInstance {
+    const surface = Math.floor(this.columnInfo(cx * 16 + 2, cz * 16 + 2).height);
+    const topY = Math.min(surface - 12, 40);
+    if (topY < WORLD_MIN_Y + 30) return EMPTY_STRUCTURE;
+    const rooms = assembleStronghold(mix(this.seed, cx, cz, 0x5721), cx, cz, topY);
+    if (!rooms.length) return EMPTY_STRUCTURE;
+    this.lastStructure = { name: set.name, x: cx * 16 + 2, y: topY, z: cz * 16 + 2, pieces: rooms.length };
+    return { pieces: [], rooms };
   }
 
   /**

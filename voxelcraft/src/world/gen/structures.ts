@@ -16,12 +16,16 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold';
   spacing: number;
   separation: number;
   salt: number;
   /** Structures spread one per chunk (mineshafts) roll this chance in every chunk instead. */
   frequency?: number;
+  /** Strongholds are spread in rings round the origin: how many, how far apart, how many per ring. */
+  count?: number;
+  distance?: number;
+  spread?: number;
   pieces: string[];
   biomes: string[];
   /** Pieces that may be placed as the structure itself; the rest are extras the generator adds. */
@@ -90,6 +94,8 @@ function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]
   if (entry.placement === 'jigsaw') return 8;
   // a mineshaft's walk stays inside 80 blocks of its room, and a piece can be 13 more
   if (entry.placement === 'mineshaft') return 7;
+  // a stronghold's rooms are kept inside 80 blocks of its staircase, and a room can be 16 more
+  if (entry.placement === 'stronghold') return 6;
   // anything else built in code is one piece, and the largest of them (a pyramid) is 21 blocks
   if (!templates.length) return 3;
   let widest = 0;

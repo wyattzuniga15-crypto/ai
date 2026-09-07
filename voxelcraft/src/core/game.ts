@@ -1036,6 +1036,19 @@ export class Game {
   private locateStructure(set: StructureSet): { x: number; z: number } | null {
     const cx = Math.floor(this.player.pos.x) >> 4;
     const cz = Math.floor(this.player.pos.z) >> 4;
+    // strongholds are not on a grid: the nearest of the ring positions is the answer
+    if (set.placement === 'stronghold') {
+      let best: { x: number; z: number } | null = null;
+      let closest = Infinity;
+      for (const ring of this.locateGenerator.strongholdRings(set)) {
+        const d = (ring.cx - cx) ** 2 + (ring.cz - cz) ** 2;
+        if (d < closest) {
+          closest = d;
+          best = { x: ring.cx * 16 + 2, z: ring.cz * 16 + 2 };
+        }
+      }
+      return best;
+    }
     const region = { x: Math.floor(cx / set.spacing), z: Math.floor(cz / set.spacing) };
     for (let r = 0; r <= 8; r++)
       for (let dx = -r; dx <= r; dx++)

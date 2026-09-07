@@ -428,3 +428,17 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     A pyramid or temple carries its own foundation down to the ground, so unlike a template structure
     it does not ask for level ground first, and a hut stands on stilts on the water surface the way
     vanilla puts it on the motion-blocking heightmap rather than the ground.
+
+71. **Strongholds are walked like the mineshafts, and spread in vanilla's rings.** `strongholds.json`
+    places them by concentric rings rather than a grid: 128 of them, three in the first ring about
+    2000 blocks out and more in each ring beyond, so the generator works the ring positions out once
+    per world from the seed and a chunk asks which of them reach it. The warren itself follows
+    `StrongholdPieces` — the spiral staircase, then corridors, turns, room crossings, stairs down,
+    five-way crossings, prison cells, a library and the portal room, each room placed against the
+    last and rejected where it would run into one already there. Two deviations: the walk is kept
+    inside 80 blocks of its staircase, as the mineshafts are, which makes a stronghold smaller than
+    vanilla's sprawl (about fifteen rooms), and where a walk never finds room for the portal room it
+    is hung off whatever doorway is still free rather than the whole stronghold being regenerated.
+    Every stronghold has exactly one, since without it there is no way to the End. Vanilla also
+    nudges each ring position toward a stronghold-biased biome; ours takes the ring position as it
+    falls.
