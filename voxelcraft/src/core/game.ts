@@ -22,7 +22,7 @@ import { DRAGON_HEIGHT, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } fro
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
-import { Player } from '../entities/player.ts';
+import { FREEZE_TICKS, Player } from '../entities/player.ts';
 import { ItemEntity } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
@@ -1095,6 +1095,8 @@ export class Game {
       p.landed = 0;
       if (dmg > 0 && !p.inWater) this.damage(dmg);
     }
+    // freezing: vanilla starts hurting once the cold has had a hundred and forty ticks to bite
+    if (p.frozenTicks >= FREEZE_TICKS && this.tickCount % 40 === 0) this.damage(1, true, 'generic');
     const fireRes = !!p.effects.get('fire_resistance');
     if (p.inLava) {
       if (!fireRes) this.damage(4, true);
@@ -3032,6 +3034,10 @@ export class Game {
     if (def.id === 'beehive' || def.id === 'bee_nest') {
       if (this.useHive(t, def.id)) return true;
     }
+    // flower pots: vanilla plants what is held in an empty one and hands back what is in a full one
+    if (def.id === 'flower_pot' || def.id.startsWith('potted_')) {
+      if (this.usePot(t, def.id)) return true;
+    }
     if (def.id === 'crafting_table') {
       const grid = makeGrid(3, 3);
       const screen = craftingTableScreen(inv, grid);
@@ -4224,6 +4230,33 @@ export class Game {
     if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe' || def.behavior === 'mace' || def.behavior === 'trident')) p.inventory.damageSelected(def.behavior === 'sword' || def.behavior === 'trident' ? 1 : 2);
     p.exhaustion += 0.1;
     if (p.gamemode === 'survival') this.hud.showToast('');
+  }
+
+  /**
+   * A flower pot. Vanilla plants whatever the hand holds into an empty one and takes what is in a
+   * full one back out, which is the whole of what a pot does.
+   */
+  private usePot(t: RaycastHit, id: string): boolean {
+    const p = this.player;
+    const held = p.heldItem();
+    if (id === 'flower_pot') {
+      const plant = held && blocks.has(`potted_${held.id}`) ? `potted_${held.id}` : null;
+      if (!plant) return false;
+      this.world.setBlock(t.x, t.y, t.z, blocks.defaultState(plant));
+      if (p.gamemode === 'survival') p.inventory.consumeSelected();
+      this.audio.play('place', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+      return true;
+    }
+    // taking a plant out only works with an empty hand, as vanilla's does
+    if (held) return false;
+    const plant = id.slice('potted_'.length);
+    this.world.setBlock(t.x, t.y, t.z, blocks.defaultState('flower_pot'));
+    if (items.has(plant) && p.gamemode === 'survival') {
+      const stack = { id: plant, count: 1 };
+      if (p.inventory.add(stack) > 0) this.dropStack(stack, p.pos.x, p.pos.y + 1, p.pos.z, true);
+    }
+    this.audio.play('place', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5, pitch: 1.2 });
+    return true;
   }
 
   /** Vanilla wolf handling: bones tame (1 in 3), meat heals, dye recolours the collar, anything else toggles sitting. */

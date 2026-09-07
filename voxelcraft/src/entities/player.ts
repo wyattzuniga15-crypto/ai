@@ -10,6 +10,9 @@ import { EffectSet, speedMultiplier, type ActiveEffect } from './effects.ts';
 
 export type GameMode = 'survival' | 'creative' | 'spectator';
 
+/** How long vanilla takes to freeze someone solid in powder snow. */
+export const FREEZE_TICKS = 140;
+
 export interface PlayerSave {
   timeSinceRest?: number;
   x: number; y: number; z: number; yaw: number; pitch: number;
@@ -31,6 +34,10 @@ export class Player {
   sneaking = false;
   sprinting = false;
   flying = false;
+  /** True while the player is inside powder snow, which they sink through and freeze in. */
+  inPowderSnow = false;
+  /** Ticks of freezing built up in powder snow; vanilla starts hurting at a hundred and forty. */
+  frozenTicks = 0;
   /** True while the elytra is carrying the player, which is a movement mode of its own. */
   gliding = false;
   /** Ticks spent gliding since the last time the elytra was charged for its wear. */
@@ -192,6 +199,16 @@ export class Player {
     const feet = this.pos;
     this.inWater = isFluidAt(world, feet.x, feet.y + 0.4, feet.z, 'water') || isFluidAt(world, feet.x, feet.y + 1.2, feet.z, 'water');
     this.inLava = isFluidAt(world, feet.x, feet.y + 0.4, feet.z, 'lava');
+    // powder snow: a walker sinks into it and freezes, unless they are wearing leather
+    const snowAt = (y: number) => {
+      const s = world.getBlock(Math.floor(feet.x), Math.floor(y), Math.floor(feet.z));
+      return s !== 0 && blocks.blockOf(s).id === 'powder_snow';
+    };
+    this.inPowderSnow = snowAt(feet.y + 0.4) || snowAt(feet.y + 1.2);
+    if (this.inPowderSnow) this.fireTicks = 0;
+    // vanilla freezes over two and a half minutes in it, and thaws twice as fast out of it
+    if (this.inPowderSnow && !this.wearsLeather()) this.frozenTicks = Math.min(FREEZE_TICKS + 40, this.frozenTicks + 1);
+    else this.frozenTicks = Math.max(0, this.frozenTicks - 2);
     const eyeInWater = isFluidAt(world, feet.x, feet.y + this.eyeHeight, feet.z, 'water');
     if (this.jumpCooldown > 0) this.jumpCooldown--;
     const climbAt = (y: number) => {
@@ -259,6 +276,7 @@ export class Player {
     }
 
     let speed = this.onGround ? 0.1 : 0.02;
+    if (this.inPowderSnow) speed *= 0.4; // wading through it is slow going
     if (this.sprinting) speed *= 1.3;
     if (this.sneaking) speed *= 0.3 * this.sneakSpeed;
     speed *= speedMultiplier(this.effects) * this.soulSpeed;
@@ -298,6 +316,11 @@ export class Player {
     const slowFalling = this.effects.level('slow_falling') > 0 && this.vel.y <= 0;
     this.vel.y -= slowFalling ? 0.01 : 0.08;
     this.vel.y *= 0.98;
+    // powder snow catches a fall: vanilla lets nobody drop through it faster than this
+    if (this.inPowderSnow) {
+      if (this.vel.y < -0.15) this.vel.y = -0.15;
+      this.fallDistance = 0;
+    }
     const friction = this.onGround ? 0.6 * 0.91 : 0.91;
     this.vel.x *= friction;
     this.vel.z *= friction;
@@ -309,6 +332,27 @@ export class Player {
 
   /** Fall distance at the moment of the last landing, consumed by the game for fall damage. */
   landed = 0;
+
+  /**
+   * Vanilla lets leather boots carry a walker over powder snow, and sneaking drop them into it.
+   * Nothing else in the game treats the block as solid, so the footing is put on here, for the one
+   * who is walking, by handing the collision a solid block where the snow is.
+   */
+  private snowFooting(world: BlockSource): BlockSource {
+    if (this.sneaking || this.inventory.armor[0]?.id !== 'leather_boots') return world;
+    const solid = blocks.defaultState('snow_block');
+    return {
+      getBlock: (x: number, y: number, z: number) => {
+        const s = world.getBlock(x, y, z);
+        return s !== 0 && blocks.blockOf(s).id === 'powder_snow' ? solid : s;
+      },
+    };
+  }
+
+  /** Any leather armour keeps the cold out, which is vanilla's rule for freezing. */
+  wearsLeather(): boolean {
+    return this.inventory.armor.some((s) => s?.id.startsWith('leather_'));
+  }
 
   /** Whether there is an elytra on the player's back with any wear left in it. */
   canGlide(): boolean {
@@ -369,7 +413,8 @@ export class Player {
     this.fallDistance = 0;
   }
 
-  private move(world: BlockSource, stepHeight: number): void {
+  private move(source: BlockSource, stepHeight: number): void {
+    const world = this.snowFooting(source);
     const box = this.aabb();
     let dx = this.vel.x;
     let dz = this.vel.z;

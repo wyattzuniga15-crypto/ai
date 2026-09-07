@@ -1011,3 +1011,18 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 
      A sword's sweep went in with them: swung at full reach, standing, and not landing a crit, it
      passes a point plus Sweeping Edge's share of the blow to everything beside what it hit.
+
+111. **The last two block behaviours.** A flower pot takes whatever the hand holds that has a potted
+     form of its own and gives it back to an empty hand, which is the whole of what a pot does. And
+     powder snow behaves as vanilla's: it has no collision, so a walker sinks into it, falls through
+     it no faster than fifteen hundredths of a block a tick, wades slowly, and puts out any fire they
+     were carrying; the cold builds over a hundred and forty ticks and then bites once every two
+     seconds, and any leather armour keeps it out entirely. Leather boots carry a walker over the top
+     of it, and sneaking drops them in — the footing is put on for that one walker by handing their
+     own collision a solid block where the snow is, since nothing else in the game treats it as one.
+
+     That leaves no block category without the behaviour vanilla gives it. Banners, heads, portals,
+     bedrock and the plain shapes have entries in the behaviour table only as categories: what they
+     do, the game already does with them elsewhere — a banner is woven at a loom and drawn as a block
+     entity, a wither skull is watched for where the Wither is summoned, a portal is stepped into,
+     and bedrock is simply unbreakable.

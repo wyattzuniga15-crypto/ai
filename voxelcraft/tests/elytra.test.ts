@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Player } from '../src/entities/player.ts';
 import { Input } from '../src/core/input.ts';
 import type { BlockSource } from '../src/entities/physics.ts';
+import { blocks } from '../src/blocks/registry.ts';
 
 /** Nothing but air, so a glide is only ever the flight model at work. */
 const sky: BlockSource = { getBlock: () => 0 };
@@ -108,5 +109,53 @@ describe('the elytra', () => {
     p.tick(input, sky, 1);
     for (let i = 0; i < 60; i++) p.tick(makeInput(), sky, i + 2);
     expect(p.glideTicks).toBe(61);
+  });
+});
+
+describe('powder snow', () => {
+  const snowWorld = (topY: number): BlockSource => ({
+    getBlock: (_x: number, y: number) => (y < topY ? blocks.defaultState('powder_snow') : 0),
+  });
+
+  const walker = () => {
+    const p = new Player();
+    p.gamemode = 'survival';
+    p.pos.set(0.5, 60, 0.5);
+    p.onGround = false;
+    return p;
+  };
+
+  it('catches a fall and freezes whoever is in it', () => {
+    const p = walker();
+    p.vel.y = -1;
+    for (let i = 0; i < 10; i++) p.tick(makeInput(), snowWorld(64), i);
+    expect(p.inPowderSnow).toBe(true);
+    expect(p.vel.y).toBeGreaterThanOrEqual(-0.16); // nobody drops through it fast
+    expect(p.fallDistance).toBe(0);
+    expect(p.frozenTicks).toBe(10);
+  });
+
+  it('thaws twice as fast out of it, and never freezes anyone in leather', () => {
+    const p = walker();
+    for (let i = 0; i < 20; i++) p.tick(makeInput(), snowWorld(64), i);
+    expect(p.frozenTicks).toBe(20);
+    for (let i = 0; i < 5; i++) p.tick(makeInput(), sky, i);
+    expect(p.frozenTicks).toBe(10);
+
+    const warm = walker();
+    warm.inventory.armor[2] = { id: 'leather_chestplate', count: 1 };
+    for (let i = 0; i < 20; i++) warm.tick(makeInput(), snowWorld(64), i);
+    expect(warm.inPowderSnow).toBe(true);
+    expect(warm.frozenTicks).toBe(0);
+  });
+
+  it('carries a walker in leather boots over the top of it', () => {
+    const p = walker();
+    p.inventory.armor[0] = { id: 'leather_boots', count: 1 };
+    p.pos.set(0.5, 66, 0.5);
+    for (let i = 0; i < 30; i++) p.tick(makeInput(), snowWorld(64), i);
+    expect(p.pos.y).toBeGreaterThanOrEqual(64);
+    expect(p.onGround).toBe(true);
+    expect(p.inPowderSnow).toBe(false);
   });
 });
