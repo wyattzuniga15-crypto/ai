@@ -11,7 +11,7 @@ registered (data present, no behavior). Regenerate the data counts with `npm run
 | Items | 1505 | block items (1020) place; tools affect break speed/harvest and lose durability; 40 foods edible with effects; buckets; bone meal | armor (data only, no damage reduction yet) | ~430 non-block items need behaviors |
 | Crafting recipes | 1058 shaped/shapeless/transmute + 12 special | 1058 craftable in the inventory / crafting table; repair item special | – | 11 special recipes (dye, fireworks, maps, books, banners...) |
 | Smelting / blasting / smoking / campfire | 73 / 25 / 9 / 9 | furnace, blast furnace, smoker fully working | – | campfire cooking |
-| Stonecutting / smithing | 254 / 30 | 0 | – | all |
+| Stonecutting / smithing | 254 / 30 | all, through the stonecutter and smithing table screens (netherite upgrades and armour trims) | – | – |
 | Loot tables | 1085 blocks, 158 entities, 121 chests, gameplay/archaeology | block drops (silk touch, fortune, block-state conditions) and entity drops (killed-by-player, looting, cooked when burning) | – | chest/gameplay tables unused |
 | Mobs | 157 entity types (91 with stats) | 35 (zombie, husk, drowned, skeleton, stray, wither skeleton, creeper, spider, cave spider, slime ×3 sizes, enderman, witch, phantom, wolf, cod, salmon, cow, pig, sheep, chicken, horse, donkey, mule, cat, ocelot, villager, wandering trader, bee, pillager, vindicator, evoker, vex, ravager) with AI, spawning, loot, combat, breeding/babies, taming, riding, trading, shearing, milking, eggs | – | 122 |
 | Biomes | 65 | 48 placed by the generator with surfaces, colours, vegetation, ocean floors (seagrass, kelp, coral reefs, icebergs) and per-world badlands bands | rest have colours/data only | nether/end (no dimensions yet) |
