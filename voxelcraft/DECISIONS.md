@@ -909,3 +909,11 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      marker in the ship leaves the elytra itself standing where vanilla hangs it. Vanilla hangs it in
      an item frame, which this game has no entity for yet, so for now it stands there as a dropped
      item that never rots away — the same place, and the same thing to pick up.
+
+104. **Shulkers.** A shulker is a block with a lid: it never moves, is never knocked about, and
+     nothing gravity does applies to it. It opens when a player comes within sixteen blocks and it
+     can see them, and while open it fires vanilla's bullet on vanilla's own countdown — one to five
+     and a half seconds apart — which does its damage and leaves whoever it hits drifting upward on
+     Levitation. Shut, it carries vanilla's twenty points of armour and takes a fifth of a hit;
+     open, it takes all of it, which is what makes the timing of the fight. They come only with end
+     cities, from the `Sentry` markers their templates carry, exactly as vanilla spawns them.

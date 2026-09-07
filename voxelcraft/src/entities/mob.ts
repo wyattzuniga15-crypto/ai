@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -139,6 +139,13 @@ let nextId = 1;
 /** Chunk material and fire tile ids used to draw burning mobs; set once by the game. */
 /** How long a guardian charges its beam before it lands: vanilla's attack duration. */
 export const guardianAttackTicks = (elder: boolean): number => (elder ? 60 : 80);
+
+/** How long a shulker's lid takes to slide open or shut. */
+export const SHULKER_OPEN_TICKS = 20;
+
+/** How far that lid has slid, nought to one, which is what the model is drawn from. */
+export const shulkerOpen = (m: Mob): number =>
+  Math.max(0, Math.min(1, (typeof m.extra.open === 'number' ? m.extra.open : 0) / SHULKER_OPEN_TICKS));
 
 export const mobFireAssets: { material: THREE.Material | null; tiles: [number, number]; viewYaw: number } = { material: null, tiles: [0, 0], viewYaw: 0 };
 
@@ -296,6 +303,11 @@ export class Mob {
     // and nothing touches the dragon while a crystal is still healing it
     if (this.def.id === 'ender_dragon') {
       if (typeof this.extra.crystals === 'number' && this.extra.crystals > 0) return false;
+      knockback = 0;
+    }
+    // a shulker with its lid shut is armoured the way vanilla armours it, and never knocked about
+    if (this.def.id === 'shulker') {
+      if (shulkerOpen(this) < 0.5) amount *= 1 - 20 / 25;
       knockback = 0;
     }
     // horse armour soaks damage with vanilla's armour formula (4% per point)
@@ -919,6 +931,18 @@ export class Mob {
         set('left_leg', legB * 1.2);
         const body = parts.get('body');
         if (body) body.rotation.z = Math.cos(swing * 0.6662) * 0.08 * amt;
+        break;
+      }
+      case 'shulker': {
+        // the lid slides up over the head, and vanilla turns it as it goes
+        const open = shulkerOpen(this);
+        const lid = parts.get('lid');
+        const head = parts.get('head');
+        if (lid) {
+          lid.position.y = open * 0.5;
+          lid.rotation.y = open * Math.PI * 0.5;
+        }
+        if (head) head.visible = open > 0.05;
         break;
       }
       case 'crystal': {

@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, blazeGoal, dragonGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -598,6 +598,19 @@ const witherModel: ModelDef = {
 };
 
 /**
+ * The shulker: a box that clings to a wall, with a lid that slides up over a head when it opens.
+ * Vanilla draws all three around the block it is stuck to.
+ */
+const shulkerModel: ModelDef = {
+  texture: 'shulker/shulker.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'base', pivot: [0, 24, 0], boxes: [{ uv: [0, 28], box: [-8, -8, -8, 16, 8, 16] }] },
+    { name: 'lid', pivot: [0, 24, 0], boxes: [{ uv: [0, 0], box: [-8, -16, -8, 16, 12, 16] }] },
+    { name: 'head', pivot: [0, 12, 0], boxes: [{ uv: [0, 52], box: [-3, 0, -3, 6, 6, 6] }] },
+  ],
+};
+
+/**
  * The end crystal: a glass cage around a core, standing on its base. Mojang doubled the texture's
  * resolution at some point, so the boxes here are twice vanilla's numbers on a 128x64 sheet, which
  * comes to the same size in the world.
@@ -855,6 +868,8 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // the dragon: it circles the middle island and cannot be hurt while a crystal is still healing it
   ender_dragon: { model: dragonModel, animation: 'dragon', eyeHeight: 4, followRange: 128, flying: true, fireproof: true, goals: () => [dragonGoal()] },
   // the end crystal: it stands where it is put, heals the dragon, and goes off when it is hit
+  // the shulker: it never moves, and the shell it drops is the only way to a shulker box
+  shulker: { model: shulkerModel, animation: 'shulker', eyeHeight: 0.5, followRange: 16, flying: true, override: { xp: 5 }, goals: () => [shulkerGoal()] },
   end_crystal: { model: endCrystalModel, animation: 'crystal', eyeHeight: 1, followRange: 0, flying: true, fireproof: true, data: 'end_crystal', override: { health: 1, damage: 0, xp: 0, width: 2, height: 2 }, goals: () => [] },
   // the Wither: summoned rather than spawned, flying, and armoured once it is half beaten
   wither: { model: witherModel, animation: 'wither', eyeHeight: 3.1, followRange: 64, flying: true, fireproof: true, scale: 2, goals: () => [witherGoal()] },

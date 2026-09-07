@@ -1,6 +1,6 @@
 /** AI goals for mobs (vanilla-style goal selector with priorities and exclusive flags). */
 import * as THREE from 'three';
-import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, guardianAttackTicks, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
+import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, SHULKER_OPEN_TICKS, guardianAttackTicks, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
 import { EQUINE_TYPES, inheritEquine } from './mobTypes.ts';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -1349,6 +1349,43 @@ export const witherGoal = (): Goal => ({
       w.shootArrow(from, eye, 0.8, 5, { id: 'wither', ticks: 200 });
       w.playSound('wither_shoot', m.pos.x, m.pos.y, m.pos.z);
     }
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// The shulker
+// ---------------------------------------------------------------------------------------------
+const SHULKER_RANGE = 16;
+
+/**
+ * Vanilla's shulker: it never moves. It opens its lid when a player comes within sixteen blocks and
+ * it can see them, and while it is open it fires a bullet every few seconds — the shot that leaves
+ * whoever it hits drifting upward.
+ */
+export const shulkerGoal = (): Goal => ({
+  flags: FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    // it is a block with a lid: nothing about it moves, however hard it is pushed
+    m.moveTarget = null;
+    m.vel.set(0, 0, 0);
+    const p = w.playerPos();
+    const eye = w.playerEye();
+    const near = m.pos.distanceTo(p) < SHULKER_RANGE && w.playerTargetable() && w.lineOfSight(m.eyePos(), eye);
+    const open = typeof m.extra.open === 'number' ? m.extra.open : 0;
+    m.extra.open = Math.max(0, Math.min(SHULKER_OPEN_TICKS, open + (near ? 1 : -1)));
+    if (!near || m.extra.open < SHULKER_OPEN_TICKS) return;
+    m.lookTarget = eye;
+    // vanilla counts down one to five and a half seconds between shots, and its bullet leaves
+    // whoever it hits drifting upward
+    const wait = (typeof m.extra.shot === 'number' ? m.extra.shot : 0) - 1;
+    if (wait > 0) {
+      m.extra.shot = wait;
+      return;
+    }
+    m.extra.shot = 20 + Math.floor(w.rng() * 10) * 10;
+    w.shootArrow(m.eyePos(), eye, 0.7, m.def.damage, { id: 'levitation', ticks: 200 });
+    w.playSound('shulker_shoot', m.pos.x, m.pos.y, m.pos.z);
   },
 });
 
