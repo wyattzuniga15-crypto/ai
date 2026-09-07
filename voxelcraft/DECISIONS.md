@@ -700,3 +700,30 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     duration, which is also what a lingering potion crossed with eight arrows now crafts. Three
     effects are still unreachable, each waiting on content that does not exist yet: raid omen and
     trial omen on trial chambers, breath of the nautilus on the conduit 1.21.9 gave it to.
+
+95. **Guardians, and the monument they keep.** The guardian model is transcribed from vanilla and
+    then checked against the texture rather than trusted: laying the net of every box over
+    `guardian.png` puts the 12x12x16 core, the two side plates, the plates above and below, the
+    eye, the three tail segments and the tail's fin exactly where the artwork has them, which is
+    also why the core's own side, top and bottom faces are transparent but for a two-pixel border.
+    Only the twelve spikes are ours — four on top, four at the corners of the middle, four
+    underneath — since their ring is set in code vanilla ships no data for.
+
+    Their beam is not vanilla's renderer either. Vanilla draws glowing entities and this beam
+    through buffers of their own; here the beam is two crossed quads carrying Mojang's beam
+    texture, scrolling along their length, thin while the charge builds and snapping wide as it
+    lands. What the beam *does* is vanilla's: eighty ticks of charge (sixty for an elder), the
+    guardian holding still and its spikes flaring while it aims, the shot cancelled if it loses
+    sight of what it aimed at, and the guardian's own attack damage when it lands. Reaching in to
+    hit one that is holding still costs two damage to its spikes, and an elder curses everyone
+    within fifty blocks with five minutes of Mining Fatigue III on its own sixty-second beat.
+
+    The monument is placed on vanilla's own spread — spacing 32, separation 5, salt 10387313, the
+    four deep ocean biomes — read out of the data files by `tools/gen-structures.ts` like every
+    other structure, and it starts at vanilla's fixed y 39 so its roof comes out just under the
+    sea. The building is vanilla in size (58x23x58), material, entrance, sponge room, its eight
+    blocks of gold sealed in dark prismarine and its three elder guardians; the room plan on the
+    eight-block grid is ours, as the mansion's is, because `OceanMonumentPieces` is a thousand
+    lines of Java with no data behind it to read. Whatever the building does not fill is flooded,
+    so it never leaves an air pocket under the ocean, and it is written chunk by chunk from the
+    same seed, so it comes out the same however a player swims up to it.

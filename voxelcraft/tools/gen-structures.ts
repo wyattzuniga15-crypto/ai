@@ -398,6 +398,7 @@ const PROCEDURAL: { name: string; set: string }[] = [
   { name: 'swamp_hut', set: 'swamp_huts' },
   { name: 'stronghold', set: 'strongholds' },
   { name: 'buried_treasure', set: 'buried_treasures' },
+  { name: 'monument', set: 'ocean_monuments' },
 ];
 
 for (const want of PROCEDURAL) {

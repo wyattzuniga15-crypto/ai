@@ -16,6 +16,7 @@ import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } fr
 import { buildTemple, TEMPLE_SIZE, type TempleKind } from './temples.ts';
 import { assembleStronghold, fillStrongholdPiece, type StrongholdPiece } from './stronghold.ts';
 import { assembleMansion, CELL, GRID } from './mansion.ts';
+import { buildMonument, MONUMENT_SIZE, MONUMENT_Y } from './monument.ts';
 
 /** Structures vanilla lays out in code, keyed by the placement name their index entry carries. */
 const TEMPLE_KINDS = new Set<string>(['desert_pyramid', 'jungle_temple', 'swamp_hut']);
@@ -33,6 +34,7 @@ interface StructureInstance {
   temple?: { kind: TempleKind; x: number; y: number; z: number; rotation: number; seed: number };
   rooms?: StrongholdPiece[];
   treasure?: { x: number; y: number; z: number };
+  monument?: { x: number; y: number; z: number; seed: number };
 }
 const EMPTY_STRUCTURE: StructureInstance = { pieces: [] };
 
@@ -858,6 +860,12 @@ export class WorldGenerator {
             buildTemple({ world, clip, x: t.x, y: t.y, z: t.z, rotation: t.rotation, seed: t.seed, kind: t.kind, onLoot: loot, onEntity: entity });
         }
         if (instance.treasure) this.buryTreasure(world, clip, instance.treasure, loot);
+        if (instance.monument) {
+          const m = instance.monument;
+          const [mw, , md] = MONUMENT_SIZE;
+          if (m.x <= clip.x1 && m.x + mw - 1 >= clip.x0 && m.z <= clip.z1 && m.z + md - 1 >= clip.z0)
+            buildMonument({ world, clip, x: m.x, y: m.y, z: m.z, seed: m.seed, onEntity: entity });
+        }
         for (const room of instance.rooms ?? []) {
           const b = room.box;
           if (b.x1 < clip.x0 || b.x0 > clip.x1 || b.z1 < clip.z0 || b.z0 > clip.z1) continue;
@@ -933,6 +941,7 @@ export class WorldGenerator {
     if (TEMPLE_KINDS.has(set.placement)) return this.buildTempleAt(set, wx, wz, rng);
     if (set.placement === 'stronghold') return this.buildStronghold(set, cx, cz);
     if (set.placement === 'buried_treasure') return this.buildBuriedTreasure(set, wx, wz);
+    if (set.placement === 'monument') return this.buildMonument(set, wx, wz);
     if (set.placement === 'fossil') return this.buildFossil(set, wx, wz, rng, decaySeed);
     if (set.placement === 'mansion') return this.buildMansion(set, wx, wz, rng, decaySeed);
     if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, biome, wx, wz, rng, decaySeed) };
@@ -1084,6 +1093,20 @@ export class WorldGenerator {
    * Buried treasure: one chest under the sand of a beach, which is what a treasure map points at.
    * It is written where it is worked out rather than through a piece, since it is a single block.
    */
+  /**
+   * Ocean monuments: vanilla starts the building at a fixed y so its roof comes out just under the
+   * sea, and only builds where the floor is deep enough to take the whole thing.
+   */
+  private buildMonument(set: StructureSet, wx: number, wz: number): StructureInstance {
+    const [w, , d] = MONUMENT_SIZE;
+    // the floor has to be low enough across the footprint, or the block would break the surface
+    for (const [ox, oz] of [[0, 0], [w - 1, 0], [0, d - 1], [w - 1, d - 1], [w >> 1, d >> 1]]) {
+      if (Math.floor(this.columnInfo(wx + ox, wz + oz).height) > MONUMENT_Y + 12) return EMPTY_STRUCTURE;
+    }
+    this.lastStructure = { name: set.name, x: wx, y: MONUMENT_Y, z: wz };
+    return { pieces: [], monument: { x: wx, y: MONUMENT_Y, z: wz, seed: mix(this.seed ^ set.salt, wx, wz, 0x11071) } };
+  }
+
   private buildBuriedTreasure(set: StructureSet, wx: number, wz: number): StructureInstance {
     const surface = Math.floor(this.columnInfo(wx, wz).height);
     this.lastStructure = { name: set.name, x: wx, y: surface, z: wz };
