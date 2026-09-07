@@ -27,7 +27,8 @@ describe('blocks vanilla draws itself', () => {
 
   it('turns a standing banner by its sixteenth and hangs a wall one lower', () => {
     const standing = placedModel(state('blue_banner', { rotation: '4' }));
-    expect(standing?.tint?.color).toBe(0x3c44aa);
+    // the base cloth takes the banner's own dye, and each woven layer takes its own
+    expect(standing?.tints?.[0]).toEqual({ texture: 'banner/base.png', color: 0x3c44aa });
     expect(standing?.yaw).toBeCloseTo(Math.PI / 2, 5);
     expect(standing?.scale).toBeCloseTo(2 / 3, 5);
     const wall = placedModel(state('blue_banner'.replace('banner', 'wall_banner'), { facing: 'south' }));
@@ -35,6 +36,11 @@ describe('blocks vanilla draws itself', () => {
     // a wall banner has no pole, which is the one part vanilla drops
     expect(standing?.model.parts.some((p) => p.name === 'pole')).toBe(true);
     expect(wall?.model.parts.some((p) => p.name === 'pole')).toBe(false);
+
+    // woven patterns each become a piece of cloth of their own, in their own colour
+    const woven = placedModel(state('white_banner', { rotation: '0' }), [{ pattern: 'creeper', color: 'lime' }]);
+    expect(woven?.model.parts.filter((p) => p.name.startsWith('flag'))).toHaveLength(2);
+    expect(woven?.tints?.[1]).toEqual({ texture: 'banner/creeper.png', color: 0x80c71f });
   });
 
   it('gives each skull its own texture and sits it on the block', () => {

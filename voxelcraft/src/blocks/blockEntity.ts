@@ -31,6 +31,12 @@ export interface CrafterEntity {
   crafting: boolean;
 }
 
+/** Banners: the patterns woven onto the one standing here. */
+export interface BannerEntity {
+  type: 'banner';
+  layers: { pattern: string; color: string }[];
+}
+
 /** Lecterns: the book on the stand and the page it is open at. */
 export interface LecternEntity {
   type: 'lectern';
@@ -75,7 +81,7 @@ export interface SpawnerEntity {
   delay: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | SignEntity | HiveEntity | SpawnerEntity;
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | SignEntity | HiveEntity | SpawnerEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -96,6 +102,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId === 'brewing_stand') return { type: 'brewing_stand', items: [null, null, null, null, null], brewTime: 0, fuel: 0 };
   if (blockId === 'crafter') return { type: 'crafter', items: new Array(9).fill(null), disabled: new Array(9).fill(false), crafting: false };
   if (blockId === 'lectern') return { type: 'lectern', book: null, page: 0 };
+  if (blockId.endsWith('_banner')) return { type: 'banner', layers: [] };
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };

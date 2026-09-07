@@ -10,6 +10,42 @@ export interface SpecialIcon {
   gui: { rotation: [number, number, number]; translation: [number, number, number]; scale: number };
   /** Material colour applied to the parts drawn with this texture (banner flags). */
   tint?: { texture: string; color: number };
+  /** Several tinted textures at once, which is how a patterned banner is drawn. */
+  tints?: { texture: string; color: number }[];
+}
+
+/** Every banner pattern vanilla ships, which the icons preload so a woven banner can be drawn. */
+export const BANNER_PATTERNS = [
+  'base', 'border', 'bricks', 'circle', 'creeper', 'cross', 'curly_border', 'diagonal_left', 'diagonal_right',
+  'diagonal_up_left', 'diagonal_up_right', 'flow', 'flower', 'globe', 'gradient', 'gradient_up', 'guster',
+  'half_horizontal', 'half_horizontal_bottom', 'half_vertical', 'half_vertical_right', 'mojang', 'piglin',
+  'rhombus', 'skull', 'small_stripes', 'square_bottom_left', 'square_bottom_right', 'square_top_left',
+  'square_top_right', 'straight_cross', 'stripe_bottom', 'stripe_center', 'stripe_downleft', 'stripe_downright',
+  'stripe_left', 'stripe_middle', 'stripe_right', 'stripe_top', 'triangle_bottom', 'triangle_top',
+  'triangles_bottom', 'triangles_top',
+];
+
+/**
+ * A banner with its woven layers: one flag piece per pattern, each on its own texture so it can take
+ * its own dye, stacked a hair apart so they draw in order.
+ */
+export function bannerIconModel(color: string, layers: { pattern: string; color: string }[]): SpecialIcon {
+  const flag = (texture: string, i: number): PartDef => ({
+    name: `flag${i}`, pivot: [0, -32, 0], texture,
+    boxes: [{ uv: [0, 0], box: [-10, 0, -2 - i * 0.06, 20, 40, 1] }],
+  });
+  const parts: PartDef[] = [flag('banner/base.png', 0)];
+  layers.forEach((l, i) => parts.push(flag(`banner/${l.pattern}.png`, i + 1)));
+  parts.push({ name: 'pole', pivot: [0, 0, 0], boxes: [{ uv: [44, 0], box: [-1, -30, -1, 2, 42, 2] }] });
+  parts.push({ name: 'bar', pivot: [0, 0, 0], boxes: [{ uv: [0, 42], box: [-10, -32, -1, 20, 2, 2] }] });
+  return {
+    model: { texture: 'banner_base.png', texW: 64, texH: 64, parts },
+    gui: { rotation: [30, 45, 0], translation: [0, 0, 0], scale: 0.22 },
+    tints: [
+      { texture: 'banner/base.png', color: DYE_COLORS[color] ?? 0xffffff },
+      ...layers.map((l) => ({ texture: `banner/${l.pattern}.png`, color: DYE_COLORS[l.color] ?? 0xffffff })),
+    ],
+  };
 }
 
 /** Vanilla DyeColor texture diffuse colours. */

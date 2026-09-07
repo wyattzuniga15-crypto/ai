@@ -6,6 +6,7 @@ import { findCookingRecipe, isFuel } from '../../items/smelting.ts';
 import { items } from '../../items/registry.ts';
 import type { BrewingEntity, CrafterEntity, FurnaceEntity } from '../../blocks/blockEntity.ts';
 import { crafterResult, toggleSlot } from '../../blocks/crafter.ts';
+import { LOOM_PATTERNS, PATTERN_ITEMS, dyeColor, isBanner, loomResult, type BannerLayer } from '../../items/banners.ts';
 import { BREW_TICKS, FUEL_BREWS } from '../../blocks/brewing.ts';
 import { isBrewingIngredient } from '../../items/potions.ts';
 
@@ -368,6 +369,85 @@ export function crafterScreen(inv: Inventory, e: CrafterEntity, onChange?: () =>
     quickMove(from) {
       if (from.group === 'container' || from.group === 'result') return reversePlayer(player);
       return grid;
+    },
+  };
+}
+
+/**
+ * The loom: a banner, a dye and (for the eight patterns that need one) a pattern item, with the
+ * list of patterns vanilla offers and the woven banner in the result slot.
+ */
+export function loomScreen(inv: Inventory, host: { icons: { bannerIcon(color: string, layers: BannerLayer[]): string } }, state: { banner: Slot; dye: Slot; pattern: Slot; selected: string | null; scroll: number }, onChange?: () => void): ScreenDef {
+  const player = playerSlots(inv);
+  const banner: SlotDef = { x: 13, y: 26, group: 'container', get: () => state.banner, set: (s) => { state.banner = s; onChange?.(); }, accepts: (s) => isBanner(s.id) };
+  const dye: SlotDef = { x: 33, y: 26, group: 'container', get: () => state.dye, set: (s) => { state.dye = s; onChange?.(); }, accepts: (s) => !!dyeColor(s.id) };
+  const pattern: SlotDef = { x: 23, y: 45, group: 'container', get: () => state.pattern, set: (s) => { state.pattern = s; onChange?.(); }, accepts: (s) => s.id in PATTERN_ITEMS };
+  const result: SlotDef = {
+    x: 143, y: 58, group: 'result', result: true,
+    get: () => loomResult(state.banner, state.dye, state.pattern, state.selected),
+    set: () => {},
+    onTake: () => {
+      // weaving uses up the dye and the banner, and the pattern item stays
+      if (state.banner && --state.banner.count <= 0) state.banner = null;
+      if (state.dye && --state.dye.count <= 0) state.dye = null;
+      state.selected = null;
+      onChange?.();
+    },
+  };
+  /** Which patterns the loom can offer right now. */
+  const offered = (): string[] => {
+    if (state.pattern) return [PATTERN_ITEMS[state.pattern.id]].filter(Boolean);
+    return LOOM_PATTERNS;
+  };
+  return {
+    texture: 'container/loom.png', width: 176, height: 166, slots: [banner, dye, pattern, result, ...player],
+    labels: [{ text: 'Loom', x: 8, y: 6 }, { text: 'Inventory', x: 8, y: 72 }],
+    overlay(root) {
+      const s = Number(getComputedStyle(document.documentElement).getPropertyValue('--gui')) || 3;
+      const base = `${import.meta.env.BASE_URL}textures/gui/sprites/container/loom/`;
+      let list = root.querySelector('.loom-list') as HTMLElement | null;
+      if (!list) {
+        list = document.createElement('div');
+        list.className = 'loom-list';
+        list.style.cssText = `position:absolute;left:${60 * s}px;top:${13 * s}px;width:${56 * s}px;height:${56 * s}px;overflow:hidden;`;
+        root.append(list);
+        list.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          state.scroll = Math.max(0, state.scroll + (e.deltaY > 0 ? 1 : -1));
+          onChange?.();
+        });
+      }
+      const patterns = offered();
+      const rows = Math.ceil(patterns.length / 4);
+      state.scroll = Math.max(0, Math.min(state.scroll, Math.max(0, rows - 4)));
+      list.replaceChildren();
+      const color = state.dye ? dyeColor(state.dye.id) ?? 'white' : 'white';
+      const bannerColorId = state.banner ? state.banner.id.slice(0, -7) : 'white';
+      patterns.slice(state.scroll * 4, state.scroll * 4 + 16).forEach((p, i) => {
+        const cell = document.createElement('div');
+        const x = (i % 4) * 14 * s;
+        const y = Math.floor(i / 4) * 14 * s;
+        const sprite = p === state.selected ? 'pattern_selected.png' : 'pattern.png';
+        cell.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${14 * s}px;height:${14 * s}px;background:url('${base}${sprite}') 0 0 / 100% 100% no-repeat;cursor:pointer;`;
+        const img = document.createElement('img');
+        img.src = host.icons.bannerIcon(bannerColorId, [{ pattern: p, color }]);
+        img.style.cssText = `position:absolute;left:${2 * s}px;top:${2 * s}px;width:${10 * s}px;height:${10 * s}px;image-rendering:pixelated;`;
+        cell.append(img);
+        cell.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          state.selected = p;
+          onChange?.();
+        });
+        list!.append(cell);
+      });
+    },
+    quickMove(from, stack) {
+      if (from.group === 'container' || from.group === 'result') return reversePlayer(player);
+      if (isBanner(stack.id)) return [banner];
+      if (dyeColor(stack.id)) return [dye];
+      if (stack.id in PATTERN_ITEMS) return [pattern];
+      if (from.group === 'hotbar') return byGroup(player, 'inventory');
+      return byGroup(player, 'hotbar');
     },
   };
 }

@@ -34,7 +34,7 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { brewingScreen, chestScreen, crafterScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { brewingScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
 import { containerKind, createBlockEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { tickBrewing } from '../blocks/brewing.ts';
@@ -919,6 +919,14 @@ export class Game {
     const entity = this.world.getBlockEntity(x, y, z);
     // a shulker box with anything inside always drops as one item carrying its contents (vanilla copy_components)
     const keepsContents = containerKind(def.id) === 'shulker_box' && entity && 'items' in entity && entity.items.some(Boolean);
+    // a woven banner keeps its patterns when it is taken down
+    if (entity?.type === 'banner' && entity.layers.length && (byWorld || p.gamemode !== 'creative')) {
+      const dropped = blockDrops(state, held)[0] ?? { id: def.id, count: 1 };
+      this.dropStack({ ...dropped, count: 1, banner: entity.layers.map((l) => ({ ...l })) }, x + 0.5, y + 0.5, z + 0.5, true);
+      this.world.setBlock(x, y, z, 0);
+      this.world.setBlockEntity(x, y, z, null);
+      return;
+    }
     if (keepsContents) {
       this.dropStack({ id: def.id, count: 1, contents: entity.items.map((s) => (s ? cloneStack(s) : null)) }, x + 0.5, y + 0.5, z + 0.5, true);
       if (!byWorld && p.gamemode === 'survival') p.exhaustion += 0.005;
@@ -1017,6 +1025,7 @@ export class Game {
       const carried = p.heldItem()?.contents;
       if (carried) entity.items = carried.map((s) => (s ? cloneStack(s) : null));
     }
+    if (entity?.type === 'banner') entity.layers = (p.heldItem()?.banner ?? []).map((l) => ({ ...l }));
     if (entity) this.world.setBlockEntity(x, y, z, entity);
     if (def.id === 'chest' || def.id === 'trapped_chest') this.pairChest(x, y, z, state);
     if (entity?.type === 'sign') this.editSign(x, y, z, entity);
@@ -1979,6 +1988,16 @@ export class Game {
     }
     if (def.id === 'composter') return this.useComposter(t);
     if (def.id.endsWith('cauldron')) return this.useCauldron(t, def.id);
+    if (def.id === 'loom') {
+      const state = { banner: null as Slot, dye: null as Slot, pattern: null as Slot, selected: null as string | null, scroll: 0 };
+      const screen = loomScreen(inv, { icons: this.icons }, state, () => this.screen?.refresh());
+      this.openScreen(screen, () => {
+        for (const slot of [state.banner, state.dye, state.pattern]) {
+          if (slot && p.inventory.add(slot) > 0) this.dropStack(slot, p.pos.x, p.pos.y + 1, p.pos.z, true);
+        }
+      });
+      return true;
+    }
     if (def.id === 'lectern') {
       return this.useLectern(t);
     }
@@ -3539,7 +3558,8 @@ export class Game {
       const key = `${x},${y},${z}`;
       if (drawnStates[newState]) {
         this.drawnBlocks.add(key);
-        this.blockEntities.update(x, y, z, newState);
+        const entity = this.world.getBlockEntity(x, y, z);
+        this.blockEntities.update(x, y, z, newState, entity?.type === 'banner' ? entity.layers : []);
       } else {
         this.drawnBlocks.delete(key);
         this.blockEntities.remove(x, y, z);
@@ -3587,7 +3607,8 @@ export class Game {
         continue;
       }
       drawn.add(key);
-      this.blockEntities.update(x, y, z, state);
+      const entity = this.world.getBlockEntity(x, y, z);
+      this.blockEntities.update(x, y, z, state, entity?.type === 'banner' ? entity.layers : []);
     }
     this.blockEntities.prune(drawn);
   }

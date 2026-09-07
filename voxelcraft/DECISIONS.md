@@ -616,3 +616,12 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     since signing turns a book and quill into a written book. Fixing the crafter turned up a
     long-standing crash: right-clicking a dispenser or dropper by hand called a behaviour that did
     not exist.
+
+88. **The loom weaves real banners.** Vanilla's pattern list lives in code, so it is written out here:
+    thirty-five patterns a dye alone can weave and ten that need their own pattern item, up to six
+    layers on one banner. A layer is a pattern name and a dye colour carried on the stack, which is
+    also what a placed banner keeps in its block entity and hands back when it is taken down. Each
+    layer is drawn as its own piece of cloth a fraction in front of the last, tinted by its dye,
+    which is how the banner ends up looking the same in the world, in the hand and on the loom's own
+    pattern list. Item stacks now carry potions, book pages and banner patterns, so two that differ
+    no longer stack together.

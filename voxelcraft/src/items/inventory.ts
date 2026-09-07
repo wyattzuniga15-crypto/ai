@@ -19,12 +19,15 @@ export interface ItemStack {
   /** Written and writable books: their pages, and who wrote a signed one. */
   pages?: string[];
   author?: string;
+  /** Banner patterns woven onto the stack, in the order they were added. */
+  banner?: { pattern: string; color: string }[];
 }
 
 export type Slot = ItemStack | null;
 
 export function stackable(a: ItemStack, b: ItemStack): boolean {
-  return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null) && JSON.stringify(a.contents ?? null) === JSON.stringify(b.contents ?? null);
+  return a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && JSON.stringify(a.enchantments ?? null) === JSON.stringify(b.enchantments ?? null) && (a.name ?? '') === (b.name ?? '') && (a.repairCost ?? 0) === (b.repairCost ?? 0) && JSON.stringify(a.trim ?? null) === JSON.stringify(b.trim ?? null) && JSON.stringify(a.contents ?? null) === JSON.stringify(b.contents ?? null)
+    && (a.potion ?? '') === (b.potion ?? '') && JSON.stringify(a.pages ?? null) === JSON.stringify(b.pages ?? null) && JSON.stringify(a.banner ?? null) === JSON.stringify(b.banner ?? null);
 }
 
 export function cloneStack(s: ItemStack, count = s.count): ItemStack {
@@ -35,6 +38,10 @@ export function cloneStack(s: ItemStack, count = s.count): ItemStack {
   if (s.repairCost) c.repairCost = s.repairCost;
   if (s.trim) c.trim = { ...s.trim };
   if (s.contents) c.contents = s.contents.map((x) => (x ? cloneStack(x) : null));
+  if (s.potion) c.potion = s.potion;
+  if (s.pages) c.pages = [...s.pages];
+  if (s.author) c.author = s.author;
+  if (s.banner) c.banner = s.banner.map((l) => ({ ...l }));
   return c;
 }
 

@@ -10,7 +10,7 @@ import { items } from '../items/registry.ts';
 import { tintColor } from '../world/mesher.ts';
 import { biomeIndex } from '../world/biomes.ts';
 import { buildModel, entityTexture, preloadEntityTextures } from '../entities/boxModel.ts';
-import { specialIcon, type SpecialIcon } from './specialIcons.ts';
+import { BANNER_PATTERNS, bannerIconModel, specialIcon, type SpecialIcon } from './specialIcons.ts';
 import { potionColor, potionOf } from '../items/potions.ts';
 import type { ItemStack } from '../items/inventory.ts';
 
@@ -50,6 +50,8 @@ export class ItemIcons {
       paths.add(sp.model.texture);
       for (const p of sp.model.parts) if (p.texture) paths.add(p.texture);
     }
+    // every banner pattern, so a woven banner can be drawn the moment one is made
+    for (const p of BANNER_PATTERNS) paths.add(`banner/${p}.png`);
     await preloadEntityTextures(import.meta.env.BASE_URL, paths);
   }
 
@@ -94,6 +96,11 @@ export class ItemIcons {
     const built = buildModel(sp.model, base);
     const shades = [0.6, 0.6, 1.0, 0.5, 0.8, 0.8]; // BoxGeometry face order px, nx, py, ny, pz, nz
     const tintTex = sp.tint ? entityTexture(base, sp.tint.texture) : null;
+    // several tinted layers at once: a woven banner is one flag piece per pattern
+    for (const t of sp.tints ?? []) {
+      const material = built.layers.get(t.texture);
+      if (material) material.color.setHex(t.color);
+    }
     built.group.traverse((o) => {
       if (!(o instanceof THREE.Mesh)) return;
       const geo = o.geometry as THREE.BufferGeometry;
@@ -125,6 +132,7 @@ export class ItemIcons {
 
   /** Icon for a particular stack: a potion is tinted by what is in the bottle. */
   forStack(stack: ItemStack): string {
+    if (stack.banner?.length && stack.id.endsWith('_banner')) return this.bannerIcon(stack.id.slice(0, -7), stack.banner);
     const potion = potionOf(stack);
     if (!potion) return this.icon(stack.id);
     const color = potionColor(stack);
@@ -135,6 +143,22 @@ export class ItemIcons {
     const url = this.drawSprite([`item/${stack.id}_overlay`, `item/${stack.id}`], [color, 0xffffff])
       || this.drawSprite([`item/potion_overlay`, `item/${stack.id}`], [color, 0xffffff])
       || this.icon(stack.id);
+    this.cache.set(key, url);
+    return url;
+  }
+
+  /** A banner in a colour with its woven patterns, drawn as the block-entity model. */
+  bannerIcon(color: string, layers: { pattern: string; color: string }[]): string {
+    const key = `banner:${color}:${layers.map((l) => `${l.pattern}/${l.color}`).join(',')}`;
+    const cached = this.cache.get(key);
+    if (cached !== undefined) return cached;
+    let url = '';
+    try {
+      url = this.drawSpecial(bannerIconModel(color, layers));
+    } catch (e) {
+      console.warn('banner icon failed', e);
+    }
+    if (!url) url = this.drawChecker();
     this.cache.set(key, url);
     return url;
   }

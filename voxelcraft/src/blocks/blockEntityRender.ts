@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { blocks } from './registry.ts';
 import { buildModel, type ModelDef } from '../entities/boxModel.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
+import type { BannerLayer } from '../items/banners.ts';
 
 /** Yaw for a model built facing north, which is the way the box-model net puts a front on -z. */
 const FACING_YAW: Record<string, number> = { north: 0, south: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 };
@@ -16,6 +17,8 @@ export interface PlacedModel {
   model: ModelDef;
   /** Parts drawn with this texture take the colour, which is how a banner gets its dye. */
   tint?: { texture: string; color: number };
+  /** Several tinted textures at once: the layers woven onto a banner. */
+  tints?: { texture: string; color: number }[];
   yaw: number;
   offset: [number, number, number];
   scale: number;
@@ -58,11 +61,15 @@ function shulkerModel(color: string): ModelDef {
 }
 
 /** A banner: the cloth, its pole and the bar it hangs from. A wall banner keeps only the cloth. */
-function bannerModel(onWall: boolean): ModelDef {
-  const parts: ModelDef['parts'] = [
-    { name: 'flag', pivot: [0, -32, 0], texture: 'banner/base.png', boxes: [{ uv: [0, 0], box: [-10, 0, -2, 20, 40, 1] }] },
-    { name: 'bar', pivot: [0, 0, 0], boxes: [{ uv: [0, 42], box: [-10, -32, -1, 20, 2, 2] }] },
-  ];
+function bannerModel(onWall: boolean, layers: BannerLayer[]): ModelDef {
+  const flag = (texture: string, i: number): ModelDef['parts'][number] => ({
+    name: `flag${i}`, pivot: [0, -32, 0], texture,
+    boxes: [{ uv: [0, 0], box: [-10, 0, -2 - i * 0.06, 20, 40, 1] }],
+  });
+  const parts: ModelDef['parts'] = [flag('banner/base.png', 0)];
+  // each woven pattern is its own piece of cloth, a hair in front of the last
+  layers.forEach((l, i) => parts.push(flag(`banner/${l.pattern}.png`, i + 1)));
+  parts.push({ name: 'bar', pivot: [0, 0, 0], boxes: [{ uv: [0, 42], box: [-10, -32, -1, 20, 2, 2] }] });
   if (!onWall) parts.push({ name: 'pole', pivot: [0, 0, 0], boxes: [{ uv: [44, 0], box: [-1, -30, -1, 2, 42, 2] }] });
   return { texture: 'banner_base.png', texW: 64, texH: 64, parts };
 }
@@ -89,7 +96,7 @@ function headModel(kind: string): ModelDef | null {
  * The model and transform for a block vanilla draws itself, or null when the block is drawn the
  * ordinary way. Beds are drawn once, from the head end, since one model covers both halves.
  */
-export function placedModel(state: number): PlacedModel | null {
+export function placedModel(state: number, layers: BannerLayer[] = []): PlacedModel | null {
   if (state === 0) return null;
   const def = blocks.blockOf(state);
   const id = def.id;
@@ -118,7 +125,14 @@ export function placedModel(state: number): PlacedModel | null {
     const yaw = onWall ? (FACING_YAW[facing] ?? 0) + Math.PI : Math.PI - (rotation * Math.PI) / 8;
     // vanilla hangs a wall banner about a block lower than a standing one and back against the wall
     const offset: [number, number, number] = onWall ? [0, -1.4792, -0.4375] : [0, -0.5, 0];
-    return { model: bannerModel(onWall), tint: { texture: 'banner/base.png', color: DYE_COLORS[banner] ?? 0xffffff }, yaw, offset, scale: 2 / 3 };
+    return {
+      model: bannerModel(onWall, layers),
+      tints: [
+        { texture: 'banner/base.png', color: DYE_COLORS[banner] ?? 0xffffff },
+        ...layers.map((l) => ({ texture: `banner/${l.pattern}.png`, color: DYE_COLORS[l.color] ?? 0xffffff })),
+      ],
+      yaw, offset, scale: 2 / 3,
+    };
   }
 
   const skull = id.replace(/_wall_head$|_wall_skull$|_head$|_skull$/, '');
@@ -163,21 +177,25 @@ export class BlockEntityRenderer {
 
   constructor(private readonly scene: THREE.Scene, private readonly base: string) {}
 
-  update(x: number, y: number, z: number, state: number): void {
-    const placed = placedModel(state);
+  update(x: number, y: number, z: number, state: number, layers: BannerLayer[] = []): void {
+    const placed = placedModel(state, layers);
     const at = `${x},${y},${z}`;
     const existing = this.meshes.get(at);
     if (!placed) {
       if (existing) this.remove(x, y, z);
       return;
     }
-    const key = `${state}`;
+    const key = `${state}|${layers.map((l) => `${l.pattern}/${l.color}`).join(',')}`;
     if (existing && existing.key === key) return;
     if (existing) this.remove(x, y, z);
     const built = buildModel(placed.model, this.base);
     if (placed.tint) {
       const material = built.layers.get(placed.tint.texture);
       if (material) material.color.setHex(placed.tint.color);
+    }
+    for (const t of placed.tints ?? []) {
+      const material = built.layers.get(t.texture);
+      if (material) material.color.setHex(t.color);
     }
     const group = new THREE.Group();
     built.group.scale.setScalar(placed.scale);
