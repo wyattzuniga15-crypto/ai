@@ -1549,6 +1549,8 @@ export class Game {
     p.exhaustion += 0.005;
     // the last skull of the ritual calls the Wither up out of the sand it stands on
     if (def.id.endsWith('_skull') || def.id.endsWith('_head')) this.trySummonWither(x, y, z);
+    // a pumpkin is the head of both golems, and the last block that brings one to life
+    if (def.id === 'carved_pumpkin' || def.id === 'jack_o_lantern') this.trySummonGolem(x, y, z);
     return true;
   }
 
@@ -1586,6 +1588,38 @@ export class Game {
         }
         return;
       }
+    }
+  }
+
+  /**
+   * Vanilla's two golems, both built and then crowned with a pumpkin: a snow golem on two snow
+   * blocks, an iron golem on a T of four iron blocks. The pattern is checked from the pumpkin, so
+   * placing that is what brings the thing to life.
+   */
+  private trySummonGolem(x: number, y: number, z: number): void {
+    const idAt = (bx: number, by: number, bz: number) => blocks.blockOf(this.world.getBlock(bx, by, bz)).id;
+    const clear = (cells: [number, number, number][]) => {
+      for (const [cx, cy, cz] of cells) this.world.setBlock(cx, cy, cz, 0);
+    };
+    // the snowman: two blocks of snow straight down
+    if (idAt(x, y - 1, z) === 'snow_block' && idAt(x, y - 2, z) === 'snow_block') {
+      clear([[x, y, z], [x, y - 1, z], [x, y - 2, z]]);
+      const golem = this.entities.spawn('snow_golem', x + 0.5, y - 2, z + 0.5, this.player.yaw + Math.PI);
+      if (golem) golem.persistent = true;
+      this.particles.poof(x + 0.5, y - 1, z + 0.5, 20, Math.random, 1, 2);
+      this.audio.play('dig_gravel', { x: x + 0.5, y, z: z + 0.5, pitch: 1.4 });
+      return;
+    }
+    // the iron golem: a T of four iron blocks, whichever way round the arms lie
+    if (idAt(x, y - 1, z) !== 'iron_block' || idAt(x, y - 2, z) !== 'iron_block') return;
+    for (const [dx, dz] of [[1, 0], [0, 1]] as [number, number][]) {
+      if (idAt(x - dx, y - 1, z - dz) !== 'iron_block' || idAt(x + dx, y - 1, z + dz) !== 'iron_block') continue;
+      clear([[x, y, z], [x, y - 1, z], [x, y - 2, z], [x - dx, y - 1, z - dz], [x + dx, y - 1, z + dz]]);
+      const golem = this.entities.spawn('iron_golem', x + 0.5, y - 2, z + 0.5, this.player.yaw + Math.PI);
+      if (golem) golem.persistent = true;
+      this.particles.poof(x + 0.5, y - 1, z + 0.5, 24, Math.random, 1.5, 2);
+      this.audio.play('anvil', { x: x + 0.5, y, z: z + 0.5, pitch: 0.8 });
+      return;
     }
   }
 

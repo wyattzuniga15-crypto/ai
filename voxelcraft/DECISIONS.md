@@ -1267,3 +1267,19 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      something has weakened takes a golden apple and shakes for three to five minutes before
      standing up a villager again, keeping how hurt it was — vanilla's cure, minus the villager's
      memory of the prices it used to charge, which nothing here stores yet.
+
+124. **The two golems.** Both are built rather than spawned, which is the point of them: a snowman
+     on two blocks of snow, an iron golem on a T of four iron blocks, and in both cases a carved
+     pumpkin placed last is what brings the thing to life. That is the same ritual the Wither
+     already used, checked from the block that finishes it, so placing a pumpkin now looks for both
+     shapes underneath it.
+
+     A snowman wears its pumpkin the way vanilla renders it — a block model on the head at five
+     eighths scale, turning as the head turns, which meant letting a mob's decoration hang off a
+     named part rather than only off its root. It lays a layer of snow wherever it walks and throws
+     snowballs that do no damage at all, because in vanilla the knock is the whole point.
+
+     An iron golem goes for the monsters and leaves creepers alone, as vanilla's does, and turns on
+     whoever hits it. What it does not do yet is belong to a village: vanilla's golems are spawned
+     by villagers who are frightened, and they hand out poppies. The villages here have villagers
+     but no fear, so a golem still has to be built by hand.

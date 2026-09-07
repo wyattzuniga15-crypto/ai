@@ -575,10 +575,11 @@ export class Mob {
    * Extra geometry hung off the model in world units, which is how a mooshroom wears its mushrooms:
    * the game builds it, since only the game can bake a block model, and the mob carries it about.
    */
-  setDecoration(obj: THREE.Object3D | null): void {
-    if (this.decoration) this.model.group.remove(this.decoration);
+  setDecoration(obj: THREE.Object3D | null, part?: string): void {
+    if (this.decoration) this.decoration.parent?.remove(this.decoration);
     this.decoration = obj;
-    if (obj) this.model.group.add(obj);
+    // a decoration hung off a part rides that part: a snow golem's pumpkin turns with its head
+    if (obj) (part ? this.model.parts.get(part) ?? this.model.group : this.model.group).add(obj);
   }
 
   setTexture(path: string): void {
@@ -608,7 +609,7 @@ export class Mob {
   /** Removes render objects that live outside the model group. */
   destroy(): void {
     if (this.decoration) {
-      this.model.group.remove(this.decoration);
+      this.decoration.parent?.remove(this.decoration);
       this.decoration = null;
     }
     if (this.fireMesh) {

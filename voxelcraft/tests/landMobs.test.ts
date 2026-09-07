@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { BREEDING_FOODS, LLAMA_COATS, MOB_SPECS, PANDA_GENES, mobStats, pandaGene, rabbitVariantFor } from '../src/entities/mobTypes.ts';
-import { GOAT_RAM_COOLDOWN, LLAMA_SPIT_DAMAGE, avoidPlayerGoal, bearDefendGoal, foxSleepGoal, goatRamGoal, llamaSpitGoal, pandaLieGoal, turtleLayGoal } from '../src/entities/ai.ts';
+import { GOAT_RAM_COOLDOWN, LLAMA_SPIT_DAMAGE, avoidPlayerGoal, bearDefendGoal, foxSleepGoal, goatRamGoal, llamaSpitGoal, pandaLieGoal, snowGolemGoal, targetMonsterGoal, turtleLayGoal } from '../src/entities/ai.ts';
 import type { Mob, MobWorld } from '../src/entities/mob.ts';
 import { blocks } from '../src/blocks/registry.ts';
 
@@ -29,6 +29,7 @@ function makeMob(id: string, x = 0, y = 64, z = 0): Mob {
     moveSpeed: 1,
     moveTimeout: 0,
     lookTarget: null as THREE.Vector3 | null,
+    target: null as unknown,
     distanceTo: (v: THREE.Vector3) => m.pos.distanceTo(v),
   } as unknown as Mob;
   return m;
@@ -261,5 +262,63 @@ describe('the variants of what was already here', () => {
 
   it('gives every registered mob stats to stand on', () => {
     for (const id of Object.keys(MOB_SPECS)) expect(mobStats(id), id).not.toBeNull();
+  });
+});
+
+describe('the golems', () => {
+  it('registers both, built rather than born', () => {
+    expect(MOB_SPECS.iron_golem.model.texture).toBe('iron_golem/iron_golem.png');
+    expect(MOB_SPECS.snow_golem.model.texture).toBe('snow_golem.png');
+    expect(mobStats('iron_golem')).toMatchObject({ health: 100, damage: 15, disposition: 'neutral' });
+    expect(mobStats('snow_golem')).toMatchObject({ health: 4, disposition: 'passive' });
+    // vanilla turns the snowman's second arm right round rather than mirroring it
+    const arm = MOB_SPECS.snow_golem.model.parts.find((p) => p.name === 'left_arm');
+    expect(arm?.rotation?.[1]).toBeCloseTo(Math.PI, 5);
+  });
+
+  it('sends an iron golem after a monster and after whoever hit it', () => {
+    const goal = targetMonsterGoal();
+    const golem = makeMob('iron_golem');
+    const zombie = makeMob('zombie', 0, 64, 5);
+    expect(goal.canUse!(golem, makeWorld({ mobsNear: () => [] }))).toBe(false);
+    expect(golem.target).toBeNull();
+    goal.canUse!(golem, makeWorld({ mobsNear: () => [zombie] }));
+    expect(golem.target).toBe(zombie);
+    // it leaves a creeper be, which vanilla's golem also does
+    golem.target = null;
+    goal.canUse!(golem, makeWorld({ mobsNear: () => [makeMob('creeper', 0, 64, 3)] }));
+    expect(golem.target).toBeNull();
+    // and it turns on whoever hit it
+    golem.age = 100;
+    golem.lastHurtTime = 90;
+    goal.canUse!(golem, makeWorld({ mobsNear: () => [] }));
+    expect(golem.target).toBe('player');
+  });
+
+  it('makes a snowman lay snow and throw snowballs', () => {
+    const goal = snowGolemGoal();
+    const m = makeMob('snow_golem', 0.5, 64, 0.5);
+    (m as unknown as { eyePos: () => THREE.Vector3 }).eyePos = () => m.pos.clone();
+    const shots: number[] = [];
+    const world = makeWorld({
+      mobsNear: () => [],
+      getBlock: (_x: number, y: number) => (y < 64 ? STONE : 0),
+      shootArrow: (_f: THREE.Vector3, _t: THREE.Vector3, _v: number, d: number) => shots.push(d),
+    });
+    m.age = 10;
+    goal.tick!(m, world);
+    expect(world.placed).toEqual([[0, 64, 0, 'snow']]);
+    // with a monster in front of it, it throws — and vanilla's snowball does no damage
+    const zombie = makeMob('zombie', 0, 64, 6);
+    (zombie as unknown as { eyePos: () => THREE.Vector3 }).eyePos = () => zombie.pos.clone();
+    m.age = 11;
+    const fight = makeWorld({
+      mobsNear: () => [zombie],
+      getBlock: () => 0,
+      shootArrow: (_f: THREE.Vector3, _t: THREE.Vector3, _v: number, d: number) => shots.push(d),
+    });
+    goal.tick!(m, fight);
+    expect(shots).toEqual([0]);
+    expect(m.attackCooldown).toBe(20);
   });
 });

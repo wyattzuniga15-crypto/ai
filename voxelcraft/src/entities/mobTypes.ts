@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -275,6 +275,33 @@ const endermiteModel: ModelDef = {
     { name: 'section_0', pivot: [0, 24, 0], boxes: [{ uv: [0, 0], box: [-2, -3, -4.4, 4, 3, 2] }] },
     { name: 'section_1', pivot: [0, 24, 0], boxes: [{ uv: [0, 5], box: [-3, -4, -2.4, 6, 4, 5] }] },
     { name: 'section_3', pivot: [0, 24, 0], boxes: [{ uv: [0, 18], box: [-0.5, -2, 3.5, 1, 2, 1] }] },
+  ],
+};
+
+
+/** The iron golem, whose long arms swing wide as it walks. */
+const ironGolemModel: ModelDef = {
+  texture: 'iron_golem/iron_golem.png', texW: 128, texH: 128,
+  parts: [
+    { name: 'body', pivot: [0, -7, 0], boxes: [{ uv: [0, 40], box: [-9, -2, -6, 18, 12, 11] }, { uv: [0, 70], box: [-4.5, 10, -3, 9, 5, 6], inflate: 0.5 }] },
+    { name: 'head', parent: 'body', pivot: [0, -7, -2], boxes: [{ uv: [0, 0], box: [-4, -12, -5.5, 8, 10, 8] }, { uv: [24, 0], box: [-1, -5, -7.5, 2, 4, 2] }] },
+    { name: 'right_arm', parent: 'body', pivot: [0, -7, 0], boxes: [{ uv: [60, 21], box: [-13, -2.5, -3, 4, 30, 6] }] },
+    { name: 'left_arm', parent: 'body', pivot: [0, -7, 0], boxes: [{ uv: [60, 58], box: [9, -2.5, -3, 4, 30, 6] }] },
+    { name: 'right_leg', parent: 'body', pivot: [-4, 11, 0], boxes: [{ uv: [37, 0], box: [-3.5, -3, -3, 6, 16, 5] }] },
+    { name: 'left_leg', parent: 'body', pivot: [5, 11, 0], boxes: [{ uv: [60, 0], box: [-3.5, -3, -3, 6, 16, 5] }] },
+  ],
+};
+
+/** The snow golem: three balls of snow with two stick arms, and the pumpkin it wears. */
+const snowGolemModel: ModelDef = {
+  texture: 'snow_golem.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'piece2', pivot: [0, 24, 0], boxes: [{ uv: [0, 36], box: [-6, -12, -6, 12, 12, 12], inflate: -0.5 }] },
+    { name: 'piece1', parent: 'piece2', pivot: [0, 13, 0], boxes: [{ uv: [0, 16], box: [-5, -10, -5, 10, 10, 10], inflate: -0.5 }] },
+    { name: 'head', parent: 'piece1', pivot: [0, 4, 0], boxes: [{ uv: [0, 0], box: [-4, -8, -4, 8, 8, 8], inflate: -0.5 }] },
+    { name: 'right_arm', parent: 'piece1', pivot: [0, 6, 0], boxes: [{ uv: [32, 0], box: [1, -4, -1, 12, 2, 2], inflate: -0.5 }] },
+    // vanilla turns the second arm right round rather than mirroring it
+    { name: 'left_arm', parent: 'piece1', pivot: [0, 6, 0], rotation: [0, Math.PI, 0], boxes: [{ uv: [32, 0], box: [1, -4, -1, 12, 2, 2], inflate: -0.5 }] },
   ],
 };
 
@@ -963,6 +990,9 @@ const pandaGoals = (): Goal[] => [floatGoal, pandaLieGoal(), panicGoal(1.2), los
 /** A polar bear minds its own business until somebody touches its cub. */
 const bearGoals = (): Goal[] => [floatGoal, bearDefendGoal(), loseTargetGoal(), meleeAttackGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(6), randomLookGoal];
 
+/** An iron golem walks its village and goes for whatever is hostile in it. */
+const golemGoals = (): Goal[] => [floatGoal, loseTargetGoal(), targetMonsterGoal(), meleeAttackGoal(), wanderGoal(120, 0.7, 12), lookAtPlayerGoal(8), randomLookGoal];
+
 /** Llamas keep to their herd and spit at whatever hurts them. */
 const llamaGoals = (): Goal[] => [floatGoal, llamaSpitGoal(), panicGoal(1.2), breedGoal(), followParentGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(6), randomLookGoal];
 
@@ -1090,6 +1120,9 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   skeleton_horse: { model: equineModel('horse/horse_skeleton.png', 'horse', null, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   zombie_horse: { model: equineModel('horse/horse_zombie.png', 'horse', null, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   // and the villager the plague took, which cures back into one given time and a golden apple
+  // the two that are built rather than born: a village's guardian and the player's own snowman
+  iron_golem: { model: ironGolemModel, animation: 'biped', eyeHeight: 2.4, followRange: 32, goals: () => golemGoals() },
+  snow_golem: { model: snowGolemModel, animation: 'biped', eyeHeight: 1.7, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), snowGolemGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(8), randomLookGoal] },
   zombie_villager: { model: villagerModel('zombie_villager/zombie_villager.png'), animation: 'biped', eyeHeight: 1.74, followRange: 35, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(35), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   // vanilla phantom attack damage is 6
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },

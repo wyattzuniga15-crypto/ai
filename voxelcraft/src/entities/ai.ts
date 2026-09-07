@@ -1090,7 +1090,7 @@ export const turtleLayGoal = (): Goal => ({
     if (w.getBlock(bx, by, bz) !== 0) return;
     // vanilla lays one to four eggs in the one block
     w.setBlock(bx, by, bz, blocks.stateWith('turtle_egg', { eggs: String(1 + Math.floor(w.rng() * 4)), hatch: '0' }));
-    w.playSound('dig_gravel', bx + 0.5, by, bz + 0.5, 0.9);
+    w.playSound('dig_sand', bx + 0.5, by, bz + 0.5, 0.9);
     m.extra.hasEgg = false;
     m.moveTarget = null;
   },
@@ -1166,7 +1166,7 @@ export const goatRamGoal = (): Goal => ({
     m.extra.ramCooldown = GOAT_RAM_COOLDOWN;
     m.extra.ramming = false;
     m.moveTarget = null;
-    w.playSound('goat', m.pos.x, m.pos.y, m.pos.z);
+    w.playSound('sheep', m.pos.x, m.pos.y, m.pos.z, 0.7);
   },
 });
 
@@ -1219,7 +1219,69 @@ export const llamaSpitGoal = (): Goal => ({
     if (m.attackCooldown > 0) return;
     m.attackCooldown = 40;
     w.shootArrow(m.eyePos(), eye, 1.5, LLAMA_SPIT_DAMAGE);
-    w.playSound('llama_spit', m.pos.x, m.pos.y, m.pos.z);
+    w.playSound('bow', m.pos.x, m.pos.y, m.pos.z, 0.7);
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// Golems
+// ---------------------------------------------------------------------------------------------
+/** What an iron golem counts as an enemy: the monsters, and never a creeper, which vanilla spares. */
+const GOLEM_TARGETS = new Set(['zombie', 'husk', 'drowned', 'zombie_villager', 'skeleton', 'stray', 'bogged', 'wither_skeleton', 'spider', 'cave_spider', 'witch', 'slime', 'slime_medium', 'slime_big', 'pillager', 'vindicator', 'evoker', 'vex', 'ravager', 'silverfish', 'endermite', 'zoglin']);
+
+/** An iron golem goes for whatever monster is nearest, and turns on a player who hits it. */
+export const targetMonsterGoal = (range = 16): Goal => ({
+  flags: 0,
+  canUse: (m, w) => {
+    if (m.target) return false;
+    // a golem that has been hit comes for whoever hit it, as vanilla's does
+    if (m.age - m.lastHurtTime < 100 && w.playerTargetable()) {
+      m.target = 'player';
+      return false;
+    }
+    let best: Mob | null = null;
+    let bestDist = range;
+    for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, range)) {
+      if (o === m || o.dead || !GOLEM_TARGETS.has(o.def.id)) continue;
+      const d = o.distanceTo(m.pos);
+      if (d < bestDist) { bestDist = d; best = o; }
+    }
+    if (!best) return false;
+    m.target = best;
+    return false;
+  },
+  tick: () => {},
+});
+
+/**
+ * Vanilla's snow golem: it throws snowballs at whatever it can see, which do no damage but push
+ * things about, and it leaves a trail of snow behind it where the ground is cold enough.
+ */
+export const snowGolemGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    // it lays a layer of snow wherever it walks, as vanilla's does
+    const bx = Math.floor(m.pos.x);
+    const by = Math.floor(m.pos.y);
+    const bz = Math.floor(m.pos.z);
+    if (m.age % 10 === 0 && w.getBlock(bx, by, bz) === 0 && blocks.blockOf(w.getBlock(bx, by - 1, bz)).solid) {
+      w.setBlock(bx, by, bz, blocks.stateWith('snow', { layers: '1' }));
+    }
+    let target: Mob | null = null;
+    let best = 16;
+    for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 16)) {
+      if (o === m || o.dead || !GOLEM_TARGETS.has(o.def.id)) continue;
+      const d = o.distanceTo(m.pos);
+      if (d < best) { best = d; target = o; }
+    }
+    if (!target) return;
+    m.lookTarget = target.eyePos();
+    if (m.attackCooldown > 0) return;
+    m.attackCooldown = 20;
+    // vanilla's snowball does no damage to most things: it is the knock that matters
+    w.shootArrow(m.eyePos(), target.eyePos(), 1.6, 0);
+    w.playSound('bow', m.pos.x, m.pos.y, m.pos.z, 1.6);
   },
 });
 

@@ -82,6 +82,7 @@ export class EntityManager {
     }
     if (type === 'sheep') m.extra.color = randomSheepColor(this.host.rng);
     if (type === 'mooshroom') this.dressMooshroom(m);
+    if (type === 'snow_golem') this.dressSnowGolem(m);
     if (type === 'cat') m.extra.variant = CAT_VARIANTS[Math.floor(this.host.rng() * CAT_VARIANTS.length)];
     if (type === 'rabbit') m.extra.variant = rabbitVariantFor(biomes[this.host.getBiome(Math.floor(x), Math.floor(z))]?.id ?? 'plains', this.host.rng);
     if (type === 'panda') m.extra.gene = pandaGene(this.host.rng);
@@ -361,6 +362,23 @@ export class EntityManager {
       this.spawn('mooshroom', px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05);
       spawned++;
     }
+  }
+
+  /**
+   * The carved pumpkin a snow golem wears. Vanilla renders it as a block on the head at five
+   * eighths scale, which is what makes it sit like a hat rather than a helmet.
+   */
+  dressSnowGolem(m: Mob): void {
+    const make = this.host.blockMesh;
+    if (!make) return;
+    const pivot = new THREE.Group();
+    // the head part is in model units, so the block has to be scaled back up out of the 1/16
+    pivot.position.set(0, 4, 0);
+    pivot.scale.setScalar(16 * 0.625);
+    const mesh = make(blocks.defaultState('carved_pumpkin'));
+    mesh.position.set(-0.5, -0.5, -0.5);
+    pivot.add(mesh);
+    m.setDecoration(pivot, 'head');
   }
 
   /** Hangs the three mushrooms a grown mooshroom carries off its model, in the colour it wears. */
