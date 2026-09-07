@@ -69,6 +69,7 @@ import { countBookshelves } from '../items/enchanting.ts';
 import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts';
 import { PlayerPreview } from '../ui/playerPreview.ts';
 import { SignRenderer, isSignBlock } from '../blocks/signs.ts';
+import { ChestRenderer, chestModel, chestStates, isChestBlock } from '../blocks/chests.ts';
 import { openSignEditor } from '../ui/signEditor.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
 
@@ -168,6 +169,10 @@ export class Game {
   readonly xpOrbs: XpOrb[] = [];
   readonly audio = new AudioEngine();
   readonly signs: SignRenderer;
+  /** Chests are drawn as block entities, the way vanilla draws them. */
+  private readonly chests: ChestRenderer;
+  /** Every chest in the loaded world, so their meshes can be kept in step. */
+  private readonly chestBlocks = new Set<string>();
   readonly particles: ParticleSystem;
   private lastAttacker: MobType | null = null;
   private lastVictim: MobType | null = null;
@@ -239,7 +244,10 @@ export class Game {
       dispense: (x, y, z) => this.dispense(x, y, z),
     };
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
-    this.world.onBlockChanged = (x, y, z, o, n) => this.simulation.onBlockChanged(x, y, z, o, n);
+    this.world.onBlockChanged = (x, y, z, o, n) => {
+      this.simulation.onBlockChanged(x, y, z, o, n);
+      this.chestChanged(x, y, z, o, n);
+    };
     this.animalChunks = new Set(opts.meta.animalChunks ?? []);
     const game = this;
     const host: ManagerHost = {
@@ -360,6 +368,7 @@ export class Game {
       if (!locked && this.state === 'playing') this.pause();
     };
     this.signs = new SignRenderer(this.renderer.scene, import.meta.env.BASE_URL);
+    this.chests = new ChestRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.audio.setVolume(opts.options.volume);
     const unlock = () => this.audio.unlock();
     this.renderer.canvas.addEventListener('mousedown', unlock);
@@ -477,6 +486,8 @@ export class Game {
     this.closeScreen();
     this.signEditorClose?.();
     this.signs.clear();
+    this.chests.prune(new Set());
+    this.chestBlocks.clear();
     this.loop.stop();
     window.removeEventListener('beforeunload', this.unloadHandler);
     await this.saveAll();
@@ -566,7 +577,10 @@ export class Game {
       }
     }
     this.tickSounds();
-    if (this.tickCount % 20 === 0) this.syncSigns();
+    if (this.tickCount % 20 === 0) {
+      this.syncSigns();
+      this.syncChests();
+    }
     if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
     this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
@@ -1475,7 +1489,8 @@ export class Game {
       return true;
     }
     if (def.id === 'ender_chest') {
-      this.openScreen(chestScreen(inv, p.enderChest, 3, 'Ender Chest'));
+      this.openScreen(chestScreen(inv, p.enderChest, 3, 'Ender Chest'), () => this.chests.setOpen(null));
+      this.chests.setOpen(`${t.x},${t.y},${t.z}`);
       return true;
     }
     if (def.id === 'enchanting_table') {
@@ -1550,13 +1565,15 @@ export class Game {
         };
         const screen = chestScreen(inv, merged, 6, 'Large Chest', sync);
         screen.onChange = sync;
-        this.openScreen(screen);
+        this.openScreen(screen, () => this.chests.setOpen(null));
+        this.chests.setOpen(`${t.x},${t.y},${t.z}`);
         return true;
       }
       const title = def.name;
       const screen = c.type === 'hopper' ? hopperScreen(inv, c.items, mark) : c.type === 'dispenser' || c.type === 'dropper' ? dispenserScreen(inv, c.items, title, mark) : chestScreen(inv, c.items, 3, c.type === 'shulker_box' ? 'Shulker Box' : title, mark, c.type === 'shulker_box' ? (s) => !s.id.endsWith('shulker_box') : undefined);
       screen.onChange = mark;
-      this.openScreen(screen);
+      this.openScreen(screen, isChestBlock(def.id) ? () => this.chests.setOpen(null) : undefined);
+      if (isChestBlock(def.id)) this.chests.setOpen(`${t.x},${t.y},${t.z}`);
       return true;
     }
     return false;
@@ -1958,7 +1975,15 @@ export class Game {
   /** Puts a cart into the world at an exact position, which is what placing and loading both need. */
   spawnCart(kind: CartKind, x: number, y: number, z: number): Minecart {
     const carried = CART_BLOCKS[kind];
-    const contents = carried ? this.blockMeshes.mesh(blocks.defaultState(carried)) : null;
+    let contents: THREE.Object3D | null = null;
+    if (carried === 'chest') {
+      // a chest has no block model of its own, so the cart carries the block entity's chest, moved
+      // off its centre so it sits in the cart like any other block
+      contents = new THREE.Group();
+      const model = chestModel(import.meta.env.BASE_URL);
+      model.position.set(0.5, 0, 0.5);
+      contents.add(model);
+    } else if (carried) contents = this.blockMeshes.mesh(blocks.defaultState(carried));
     const cart = new Minecart(kind, x, y, z, minecartMesh(import.meta.env.BASE_URL, contents));
     this.minecarts.push(cart);
     this.renderer.scene.add(cart.mesh);
@@ -2111,6 +2136,7 @@ export class Game {
   private onChunkLoaded(cx: number, cz: number): void {
     const c = this.world.getChunk(cx, cz);
     if (!c) return;
+    this.sweepChests(cx, cz);
     let saved: import('../entities/mob.ts').MobSave[] | null = null;
     if (c.pendingMobs) {
       try {
@@ -2879,6 +2905,56 @@ export class Game {
   }
 
   /** Keeps sign meshes in step with loaded sign block entities. */
+  /** Sweeps a freshly loaded chunk for chests, since vanilla draws each one itself. */
+  private sweepChests(cx: number, cz: number): void {
+    const c = this.world.getChunk(cx, cz);
+    if (!c) return;
+    const { blocks: data } = c;
+    for (let i = 0; i < data.length; i++) {
+      if (!chestStates[data[i]]) continue;
+      const x = i & 15;
+      const z = (i >> 4) & 15;
+      const y = (i >> 8) + WORLD_MIN_Y;
+      this.chestBlocks.add(`${cx * 16 + x},${y},${cz * 16 + z}`);
+    }
+  }
+
+  /** Keeps the chest list right as blocks come and go. */
+  private chestChanged(x: number, y: number, z: number, oldState: number, newState: number): void {
+    const was = chestStates[oldState] === 1;
+    const is = chestStates[newState] === 1;
+    if (!was && !is) return;
+    const key = `${x},${y},${z}`;
+    if (is) {
+      this.chestBlocks.add(key);
+      this.chests.update(x, y, z, newState);
+    } else {
+      this.chestBlocks.delete(key);
+      this.chests.remove(x, y, z);
+    }
+  }
+
+  /** Rebuilds the chest meshes near the player, dropping the ones that have gone. */
+  private syncChests(): void {
+    const seen = new Set<string>();
+    for (const key of this.chestBlocks) {
+      const [x, y, z] = key.split(',').map(Number);
+      const state = this.world.getBlock(x, y, z);
+      if (state === 0 || !isChestBlock(blocks.idOf(state))) {
+        this.chestBlocks.delete(key);
+        continue;
+      }
+      // an unloaded chunk takes its chests with it; loading it again sweeps them back up
+      if (!this.world.getChunk(x >> 4, z >> 4)) {
+        this.chestBlocks.delete(key);
+        continue;
+      }
+      seen.add(key);
+      this.chests.update(x, y, z, state);
+    }
+    this.chests.prune(seen);
+  }
+
   private syncSigns(): void {
     const seen = new Set<string>();
     this.world.forEachBlockEntity((x, y, z, e) => {
@@ -3034,6 +3110,7 @@ export class Game {
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
     for (const e of this.primedTnt) e.updateMesh(alpha);
     for (const e of this.minecarts) e.updateMesh(alpha);
+    this.chests.animate();
     mobFireAssets.viewYaw = this.player.yaw;
     this.entities.render(alpha, (x, y, z) => this.brightnessAt(x, y, z));
     this.particles.render(alpha, this.renderer.canvas.height, (x, y, z) => this.brightnessAt(x, y, z));

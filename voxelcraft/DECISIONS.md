@@ -532,3 +532,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     it — attachment only — while whether the wire is stood on is the game's to say each tick, so the
     two never fight each other. Anything with a body in the string powers both hooks and every piece
     of wire between them, and the signal is held for half a second after the last thing steps off.
+
+80. **Chests are drawn the way vanilla draws them, as block entities.** The `chest` block model
+    Mojang ships is empty — the game draws the chest itself with `ChestRenderer` — so a chest placed
+    in this world was simply invisible, structure chests included. Chests are now built from
+    vanilla's own three boxes (body, lid and the lock that turns with it) on the chest entity
+    textures, single and double, plain, trapped, ender and the four copper ages, wrapped up over
+    Christmas the way vanilla wraps them, with the lid swinging open while someone is looking
+    inside. Finding them is the same trick the mesher uses: a lookup of every chest block state, a
+    sweep of each chunk as it loads, and the ordinary block-change hook after that. The chest a
+    chest minecart carries is the same model, since there is no block model to borrow.
