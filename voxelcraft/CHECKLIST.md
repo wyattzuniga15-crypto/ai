@@ -91,7 +91,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
 - [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)
 - [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)
-- [ ] Brewing stand, loom, cartography table, beacon, lectern, crafter
+- [x] Brewing stand and potions: vanilla's whole brewing graph (the four bases, every awkward potion, redstone lengthening and glowstone strengthening, fermented spider eye corrupting, gunpowder and dragon's breath changing the bottle), the stand's screen with its fuel, bubbles and 400-tick brew, bottles filled from water, potions drunk for their effects and splash and lingering bottles thrown
+- [ ] Loom, cartography table, beacon, lectern, crafter
 - [ ] Weather, moon phases affecting spawns, raids
 - [ ] Every enchantment and status effect
 

@@ -24,6 +24,7 @@ import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
 import { blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
+import { effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
@@ -33,9 +34,10 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
-import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { brewingScreen, chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { containerKind, createBlockEntity, type BrewingEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
+import { tickBrewing } from '../blocks/brewing.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
@@ -748,7 +750,7 @@ export class Game {
 
   dropStack(stack: ItemStack, x: number, y: number, z: number, scatter: boolean): ItemEntity {
     const def = items.byId.get(stack.id);
-    const e = new ItemEntity(stack, x, y, z, this.icons.icon(stack.id), !!def?.block);
+    const e = new ItemEntity(stack, x, y, z, this.icons.forStack(stack), !!def?.block);
     if (scatter) {
       e.vel.set((Math.random() - 0.5) * 0.2, 0.2, (Math.random() - 0.5) * 0.2);
     }
@@ -835,10 +837,12 @@ export class Game {
     }
     const held = p.heldItem();
     const heldDef = held ? items.byId.get(held.id) : undefined;
-    if (this.input.isDown('use') && !p.dead && heldDef?.food && this.canEat(heldDef)) {
-      if (!this.eating || this.eating.id !== held!.id) this.eating = { ticks: 0, total: heldDef.food.eatTicks ?? 32, id: held!.id };
+    const drinking = held?.id === 'potion';
+    if (this.input.isDown('use') && !p.dead && (drinking || (heldDef?.food && this.canEat(heldDef)))) {
+      if (!this.eating || this.eating.id !== held!.id) this.eating = { ticks: 0, total: drinking ? 32 : heldDef!.food!.eatTicks ?? 32, id: held!.id };
       if (++this.eating.ticks >= this.eating.total) {
-        this.eat(heldDef);
+        if (drinking) this.drinkPotion(held!);
+        else this.eat(heldDef!);
         this.eating = null;
         this.useCooldown = 8;
       }
@@ -1083,6 +1087,20 @@ export class Game {
       }
       if (e.type === 'spawner') {
         this.tickSpawner(x, y, z, e as SpawnerEntity);
+        return;
+      }
+      if (e.type === 'brewing_stand') {
+        const brewer = e as BrewingEntity;
+        if (tickBrewing(brewer)) {
+          this.world.markModifiedAt(x, z);
+          const st = this.world.getBlock(x, y, z);
+          // the stand shows which of its three arms has a bottle on it
+          if (st !== 0 && blocks.blockOf(st).id === 'brewing_stand') {
+            let next = st;
+            for (let i = 0; i < 3; i++) next = blocks.withProp(next, `has_bottle_${i}`, brewer.items[i] ? 'true' : 'false');
+            if (next !== st) this.world.setBlock(x, y, z, next);
+          }
+        }
         return;
       }
       if (e.type === 'hopper') {
@@ -1332,6 +1350,47 @@ export class Game {
    * Harvesting a hive: shears cut three honeycombs out of a full hive and a glass bottle fills with
    * honey. Vanilla angers the bees inside unless a campfire is burning under the hive.
    */
+  /** Drinking a bottle: its effects go on the player and the glass comes back. */
+  private drinkPotion(stack: ItemStack): void {
+    const p = this.player;
+    for (const e of effectsOf(stack)) {
+      if (e.effect === 'instant_health') p.health = Math.min(20, p.health + 4 * (e.amplifier + 1));
+      else if (e.effect === 'instant_damage') this.damage(3 * (e.amplifier + 1));
+      else p.effects.add(e.effect, e.duration, e.amplifier);
+    }
+    this.audio.play('burp', { volume: 0.5, pitch: 1.1 });
+    if (p.gamemode === 'creative') return;
+    p.inventory.consumeSelected();
+    if (p.inventory.add({ id: 'glass_bottle', count: 1 }) > 0) this.dropStack({ id: 'glass_bottle', count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+  }
+
+  /** A splash or lingering bottle, thrown the way vanilla lobs one. */
+  private throwSplashPotion(stack: ItemStack): void {
+    const p = this.player;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir);
+    const to = eye.clone().addScaledVector(dir, 8).add(new THREE.Vector3(0, -2, 0));
+    const effects = effectsOf(stack);
+    const lingering = stack.id === 'lingering_potion';
+    this.throwPotionStack(eye.clone().addScaledVector(dir, 0.3), to, effects, potionColor(stack), lingering);
+    if (p.gamemode !== 'creative') p.inventory.consumeSelected();
+    this.useCooldown = 8;
+  }
+
+  /** Fills a glass bottle from the water the player is looking at. */
+  private fillBottle(): void {
+    const p = this.player;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir);
+    const hit = this.world.raycast(eye, dir, BLOCK_REACH, true);
+    if (!hit || blocks.blockOf(hit.state).id !== 'water') return;
+    this.audio.play('splash', { x: hit.x, y: hit.y, z: hit.z, volume: 0.5 });
+    if (p.gamemode === 'creative') return;
+    p.inventory.consumeSelected();
+    const bottle: ItemStack = { id: 'potion', count: 1, potion: 'water' };
+    if (p.inventory.add(bottle) > 0) this.dropStack(bottle, p.pos.x, p.pos.y + 1, p.pos.z, true);
+  }
+
   /** The rod: the first use casts, the second reels in whatever is on the line. */
   private useRod(): void {
     if (this.bobber) {
@@ -1693,6 +1752,17 @@ export class Game {
       return true;
     }
     if (def.id === 'composter') return this.useComposter(t);
+    if (def.id === 'brewing_stand') {
+      let entity = this.world.getBlockEntity(t.x, t.y, t.z) as BrewingEntity | undefined;
+      if (!entity || entity.type !== 'brewing_stand') {
+        entity = createBlockEntity('brewing_stand') as BrewingEntity;
+        this.world.setBlockEntity(t.x, t.y, t.z, entity);
+      }
+      const screen = brewingScreen(inv, entity, mark);
+      screen.onChange = mark;
+      this.openScreen(screen);
+      return true;
+    }
     if (def.id === 'enchanting_table') {
       const shelves = countBookshelves((x, y, z) => blocks.idOf(this.world.getBlock(x, y, z)), t.x, t.y, t.z);
       const seedRef = { seed: this.enchantSeed };
@@ -1811,6 +1881,14 @@ export class Game {
     }
     if (def.behavior === 'fishing_rod') {
       this.useRod();
+      return;
+    }
+    if (def.behavior === 'potion' && held.id !== 'potion') {
+      this.throwSplashPotion(held);
+      return;
+    }
+    if (def.behavior === 'bottle') {
+      this.fillBottle();
       return;
     }
     if (def.behavior === 'hoe' && t && this.tillSoil(t)) return;
@@ -2400,6 +2478,46 @@ export class Game {
 
   /** Light-curve brightness at a block position for entity rendering. */
   private potionTexture: THREE.Texture | null = null;
+
+  /**
+   * A bottle the player threw: everything within four blocks of the burst takes the potion, weaker
+   * the further off it was, which is how vanilla splashes one.
+   */
+  private throwPotionStack(from: THREE.Vector3, to: THREE.Vector3, effects: { effect: string; duration: number; amplifier: number }[], color: number, lingering: boolean): void {
+    if (!this.potionTexture) {
+      this.potionTexture = new THREE.TextureLoader().load(this.icons.icon('splash_potion'));
+      this.potionTexture.magFilter = THREE.NearestFilter;
+      this.potionTexture.minFilter = THREE.NearestFilter;
+      this.potionTexture.colorSpace = THREE.SRGBColorSpace;
+    }
+    const arrow = this.entities.shootArrow(from, to, 0.75, 0, true);
+    arrow.asPotion(this.potionTexture, color, (pos) => {
+      this.particles.poof(pos.x, pos.y, pos.z, lingering ? 30 : 14, Math.random, lingering ? 2 : 1, 0.5);
+      this.audio.play('dig_glass', { x: pos.x, y: pos.y, z: pos.z, pitch: 1.2, volume: 0.6 });
+      const reach = lingering ? 3 : 4;
+      for (const m of this.entities.mobs) {
+        if (m.dead) continue;
+        const d = Math.hypot(m.pos.x - pos.x, m.pos.y + m.height / 2 - pos.y, m.pos.z - pos.z);
+        if (d > reach) continue;
+        const factor = 1 - d / reach;
+        // mobs feel the instant effects; the lasting ones need status effects they do not carry yet
+        for (const e of effects) {
+          if (e.effect === 'instant_damage') m.hurt(Math.max(1, Math.round(6 * (e.amplifier + 1) * factor)), this.player.pos, 'player', 0);
+          else if (e.effect === 'instant_health') m.health = Math.min(m.maxHealth, m.health + Math.round(4 * (e.amplifier + 1) * factor));
+        }
+      }
+      const p = this.player;
+      const d = Math.hypot(p.pos.x - pos.x, p.pos.y + 1 - pos.y, p.pos.z - pos.z);
+      if (d > reach || p.dead) return;
+      const factor = 1 - d / reach;
+      for (const e of effects) {
+        if (e.effect === 'instant_damage') this.damage(Math.max(1, Math.round(3 * (e.amplifier + 1) * factor)));
+        else if (e.effect === 'instant_health') p.health = Math.min(20, p.health + Math.round(4 * (e.amplifier + 1) * factor));
+        else p.effects.add(e.effect, Math.round(e.duration * factor + 0.5), e.amplifier);
+      }
+    });
+    this.audio.play('bow', { x: from.x, y: from.y, z: from.z, pitch: 0.6 });
+  }
 
   /** Witch splash potion: a thrown bottle that applies its effect to the player within four blocks of the burst. */
   private throwPotion(from: THREE.Vector3, to: THREE.Vector3, effect: { id: string; ticks: number; amplifier?: number }, color: number): void {

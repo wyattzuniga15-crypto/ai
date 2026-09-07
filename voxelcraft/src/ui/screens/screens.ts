@@ -4,7 +4,9 @@ import type { Inventory, ItemStack, Slot } from '../../items/inventory.ts';
 import { craftingMatcher, consumeIngredients } from '../../items/crafting.ts';
 import { findCookingRecipe, isFuel } from '../../items/smelting.ts';
 import { items } from '../../items/registry.ts';
-import type { FurnaceEntity } from '../../blocks/blockEntity.ts';
+import type { BrewingEntity, FurnaceEntity } from '../../blocks/blockEntity.ts';
+import { BREW_TICKS, FUEL_BREWS } from '../../blocks/brewing.ts';
+import { isBrewingIngredient } from '../../items/potions.ts';
 
 const ARMOR_SLOT_INDEX: Record<string, number> = { boots: 0, leggings: 1, chestplate: 2, helmet: 3 };
 const ARMOR_ICONS = ['sprites/container/slot/boots.png', 'sprites/container/slot/leggings.png', 'sprites/container/slot/chestplate.png', 'sprites/container/slot/helmet.png'];
@@ -253,6 +255,70 @@ export function horseScreen(inv: Inventory, title: string, equip: Slot[], chest:
       if (from.group === 'container') return reversePlayer(player);
       if (stack.id === 'saddle' || stack.id.endsWith('_horse_armor')) return container;
       return chest ? container.filter((c) => c.group === 'container' && c.x >= 80) : reversePlayer(player);
+    },
+  };
+}
+
+/**
+ * The brewing stand: three bottles in a row at the bottom, the ingredient over them and the blaze
+ * powder at the side, with vanilla's bubbles and the arrow that fills as the brew runs.
+ */
+export function brewingScreen(inv: Inventory, e: BrewingEntity, onChange?: () => void): ScreenDef {
+  const player = playerSlots(inv);
+  const bottle = (i: number, x: number, y: number): SlotDef => ({
+    x, y, group: 'container', maxCount: 1,
+    get: () => e.items[i],
+    set: (s) => { e.items[i] = s; onChange?.(); },
+    accepts: (s) => s.id === 'potion' || s.id === 'splash_potion' || s.id === 'lingering_potion' || s.id === 'glass_bottle',
+  });
+  const bottles = [bottle(0, 56, 51), bottle(1, 79, 58), bottle(2, 102, 51)];
+  const ingredient: SlotDef = {
+    x: 79, y: 17, group: 'container',
+    get: () => e.items[3],
+    set: (s) => { e.items[3] = s; onChange?.(); },
+    accepts: (s) => isBrewingIngredient(s.id),
+  };
+  const fuel: SlotDef = {
+    x: 17, y: 17, group: 'container',
+    get: () => e.items[4],
+    set: (s) => { e.items[4] = s; onChange?.(); },
+    accepts: (s) => s.id === 'blaze_powder',
+  };
+  let bubbles: HTMLElement | null = null;
+  let arrow: HTMLElement | null = null;
+  let flame: HTMLElement | null = null;
+  return {
+    texture: 'container/brewing_stand.png', width: 176, height: 166,
+    slots: [...bottles, ingredient, fuel, ...player],
+    labels: [{ text: 'Brewing Stand', x: 44, y: 6 }, { text: 'Inventory', x: 8, y: 72 }],
+    overlay(root) {
+      const s = Number(getComputedStyle(document.documentElement).getPropertyValue('--gui')) || 3;
+      const base = `${import.meta.env.BASE_URL}textures/gui/sprites/container/brewing_stand/`;
+      if (!bubbles) {
+        flame = document.createElement('div');
+        flame.style.cssText = `position:absolute;left:${60 * s}px;top:${44 * s}px;width:0;height:${4 * s}px;background:url('${base}fuel_length.png') left / ${18 * s}px ${4 * s}px no-repeat;pointer-events:none;`;
+        root.append(flame);
+        arrow = document.createElement('div');
+        arrow.style.cssText = `position:absolute;left:${97 * s}px;top:${16 * s}px;width:${9 * s}px;height:0;background:url('${base}brew_progress.png') top / ${9 * s}px ${28 * s}px no-repeat;pointer-events:none;`;
+        root.append(arrow);
+        bubbles = document.createElement('div');
+        bubbles.style.cssText = `position:absolute;left:${63 * s}px;top:${14 * s}px;width:${12 * s}px;height:0;background:url('${base}bubbles.png') bottom / ${12 * s}px ${29 * s}px no-repeat;pointer-events:none;`;
+        root.append(bubbles);
+      }
+      flame!.style.width = `${Math.round((e.fuel / FUEL_BREWS) * 18 * s)}px`;
+      const done = e.brewTime > 0 ? (BREW_TICKS - e.brewTime) / BREW_TICKS : 0;
+      arrow!.style.height = `${Math.round(done * 28 * s)}px`;
+      const bh = e.brewTime > 0 ? Math.round((0.5 + 0.5 * Math.sin(e.brewTime * 0.2)) * 29 * s) : 0;
+      bubbles!.style.height = `${bh}px`;
+      bubbles!.style.top = `${14 * s + (29 * s - bh)}px`;
+    },
+    quickMove(from, stack) {
+      if (from.group === 'container') return reversePlayer(player);
+      if (stack.id === 'blaze_powder') return [fuel];
+      if (stack.id.endsWith('potion') || stack.id === 'glass_bottle') return bottles;
+      if (isBrewingIngredient(stack.id)) return [ingredient];
+      if (from.group === 'hotbar') return byGroup(player, 'inventory');
+      return byGroup(player, 'hotbar');
     },
   };
 }

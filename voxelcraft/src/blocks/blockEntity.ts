@@ -21,6 +21,17 @@ export interface FurnaceEntity {
   xp: number;
 }
 
+/** Brewing stands: three bottles, the ingredient over them and the blaze powder that fires it. */
+export interface BrewingEntity {
+  type: 'brewing_stand';
+  /** bottle 0-2, ingredient, fuel */
+  items: Slot[];
+  /** Ticks left of the brew, counting down from 400 as vanilla does. */
+  brewTime: number;
+  /** Brews left in the blaze powder that was put in. */
+  fuel: number;
+}
+
 export interface SignEntity {
   type: 'sign';
   lines: string[];
@@ -47,7 +58,7 @@ export interface SpawnerEntity {
   delay: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | SignEntity | HiveEntity | SpawnerEntity;
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | SignEntity | HiveEntity | SpawnerEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -65,6 +76,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId === 'furnace' || blockId === 'blast_furnace' || blockId === 'smoker') {
     return { type: blockId, items: [null, null, null], burnTime: 0, burnTotal: 0, cookTime: 0, cookTotal: blockId === 'furnace' ? 200 : 100, xp: 0 };
   }
+  if (blockId === 'brewing_stand') return { type: 'brewing_stand', items: [null, null, null, null, null], brewTime: 0, fuel: 0 };
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign') && !blockId.includes('hanging')) return { type: 'sign', lines: ['', '', '', ''] };

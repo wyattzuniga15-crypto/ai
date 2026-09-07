@@ -14,6 +14,8 @@ export interface ItemStack {
   trim?: { pattern: string; material: string };
   /** Container contents carried by the item (shulker boxes), 27 slots. */
   contents?: (ItemStack | null)[];
+  /** What a bottle holds: a potion id from `items/potions.ts`. */
+  potion?: string;
 }
 
 export type Slot = ItemStack | null;

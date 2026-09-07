@@ -11,6 +11,8 @@ import { tintColor } from '../world/mesher.ts';
 import { biomeIndex } from '../world/biomes.ts';
 import { buildModel, entityTexture, preloadEntityTextures } from '../entities/boxModel.ts';
 import { specialIcon, type SpecialIcon } from './specialIcons.ts';
+import { potionColor, potionOf } from '../items/potions.ts';
+import type { ItemStack } from '../items/inventory.ts';
 
 const SIZE = 48;
 
@@ -121,7 +123,23 @@ export class ItemIcons {
     return this.renderer.domElement.toDataURL();
   }
 
-  private drawSprite(textures: string[]): string {
+  /** Icon for a particular stack: a potion is tinted by what is in the bottle. */
+  forStack(stack: ItemStack): string {
+    const potion = potionOf(stack);
+    if (!potion) return this.icon(stack.id);
+    const color = potionColor(stack);
+    const key = `${stack.id}#${color.toString(16)}`;
+    const cached = this.cache.get(key);
+    if (cached !== undefined) return cached;
+    // vanilla draws the liquid tinted under the glass, which is the same two layers we have
+    const url = this.drawSprite([`item/${stack.id}_overlay`, `item/${stack.id}`], [color, 0xffffff])
+      || this.drawSprite([`item/potion_overlay`, `item/${stack.id}`], [color, 0xffffff])
+      || this.icon(stack.id);
+    this.cache.set(key, url);
+    return url;
+  }
+
+  private drawSprite(textures: string[], tints?: number[]): string {
     const g = this.sprite.getContext('2d')!;
     g.clearRect(0, 0, SIZE, SIZE);
     g.imageSmoothingEnabled = false;
@@ -134,6 +152,17 @@ export class ItemIcons {
       for (let y = 0; y < tile.h; y++) {
         const src = ((tile.y + y) * atlas.width + tile.x) * 4;
         img.data.set(atlas.pixels.subarray(src, src + tile.w * 4), y * tile.w * 4);
+      }
+      const tint = tints?.[textures.indexOf(t)];
+      if (tint !== undefined && tint !== 0xffffff) {
+        const r = ((tint >> 16) & 255) / 255;
+        const g2 = ((tint >> 8) & 255) / 255;
+        const b = (tint & 255) / 255;
+        for (let i = 0; i < img.data.length; i += 4) {
+          img.data[i] = img.data[i] * r;
+          img.data[i + 1] = img.data[i + 1] * g2;
+          img.data[i + 2] = img.data[i + 2] * b;
+        }
       }
       const tmp = document.createElement('canvas');
       tmp.width = tile.w;

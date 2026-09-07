@@ -573,3 +573,16 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     tick at all, so one is made when a chunk is swept and whenever a hopper is placed — the same
     sweep that finds chests to draw. A hopper minecart picks up what it rolls over and empties into
     the container it is running above.
+
+84. **Brewing is vanilla's graph, written out.** Mojang keeps brewing in code rather than data, so
+    `PotionBrewing` is transcribed here: water takes nether wart, redstone, glowstone or a fermented
+    spider eye to reach the four bases; the awkward potion takes fifteen ingredients to the potions
+    themselves; redstone lengthens and glowstone strengthens wherever vanilla has a long or strong
+    form, and each undoes the other; a fermented spider eye corrupts a potion into its opposite; and
+    gunpowder and dragon's breath change the bottle rather than what is in it. A bottle carries its
+    potion as a field on the stack, so a splash bottle of the same potion is the same brew with three
+    quarters of the duration and a lingering one a quarter. The stand burns one blaze powder for
+    twenty brews, takes 400 ticks over each, and turns all three bottles at once. Icons are drawn the
+    way vanilla draws them, the liquid tinted by the potion's colour under the glass, and the tooltip
+    names the bottle and lists what it does. Mobs take the instant effects from a splash; lasting
+    effects on mobs wait until mobs carry status effects of their own.

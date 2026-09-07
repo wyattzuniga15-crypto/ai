@@ -9,6 +9,7 @@ import type { ItemIcons } from '../icons.ts';
 import { trimMaterial, trimPattern } from '../../items/trims.ts';
 import { cloneStack, stackable, type ItemStack, type Slot } from '../../items/inventory.ts';
 import { items } from '../../items/registry.ts';
+import { effectsOf, potionDisplayName, potionOf } from '../../items/potions.ts';
 
 export type SlotGroup = 'container' | 'inventory' | 'hotbar' | 'armor' | 'offhand' | 'result' | 'craft';
 
@@ -437,11 +438,19 @@ export class ContainerScreen {
     }
     this.tooltip.replaceChildren();
     const def = items.byId.get(st.id);
-    const name = h('div', { text: st.name ?? def?.name ?? st.id });
+    const potion = potionOf(st);
+    const name = h('div', { text: st.name ?? (potion ? potionDisplayName(st) : def?.name ?? st.id) });
     if (st.enchantments && Object.keys(st.enchantments).length) name.style.color = '#55ffff';
     if (st.name) name.style.fontStyle = 'italic';
     this.tooltip.append(name);
     for (const [id, lvl] of Object.entries(st.enchantments ?? {})) this.tooltip.append(h('div', { class: 'ench', text: `${id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')} ${roman(lvl)}` }));
+    for (const e of potion ? effectsOf(st) : []) {
+      const label = e.effect.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+      const time = e.duration > 0 ? ` (${Math.floor(e.duration / 1200)}:${String(Math.floor((e.duration / 20) % 60)).padStart(2, '0')})` : '';
+      const line = h('div', { class: 'ench', text: `${label}${e.amplifier ? ` ${roman(e.amplifier + 1)}` : ''}${time}` });
+      line.style.color = e.effect.startsWith('instant_damage') || e.effect === 'poison' || e.effect === 'slowness' || e.effect === 'weakness' || e.effect === 'wither' ? '#fb9b9b' : '#7cafc6';
+      this.tooltip.append(line);
+    }
     if (def?.food) this.tooltip.append(h('div', { class: 'sub', text: `Nutrition ${def.food.nutrition}, saturation ${def.food.saturation}` }));
     if (def?.attack) this.tooltip.append(h('div', { class: 'sub', text: `${def.attack.damage} Attack Damage · ${def.attack.speed} Attack Speed` }));
     if (def?.armor) this.tooltip.append(h('div', { class: 'sub', text: `+${def.armor.points} Armor${def.armor.toughness ? ` · +${def.armor.toughness} Toughness` : ''}` }));

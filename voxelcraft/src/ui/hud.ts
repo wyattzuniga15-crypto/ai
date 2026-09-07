@@ -10,7 +10,7 @@ const T = (p: string) => `url('${import.meta.env.BASE_URL}textures/gui/sprites/h
 export function renderSlot(el: HTMLElement, stack: ItemStack | null, icons: ItemIcons): void {
   el.replaceChildren();
   if (!stack) return;
-  const img = h('img', { src: icons.icon(stack.id), alt: stack.id, draggable: false }) as HTMLImageElement;
+  const img = h('img', { src: icons.forStack(stack), alt: stack.id, draggable: false }) as HTMLImageElement;
   el.append(img);
   const def = items.byId.get(stack.id);
   if (def?.durability && stack.damage) {
