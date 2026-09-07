@@ -161,6 +161,11 @@ const SOUNDS: Record<string, Synth> = {
   wolf: (c, o, p, t) => { tone(c, o, t, 'square', 420, 300, 0.12, 0.25, p); burst(c, o, t, 'bandpass', 900, 1.5, 0.005, 0.1, 0.3, p); },
   wolf_growl: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 110, 90, 0.6, 0.2, p); burst(c, o, t, 'lowpass', 400, 1, 0.05, 0.5, 0.15, p); },
   shear: (c, o, p, t) => { burst(c, o, t, 'highpass', 3500, 1.5, 0.002, 0.12, 0.4, p); burst(c, o, t + 0.08, 'highpass', 3000, 1.5, 0.002, 0.1, 0.3, p); },
+  // the warden: a long rising whine while it winds up, and a hard low crack when it lets go
+  warden_boom_charge: (c, o, p, t) => { tone(c, o, t, 'sine', 90, 320, 1.7, 0.3, p); tone(c, o, t + 0.2, 'triangle', 60, 200, 1.4, 0.15, p); },
+  warden_boom: (c, o, p, t) => { tone(c, o, t, 'sine', 260, 40, 0.9, 0.7, p); burst(c, o, t, 'lowpass', 300, 1, 0.005, 0.6, 0.8, p); tone(c, o, t + 0.05, 'sawtooth', 120, 30, 0.7, 0.4, p); },
+  warden: (c, o, p, t) => { tone(c, o, t, 'sine', 70, 55, 1.2, 0.4, p); burst(c, o, t + 0.1, 'lowpass', 200, 1, 0.05, 0.8, 0.25, p); },
+  shrieker: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 420, 180, 0.9, 0.35, p); tone(c, o, t + 0.1, 'square', 220, 120, 0.7, 0.2, p); },
   enderman_scream: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 220, 110, 1.2, 0.3, p); tone(c, o, t + 0.1, 'square', 330, 140, 1.0, 0.12, p); },
 };
 

@@ -1435,6 +1435,77 @@ export const creakingStalkGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// The warden
+// ---------------------------------------------------------------------------------------------
+/** Vanilla's anger thresholds: it comes for you at eighty, and forgets at nothing. */
+export const WARDEN_ANGRY = 80;
+/** How far the sonic boom reaches, and how long it winds up for. */
+export const WARDEN_BOOM_RANGE = 20;
+export const WARDEN_BOOM_CHARGE = 34;
+export const WARDEN_BOOM_DAMAGE = 10;
+/** How far a warden spreads its darkness. */
+export const WARDEN_DARKNESS_RANGE = 20;
+
+/**
+ * Vanilla's warden: it is blind, and it goes by what moves. Anger builds while somebody is near and
+ * drains when they are not; at eighty it hunts. Close up it swings, and at a distance it winds up a
+ * sonic boom that no wall and no armour stops.
+ */
+export const wardenGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    const d = m.distanceTo(p);
+    let anger = typeof m.extra.anger === 'number' ? m.extra.anger : 0;
+    // vanilla builds anger at whatever disturbs it and lets it drain away otherwise
+    if (w.playerTargetable() && d < 24) anger = Math.min(150, anger + (d < 8 ? 2 : 1));
+    else if (anger > 0) anger -= 1;
+    if (m.age - m.lastHurtTime < 5) anger = Math.min(150, anger + 35);
+    m.extra.anger = anger;
+    // whoever is near it is in the dark, whether it has noticed them or not
+    if (d < WARDEN_DARKNESS_RANGE && w.playerTargetable()) w.addPlayerEffect('darkness', 260);
+    if (anger < WARDEN_ANGRY) {
+      m.target = null;
+      m.extra.charging = 0;
+      if (!m.moveTarget && w.rng() < 0.02) {
+        // it shuffles about while it is only suspicious
+        m.moveTarget = new THREE.Vector3(m.pos.x + (w.rng() * 2 - 1) * 8, m.pos.y, m.pos.z + (w.rng() * 2 - 1) * 8);
+        m.moveSpeed = 0.6;
+        m.moveTimeout = 60;
+      }
+      return;
+    }
+    m.target = 'player';
+    m.lookTarget = w.playerEye();
+    const charging = typeof m.extra.charging === 'number' ? m.extra.charging : 0;
+    // it walks whoever it is after down, and booms when it cannot reach them
+    if (d > 4 && d < WARDEN_BOOM_RANGE && m.attackCooldown === 0) {
+      const next = charging + 1;
+      m.extra.charging = next;
+      m.moveTarget = null;
+      if (next === 1) w.playSound('warden_boom_charge', m.pos.x, m.pos.y, m.pos.z);
+      if (next >= WARDEN_BOOM_CHARGE) {
+        m.extra.charging = 0;
+        m.attackCooldown = 40;
+        // vanilla's boom goes through walls and through armour: it is dealt straight to the player
+        w.hurtPlayer(WARDEN_BOOM_DAMAGE, m.pos, m);
+        w.playSound('warden_boom', m.pos.x, m.pos.y, m.pos.z);
+      }
+      return;
+    }
+    m.extra.charging = 0;
+    m.moveTarget = p.clone();
+    m.moveSpeed = 1.2;
+    m.moveTimeout = 60;
+    if (d < 3 && m.attackCooldown === 0) {
+      w.hurtPlayer(m.def.damage, m.pos, m);
+      m.attackCooldown = 20;
+    }
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Golems
 // ---------------------------------------------------------------------------------------------
 /** What an iron golem counts as an enemy: the monsters, and never a creeper, which vanilla spares. */

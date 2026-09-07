@@ -1329,3 +1329,20 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      does not have is the heart: in vanilla a creaking cannot be killed while its creaking heart
      still stands in the pale garden, and nothing here generates one, so this one dies like anything
      else.
+
+128. **The warden.** It is blind, so nothing about it works the way the other hostiles do. There is
+     no sight check and no target goal: it keeps a number, and the number is what decides. Anger
+     builds while somebody is within twenty-four blocks — twice as fast inside eight — and drains a
+     point a tick when they are not; a blow adds thirty-five, so one hit is not quite enough and two
+     are. At eighty it hunts.
+
+     Close up it swings for thirty. Between four and twenty blocks it stands still and winds a sonic
+     boom up over thirty-four ticks, and the boom is dealt straight to the player rather than
+     through the damage path, because in vanilla no wall and no armour stops one. Anything within
+     twenty blocks of it is in the dark whether it has noticed them or not, which is what the
+     screenshot of the fight shows: a black screen, a health bar and a chat log.
+
+     What calls it is the sculk shrieker. Standing over one that can summon sets it off, and the
+     warning level climbs; the fourth shriek brings a warden up out of the floor beside it. The
+     level falls back one every ten minutes of quiet, so a careful walk through an ancient city
+     never wakes one — which is exactly the tension vanilla's deep dark is built on.

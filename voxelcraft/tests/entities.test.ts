@@ -59,7 +59,9 @@ describe('mobs', () => {
     expect(mobStats('cow')).toMatchObject({ health: 10, disposition: 'passive' });
     expect(mobStats('chicken')?.height).toBe(0.7);
     for (const id of Object.keys(MOB_SPECS)) expect(mobStats(id), id).not.toBeNull();
-    expect(mobStats('warden')).toBeNull();
+    // the warden has stats and a spec now; a mob with neither still comes back null
+    expect(mobStats('warden')).toMatchObject({ health: 500, damage: 30 });
+    expect(mobStats('not_a_mob')).toBeNull();
   });
 
   it('drops vanilla loot', () => {

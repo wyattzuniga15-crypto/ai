@@ -1020,6 +1020,7 @@ export class Game {
     this.tickDragon();
     this.tickFireworks();
     this.tickCuring();
+    this.tickShriekers();
     this.tickAmbience();
     this.tickWornEnchantments();
     this.tickEffects();
@@ -3087,6 +3088,70 @@ export class Game {
     if (!this.record || this.record.x !== x || this.record.y !== y || this.record.z !== z) return;
     this.record = null;
     this.audio.stopTrack();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Sculk shriekers and the warden
+  // ---------------------------------------------------------------------------------------------
+  /** How many shrieks vanilla lets pass before a warden comes up out of the ground. */
+  private static readonly WARNINGS_BEFORE_WARDEN = 4;
+  private warnings = 0;
+  private shriekCooldown = 0;
+
+  /**
+   * Vanilla's sculk shrieker: standing over one sets it off, and the fourth shriek brings a warden
+   * up out of the ground beside whoever set it off. The warning level drains away over time, so a
+   * careful walk through an ancient city never wakes one.
+   */
+  private tickShriekers(): void {
+    if (this.shriekCooldown > 0) this.shriekCooldown--;
+    // vanilla lets the warning level fall back over ten minutes of quiet
+    if (this.tickCount % 12000 === 0 && this.warnings > 0) this.warnings--;
+    if (this.shriekCooldown > 0 || this.player.dead || this.player.gamemode === 'creative') return;
+    const p = this.player;
+    const bx = Math.floor(p.pos.x);
+    const bz = Math.floor(p.pos.z);
+    for (const dy of [-1, 0]) {
+      const by = Math.floor(p.pos.y) + dy;
+      const state = this.world.getBlock(bx, by, bz);
+      if (state === 0 || blocks.idOf(state) !== 'sculk_shrieker') continue;
+      if (blocks.prop(state, 'can_summon') !== 'true') continue;
+      this.shriekCooldown = 90;
+      this.world.setBlock(bx, by, bz, blocks.withProp(state, 'shrieking', 'true'));
+      this.simulation.schedule(bx, by, bz, 90, this.tickCount);
+      this.audio.play('shrieker', { x: bx + 0.5, y: by + 1, z: bz + 0.5 });
+      if (this.player.gamemode === 'survival') this.player.effects.add('darkness', 260, 0);
+      this.warnings++;
+      this.chat.addLine(this.warnings >= Game.WARNINGS_BEFORE_WARDEN ? 'Something is coming' : 'A shriek goes up', '#a4f');
+      if (this.warnings < Game.WARNINGS_BEFORE_WARDEN) return;
+      this.warnings = 0;
+      this.summonWarden(bx, by, bz);
+      return;
+    }
+  }
+
+  /** Brings a warden up out of the ground within a few blocks of the shrieker that called it. */
+  private summonWarden(x: number, y: number, z: number): void {
+    if (this.entities.mobs.some((m) => !m.dead && m.def.id === 'warden')) return;
+    const stats = mobStats('warden');
+    if (!stats) return;
+    for (let i = 0; i < 20; i++) {
+      const px = x + Math.floor(Math.random() * 11) - 5 + 0.5;
+      const pz = z + Math.floor(Math.random() * 11) - 5 + 0.5;
+      // it comes up out of the floor the shrieker sits in, so it needs room above that block
+      const py = y + 1;
+      if (this.world.getBlock(Math.floor(px), py, Math.floor(pz)) !== 0) continue;
+      if (this.world.getBlock(Math.floor(px), py + 1, Math.floor(pz)) !== 0) continue;
+      if (this.world.getBlock(Math.floor(px), py - 1, Math.floor(pz)) === 0) continue;
+      const warden = this.entities.spawn('warden', px, py, pz, Math.random() * Math.PI * 2);
+      if (!warden) continue;
+      warden.persistent = true;
+      warden.extra.anger = 0;
+      this.particles.poof(px, py + 1, pz, 40, Math.random, 1.5, 2);
+      this.audio.play('warden', { x: px, y: py, z: pz });
+      this.chat.addLine('A Warden has risen', '#a4f');
+      return;
+    }
   }
 
   /**

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { MOB_SPECS, mobStats, pickHostile } from '../src/entities/mobTypes.ts';
-import { CREAKING_RANGE, breezeGoal, creakingStalkGoal } from '../src/entities/ai.ts';
+import { CREAKING_RANGE, WARDEN_ANGRY, WARDEN_BOOM_CHARGE, WARDEN_BOOM_DAMAGE, WARDEN_BOOM_RANGE, breezeGoal, creakingStalkGoal, wardenGoal } from '../src/entities/ai.ts';
 import type { Mob, MobWorld } from '../src/entities/mob.ts';
 import { biomes } from '../src/world/biomes.ts';
 
@@ -98,6 +98,66 @@ describe('the newest hostiles', () => {
     goal.tick!(m, watching);
     expect(m.extra.frozen).toBe(true);
     expect(m.moveTarget).toBeNull();
+    expect(CREAKING_RANGE).toBe(32);
+  });
+});
+
+describe('the warden', () => {
+  it('registers with vanilla’s stats and no eyes on its model', () => {
+    expect(MOB_SPECS.warden.model.texture).toBe('warden/warden.png');
+    expect(MOB_SPECS.warden.animation).toBe('warden');
+    expect(mobStats('warden')).toMatchObject({ health: 500, damage: 30, disposition: 'hostile' });
+    // the tendrils are what it hunts with; there is nothing on it called an eye
+    const names = MOB_SPECS.warden.model.parts.map((p) => p.name);
+    expect(names).toContain('right_tendril');
+    expect(names).toContain('left_tendril');
+    expect(names.some((n) => n.includes('eye'))).toBe(false);
+  });
+
+  it('builds anger while somebody is near, and lets it drain when they go', () => {
+    const goal = wardenGoal();
+    const m = makeMob('warden');
+    const near = world({ playerPos: () => new THREE.Vector3(0, 64, 4), addPlayerEffect: () => {} });
+    for (let i = 0; i < 10; i++) goal.tick!(m, near);
+    expect(m.extra.anger).toBe(20);
+    expect(m.target).toBeNull();
+    // a blow sends it up in a hurry, though one is not quite enough
+    m.lastHurtTime = m.age - 1;
+    goal.tick!(m, near);
+    expect(m.extra.anger).toBe(57);
+    expect(m.target).toBeNull();
+    goal.tick!(m, near);
+    expect(m.extra.anger as number).toBeGreaterThan(WARDEN_ANGRY);
+    expect(m.target).toBe('player');
+    // and it falls back when nobody is about
+    m.lastHurtTime = -1000;
+    const gone = world({ playerTargetable: () => false, addPlayerEffect: () => {} });
+    const before = m.extra.anger as number;
+    for (let i = 0; i < 5; i++) goal.tick!(m, gone);
+    expect(m.extra.anger).toBe(before - 5);
+  });
+
+  it('winds a sonic boom up and lets it through walls and armour', () => {
+    const goal = wardenGoal();
+    const m = makeMob('warden');
+    const hurts: number[] = [];
+    const effects: string[] = [];
+    const w = world({
+      playerPos: () => new THREE.Vector3(0, 64, 10),
+      playerEye: () => new THREE.Vector3(0, 65.6, 10),
+      addPlayerEffect: (id: string) => effects.push(id),
+      hurtPlayer: (n: number) => hurts.push(n),
+    });
+    m.extra.anger = 120;
+    // it charges for vanilla's count and only then lets go
+    for (let i = 0; i < WARDEN_BOOM_CHARGE - 1; i++) goal.tick!(m, w);
+    expect(hurts).toEqual([]);
+    goal.tick!(m, w);
+    expect(hurts).toEqual([WARDEN_BOOM_DAMAGE]);
+    expect(m.extra.charging).toBe(0);
+    // anything within its reach is in the dark, angry or not
+    expect(effects).toContain('darkness');
+    expect(WARDEN_BOOM_RANGE).toBe(20);
     expect(CREAKING_RANGE).toBe(32);
   });
 });

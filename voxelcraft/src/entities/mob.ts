@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'silverfish' | 'breeze' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'silverfish' | 'breeze' | 'warden' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -832,6 +832,19 @@ export class Mob {
           const t = parts.get(`tentacle${i}`);
           if (t) t.rotation.x = 0.35 + swim * 0.5;
         }
+        break;
+      }
+      case 'warden': {
+        // vanilla's warden walks with its arms hanging and its tendrils flicking at what it hears
+        set('right_leg', legA * 0.8);
+        set('left_leg', legB * 0.8);
+        set('right_arm', Math.cos(swing * 0.6662 + Math.PI) * amt);
+        set('left_arm', Math.cos(swing * 0.6662) * amt);
+        const anger = typeof this.extra.anger === 'number' ? this.extra.anger : 0;
+        const flick = Math.sin((this.age + alpha) * (anger > 0 ? 0.4 : 0.08)) * (anger > 0 ? 0.5 : 0.12);
+        const rt = parts.get('right_tendril'), lt = parts.get('left_tendril');
+        if (rt) rt.rotation.z = flick;
+        if (lt) lt.rotation.z = -flick;
         break;
       }
       case 'breeze': {

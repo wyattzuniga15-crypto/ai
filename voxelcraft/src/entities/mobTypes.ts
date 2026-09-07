@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -464,6 +464,27 @@ const creakingModel: ModelDef = {
     { name: 'left_arm', pivot: [5, -4, 0.5], boxes: [{ uv: [30, 40], box: [0, -1, -1.5, 3, 16, 3] }, { uv: [52, 12], box: [0, -5, -1.5, 3, 4, 3] }, { uv: [52, 19], box: [0, 15, -1.5, 3, 4, 3] }] },
     { name: 'left_leg', pivot: [1.5, 8, 0.5], boxes: [{ uv: [42, 40], box: [-1.5, 0, -1.5, 3, 16, 3] }, { uv: [45, 55], box: [-1.5, 15.7, -4.5, 5, 0, 9] }] },
     { name: 'right_leg', pivot: [-1, 6.5, 0.5], boxes: [{ uv: [0, 34], box: [-3, -1.5, -1.5, 3, 19, 3] }, { uv: [45, 46], box: [-5, 17.2, -4.5, 5, 0, 9] }, { uv: [12, 34], box: [-3, -4.5, -1.5, 3, 3, 3] }] },
+  ],
+};
+
+
+/**
+ * The warden. Vanilla's model has no eyes at all — the tendrils either side of its head are what it
+ * hunts with, and they flick when something makes a noise near it.
+ */
+const wardenModel: ModelDef = {
+  texture: 'warden/warden.png', texW: 128, texH: 128,
+  parts: [
+    { name: 'body', pivot: [0, 3, 0], boxes: [{ uv: [0, 0], box: [-9, -13, -4, 18, 21, 11] }] },
+    { name: 'right_ribcage', parent: 'body', pivot: [-7, 1, -4], boxes: [{ uv: [90, 11], box: [-2, -11, -0.1, 9, 21, 0] }] },
+    { name: 'left_ribcage', parent: 'body', pivot: [7, 1, -4], boxes: [{ uv: [90, 11], box: [-7, -11, -0.1, 9, 21, 0], mirror: true }] },
+    { name: 'head', parent: 'body', pivot: [0, -10, 0], boxes: [{ uv: [0, 32], box: [-8, -16, -5, 16, 16, 10] }] },
+    { name: 'right_tendril', parent: 'head', pivot: [-8, -22, 0], boxes: [{ uv: [52, 32], box: [-16, -13, 0, 16, 16, 0] }] },
+    { name: 'left_tendril', parent: 'head', pivot: [8, -22, 0], boxes: [{ uv: [58, 0], box: [0, -13, 0, 16, 16, 0] }] },
+    { name: 'right_arm', parent: 'body', pivot: [-13, -10, 1], boxes: [{ uv: [44, 50], box: [-4, 0, -4, 8, 28, 8] }] },
+    { name: 'left_arm', parent: 'body', pivot: [13, -10, 1], boxes: [{ uv: [0, 58], box: [-4, 0, -4, 8, 28, 8] }] },
+    { name: 'right_leg', pivot: [-5.9, 11, 0], boxes: [{ uv: [76, 48], box: [-3.1, 0, -3, 6, 13, 6] }] },
+    { name: 'left_leg', pivot: [5.9, 11, 0], boxes: [{ uv: [76, 76], box: [-2.9, 0, -3, 6, 13, 6] }] },
   ],
 };
 
@@ -1306,6 +1327,8 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   tadpole: { model: tadpoleModel, animation: 'fish', eyeHeight: 0.2, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
   // the jungle's parrot, which dances to whatever a jukebox is playing
   parrot: { model: parrotModel(), animation: 'chicken', eyeHeight: 0.8, followRange: 16, flapping: true, goals: () => [floatGoal, parrotDanceGoal(), panicGoal(1.4), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // the deep dark's own, blind and deaf to everything but what moves
+  warden: { model: wardenModel, animation: 'warden', eyeHeight: 2.15, followRange: 32, goals: () => [wardenGoal()] },
   // the three newest hostiles: a poisonous skeleton, a wind that jumps, and a thing in the pale wood
   bogged: { model: boggedModel(), animation: 'biped', eyeHeight: 1.74, followRange: 16, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), bowAttackGoal({ id: 'poison', ticks: 200 }), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   breeze: { model: breezeModel, animation: 'breeze', eyeHeight: 1.3, followRange: 24, goals: () => [loseTargetGoal(), targetPlayerGoal(24), breezeGoal()] },
