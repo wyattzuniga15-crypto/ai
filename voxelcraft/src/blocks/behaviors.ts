@@ -695,6 +695,35 @@ const behaviors: Record<string, Behavior> = {
       if (ctx.def.id === 'ice' && ctx.w.getLight(ctx.x, ctx.y, ctx.z) > 11 && ctx.w.rng.int(4) === 0) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, ctx.y < SEA_LEVEL - 20 ? 0 : st('water'));
     },
   },
+  /** A candle: a hand puts one out, and flint and steel lights it again (the game strikes that). */
+  candle: {
+    onUse: (ctx) => {
+      if (blocks.prop(ctx.state, 'lit') !== 'true') return false;
+      ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'lit', 'false'));
+      return true;
+    },
+  },
+  /**
+   * Coral out of water dies, as vanilla's does: a piece with no water against it turns into the
+   * dead one of its kind the next time it is looked at.
+   */
+  coral: {
+    onNeighborChanged: (ctx) => ctx.w.schedule(ctx.x, ctx.y, ctx.z, 60 + ctx.w.rng.int(40)),
+    onPlaced: (ctx) => ctx.w.schedule(ctx.x, ctx.y, ctx.z, 60 + ctx.w.rng.int(40)),
+    scheduledTick: (ctx) => {
+      const id = ctx.def.id;
+      if (id.startsWith('dead_') || !blocks.has(`dead_${id}`)) return;
+      if (blocks.prop(ctx.state, 'waterlogged') === 'true') return;
+      for (const [dx, dy, dz] of NEIGHBORS) if (blocks.blockOf(ctx.w.getBlock(ctx.x + dx, ctx.y + dy, ctx.z + dz)).id === 'water') return;
+      // vanilla keeps the shape and the way it faces, only the block itself dies
+      let dead = blocks.defaultState(`dead_${id}`);
+      for (const prop of ['facing', 'waterlogged']) {
+        const value = blocks.prop(ctx.state, prop);
+        if (value !== undefined && blocks.prop(dead, prop) !== undefined) dead = blocks.withProp(dead, prop, value);
+      }
+      ctx.w.setBlock(ctx.x, ctx.y, ctx.z, dead);
+    },
+  },
 };
 
 /** A dispenser, a dropper and a crafter are containers that also answer a signal. */
@@ -740,6 +769,13 @@ const byId: Record<string, Behavior> = {
       if (ctx.w.getSkyLight(ctx.x, ctx.y, ctx.z) <= 0) return;
       ctx.w.setBlock(ctx.x, ctx.y, ctx.z, 0);
     },
+    onPlaced: (ctx) => fireSchedule(ctx),
+    onNeighborChanged: (ctx) => {
+      // a fire with nothing left to stand on or burn goes out at once, as vanilla's does
+      if (ctx.def.id !== 'fire') return;
+      if (!fireSurvives(ctx)) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, 0);
+    },
+    scheduledTick: (ctx) => burnTick(ctx),
   },
   composter: {
     // the seventh fill ripens a moment later, which is when vanilla turns the level to eight
@@ -749,6 +785,121 @@ const byId: Record<string, Behavior> = {
     },
   },
 };
+
+
+// ---------------------------------------------------------------------------------------------
+// Fire
+// ---------------------------------------------------------------------------------------------
+/**
+ * How readily a block catches and how readily it burns away, which vanilla keeps in code as a pair
+ * of numbers per block. These are vanilla's own values, read off the families the ids fall into.
+ */
+export function flammability(id: string): { catches: number; burns: number } | null {
+  if (id.endsWith('_leaves') || id === 'wool' || id.endsWith('_wool') || id.endsWith('_carpet') || id === 'moss_carpet' || id === 'dried_kelp_block') return { catches: 30, burns: 60 };
+  if (id.endsWith('_planks') || id.endsWith('_slab') && WOODY.test(id) || id.endsWith('_stairs') && WOODY.test(id) || id.endsWith('_fence') || id.endsWith('_fence_gate') || id === 'bookshelf' || id === 'chiseled_bookshelf' || id === 'lectern' || id === 'composter' || id === 'beehive' || id === 'bee_nest' || id === 'bamboo_mosaic') return { catches: 5, burns: 20 };
+  if (id.endsWith('_log') || id.endsWith('_wood') || id.endsWith('_stem') || id.endsWith('_hyphae') || id === 'coal_block' || id === 'bamboo_block') return { catches: 5, burns: 5 };
+  if (id === 'hay_block' || id === 'target' || id === 'scaffolding') return { catches: 60, burns: 20 };
+  if (id === 'tnt') return { catches: 15, burns: 100 };
+  if (id === 'vine' || id === 'glow_lichen' || id === 'bamboo' || id === 'big_dripleaf' || id === 'small_dripleaf' || id === 'hanging_roots') return { catches: 15, burns: 100 };
+  if (PLANTS.test(id)) return { catches: 60, burns: 100 };
+  return null;
+}
+
+const WOODY = /(oak|spruce|birch|jungle|acacia|dark_oak|mangrove|cherry|pale_oak|bamboo|crimson|warped)/;
+const PLANTS = /(_flower|grass|fern|sapling|_bush|tulip|orchid|allium|daisy|cornflower|lily|dandelion|poppy|azalea|petals|_sprouts|wheat|_roots|deadbush|sunflower|lilac|peony|rose_bush|pitcher_plant|torchflower|kelp|seagrass)/;
+
+/** A fire on netherrack, magma or soul soil is one vanilla never lets go out. */
+const everBurning = (id: string): boolean => id === 'netherrack' || id === 'magma_block' || id === 'soul_sand' || id === 'soul_soil';
+
+/** Whether anything holds this fire up: the block under it, or something beside it to burn. */
+function fireSurvives(ctx: BlockContext): boolean {
+  const below = blocks.blockOf(ctx.w.getBlock(ctx.x, ctx.y - 1, ctx.z));
+  if (below.solid || everBurning(below.id)) return true;
+  for (const [dx, dy, dz] of NEIGHBORS) {
+    const id = blocks.blockOf(ctx.w.getBlock(ctx.x + dx, ctx.y + dy, ctx.z + dz)).id;
+    if (flammability(id)) return true;
+  }
+  return false;
+}
+
+const NEIGHBORS: [number, number, number][] = [[0, 1, 0], [0, -1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
+
+/** Vanilla ticks a fire every thirty ticks or so, which is what paces a spread. */
+function fireSchedule(ctx: BlockContext): void {
+  if (ctx.def.id !== 'fire') return;
+  ctx.w.schedule(ctx.x, ctx.y, ctx.z, 30 + ctx.w.rng.int(10));
+}
+
+/**
+ * Vanilla's fire tick: it ages, eats what it is touching, and reaches for whatever is near enough
+ * to catch. A fire on netherrack burns for ever; one with nothing to burn and nothing to stand on
+ * goes out; and rain puts out anything the sky can see. The numbers are vanilla's own.
+ */
+function burnTick(ctx: BlockContext): void {
+  if (ctx.def.id !== 'fire') return;
+  const w = ctx.w;
+  const { x, y, z } = ctx;
+  const age = Number(blocks.prop(ctx.state, 'age') ?? 0);
+  const belowId = blocks.blockOf(w.getBlock(x, y - 1, z)).id;
+  const forever = everBurning(belowId);
+  const wet = w.isRaining() && w.getSkyLight(x, y, z) > 0;
+  if (!forever && wet && w.rng.next() < 0.2 + age * 0.03) {
+    w.setBlock(x, y, z, 0);
+    return;
+  }
+  // it ages by a step at a time until it is at fifteen
+  const older = Math.min(15, age + Math.floor(w.rng.int(3) / 2));
+  let state = ctx.state;
+  if (older !== age) {
+    state = blocks.withProp(ctx.state, 'age', String(older));
+    w.setBlock(x, y, z, state);
+  }
+  if (forever) return;
+  fireSchedule(ctx);
+  if (!fireSurvives(ctx)) {
+    // nothing to burn: it needs a floor, and an old fire goes out even with one
+    if (!blocks.blockOf(w.getBlock(x, y - 1, z)).solid || older > 3) w.setBlock(x, y, z, 0);
+    return;
+  }
+  if (older === 15 && w.rng.int(4) === 0 && !flammability(belowId)) {
+    w.setBlock(x, y, z, 0);
+    return;
+  }
+  // what it touches burns away: what is over and under it goes more readily than what is beside it
+  const eat = (bx: number, by: number, bz: number, chance: number) => {
+    const f = flammability(blocks.blockOf(w.getBlock(bx, by, bz)).id);
+    if (!f || w.rng.int(chance) >= f.burns) return;
+    // vanilla leaves fire where the block was unless the fire is old, or the rain would drown it
+    const rained = w.isRaining() && w.getSkyLight(bx, by, bz) > 0;
+    if (w.rng.int(older + 10) < 5 && !rained) w.setBlock(bx, by, bz, blocks.stateWith('fire', { age: String(Math.min(15, older + Math.floor(w.rng.int(5) / 4))) }));
+    else w.setBlock(bx, by, bz, 0);
+  };
+  eat(x, y + 1, z, 250);
+  eat(x, y - 1, z, 250);
+  for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as [number, number][]) eat(x + dx, y, z + dz, 300);
+  // and it reaches out to anything nearby that will catch, less readily the higher it is
+  for (let ox = -1; ox <= 1; ox++)
+    for (let oz = -1; oz <= 1; oz++)
+      for (let oy = -1; oy <= 4; oy++) {
+        if (ox === 0 && oy === 0 && oz === 0) continue;
+        const bx = x + ox;
+        const by = y + oy;
+        const bz = z + oz;
+        if (w.getBlock(bx, by, bz) !== 0) continue;
+        let odds = 0;
+        for (const [nx, ny, nz] of NEIGHBORS) {
+          const f = flammability(blocks.blockOf(w.getBlock(bx + nx, by + ny, bz + nz)).id);
+          if (f) odds = Math.max(odds, f.catches);
+        }
+        if (odds <= 0) continue;
+        // vanilla's Normal difficulty is worth seven of these odds
+        const chance = Math.floor((odds + 40 + 14) / (older + 30));
+        const reach = oy > 1 ? 100 + (oy - 1) * 100 : 100;
+        if (chance <= 0 || w.rng.int(reach) > chance) continue;
+        if (w.isRaining() && w.getSkyLight(bx, by, bz) > 0) continue;
+        w.setBlock(bx, by, bz, blocks.stateWith('fire', { age: String(Math.min(15, older + Math.floor(w.rng.int(5) / 4))) }));
+      }
+}
 
 function growTree(ctx: BlockContext): void {
   const type = TREE_FOR_SAPLING[ctx.def.id];

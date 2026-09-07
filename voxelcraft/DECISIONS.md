@@ -956,3 +956,18 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      resolves such a definition down to the first model it names, which is what the icon is drawn
      from. Eleven items are still without one, all of them things vanilla draws with a block entity
      renderer: decorated pots, the dragon head and the copper golem statues.
+
+108. **Fire, candles and coral.** Fire had only ever gone out in the rain; it now behaves as
+     vanilla's `FireBlock` does. It ticks itself every thirty ticks or so, ages a step at a time up
+     to fifteen, eats what it is touching — what is over and under it more readily than what is
+     beside it, at vanilla's own odds — and reaches into the three-by-three box around it, less
+     readily the higher the spot, leaving fire wherever something catches. A fire with nothing to
+     burn needs a floor and dies once it is old; one on netherrack or soul soil never goes out; and
+     rain puts out anything the sky can see. How readily a block catches and how readily it burns
+     away is a pair of numbers vanilla keeps in code, so ours reads them off the families the ids
+     fall into — leaves and wool thirty and sixty, planks five and twenty, logs five and five, and
+     so on. A wooden house now burns down around a fire left in it.
+
+     Two smaller stubs went with it: flint and steel lights a candle or a campfire where it stands
+     rather than setting a fire beside it, and a hand puts a lit candle out; and coral with no water
+     against it dies into the dead one of its kind, keeping the way it faces.

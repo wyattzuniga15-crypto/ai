@@ -118,4 +118,5 @@ coverage counts in `COVERAGE.md`.
 
 ## Phase 6 – polish
 - [x] Polish, first slice: the creative menu — vanilla's tabbed list of every item with its scroll bar, its search tab and the survival inventory beside it; and the item models behind the icons, so a compass and a clock draw as themselves
-- [ ] Polish, next: everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio (music, ambient loops, records)
+- [x] Polish, second slice: the block behaviours that were still stubbed — fire with vanilla's spread, burn-out and rain, candles lit and put out, and coral that dies out of water
+- [ ] Polish, next: light that depends on the block's state (a lit furnace, a lit lamp, a lit candle), the rest of what `COVERAGE.md` still lists, performance pass (60 fps at 8 chunks on integrated graphics), audio (music, ambient loops, records)

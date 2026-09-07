@@ -3192,6 +3192,15 @@ export class Game {
     const p = this.player;
     const [dx, dy, dz] = FACE_NORMALS[t.face];
     const x = t.x + dx, y = t.y + dy, z = t.z + dz;
+    // a candle or a campfire is lit where it stands rather than having a fire set beside it
+    const struck = blocks.blockOf(t.state);
+    if (blocks.prop(t.state, 'lit') === 'false' && (struck.behavior === 'candle' || struck.id.endsWith('campfire'))) {
+      if (blocks.prop(t.state, 'waterlogged') === 'true') return;
+      this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'lit', 'true'));
+      this.audio.play('fizz', { x: t.x, y: t.y, z: t.z });
+      if (p.gamemode === 'survival') p.inventory.damageSelected(1);
+      return;
+    }
     const world = this.portalBlocks();
     const lit = blocks.blockOf(t.state).id === 'obsidian' && lightPortal(world, x, y, z);
     if (!lit) {
