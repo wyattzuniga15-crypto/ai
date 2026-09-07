@@ -5,10 +5,13 @@ import tagsJson from '../../data/tags.json';
 import type { ItemStack } from './inventory.ts';
 import { items } from './registry.ts';
 import { blocks } from '../blocks/registry.ts';
+import lootChests from '../../data/loot/chests.json';
+import { enchantments, supports } from './enchanting.ts';
 
 type Json = Record<string, unknown>;
 const blockTables = lootBlocks as Record<string, Json>;
 const entityTables = lootEntities as Record<string, Json>;
+const chestTables = lootChests as unknown as Record<string, Json>;
 const itemTags = (tagsJson as { item: Record<string, string[]> }).item;
 
 export interface LootContext {
@@ -170,6 +173,42 @@ function applyFunctions(stack: ItemStack, fns: unknown, ctx: LootContext): ItemS
       }
       case 'furnace_smelt':
         break;
+      case 'enchant_randomly': {
+        // chest loot often hands out a randomly enchanted book or tool
+        const pool = enchantablesFor(stack.id);
+        if (pool.length) {
+          const pick = pool[Math.floor(ctx.random() * pool.length)];
+          const level = 1 + Math.floor(ctx.random() * pick.maxLevel);
+          stack.enchantments = { ...(stack.enchantments ?? {}), [pick.id]: level };
+          if (stack.id === 'book') stack.id = 'enchanted_book';
+        }
+        break;
+      }
+      case 'enchant_with_levels': {
+        const levels = numberRange(f.levels, ctx);
+        const pool = enchantablesFor(stack.id);
+        if (pool.length) {
+          const n = 1 + Math.floor(ctx.random() * Math.max(1, Math.round(levels / 15)));
+          for (let i = 0; i < n; i++) {
+            const pick = pool[Math.floor(ctx.random() * pool.length)];
+            const level = 1 + Math.floor(ctx.random() * pick.maxLevel);
+            stack.enchantments = { ...(stack.enchantments ?? {}), [pick.id]: level };
+          }
+          if (stack.id === 'book') stack.id = 'enchanted_book';
+        }
+        break;
+      }
+      case 'set_damage': {
+        const damage = numberRange(f.damage, ctx);
+        const max = items.byId.get(stack.id)?.durability;
+        if (max) stack.damage = Math.max(0, Math.round(max * (1 - damage)));
+        break;
+      }
+      case 'set_potion': {
+        const potion = stripTag(String(f.id ?? ''));
+        if (potion) stack.name = potion;
+        break;
+      }
       case 'enchanted_count_increase': {
         const lvl = enchantLevel(ctx.tool, stripTag(String(f.enchantment ?? '')));
         if (lvl > 0) {
@@ -257,6 +296,24 @@ export function evalTable(table: Json, ctx: LootContext): ItemStack[] {
     else merged.push(t);
   }
   return merged;
+}
+
+/** Enchantments that may be rolled onto an item by a chest loot function. */
+function enchantablesFor(id: string): { id: string; maxLevel: number }[] {
+  const out: { id: string; maxLevel: number }[] = [];
+  for (const e of enchantments) {
+    if (e.treasure) continue; // vanilla's random loot enchantments skip the treasure-only ones
+    if (id === 'book' || id === 'enchanted_book' || supports(e, id)) out.push({ id: e.id, maxLevel: e.maxLevel });
+  }
+  return out;
+}
+
+/** Chest loot for a structure (vanilla `chests/...` tables). */
+export function chestLoot(table: string, random: () => number = Math.random): ItemStack[] {
+  const key = table.replace('minecraft:', '').replace(/^chests\//, '');
+  const def = chestTables[key];
+  if (!def) return [];
+  return evalTable(def, { tool: null, random });
 }
 
 /** Drops for a mob death. */

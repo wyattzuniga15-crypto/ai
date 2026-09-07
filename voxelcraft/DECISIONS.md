@@ -356,3 +356,20 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     spawns per bed (dirt paths tell a village bed from an igloo's) and takes a job from the
     village's own workstations, and a cat moves in.
 
+64. **Structure chests are filled on the main thread, from the table the template names.** A
+    template says which loot table a chest holds in one of two ways: a `LootTable` tag on the chest
+    itself, or a `structure_block` in DATA mode sitting one block above it whose metadata the piece
+    code reads (`supply_chest`, `map_chest`, `treasure_chest` on shipwrecks, `chest` in an igloo).
+    The converter reads both and records a loot spot; the generator collects the spots it stamps and
+    the worker ships them with the chunk, because the loot tables and the item registry live on the
+    main thread. Chests are then created and filled on first load, scattering the rolled stacks
+    through the container the way vanilla does, so a wreck's supply chest and its map chest hold
+    different things and an enchanted golden axe comes out of a ruined portal already enchanted.
+
+65. **Igloos are built the way `IglooPieces` builds them.** Half of all igloos hide a basement: four
+    to eleven three-block ladder sections under the trapdoor, ending in the laboratory with its
+    brewing stand, cauldron and chest. Vanilla turns each piece about its own ladder column (its
+    `PIVOTS` entry), which is what keeps the shaft lined up when the igloo is rotated, so the
+    generator lines the three columns up instead of copying vanilla's offsets. The basement pieces
+    ship in the igloo bundle but are marked as extras, not starts, so a structure is never placed as
+    a bare ladder section.

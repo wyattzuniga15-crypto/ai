@@ -17,12 +17,13 @@ import { World, FACE_NORMALS, type RaycastHit } from '../world/world.ts';
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { StructureBundle } from '../world/protocol.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
+import { WorldGenerator } from '../world/gen/generator.ts';
 import { Player } from '../entities/player.ts';
 import { ItemEntity } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
-import { blockDrops } from '../items/loot.ts';
+import { blockDrops, chestLoot } from '../items/loot.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
@@ -287,6 +288,10 @@ export class Game {
     };
     this.entities = new EntityManager(host);
     this.world.onChunkLoaded = (cx, cz) => this.onChunkLoaded(cx, cz);
+    this.world.onChunkLoot = (cx, cz) => {
+      const c = this.world.getChunk(cx, cz);
+      if (c) this.fillStructureChests(c);
+    };
     this.world.onChunkUnloaded = (c) => {
       const mobs = this.serializeChunkEntities(c.cx, c.cz);
       for (const m of this.entities.mobs.slice()) if ((Math.floor(m.pos.x) >> 4) === c.cx && (Math.floor(m.pos.z) >> 4) === c.cz) this.entities.remove(m);
@@ -1017,6 +1022,13 @@ export class Game {
   private builtStructureSets: StructureSet[] | null = null;
   private structureBundle: StructureBundle | undefined;
 
+  /** A generator for biome queries away from the loaded chunks (used by `/locate`). */
+  private get locateGenerator(): WorldGenerator {
+    if (!this.locateGen) this.locateGen = new WorldGenerator(this.meta.seed);
+    return this.locateGen;
+  }
+  private locateGen: WorldGenerator | null = null;
+
   /** Searches outward for the nearest region whose structure start is in a matching biome. */
   private locateStructure(set: StructureSet): { x: number; z: number } | null {
     const cx = Math.floor(this.player.pos.x) >> 4;
@@ -1029,7 +1041,8 @@ export class Game {
           const start = structureStart(this.meta.seed, set, region.x + dx, region.z + dz);
           const x = start.cx * 16 + 8;
           const z = start.cz * 16 + 8;
-          if (set.biomeSet.has(biomes[this.world.getBiome(x, z)]?.id ?? '')) return { x, z };
+          // the search runs far past the loaded chunks, so ask the generator rather than the world
+          if (set.biomeSet.has(biomes[this.locateGenerator.columnInfo(x, z).biome]?.id ?? '')) return { x, z };
         }
     return null;
   }
@@ -1061,6 +1074,40 @@ export class Game {
     if (outpost) this.populateOutpost(outpost.x, outpost.y, outpost.z);
     // a bed beside village paths means a villager sleeps there; igloo beds stand alone
     if (paths > 8) this.populateVillage(cx, cz, beds);
+  }
+
+  /** Fills the chests a structure placed with the vanilla loot table each one carries. */
+  private fillStructureChests(c: { pendingLoot: string | null }): void {
+    if (!c.pendingLoot) return;
+    let spots: { x: number; y: number; z: number; table: string }[] = [];
+    try {
+      spots = JSON.parse(c.pendingLoot) as typeof spots;
+    } catch {
+      spots = [];
+    }
+    c.pendingLoot = null;
+    for (const spot of spots) {
+      const state = this.world.getBlock(spot.x, spot.y, spot.z);
+      if (!state) continue;
+      const id = blocks.blockOf(state).id;
+      const kind = containerKind(id);
+      if (!kind) continue;
+      if (this.world.getBlockEntity(spot.x, spot.y, spot.z)) continue;
+      const entity = createBlockEntity(id) as ContainerEntity | null;
+      if (!entity) continue;
+      // vanilla scatters the rolled stacks through the container
+      for (const stack of chestLoot(spot.table, Math.random)) {
+        for (let tries = 0; tries < 12; tries++) {
+          const slot = Math.floor(Math.random() * entity.items.length);
+          if (!entity.items[slot]) {
+            entity.items[slot] = stack;
+            break;
+          }
+        }
+      }
+      this.world.setBlockEntity(spot.x, spot.y, spot.z, entity);
+      this.world.markModifiedAt(spot.x, spot.z);
+    }
   }
 
   /** Vanilla puts a villager per bed in a village, and a cat or two around the houses. */
@@ -1604,6 +1651,7 @@ export class Game {
       this.entities.spawnAnimalsInChunk(cx, cz);
       this.populateStructures(cx, cz);
     }
+    this.fillStructureChests(c);
   }
 
   private lineOfSight(a: THREE.Vector3, b: THREE.Vector3): boolean {

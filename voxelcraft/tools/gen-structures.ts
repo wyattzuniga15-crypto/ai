@@ -19,8 +19,9 @@ const PUBLIC = 'public';
  * Structures we place: which templates to convert, which structure set spreads them, and which
  * vanilla structure JSON names the biomes they belong in.
  */
-const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor'; structures: string[] }[] = [
-  { name: 'igloo', set: 'igloos', pieces: ['igloo/top'], placement: 'surface', structures: ['igloo'] },
+const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor'; structures: string[]; main?: string[] }[] = [
+  // the igloo's basement pieces are stamped by the generator under the top, never on their own
+  { name: 'igloo', set: 'igloos', pieces: ['igloo/top', 'igloo/middle', 'igloo/bottom'], main: ['igloo_top'], placement: 'surface', structures: ['igloo'] },
   { name: 'shipwreck', set: 'shipwrecks', pieces: [], placement: 'ocean_floor', structures: ['shipwreck', 'shipwreck_beached'] },
   { name: 'ruined_portal', set: 'ruined_portals', pieces: [], placement: 'surface', structures: ['ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_mountain', 'ruined_portal_swamp'] },
   { name: 'pillager_outpost', set: 'pillager_outposts', pieces: ['pillager_outpost/watchtower'], placement: 'surface', structures: ['pillager_outpost'] },
@@ -69,7 +70,25 @@ const versionDir = (): string => {
 const num = (v: NbtValue): number => Number(v as number);
 
 interface Jigsaw { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
-interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[] }
+interface LootSpot { pos: [number, number, number]; table: string }
+interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[] }
+
+/**
+ * Vanilla marks some chests with a `structure_block` in DATA mode sitting one block above the chest
+ * instead of a `LootTable` tag; each structure's piece code reads the marker's metadata and fills the
+ * chest below it (`ShipwreckPieces.handleDataMarker`, `IglooPieces.handleDataMarker`).
+ */
+const DATA_TABLES: Record<string, string> = {
+  supply_chest: 'chests/shipwreck_supply',
+  map_chest: 'chests/shipwreck_map',
+  treasure_chest: 'chests/shipwreck_treasure',
+};
+
+/** Loot table a DATA marker stands for; plain `chest` means different things per structure. */
+function markerTable(structure: string, meta: string): string | null {
+  if (meta === 'chest') return structure === 'igloo' ? 'chests/igloo_chest' : null;
+  return DATA_TABLES[meta] ?? null;
+}
 
 /** Turns a template's palette entry into our `id[prop=value,...]` state string. */
 function stateString(entry: NbtTag): string {
@@ -80,10 +99,11 @@ function stateString(entry: NbtTag): string {
   return parts.length ? `${name}[${parts.join(',')}]` : name;
 }
 
-function convert(file: string): Template | null {
+function convert(file: string, structure: string): Template | null {
   const root = readNbt(fs.readFileSync(file));
   const size = (root.size as NbtValue[]).map(num) as [number, number, number];
   const jigsaws: Jigsaw[] = [];
+  const loot: LootSpot[] = [];
   // some templates carry several palettes (block variants); vanilla picks one, we take the first
   const paletteTag = (root.palette ?? (root.palettes as NbtValue[] | undefined)?.[0]) as NbtTag[] | undefined;
   if (!paletteTag) return null;
@@ -109,10 +129,22 @@ function convert(file: string): Template | null {
       continue;
     }
     // structure voids leave whatever is already there
-    if (id.startsWith('structure_void') || id.startsWith('structure_block')) continue;
+    if (id.startsWith('structure_void')) continue;
+    // data markers are instructions, not blocks: the chest they fill sits one block below
+    if (id.startsWith('structure_block')) {
+      const meta = String((b.nbt as NbtTag | undefined)?.metadata ?? '');
+      const marked = meta ? markerTable(structure, meta) : null;
+      if (marked) loot.push({ pos: [pos[0], pos[1] - 1, pos[2]], table: marked });
+      continue;
+    }
+    // chests and barrels carry the loot table they should be filled from
+    const table = (b.nbt as NbtTag | undefined)?.LootTable;
+    if (table) loot.push({ pos: pos as [number, number, number], table: String(table).replace('minecraft:', '') });
     blocks.push(pos[0], pos[1], pos[2], state);
   }
-  return blocks.length || jigsaws.length ? { size, palette, blocks, ...(jigsaws.length ? { jigsaws } : {}) } : null;
+  return blocks.length || jigsaws.length
+    ? { size, palette, blocks, ...(jigsaws.length ? { jigsaws } : {}), ...(loot.length ? { loot } : {}) }
+    : null;
 }
 
 /** Structures assembled from template pools (villages); every reachable piece is converted. */
@@ -127,7 +159,7 @@ const outDir = path.join(PUBLIC, 'structures');
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[]; starts?: string[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[]; main?: string[]; starts?: string[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -149,7 +181,7 @@ for (const want of WANTED) {
   for (const piece of pieces) {
     const file = path.join(structureDir, `${piece}.nbt`);
     if (!fs.existsSync(file)) continue;
-    const template = convert(file);
+    const template = convert(file, want.name);
     if (!template) continue;
     bundle[piece.replace('/', '_')] = template;
     files++;
@@ -162,6 +194,7 @@ for (const want of WANTED) {
     name: want.name, placement: want.placement,
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
     pieces: written, biomes: biomesFor(mc, want.structures),
+    ...(want.main ? { main: want.main.filter((m) => written.includes(m)) } : {}),
   });
 }
 
@@ -202,7 +235,7 @@ for (const want of JIGSAW) {
       if (!fs.existsSync(file)) continue;
       const key = loc.replace(/\//g, '_');
       if (!pieces.includes(key)) {
-        const template = convert(file);
+        const template = convert(file, want.name);
         if (template) {
           bundle[key] = template;
           files++;

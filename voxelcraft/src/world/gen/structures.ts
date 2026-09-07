@@ -7,7 +7,8 @@ import { Rng, mix } from '../../core/rng.ts';
 import type { BlockAccess } from './features.ts';
 
 export interface JigsawJson { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
-export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[] }
+export interface LootSpot { pos: [number, number, number]; table: string }
+export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[] }
 export interface PoolEntry { location: string; weight: number; projection: string }
 export interface StructureIndexEntry {
   name: string;
@@ -17,6 +18,8 @@ export interface StructureIndexEntry {
   salt: number;
   pieces: string[];
   biomes: string[];
+  /** Pieces that may be placed as the structure itself; the rest are extras the generator adds. */
+  main?: string[];
   /** Jigsaw structures: the pools a village can start from, and how far pieces may chain. */
   starts?: string[];
   maxDepth?: number;
@@ -28,6 +31,8 @@ export interface RuntimeTemplate {
   size: [number, number, number];
   blocks: number[];
   jigsaws: JigsawJson[];
+  /** Chests and barrels in the piece, with the vanilla loot table that fills them. */
+  loot: LootSpot[];
   /** Key in the bundle, for pool lookups. */
   key: string;
 }
@@ -35,6 +40,8 @@ export interface RuntimeTemplate {
 export interface StructureSet extends StructureIndexEntry {
   /** Templates with their palettes resolved to block states (`known` marks entries we can place). */
   templates: RuntimeTemplate[];
+  /** The subset a start is picked from: an igloo is always its top, never a basement piece. */
+  mainTemplates: RuntimeTemplate[];
   byKey: Map<string, RuntimeTemplate>;
   pools: Record<string, PoolEntry[]>;
   biomeSet: Set<string>;
@@ -59,6 +66,7 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
   size: t.size,
   blocks: t.blocks,
   jigsaws: t.jigsaws ?? [],
+  loot: t.loot ?? [],
   states: Int32Array.from(t.palette.map(parseState)),
   // air is a real instruction in a template (it hollows the structure out), unknown blocks are not
   known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
@@ -71,10 +79,12 @@ export function buildStructureSets(
 ): StructureSet[] {
   return index.map((entry) => {
     const built = entry.pieces.map((p) => (templates[p] ? runtimeTemplate(p, templates[p]) : null)).filter((t): t is RuntimeTemplate => !!t);
+    const main = entry.main?.length ? built.filter((t) => entry.main!.includes(t.key)) : built;
     return {
       ...entry,
       biomeSet: new Set(entry.biomes),
       templates: built,
+      mainTemplates: main.length ? main : built,
       byKey: new Map(built.map((t) => [t.key, t])),
       pools: pools[entry.name] ?? {},
     };
@@ -145,10 +155,19 @@ export interface StructurePlacement {
  * Writes one placed structure into the world, clipped to whatever chunks the access covers.
  * Returns the positions written so the caller can adapt the terrain around them.
  */
-export function stampStructure(world: BlockAccess, p: StructurePlacement, written?: Set<string>): number {
+export function stampStructure(
+  world: BlockAccess,
+  p: StructurePlacement,
+  written?: Set<string>,
+  onLoot?: (x: number, y: number, z: number, table: string) => void,
+): number {
   const { template, rotation } = p;
   const [sx, , sz] = template.size;
   let placed = 0;
+  for (const spot of template.loot) {
+    const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
+    onLoot?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.table);
+  }
   for (let i = 0; i < template.blocks.length; i += 4) {
     const lx = template.blocks[i];
     const ly = template.blocks[i + 1];

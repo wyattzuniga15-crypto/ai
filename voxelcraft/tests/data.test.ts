@@ -9,7 +9,7 @@ import campfire from '../data/recipes/campfire.json';
 import stonecutting from '../data/recipes/stonecutting.json';
 import smithing from '../data/recipes/smithing.json';
 import summary from '../data/summary.json';
-import { blockDrops } from '../src/items/loot.ts';
+import { blockDrops, chestLoot } from '../src/items/loot.ts';
 import { breakTicks, canHarvest } from '../src/blocks/mining.ts';
 
 type Ingredient = string | string[];
@@ -126,6 +126,27 @@ describe('loot and mining', () => {
     expect(fortune[0].count).toBe(4);
     expect(blockDrops(blocks.defaultState('grass_block'), null, seq([0.5]))).toEqual([{ id: 'dirt', count: 1 }]);
     expect(blockDrops(blocks.defaultState('oak_leaves'), { id: 'shears', count: 1 }, seq([0.5]))).toEqual([{ id: 'oak_leaves', count: 1 }]);
+  });
+
+  it('rolls the vanilla chest tables a structure asks for', () => {
+    // 20 draws is enough to see every pool in a table without depending on one roll
+    const roll = (table: string) => Array.from({ length: 20 }, () => chestLoot(table, Math.random)).flat();
+    const igloo = roll('chests/igloo_chest');
+    expect(igloo.length).toBeGreaterThan(20);
+    expect(new Set(igloo.map((s) => s.id)).has('golden_apple')).toBe(true); // one per igloo chest, always
+    expect(igloo.every((s) => s.count >= 1)).toBe(true);
+    const treasure = roll('chests/shipwreck_treasure');
+    expect(new Set(treasure.map((s) => s.id)).has('iron_ingot')).toBe(true);
+    expect(roll('chests/shipwreck_map').some((s) => s.id === 'map')).toBe(true);
+    expect(roll('chests/pillager_outpost').some((s) => s.id === 'crossbow')).toBe(true);
+    // a ruined portal's golden gear comes out enchanted, the way `enchant_with_levels` leaves it
+    const golden = roll('chests/ruined_portal').filter((s) => s.id.startsWith('golden_') && s.enchantments);
+    expect(golden.length).toBeGreaterThan(0);
+    expect(golden.every((g) => Object.keys(g.enchantments!).length > 0)).toBe(true);
+    // and a dungeon's enchanted books always carry exactly one enchantment
+    const books = roll('chests/simple_dungeon').filter((s) => s.id === 'enchanted_book');
+    expect(books.every((b) => Object.keys(b.enchantments ?? {}).length === 1)).toBe(true);
+    expect(chestLoot('chests/not_a_table', Math.random)).toEqual([]);
   });
 
   it('computes vanilla break times', () => {

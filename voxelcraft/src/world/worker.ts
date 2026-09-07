@@ -12,7 +12,7 @@ import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
 import { SectionMesher } from './mesher.ts';
 import { AtlasIndex } from '../render/atlasIndex.ts';
-import { packKey, type FromWorker, type GenRequest, type GenResult, type ToWorker } from './protocol.ts';
+import { packKey, unpackKey, type FromWorker, type GenRequest, type GenResult, type ToWorker } from './protocol.ts';
 
 const ctx = self as unknown as Worker;
 const post = (msg: FromWorker, transfer?: Transferable[]) => ctx.postMessage(msg, transfer ?? []);
@@ -59,6 +59,9 @@ function chebyshev(cx: number, cz: number): number {
 // ---------------------------------------------------------------------------------------------
 // Pipeline steps
 // ---------------------------------------------------------------------------------------------
+/** Structure chests waiting to be filled, keyed by the chunk they landed in. */
+const lootSpots = new Map<number, { x: number; y: number; z: number; table: string }[]>();
+
 function ensureTerrain(cx: number, cz: number): ChunkData | null {
   const key = packKey(cx, cz);
   let c = chunks.get(key);
@@ -169,8 +172,23 @@ function ensureDecorated(cx: number, cz: number): ChunkData | null {
   const c = chunks.get(packKey(cx, cz))!;
   if (c.status === 'terrain') {
     gen.decorate(c, decorateAccess);
+    // structure chests are filled on the main thread, where the loot tables live; a structure
+    // started here can reach into a chunk that has already gone over, so that one is told directly
+    const late = new Map<number, typeof gen.lootSpots>();
+    for (const spot of gen.lootSpots) {
+      const key = packKey(spot.x >> 4, spot.z >> 4);
+      const target = delivered.has(key) ? late : lootSpots;
+      const list = target.get(key) ?? [];
+      list.push(spot);
+      target.set(key, list);
+    }
     c.updateHeightmapAll();
     flushPatches();
+    // after the patches, so the chests are in place on the main thread before it fills them
+    for (const [key, list] of late) {
+      const [lx, lz] = unpackKey(key);
+      post({ type: 'loot', cx: lx, cz: lz, loot: JSON.stringify(list) });
+    }
   }
   return c;
 }
@@ -193,7 +211,9 @@ function deliver(c: ChunkData): void {
   if (delivered.has(key)) return;
   delivered.add(key);
   c.status = 'ready';
-  post({ type: 'chunk', cx: c.cx, cz: c.cz, blocks: c.blocks.slice(), biomes: c.biomes.slice(), light: c.light.slice() });
+  const loot = lootSpots.get(key);
+  lootSpots.delete(key);
+  post({ type: 'chunk', cx: c.cx, cz: c.cz, blocks: c.blocks.slice(), biomes: c.biomes.slice(), light: c.light.slice(), ...(loot?.length ? { loot: JSON.stringify(loot) } : {}) });
 }
 
 function neighboursLit(cx: number, cz: number): boolean {
@@ -300,6 +320,7 @@ function pump(): void {
           meshedSections.delete(sectionKey(c.cx, sy, c.cz));
           dirty.delete(sectionKey(c.cx, sy, c.cz));
         }
+        lootSpots.delete(key);
         if (delivered.delete(key)) post({ type: 'unload', cx: c.cx, cz: c.cz });
       }
     }

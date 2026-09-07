@@ -11,7 +11,7 @@ import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
-import { assembleJigsaw, stampStructure, structureStart, type StructureSet } from './structures.ts';
+import { assembleJigsaw, rotate, stampStructure, structureStart, type StructureSet } from './structures.ts';
 
 const st = (id: string) => blocks.defaultState(id);
 
@@ -70,6 +70,11 @@ const BEE_NEST_CHANCE: Record<string, number> = {
 
 /** Vanilla 1.18+ canyon carver probability per chunk. */
 const RAVINE_CHANCE = 0.01;
+/**
+ * The ladder column in each igloo piece, in template coordinates: vanilla rotates every piece about
+ * this column (its `PIVOTS` map), so lining the columns up reproduces vanilla's basement placement.
+ */
+const IGLOO_LADDER = { top: [3, 5] as [number, number], middle: [1, 1] as [number, number], bottom: [3, 7] as [number, number] };
 /** Chunk offsets vanilla samples when deciding whether open water reaches sea level. */
 const SEA_SAMPLING_OFFSETS: ReadonlyArray<readonly [number, number]> = [[0, 0], [-2, -1], [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-2, 1], [-1, 1], [0, 1], [1, 1]];
 const MOUNTAIN_BIOMES = new Set(['snowy_slopes', 'jagged_peaks', 'frozen_peaks', 'stony_peaks', 'grove', 'meadow', 'windswept_hills', 'windswept_forest', 'windswept_gravelly_hills']);
@@ -699,6 +704,7 @@ export class WorldGenerator {
   // Stage 2: decoration (trees, plants) – needs the 3x3 neighbourhood to have terrain
   // ---------------------------------------------------------------------------------------------
   decorate(chunk: ChunkData, world: BlockAccess): void {
+    this.lootSpots = [];
     const rng = new Rng(mix(this.seed, chunk.cx, chunk.cz, 0xdec0));
     const ox = chunk.cx * 16;
     const oz = chunk.cz * 16;
@@ -819,7 +825,7 @@ export class WorldGenerator {
         this.placeJigsaw(set, world, wx, wz, rng);
         continue;
       }
-      const template = set.templates[rng.int(set.templates.length)];
+      const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
       const rotation = rng.int(4);
       const [sx, , sz] = template.size;
       const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
@@ -828,12 +834,50 @@ export class WorldGenerator {
       // ruined portals crumble; everything else is placed whole
       const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
       const written = new Set<string>();
-      const placed = stampStructure(world, { set, template, x: wx, y, z: wz, rotation, integrity, rng }, written);
+      const placed = stampStructure(world, { set, template, x: wx, y, z: wz, rotation, integrity, rng }, written, (lx, ly, lz, table) => this.lootSpots.push({ x: lx, y: ly, z: lz, table }));
       if (placed > 0) {
         this.fitStructureToTerrain(world, wx, y, wz, rw, template.size[1], rd, written, set.placement);
+        if (set.name === 'igloo') this.placeIglooBasement(set, world, template, wx, y, wz, rotation, rng);
         this.lastStructure = { name: set.name, x: wx, y, z: wz };
       }
     }
+  }
+
+  /**
+   * Vanilla's `IglooPieces`: half of all igloos hide a ladder shaft under the trapdoor, four to
+   * eleven three-block sections deep, ending in the laboratory with its chest and brewing stand.
+   * Every piece turns about its own ladder column, which is what keeps the shaft lined up when the
+   * igloo is rotated.
+   */
+  private placeIglooBasement(
+    set: StructureSet,
+    world: BlockAccess,
+    top: StructureSet['templates'][number],
+    x: number,
+    y: number,
+    z: number,
+    rotation: number,
+    rng: Rng,
+  ): void {
+    const middle = set.byKey.get('igloo_middle');
+    const bottom = set.byKey.get('igloo_bottom');
+    if (!middle || !bottom || rng.next() >= 0.5) return;
+    const sections = 4 + rng.int(8);
+    // world column the ladder runs down, taken from the trapdoor in the igloo's floor
+    const [tx, tz] = rotate(IGLOO_LADDER.top[0], IGLOO_LADDER.top[1], top.size[0], top.size[2], rotation);
+    const ax = x + tx;
+    const az = z + tz;
+    const stamp = (template: StructureSet['templates'][number], ladder: [number, number], py: number): void => {
+      const [lx, lz] = rotate(ladder[0], ladder[1], template.size[0], template.size[2], rotation);
+      stampStructure(
+        world,
+        { set, template, x: ax - lx, y: py, z: az - lz, rotation, integrity: 1, rng },
+        undefined,
+        (bx, by, bz, table) => this.lootSpots.push({ x: bx, y: by, z: bz, table }),
+      );
+    };
+    stamp(bottom, IGLOO_LADDER.bottom, y - 3 - sections * 3);
+    for (let i = 0; i < sections - 1; i++) stamp(middle, IGLOO_LADDER.middle, y - 3 - i * 3);
   }
 
   /**
@@ -854,7 +898,7 @@ export class WorldGenerator {
       const ground = this.structureGroundY(piece.x, piece.z, w, d);
       const y = ground === null ? piece.y : ground;
       const written = new Set<string>();
-      stampStructure(world, { set, template: piece.template, x: piece.x, y, z: piece.z, rotation: piece.rotation, integrity: 1, rng }, written);
+      stampStructure(world, { set, template: piece.template, x: piece.x, y, z: piece.z, rotation: piece.rotation, integrity: 1, rng }, written, (lx, ly, lz, table) => this.lootSpots.push({ x: lx, y: ly, z: lz, table }));
       this.fitStructureToTerrain(world, piece.x, y, piece.z, w, sy, d, written, 'surface');
     }
     this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length };
@@ -922,6 +966,8 @@ export class WorldGenerator {
 
   /** Where the last structure was stamped, for tests and the `/locate` command. */
   lastStructure: { name: string; x: number; y: number; z: number; pieces?: number } | null = null;
+  /** Chests placed by structures in the chunk being decorated, with their loot tables. */
+  lootSpots: { x: number; y: number; z: number; table: string }[] = [];
 
   /** Pale gardens hang moss from their canopy and spread pale moss over the ground, as vanilla does. */
   private decoratePaleGarden(chunk: ChunkData, world: BlockAccess, rng: Rng, biomeAt: (lx: number, lz: number) => BiomeDef): void {

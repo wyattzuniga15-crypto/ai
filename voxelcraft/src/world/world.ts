@@ -31,6 +31,17 @@ export interface LoadedChunk {
   entities: Map<string, BlockEntity>;
   /** Saved mobs (JSON) waiting to be restored by the entity manager. */
   pendingMobs: string | null;
+  /** Structure chests to fill on first load (JSON from the generator). */
+  pendingLoot: string | null;
+}
+
+/** Joins two lists of loot spots that arrived separately for one chunk. */
+function mergeLoot(a: string, b: string): string {
+  try {
+    return JSON.stringify([...(JSON.parse(a) as unknown[]), ...(JSON.parse(b) as unknown[])]);
+  } catch {
+    return b;
+  }
 }
 
 export interface RaycastHit {
@@ -78,6 +89,8 @@ export class World {
   onChunkLoaded: ((cx: number, cz: number) => void) | null = null;
   onBlockChanged: ((x: number, y: number, z: number, oldState: number, newState: number) => void) | null = null;
   onChunkUnloaded: ((c: LoadedChunk) => void) | null = null;
+  /** Called when a structure drops chests into a chunk the game already holds. */
+  onChunkLoot: ((cx: number, cz: number) => void) | null = null;
   private pendingEdits: number[] = [];
   private readonly pendingMobs = new Map<string, string | null>();
   private readonly loadChunk: WorldOptions['loadChunk'];
@@ -333,7 +346,7 @@ export class World {
         const key = chunkKey(msg.cx, msg.cz);
         let c = this.chunks.get(key);
         if (!c) {
-          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)), pendingMobs: this.pendingMobs.get(key) ?? null };
+          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)), pendingMobs: this.pendingMobs.get(key) ?? null, pendingLoot: msg.loot ?? null };
           this.pendingEntities.delete(key);
           this.pendingMobs.delete(key);
           this.chunks.set(key, c);
@@ -341,6 +354,7 @@ export class World {
           c.blocks = msg.blocks;
           c.biomes = msg.biomes;
           c.light = msg.light;
+          if (msg.loot) c.pendingLoot = msg.loot;
         }
         this.onChunkLoaded?.(msg.cx, msg.cz);
         break;
@@ -361,6 +375,14 @@ export class World {
         for (let i = 0; i + 3 < e.length; i += 4) {
           c.blocks[((e[i + 1] - WORLD_MIN_Y) * CHUNK_SIZE + e[i + 2]) * CHUNK_SIZE + e[i]] = e[i + 3];
         }
+        break;
+      }
+      case 'loot': {
+        // chests a structure placed into a chunk that had already been delivered
+        const c = this.chunks.get(chunkKey(msg.cx, msg.cz));
+        if (!c) return;
+        c.pendingLoot = c.pendingLoot ? mergeLoot(c.pendingLoot, msg.loot) : msg.loot;
+        this.onChunkLoot?.(msg.cx, msg.cz);
         break;
       }
       case 'light': {
