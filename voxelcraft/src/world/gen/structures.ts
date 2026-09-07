@@ -17,7 +17,7 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure';
   spacing: number;
   separation: number;
   salt: number;
@@ -36,6 +36,11 @@ export interface StructureIndexEntry {
   /** Jigsaw structures: one entry per structure in the set (the five village types), and how far pieces may chain. */
   variants?: StructureVariant[];
   maxDepth?: number;
+  /** How far from its start a jigsaw structure may wander (80 blocks for a village, 116 for a city). */
+  maxDistance?: number;
+  /** Structures built at a fixed depth rather than on the surface: an ancient city sits at y -27. */
+  startY?: number;
+  startYMax?: number | null;
 }
 
 export interface RuntimeTemplate {
@@ -97,7 +102,8 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
  * at, or for a jigsaw structure the radius its assembly is allowed to wander (80 blocks) plus a piece.
  */
 function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]): number {
-  if (entry.placement === 'jigsaw') return 8;
+  // a jigsaw structure wanders as far as its own limit allows, plus the piece that reaches that far
+  if (entry.placement === 'jigsaw') return Math.ceil(((entry.maxDistance ?? 80) + 48) / 16);
   // a mineshaft's walk stays inside 80 blocks of its room, and a piece can be 13 more
   if (entry.placement === 'mineshaft') return 7;
   // a stronghold's rooms are kept inside 80 blocks of its staircase, and a room can be 16 more
@@ -336,7 +342,7 @@ export function assembleJigsaw(set: StructureSet, startPool: string, x: number, 
   const rotation = rng.int(4);
   const placed: PlacedPiece[] = [{ template: start, x, y, z, rotation, box: boxOf(start, x, y, z, rotation) }];
   const maxDepth = set.maxDepth ?? 6;
-  const maxDistance = 80;
+  const maxDistance = set.maxDistance ?? 80;
   let queue: { piece: PlacedPiece; depth: number }[] = [{ piece: placed[0], depth: 0 }];
   while (queue.length) {
     const next: typeof queue = [];

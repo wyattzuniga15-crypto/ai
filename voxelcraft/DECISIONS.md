@@ -453,3 +453,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     chest goes where the marker stands rather than below it, so the converter puts a chest into the
     template there, and a `drowned` marker becomes a mob the structure asks the main thread for,
     through the same channel that carries chest loot and spawners.
+
+73. **A structure built at a fixed depth is hollowed out of the rock it sits in.** An ancient city is
+    a jigsaw structure like a village, but its own JSON gives an absolute start height (-27) instead
+    of projecting to the surface, and vanilla's terrain adaptation hollows each piece's box before
+    the piece is written — without that the city is a warren packed solid in deepslate, since the
+    templates only describe the buildings, not the cavern around them. The converter now carries the
+    start height, the assembly's distance limit and its depth out of the structure JSON, and a piece
+    of a buried structure carves its box and takes no foundation. The deep dark is a cave biome
+    rather than a surface one, so a structure with a start height checks the cave biome at that depth
+    for where it belongs. Buried treasure is the small cousin: one chest, walked down from the sea
+    floor until the block under it is stone or sandstone, then packed in sand so nothing shows.

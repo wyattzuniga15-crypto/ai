@@ -31,6 +31,7 @@ interface StructureInstance {
   shaft?: { kind: ShaftKind; pieces: ShaftPiece[] };
   temple?: { kind: TempleKind; x: number; y: number; z: number; rotation: number; seed: number };
   rooms?: StrongholdPiece[];
+  treasure?: { x: number; y: number; z: number };
 }
 const EMPTY_STRUCTURE: StructureInstance = { pieces: [] };
 
@@ -855,6 +856,7 @@ export class WorldGenerator {
           if (t.x <= clip.x1 && t.x + w - 1 >= clip.x0 && t.z <= clip.z1 && t.z + d - 1 >= clip.z0)
             buildTemple({ world, clip, x: t.x, y: t.y, z: t.z, rotation: t.rotation, seed: t.seed, kind: t.kind, onLoot: loot, onEntity: entity });
         }
+        if (instance.treasure) this.buryTreasure(world, clip, instance.treasure, loot);
         for (const room of instance.rooms ?? []) {
           const b = room.box;
           if (b.x1 < clip.x0 || b.x0 > clip.x1 || b.z1 < clip.z0 || b.z0 > clip.z1) continue;
@@ -868,6 +870,21 @@ export class WorldGenerator {
         }
       }
     }
+  }
+
+  /**
+   * The biome a structure belongs to where it wants to start, or null when it does not belong there.
+   * Most read the surface biome, but one built at a fixed depth (an ancient city) belongs to the cave
+   * biome at that depth instead.
+   */
+  private structureBiome(set: StructureSet, wx: number, wz: number): string | null {
+    const info = this.columnInfo(wx, wz);
+    const surface = biomes[info.biome].id;
+    if (set.biomeSet.has(surface)) return surface;
+    if (set.startY === undefined) return null;
+    const cave = this.caveBiomeAt(wx, set.startY, wz, Math.floor(info.height));
+    const id = cave === 'deep_dark' ? 'deep_dark' : cave === 'lush' ? 'lush_caves' : cave === 'dripstone' ? 'dripstone_caves' : null;
+    return id !== null && set.biomeSet.has(id) ? id : null;
   }
 
   /** Start chunks of the structure set that lie close enough to reach the chunk being generated. */
@@ -908,12 +925,14 @@ export class WorldGenerator {
     const rng = new Rng(mix(this.seed ^ set.salt, cx, cz, 0x5747));
     const wx = cx * 16 + rng.int(8);
     const wz = cz * 16 + rng.int(8);
-    if (!set.biomeSet.has(biomes[this.columnInfo(wx, wz).biome].id)) return EMPTY_STRUCTURE;
+    const biome = this.structureBiome(set, wx, wz);
+    if (biome === null) return EMPTY_STRUCTURE;
     const decaySeed = mix(this.seed ^ set.salt, cx, cz, 0x0d3c);
-    if (set.placement === 'mineshaft') return this.buildMineshaft(set, cx, cz, wx, wz, rng);
+    if (set.placement === 'mineshaft') return this.buildMineshaft(set, cx, cz, biome, rng);
     if (TEMPLE_KINDS.has(set.placement)) return this.buildTempleAt(set, wx, wz, rng);
     if (set.placement === 'stronghold') return this.buildStronghold(set, cx, cz);
-    if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, wx, wz, rng, decaySeed) };
+    if (set.placement === 'buried_treasure') return this.buildBuriedTreasure(set, wx, wz);
+    if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, biome, wx, wz, rng, decaySeed) };
     const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
     const rotation = rng.int(4);
     const [sx, , sz] = template.size;
@@ -934,8 +953,8 @@ export class WorldGenerator {
    * corridors around it, then drops the lot underground — a mesa shaft just below the badlands
    * surface, where the cliffs cut into it, and an ordinary one anywhere under the sea level.
    */
-  private buildMineshaft(set: StructureSet, cx: number, cz: number, wx: number, wz: number, rng: Rng): StructureInstance {
-    const variant = pickVariant(set, biomes[this.columnInfo(wx, wz).biome].id, rng);
+  private buildMineshaft(set: StructureSet, cx: number, cz: number, biome: string, rng: Rng): StructureInstance {
+    const variant = pickVariant(set, biome, rng);
     if (!variant) return EMPTY_STRUCTURE;
     const kind: ShaftKind = variant.start === 'mesa' ? 'mesa' : 'normal';
     const surface = Math.floor(this.columnInfo(cx * 16 + 2, cz * 16 + 2).height);
@@ -1008,6 +1027,42 @@ export class WorldGenerator {
   }
 
   /**
+   * Buried treasure: one chest under the sand of a beach, which is what a treasure map points at.
+   * It is written where it is worked out rather than through a piece, since it is a single block.
+   */
+  private buildBuriedTreasure(set: StructureSet, wx: number, wz: number): StructureInstance {
+    const surface = Math.floor(this.columnInfo(wx, wz).height);
+    this.lastStructure = { name: set.name, x: wx, y: surface, z: wz };
+    return { pieces: [], treasure: { x: wx, y: surface, z: wz } };
+  }
+
+  /**
+   * Vanilla's `BuriedTreasurePiece`: walk down from the sea floor until the block underneath is
+   * something the beach sits on, put the chest there, and seal whatever air or water touches it, so
+   * the treasure is properly buried rather than sitting out on the sand.
+   */
+  private buryTreasure(world: BlockAccess, clip: ClipBox, t: { x: number; y: number; z: number }, loot: (x: number, y: number, z: number, table: string) => void): void {
+    if (t.x < clip.x0 || t.x > clip.x1 || t.z < clip.z0 || t.z > clip.z1) return;
+    const bedrock = ['sandstone', 'stone', 'andesite', 'granite', 'diorite', 'deepslate', 'tuff'];
+    const sand = this.block('sand');
+    for (let y = t.y; y > WORLD_MIN_Y + 2; y--) {
+      const below = world.get(t.x, y - 1, t.z);
+      if (!below || !bedrock.includes(blocks.blockOf(below).id)) continue;
+      // whatever is open around the chest is packed with sand, so nothing gives its place away
+      for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as [number, number, number][]) {
+        const nx = t.x + dx;
+        const nz = t.z + dz;
+        if (nx < clip.x0 || nx > clip.x1 || nz < clip.z0 || nz > clip.z1) continue;
+        const at = world.get(nx, y + dy, nz);
+        if (at === this.air || at === this.water) world.set(nx, y + dy, nz, sand);
+      }
+      world.set(t.x, y, t.z, blocks.stateWith('chest', { facing: 'north', type: 'single', waterlogged: 'false' }));
+      loot(t.x, y, t.z, 'chests/buried_treasure');
+      return;
+    }
+  }
+
+  /**
    * Strongholds: vanilla spreads 128 of them in rings round the origin rather than on a grid, three
    * in the first ring about 1400 blocks out, then more in each ring beyond it.
    */
@@ -1070,20 +1125,27 @@ export class WorldGenerator {
    * Villages: assemble the jigsaw pieces around a town centre, sitting every piece on the ground
    * under it the way vanilla's rigid projection does.
    */
-  private buildJigsaw(set: StructureSet, wx: number, wz: number, rng: Rng, decaySeed: number): StructurePlacement[] {
+  private buildJigsaw(set: StructureSet, biome: string, wx: number, wz: number, rng: Rng, decaySeed: number): StructurePlacement[] {
     // which of the set's structures belongs here: a desert village in a desert, a taiga one in a taiga
-    const variant = pickVariant(set, biomes[this.columnInfo(wx, wz).biome].id, rng);
+    const variant = pickVariant(set, biome, rng);
     if (!variant) return [];
     const startPool = variant.start;
-    const baseY = Math.floor(this.columnInfo(wx, wz).height) + 1;
+    // a city is built at the depth its structure names; a village follows the ground it stands on
+    const buried = set.startY !== undefined;
+    const baseY = buried
+      ? set.startY! + (set.startYMax && set.startYMax > set.startY! ? rng.int(set.startYMax - set.startY! + 1) : 0)
+      : Math.floor(this.columnInfo(wx, wz).height) + 1;
     const assembled = assembleJigsaw(set, startPool, wx, baseY, wz, rng);
     if (assembled.length < 2) return [];
     const pieces = assembled.map((piece) => {
       const [sx, , sz] = piece.template.size;
       const [w, d] = (piece.rotation & 1) === 1 ? [sz, sx] : [sx, sz];
       // rigid pieces follow the ground under themselves, which keeps a village on a slope walkable
-      const ground = this.structureGroundY(piece.x, piece.z, w, d);
-      return { set, template: piece.template, x: piece.x, y: ground ?? piece.y, z: piece.z, rotation: piece.rotation, integrity: 1, decaySeed, placement: 'surface' };
+      const ground = buried ? null : this.structureGroundY(piece.x, piece.z, w, d);
+      return {
+        set, template: piece.template, x: piece.x, y: ground ?? piece.y, z: piece.z,
+        rotation: piece.rotation, integrity: 1, decaySeed, placement: buried ? 'buried' : 'surface',
+      };
     });
     this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length, variant: variant.start };
     return pieces;
@@ -1101,8 +1163,20 @@ export class WorldGenerator {
     placement: string,
     clip: ClipBox,
   ): void {
-    // a buried piece carves its own room out of the stone it sits in and needs no foundation
+    // a piece dug into the ground carves its own room out of the stone and needs no foundation
     if (placement === 'underground') return;
+    // vanilla's beardifier hollows the whole box a buried structure sits in, which is what makes an
+    // ancient city a cavern full of buildings rather than a warren packed in solid deepslate
+    if (placement === 'buried') {
+      for (let x = Math.max(box.x0, clip.x0); x <= Math.min(box.x1, clip.x1); x++)
+        for (let z = Math.max(box.z0, clip.z0); z <= Math.min(box.z1, clip.z1); z++)
+          for (let y = box.y0; y <= box.y1; y++) {
+            if (written.has(`${x},${y},${z}`)) continue;
+            const cur = world.get(x, y, z);
+            if (cur !== this.air && cur !== this.water) world.set(x, y, z, this.air);
+          }
+      return;
+    }
     const filler = this.block('dirt');
     for (let x = Math.max(box.x0, clip.x0); x <= Math.min(box.x1, clip.x1); x++)
       for (let z = Math.max(box.z0, clip.z0); z <= Math.min(box.z1, clip.z1); z++) {

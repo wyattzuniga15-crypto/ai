@@ -69,8 +69,9 @@ describe('structure templates', () => {
     const { index, templates, pools } = load();
     const sets = buildStructureSets(index, templates, pools);
     expect(sets.map((s) => s.name).sort()).toEqual([
-      'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft', 'ocean_ruin_cold', 'ocean_ruin_warm',
-      'pillager_outpost', 'ruined_portal', 'shipwreck', 'stronghold', 'swamp_hut', 'village',
+      'ancient_city', 'buried_treasure', 'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft',
+      'ocean_ruin_cold', 'ocean_ruin_warm', 'pillager_outpost', 'ruined_portal', 'shipwreck',
+      'stronghold', 'swamp_hut', 'village',
     ]);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
@@ -188,6 +189,31 @@ describe('jigsaw villages', () => {
     expect(jigsawFront('up_north')).toBe('up');
     expect(jigsawFront('east_up')).toBe('east');
     expect(jigsawFront('north_up')).toBe('north');
+  });
+});
+
+describe('ancient cities', () => {
+  it.runIf(hasTemplates)('is a jigsaw structure built at a fixed depth in the deep dark', () => {
+    const { index, templates, pools } = load();
+    const city = buildStructureSets(index, templates, pools).find((s) => s.name === 'ancient_city')!;
+    expect(city.biomes).toEqual(['deep_dark']);
+    expect(city.startY).toBe(-27); // vanilla's absolute start height, not the surface
+    expect(city.maxDistance).toBe(116);
+    expect(city.maxDepth).toBe(7);
+    // reach has to cover how far the assembly wanders, or a chunk would miss the pieces near it
+    expect(city.reach).toBe(Math.ceil((116 + 48) / 16));
+    expect(city.templates.length).toBeGreaterThan(40);
+    expect(city.variants?.[0].start).toBe('ancient_city/city_center');
+
+    // the city is assembled from its own pools and carries the ancient city loot
+    const pieces = assembleJigsaw(city, 'ancient_city/city_center', 0, -27, 0, new Rng(99));
+    expect(pieces.length).toBeGreaterThan(4);
+    const tables = new Set(pieces.flatMap((p) => p.template.loot.map((l) => l.table)));
+    if (tables.size) expect([...tables].every((t) => t === 'chests/ancient_city')).toBe(true);
+    // and its pieces are deepslate, not the villages' timber
+    const ids = new Set(pieces.flatMap((p) => [...p.template.states].map((st) => (st ? blocks.idOf(st) : 'air'))));
+    expect([...ids].some((id) => id.startsWith('deepslate'))).toBe(true);
+    expect(ids.has('sculk') || ids.has('sculk_sensor') || ids.has('sculk_shrieker')).toBe(true);
   });
 });
 

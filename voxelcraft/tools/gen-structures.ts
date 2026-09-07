@@ -193,6 +193,7 @@ function convert(file: string, structure: string, piece: string): Template | nul
 /** Structures assembled from template pools (villages); every reachable piece is converted. */
 const JIGSAW: { name: string; set: string }[] = [
   { name: 'village', set: 'villages' },
+  { name: 'ancient_city', set: 'ancient_cities' },
 ];
 
 const mc = versionDir();
@@ -203,7 +204,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -257,16 +258,34 @@ for (const want of JIGSAW) {
   const variants: Variant[] = [];
   const biomes = new Set<string>();
   const queue: string[] = [];
+  let depth = 6;
+  let maxDistance = 80;
+  let startY: number | null = null;
+  let startYMax: number | null = null;
   for (const entry of set.structures) {
     const name = entry.structure.replace('minecraft:', '');
     const file = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
     if (!fs.existsSync(file)) continue;
-    const def = JSON.parse(fs.readFileSync(file, 'utf8')) as { start_pool: string; size: number };
+    const def = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+      start_pool: string;
+      size: number;
+      max_distance_from_center?: number;
+      project_start_to_heightmap?: string;
+      start_height?: { absolute?: number; min_inclusive?: { absolute: number }; max_inclusive?: { absolute: number } };
+    };
     const start = def.start_pool.replace('minecraft:', '');
     const own = biomesFor(mc, [name]);
     variants.push({ start, weight: entry.weight ?? 1, biomes: own });
     queue.push(start);
     for (const b of own) biomes.add(b);
+    depth = Math.max(depth, def.size ?? 6);
+    maxDistance = Math.max(maxDistance, def.max_distance_from_center ?? 80);
+    // a structure built underground says where it starts; one projected to a heightmap follows the ground
+    const h = def.project_start_to_heightmap ? undefined : def.start_height;
+    if (h) {
+      startY = h.absolute ?? h.min_inclusive?.absolute ?? null;
+      startYMax = h.absolute ?? h.max_inclusive?.absolute ?? startY;
+    }
   }
   const pieces: string[] = [];
   const bundle: Record<string, Template> = {};
@@ -304,7 +323,8 @@ for (const want of JIGSAW) {
   index.push({
     name: want.name, placement: 'jigsaw',
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
-    pieces, biomes: [...biomes].sort(), variants, maxDepth: 6,
+    pieces, biomes: [...biomes].sort(), variants, maxDepth: depth, maxDistance,
+    ...(startY !== null ? { startY, startYMax } : {}),
   });
 }
 
@@ -318,6 +338,7 @@ const PROCEDURAL: { name: string; set: string }[] = [
   { name: 'jungle_temple', set: 'jungle_temples' },
   { name: 'swamp_hut', set: 'swamp_huts' },
   { name: 'stronghold', set: 'strongholds' },
+  { name: 'buried_treasure', set: 'buried_treasures' },
 ];
 
 for (const want of PROCEDURAL) {
