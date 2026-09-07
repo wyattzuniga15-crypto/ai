@@ -1192,3 +1192,30 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      What the new data does not do yet is show on the blocks and items that carry it: a decorated
      pot draws plain, a decorated shield draws plain, and dyed leather is tinted in the inventory
      but nothing wears armour in this game to tint. The recipes are right; the models can catch up.
+
+120. **Bats, squid and dolphins, and a bug they turned up.** The two emptiest parts of the world
+     were the caves and the sea. Four mobs fill them in: the bat, the squid, the glow squid and the
+     dolphin.
+
+     Their models come from Mojang's own Bedrock geometry through `tools/geo-to-model.ts` — the same
+     box layouts and texture nets the Java models use — rather than from anybody's memory of what a
+     dolphin looks like. Two things had to be worked out on top of that. The bat's model is two and
+     a half blocks tall as authored, because vanilla's `BatRenderer` draws it at 0.35 scale; ours
+     does the same. And the squid's model, converted straight across, hangs its tentacles the wrong
+     way, because vanilla's squid renderer flips the whole thing — our converted version reads
+     right side up as it stands, so it is used as it stands.
+
+     Getting them in also turned up a real bug. The model builder makes a child part's pivot
+     relative to its parent by subtracting the parent group's position, which is fine for a child of
+     a root part and wrong for a grandchild, whose parent's position had itself already been made
+     relative. Every three-deep part in the game was a block and a half out of place: the dragon's
+     tail tips and wing tips, the horse's saddle head, the guardian's tail segments, a bee's wing
+     tips. The builder now keeps each part's absolute pivot and subtracts that instead.
+
+     Behaviour follows vanilla's own: a bat hangs from whatever it is under until the light comes up
+     over seven or somebody walks within four blocks, then flutters between spots a few blocks off;
+     squid drift in slow pulses and bolt when they are hurt; dolphins swim fast, make for the
+     surface for a breath, and hand a player swimming within ten blocks a hundred ticks of Dolphin's
+     Grace. Spawning is vanilla's too: bats in the dark below sea level in the ambient group,
+     glow squid in sunless water below thirty, and squid and dolphins with the fish when an ocean
+     chunk rolls its animals, dolphins only where the water is not frozen.

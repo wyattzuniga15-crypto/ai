@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -805,6 +805,30 @@ export class Mob {
         const tail = parts.get('tail_fin') ?? parts.get('body_back');
         if (tail) tail.rotation.y = t;
         g.rotation.z = this.inWater || this.onGround === false ? 0 : Math.PI / 2; // fish lie on their side on land
+        break;
+      }
+      case 'bat': {
+        // vanilla folds a resting bat up against the ceiling and beats its wings when it flies
+        const resting = this.extra.resting === true;
+        g.rotation.z = resting ? Math.PI : 0;
+        // vanilla's beat: a quarter turn either way, with the tips following at half
+        const beat = resting ? 0.15 : Math.cos((this.age + alpha) * 0.74) * Math.PI * 0.25;
+        const rw = parts.get('right_wing'), lw = parts.get('left_wing');
+        const rt = parts.get('right_wing_tip'), lt = parts.get('left_wing_tip');
+        if (rw) rw.rotation.y = beat;
+        if (lw) lw.rotation.y = -beat;
+        if (rt) rt.rotation.y = beat * 0.5;
+        if (lt) lt.rotation.y = -beat;
+        break;
+      }
+      case 'squid': {
+        // the bell tips forward as it swims and the tentacles curl behind it
+        const swim = Math.sin((this.age + alpha) * 0.12);
+        g.rotation.x = swim * 0.25;
+        for (let i = 1; i <= 8; i++) {
+          const t = parts.get(`tentacle${i}`);
+          if (t) t.rotation.x = 0.35 + swim * 0.5;
+        }
         break;
       }
       case 'horse': {

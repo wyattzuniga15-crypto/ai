@@ -124,10 +124,14 @@ export function buildModel(def: ModelDef, base: string): BuiltModel {
     return m;
   };
   const mainMat = matFor(def.texture);
+  // pivots are given in model space; a child needs its parent's absolute pivot to be made relative,
+  // and a grandchild the same, so the absolute one is kept rather than read back off the group
+  const absolute = new Map<string, THREE.Vector3>();
   for (const p of def.parts) {
     const g = new THREE.Group();
     g.name = p.name;
     g.position.set(-p.pivot[0], -p.pivot[1], p.pivot[2]);
+    absolute.set(p.name, g.position.clone());
     if (p.rotation) g.rotation.set(-p.rotation[0], -p.rotation[1], p.rotation[2]);
     basePose.set(p.name, g.rotation.clone());
     const mat = p.texture ? matFor(p.texture) : mainMat;
@@ -138,9 +142,10 @@ export function buildModel(def: ModelDef, base: string): BuiltModel {
     g.visible = !p.hidden;
     parts.set(p.name, g);
     const parent = p.parent ? parts.get(p.parent) : undefined;
-    if (parent) {
-      // child pivots are given in model space; make them relative to the parent's pivot
-      g.position.sub(parent.position);
+    const parentPivot = p.parent ? absolute.get(p.parent) : undefined;
+    if (parent && parentPivot) {
+      // child pivots are given in model space; make them relative to the parent's own pivot
+      g.position.sub(parentPivot);
       parent.add(g);
     } else group.add(g);
   }

@@ -961,6 +961,101 @@ export const swimGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Bats, squid and dolphins
+// ---------------------------------------------------------------------------------------------
+/**
+ * Vanilla's bat: it hangs from whatever it is under until a light or a player disturbs it, then
+ * flutters about, picking a spot within a few blocks and beating over to it.
+ */
+export const batGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const e = m.extra;
+    const head = Math.floor(m.pos.y + m.def.height + 0.5);
+    const ceiling = w.getBlock(Math.floor(m.pos.x), head, Math.floor(m.pos.z)) !== 0;
+    const at: [number, number, number] = [Math.floor(m.pos.x), Math.floor(m.pos.y), Math.floor(m.pos.z)];
+    const bright = Math.max(w.getSkyLight(...at), w.getBlockLight(...at)) > 7;
+    const p = w.playerPos();
+    const disturbed = bright || Math.hypot(p.x - m.pos.x, p.y - m.pos.y, p.z - m.pos.z) < 4;
+    if (e.resting === true) {
+      // vanilla wakes a hanging bat when the light comes up or somebody walks under it
+      if (!disturbed && ceiling) {
+        m.moveTarget = null;
+        m.vel.set(0, 0, 0);
+        return;
+      }
+      e.resting = false;
+    }
+    // it settles again once it is under a block and nothing is bothering it
+    if (!disturbed && ceiling && w.rng() < 0.01) {
+      e.resting = true;
+      return;
+    }
+    if (m.moveTarget && m.distanceTo(m.moveTarget) > 1.2 && w.rng() > 0.02) return;
+    m.moveTarget = new THREE.Vector3(
+      m.pos.x + (w.rng() * 2 - 1) * 7,
+      m.pos.y + (w.rng() * 2 - 1) * 6,
+      m.pos.z + (w.rng() * 2 - 1) * 7,
+    );
+    m.moveSpeed = 0.6;
+    m.moveTimeout = 80;
+  },
+});
+
+/** Squid drift: vanilla pushes them along in slow pulses rather than steering them anywhere. */
+export const squidGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: () => true,
+  tick: (m, w) => {
+    if (!m.inWater) {
+      // out of the water a squid only flops, which is what vanilla leaves it doing
+      m.moveTarget = null;
+      return;
+    }
+    if (m.moveTarget && w.rng() > 0.03) return;
+    for (let i = 0; i < 8; i++) {
+      const x = m.pos.x + (w.rng() * 2 - 1) * 6;
+      const y = m.pos.y + (w.rng() * 2 - 1) * 4;
+      const z = m.pos.z + (w.rng() * 2 - 1) * 6;
+      if (!isWaterAt(w, x, y, z)) continue;
+      m.moveTarget = new THREE.Vector3(x, y, z);
+      m.moveSpeed = m.age - m.lastHurtTime < 40 ? 1.4 : 0.5;
+      m.moveTimeout = 80;
+      break;
+    }
+  },
+});
+
+/**
+ * Dolphins: they swim faster than anything else in the water, come up for air, and hand whoever is
+ * swimming beside them vanilla's Dolphin's Grace.
+ */
+export const dolphinGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    // vanilla grants the grace to a player swimming within about ten blocks of one
+    if (m.inWater && m.distanceTo(p) < 10 && isWaterAt(w, p.x, p.y + 0.4, p.z)) w.addPlayerEffect('dolphins_grace', 100);
+    if (!m.inWater) return;
+    const air = m.age % 200 > 160;
+    if (m.moveTarget && !air && w.rng() > 0.04) return;
+    for (let i = 0; i < 10; i++) {
+      // it makes for the surface when it wants a breath, and roams otherwise
+      const x = m.pos.x + (w.rng() * 2 - 1) * 12;
+      const y = air ? m.pos.y + 1 + w.rng() * 3 : m.pos.y + (w.rng() * 2 - 1) * 5;
+      const z = m.pos.z + (w.rng() * 2 - 1) * 12;
+      if (!isWaterAt(w, x, y, z)) continue;
+      m.moveTarget = new THREE.Vector3(x, y, z);
+      m.moveSpeed = 1.6;
+      m.moveTimeout = 60;
+      break;
+    }
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Phantoms
 // ---------------------------------------------------------------------------------------------
 /** Phantoms circle high above the player and swoop at their head (vanilla PhantomCircleAroundAnchorGoal / SweepAttackGoal). */

@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -92,6 +92,55 @@ const salmonModel: ModelDef = {
     { name: 'body_back', pivot: [0, 20, 8], boxes: [{ uv: [0, 13], box: [-1.5, -2.5, 0, 3, 5, 8] }] },
     { name: 'head', pivot: [0, 20, 0], boxes: [{ uv: [22, 0], box: [-1, -2, -3, 2, 4, 3] }] },
     { name: 'tail_fin', parent: 'body_back', pivot: [0, 20, 16], boxes: [{ uv: [20, 10], box: [0, -2.5, 0, 0, 5, 6] }] },
+  ],
+};
+
+
+/** Bedrock's own bat geometry, converted; vanilla hangs it upside down while it rests. */
+const batModel: ModelDef = {
+  texture: 'bat.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'head', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-3, -3, -3, 6, 6, 6] }] },
+    { name: 'right_ear', parent: 'head', pivot: [0, 0, 0], boxes: [{ uv: [24, 0], box: [-4, -6, -2, 3, 4, 1] }] },
+    { name: 'left_ear', parent: 'head', pivot: [0, 0, 0], boxes: [{ uv: [24, 0], box: [1, -6, -2, 3, 4, 1] }] },
+    { name: 'body', pivot: [0, 0, 0], boxes: [{ uv: [0, 16], box: [-3, 4, -3, 6, 12, 6] }, { uv: [0, 34], box: [-5, 16, 0, 10, 16, 1] }] },
+    { name: 'right_wing', parent: 'body', pivot: [0, 0, 0], boxes: [{ uv: [42, 0], box: [-12, 1, 1.5, 10, 16, 1] }] },
+    { name: 'right_wing_tip', parent: 'right_wing', pivot: [-12, 1, 1.5], boxes: [{ uv: [24, 16], box: [-8, 1, 0, 8, 12, 1] }] },
+    { name: 'left_wing', parent: 'body', pivot: [0, 0, 0], boxes: [{ uv: [42, 0], box: [2, 1, 1.5, 10, 16, 1] }] },
+    { name: 'left_wing_tip', parent: 'left_wing', pivot: [12, 1, 1.5], boxes: [{ uv: [24, 16], box: [0, 1, 0, 8, 12, 1] }] },
+  ],
+};
+
+/** The squid, whose eight tentacles hang off the bell and curl as it swims. */
+const squidModel = (texture = 'squid/squid.png'): ModelDef => ({
+  texture, texW: 64, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 20, 0], boxes: [{ uv: [0, 0], box: [-6, -8, -6, 12, 16, 12] }] },
+    ...[
+      [5, 0, -Math.PI / 2], [3.5, 3.5, -Math.PI / 4], [0, 5, 0], [-3.5, 3.5, Math.PI / 4],
+      [-5, 0, Math.PI / 2], [-3.5, -3.5, (3 * Math.PI) / 4], [0, -5, Math.PI], [3.5, -3.5, (5 * Math.PI) / 4],
+    ].map(([x, z, r], i) => ({
+      name: `tentacle${i + 1}`,
+      parent: 'body',
+      pivot: [x, 27, z] as [number, number, number],
+      rotation: [0, r, 0] as [number, number, number],
+      boxes: [{ uv: [48, 0] as [number, number], box: [-1, 0, -1, 2, 18, 2] as [number, number, number, number, number, number] }],
+    })),
+  ],
+});
+
+/** Bedrock's dolphin geometry, converted. */
+const dolphinModel: ModelDef = {
+  texture: 'dolphin.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 24, -3], boxes: [{ uv: [0, 13], box: [-4, -7, 0, 8, 7, 13] }] },
+    { name: 'head', parent: 'body', pivot: [0, 24, -3], boxes: [{ uv: [0, 0], box: [-4, -7, -6, 8, 7, 6] }] },
+    { name: 'nose', parent: 'head', pivot: [0, 24, -13], boxes: [{ uv: [0, 13], box: [-1, -2, 0, 2, 2, 4] }] },
+    { name: 'tail', parent: 'body', pivot: [0, 21.5, 11], boxes: [{ uv: [0, 33], box: [-2, -2.5, -1, 4, 5, 11] }] },
+    { name: 'tail_fin', parent: 'tail', pivot: [0, 21.5, 20], boxes: [{ uv: [0, 49], box: [-5, -0.5, -1, 10, 1, 6] }] },
+    { name: 'back_fin', parent: 'body', pivot: [0, 17, 2], rotation: [0.5236, 0, 0], boxes: [{ uv: [29, 0], box: [-0.5, -4.25, -1, 1, 5, 4] }] },
+    { name: 'left_fin', parent: 'body', pivot: [3, 23, -1], rotation: [0, 0.4363, -0.3491], boxes: [{ uv: [40, 0], box: [0, -1, -1.5, 8, 1, 4] }] },
+    { name: 'right_fin', parent: 'body', pivot: [-3, 23, -1], rotation: [0, -0.4363, 0.3491], boxes: [{ uv: [40, 6], box: [-8, -1, -1.5, 8, 1, 4] }] },
   ],
 };
 
@@ -831,6 +880,13 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   chicken: { model: chickenModel, animation: 'chicken', eyeHeight: 0.644, followRange: 16, flapping: true, goals: () => passiveGoals(1.4) },
   wolf: { model: wolfModel, animation: 'quadruped', eyeHeight: 0.68, followRange: 16, goals: () => [floatGoal, sitGoal(), wolfDefendGoal(), wolfHuntGoal(), loseTargetGoal(), meleeAttackGoal(), followOwnerGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
   cod: { model: codModel, animation: 'fish', eyeHeight: 0.195, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
+  // the cave's own: a bat hangs from the ceiling until something disturbs it
+  // vanilla draws the bat at just over a third of its model size, which is what makes it small
+  bat: { model: batModel, animation: 'bat', eyeHeight: 0.45, followRange: 16, flying: true, scale: 0.35, goals: () => [batGoal()] },
+  // squid drift through the water in slow pulses; the glow squid is the same animal in the dark
+  squid: { model: squidModel(), animation: 'squid', eyeHeight: 0.4, followRange: 16, aquatic: true, goals: () => [squidGoal()] },
+  glow_squid: { model: squidModel('squid/glow_squid.png'), animation: 'squid', eyeHeight: 0.4, followRange: 16, aquatic: true, goals: () => [squidGoal()] },
+  dolphin: { model: dolphinModel, animation: 'fish', eyeHeight: 0.3, followRange: 16, aquatic: true, goals: () => [dolphinGoal(), loseTargetGoal(), meleeAttackGoal()] },
   // vanilla phantom attack damage is 6
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
   witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },

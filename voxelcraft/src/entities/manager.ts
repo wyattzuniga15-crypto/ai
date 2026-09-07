@@ -6,7 +6,7 @@ import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, MOB_SPECS, initE
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
-import { WORLD_MIN_Y } from '../core/constants.ts';
+import { SEA_LEVEL, WORLD_MIN_Y } from '../core/constants.ts';
 import { biomes } from '../world/biomes.ts';
 
 export interface ManagerHost extends MobWorld {
@@ -245,7 +245,12 @@ export class EntityManager {
     const biome = biomes[h.getBiome(x, z)];
     if (!biome) return;
     if (biome.category === 'ocean' || biome.category === 'river') {
-      this.spawnFishSchool(x, z, biome.category === 'river' || biome.id.includes('cold') || biome.id.includes('frozen') ? 'salmon' : 'cod');
+      const cold = biome.id.includes('cold') || biome.id.includes('frozen');
+      // vanilla's ocean lists: fish everywhere, squid with them, and dolphins where it is not frozen
+      const roll = h.rng();
+      if (roll < 0.4) this.spawnFishSchool(x, z, biome.category === 'river' || cold ? 'salmon' : 'cod');
+      else if (roll < 0.8 || cold || biome.category === 'river') this.spawnFishSchool(x, z, 'squid');
+      else this.spawnFishSchool(x, z, 'dolphin');
       return;
     }
     // mushroom fields are the one biome that spawns nothing but mooshrooms, on their mycelium
@@ -321,11 +326,12 @@ export class EntityManager {
     m.setDecoration(group);
   }
 
-  /** Cod and salmon schools in ocean and river water. */
-  private spawnFishSchool(x: number, z: number, type: 'cod' | 'salmon'): void {
+  /** Schools of whatever swims here: cod and salmon, squid, or a pod of dolphins. */
+  private spawnFishSchool(x: number, z: number, type: 'cod' | 'salmon' | 'squid' | 'dolphin'): void {
     const h = this.host;
     const stats = mobStats(type)!;
-    const want = 3 + Math.floor(h.rng() * 4);
+    // vanilla's group sizes: fish come in schools, squid in twos and threes, dolphins in small pods
+    const want = type === 'dolphin' ? 3 + Math.floor(h.rng() * 3) : type === 'squid' ? 2 + Math.floor(h.rng() * 3) : 3 + Math.floor(h.rng() * 4);
     let spawned = 0;
     for (let i = 0; i < 16 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 9) - 4 + 0.5;
@@ -434,6 +440,51 @@ export class EntityManager {
         m.persistent = true;
         if (spawned === 0) m.extra.captain = true;
       }
+      spawned++;
+    }
+  }
+
+  /**
+   * Vanilla's ambient and underground water spawns, one attempt a tick: bats in the dark below sea
+   * level, and glow squid in whatever water lies deeper still.
+   */
+  ambientSpawnTick(playerCx: number, playerCz: number, radius: number): void {
+    const h = this.host;
+    const cap = Math.max(2, Math.round((15 * h.loadedChunkCount()) / 289));
+    const cx = playerCx + Math.floor(h.rng() * (radius * 2 + 1)) - radius;
+    const cz = playerCz + Math.floor(h.rng() * (radius * 2 + 1)) - radius;
+    if (!h.isChunkLoaded(cx, cz)) return;
+    const x = cx * 16 + Math.floor(h.rng() * 16);
+    const z = cz * 16 + Math.floor(h.rng() * 16);
+    const top = h.topBlock(x, z);
+    if (top < WORLD_MIN_Y) return;
+    // vanilla turns half the bat attempts away before it looks at anything else
+    const glow = h.rng() < 0.5;
+    const type = glow ? 'glow_squid' : 'bat';
+    if (this.mobs.filter((m) => !m.dead && m.def.id === type).length >= cap) return;
+    const ceiling = glow ? 30 : Math.min(top, SEA_LEVEL - 1);
+    if (ceiling <= WORLD_MIN_Y + 2) return;
+    const stats = mobStats(type)!;
+    const p = h.playerPos();
+    const want = glow ? 2 + Math.floor(h.rng() * 3) : 3 + Math.floor(h.rng() * 6);
+    let spawned = 0;
+    for (let i = 0; i < want * 3 && spawned < want; i++) {
+      const px = x + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const pz = z + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const py = WORLD_MIN_Y + 2 + Math.floor(h.rng() * (ceiling - WORLD_MIN_Y - 2));
+      if (Math.hypot(px - p.x, py - p.y, pz - p.z) < 24) continue;
+      const at = h.getBlock(Math.floor(px), py, Math.floor(pz));
+      const water = at !== 0 && blocks.blockOf(at).id === 'water';
+      if (glow) {
+        // glow squid want water with more water over it, out of the sun
+        if (!water || h.getSkyLight(Math.floor(px), py, Math.floor(pz)) > 0) continue;
+      } else {
+        if (at !== 0) continue;
+        if (h.getBlock(Math.floor(px), py - 1, Math.floor(pz)) === 0 && h.rng() < 0.5) continue;
+        if (Math.max(h.getBlockLight(Math.floor(px), py, Math.floor(pz)), h.getSkyLight(Math.floor(px), py, Math.floor(pz))) > Math.floor(h.rng() * 4)) continue;
+      }
+      if (!Mob.fits(h, stats, px, py, pz)) continue;
+      this.spawn(type, px, py, pz, h.rng() * Math.PI * 2);
       spawned++;
     }
   }

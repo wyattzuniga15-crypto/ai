@@ -1044,6 +1044,7 @@ export class Game {
       this.syncChests();
     }
     this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
+    this.entities.ambientSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
     this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
     this.entities.traderSpawnTick(this.isDay());
@@ -5696,7 +5697,7 @@ export class Game {
       }
       case 'summon': {
         const type = (args[0] ?? '').replace(/^minecraft:/, '');
-        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, witch, phantom, wolf, cod, salmon, cow, pig, sheep, chicken)`);
+        if (!mobStats(type)) return err(`Unknown or unsupported mob '${type}' (try zombie, husk, drowned, skeleton, stray, wither_skeleton, creeper, spider, cave_spider, slime, slime_medium, slime_big, enderman, witch, phantom, wolf, bat, cod, salmon, squid, glow_squid, dolphin, cow, mooshroom, pig, sheep, chicken)`);
         const dir = p.lookDirection();
         const x = args[1] ? num(args[1], p.pos.x) : p.pos.x + dir.x * 3;
         const y = args[2] ? num(args[2], p.pos.y) : p.pos.y;
