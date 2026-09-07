@@ -1136,6 +1136,18 @@ export class Mob {
         if (part) part.rotation.copy(base);
       }
     }
+    if (this.def.id === 'pufferfish') {
+      // one of the three shapes is drawn at a time, by how far it has swelled
+      const puff = typeof this.extra.puff === 'number' ? this.extra.puff : 0;
+      for (const [name, part] of parts) {
+        if (name === 'puffed_mid') part.visible = puff === 1;
+        else if (name === 'puffed_large') part.visible = puff >= 2;
+        else part.visible = puff === 0;
+      }
+    }
+    if (this.def.id === 'happy_ghast') this.setTexture('ghast/happy_ghast.png');
+    if (this.def.id === 'camel_husk') this.setTexture('camel/camel_husk.png');
+    if (this.def.id === 'tropical_fish') this.setTexture('fish/tropical_a.png');
     if (this.def.id === 'armadillo') {
       // rolled up it is a ball and nothing else, which is how vanilla draws it
       const rolled = this.extra.rolled === true;

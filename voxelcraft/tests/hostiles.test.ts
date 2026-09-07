@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { MOB_SPECS, mobStats, pickHostile } from '../src/entities/mobTypes.ts';
-import { CREAKING_RANGE, WARDEN_ANGRY, WARDEN_BOOM_CHARGE, WARDEN_BOOM_DAMAGE, WARDEN_BOOM_RANGE, breezeGoal, creakingStalkGoal, wardenGoal } from '../src/entities/ai.ts';
+import { CREAKING_RANGE, PUFF_RANGE, WARDEN_ANGRY, WARDEN_BOOM_CHARGE, WARDEN_BOOM_DAMAGE, WARDEN_BOOM_RANGE, breezeGoal, creakingStalkGoal, pufferPuffGoal, wardenGoal } from '../src/entities/ai.ts';
 import type { Mob, MobWorld } from '../src/entities/mob.ts';
 import { biomes } from '../src/world/biomes.ts';
 
@@ -159,5 +159,54 @@ describe('the warden', () => {
     expect(effects).toContain('darkness');
     expect(WARDEN_BOOM_RANGE).toBe(20);
     expect(CREAKING_RANGE).toBe(32);
+  });
+});
+
+describe('the last of the variants', () => {
+  it('registers the seven that reuse a model already here', () => {
+    expect(MOB_SPECS.illusioner.model.texture).toBe('illager/illusioner.png');
+    expect(MOB_SPECS.giant.scale).toBe(6);
+    expect(MOB_SPECS.happy_ghast.data).toBe('happy_ghast');
+    expect(MOB_SPECS.camel_husk.burnsInSun).toBe(true);
+    expect(MOB_SPECS.parched.model.texture).toBe('skeleton/parched.png');
+    expect(MOB_SPECS.pufferfish.aquatic).toBe(true);
+    expect(MOB_SPECS.tropical_fish.aquatic).toBe(true);
+    expect(mobStats('giant')).toMatchObject({ health: 100, damage: 50 });
+    expect(mobStats('illusioner')).toMatchObject({ health: 32 });
+    expect(mobStats('happy_ghast')).toMatchObject({ health: 20, disposition: 'passive' });
+    expect(mobStats('camel_husk')).toMatchObject({ disposition: 'hostile' });
+    expect(mobStats('pufferfish')).toMatchObject({ health: 3, damage: 3 });
+    // the two swollen shapes wait hidden until something comes near
+    const parts = MOB_SPECS.pufferfish.model.parts;
+    expect(parts.find((p) => p.name === 'puffed_mid')?.hidden).toBe(true);
+    expect(parts.find((p) => p.name === 'puffed_large')?.hidden).toBe(true);
+  });
+
+  it('swells a pufferfish in two steps and lets it down slowly', () => {
+    const goal = pufferPuffGoal();
+    const m = makeMob('pufferfish');
+    const near = world({ playerPos: () => new THREE.Vector3(0, 64, 2) });
+    m.age = 10;
+    goal.tick!(m, near);
+    expect(m.extra.puff).toBe(1);
+    m.age = 20;
+    goal.tick!(m, near);
+    expect(m.extra.puff).toBe(2);
+    // it never goes past the fattest shape
+    m.age = 30;
+    goal.tick!(m, near);
+    expect(m.extra.puff).toBe(2);
+    // and settles four times more slowly once whatever it was has gone
+    const gone = world({ playerPos: () => new THREE.Vector3(0, 64, 40) });
+    m.age = 40;
+    goal.tick!(m, gone);
+    expect(m.extra.puff).toBe(1);
+    m.age = 50;
+    goal.tick!(m, gone);
+    expect(m.extra.puff).toBe(1);
+    m.age = 80;
+    goal.tick!(m, gone);
+    expect(m.extra.puff).toBe(0);
+    expect(PUFF_RANGE).toBe(4);
   });
 });

@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, pufferPuffGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -485,6 +485,24 @@ const wardenModel: ModelDef = {
     { name: 'left_arm', parent: 'body', pivot: [13, -10, 1], boxes: [{ uv: [0, 58], box: [-4, 0, -4, 8, 28, 8] }] },
     { name: 'right_leg', pivot: [-5.9, 11, 0], boxes: [{ uv: [76, 48], box: [-3.1, 0, -3, 6, 13, 6] }] },
     { name: 'left_leg', pivot: [5.9, 11, 0], boxes: [{ uv: [76, 76], box: [-2.9, 0, -3, 6, 13, 6] }] },
+  ],
+};
+
+
+/**
+ * The pufferfish, which vanilla draws in three sizes: it sits small until something comes near and
+ * puffs up in two steps, and only the fattest of the three hurts what touches it.
+ */
+const pufferfishModel: ModelDef = {
+  texture: 'fish/pufferfish.png', texW: 32, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 24, 0], boxes: [{ uv: [0, 27], box: [-1.5, -2, -1.5, 3, 2, 3] }, { uv: [24, 6], box: [0.5, -3, -1.5, 1, 1, 1] }, { uv: [28, 6], box: [-1.5, -3, -1.5, 1, 1, 1] }] },
+    { name: 'tail_fin', parent: 'body', pivot: [0, 24, 0], boxes: [{ uv: [-3, 0], box: [-1.5, -1, 1.5, 3, 0, 3] }] },
+    { name: 'left_fin', parent: 'body', pivot: [6.5, 19, 0.5], boxes: [{ uv: [25, 0], box: [-5, 4, -2, 1, 1, 2], mirror: true }] },
+    { name: 'right_fin', parent: 'body', pivot: [-6.5, 19, 0.5], boxes: [{ uv: [25, 0], box: [4, 4, -2, 1, 1, 2] }] },
+    // the two puffed shapes, shown one at a time in place of the small one
+    { name: 'puffed_mid', pivot: [0, 24, 0], hidden: true, boxes: [{ uv: [12, 22], box: [-2.5, -6, -2.5, 5, 5, 5] }] },
+    { name: 'puffed_large', pivot: [0, 24, 0], hidden: true, boxes: [{ uv: [0, 0], box: [-4, -8, -4, 8, 8, 8] }] },
   ],
 };
 
@@ -1327,6 +1345,14 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   tadpole: { model: tadpoleModel, animation: 'fish', eyeHeight: 0.2, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
   // the jungle's parrot, which dances to whatever a jukebox is playing
   parrot: { model: parrotModel(), animation: 'chicken', eyeHeight: 0.8, followRange: 16, flapping: true, goals: () => [floatGoal, parrotDanceGoal(), panicGoal(1.4), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // the last of the variants: the same models in other skins, at other sizes
+  illusioner: { model: illagerModel('illager/illusioner.png'), animation: 'illager', eyeHeight: 1.62, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), bowAttackGoal({ id: 'blindness', ticks: 300 }), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  giant: { model: biped('zombie/zombie.png', 64), animation: 'biped', eyeHeight: 10.4, followRange: 32, scale: 6, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), meleeAttackGoal(1.5), wanderGoal(160, 0.7), randomLookGoal] },
+  happy_ghast: { model: ghastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 32, flying: true, scale: 4.5, data: 'happy_ghast', goals: () => [wanderGoal(120, 0.6, 16), lookAtPlayerGoal(16), randomLookGoal] },
+  camel_husk: { model: camelModel, animation: 'quadruped', eyeHeight: 2.1, followRange: 24, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(24), meleeAttackGoal(0.6), wanderGoal(160, 0.7, 10), randomLookGoal] },
+  parched: { model: biped('skeleton/parched.png', 32, true), animation: 'biped', eyeHeight: 1.74, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), bowAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  pufferfish: { model: pufferfishModel, animation: 'fish', eyeHeight: 0.35, followRange: 8, aquatic: true, goals: () => [swimGoal(), pufferPuffGoal()] },
+  tropical_fish: { model: codModel, animation: 'fish', eyeHeight: 0.2, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
   // the deep dark's own, blind and deaf to everything but what moves
   warden: { model: wardenModel, animation: 'warden', eyeHeight: 2.15, followRange: 32, goals: () => [wardenGoal()] },
   // the three newest hostiles: a poisonous skeleton, a wind that jumps, and a thing in the pale wood

@@ -1346,3 +1346,17 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      warning level climbs; the fourth shriek brings a warden up out of the floor beside it. The
      level falls back one every ten minutes of quiet, so a careful walk through an ancient city
      never wakes one — which is exactly the tension vanilla's deep dark is built on.
+
+129. **The last of the variants.** Seven that needed no geometry of their own: the illusioner is the
+     illager model in its starry robe, firing arrows that blind; the giant is a zombie at six times
+     the size, which is all vanilla's is; the happy ghast and the camel husk are a ghast and a camel
+     in other skins; the parched is a desert skeleton; the tropical fish borrows the cod's shape.
+
+     Only the pufferfish needed thought. Vanilla draws it in three sizes rather than scaling one, so
+     the model carries all three and shows whichever the swelling calls for: it puffs a step every
+     half second while something is within four blocks and settles a step every two seconds once
+     they have gone, which is four times slower than it swells.
+
+     That leaves three of the eighty-nine entity types with stats unimplemented — the copper golem
+     and the two nautiluses, all from 1.21.9 — and sixty-six entity types that are not mobs at all:
+     projectiles, boats, minecarts and the display entities.

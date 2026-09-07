@@ -1506,6 +1506,27 @@ export const wardenGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Pufferfish
+// ---------------------------------------------------------------------------------------------
+/** How near something has to come before a pufferfish swells, as vanilla measures it. */
+export const PUFF_RANGE = 4;
+
+/**
+ * Vanilla's pufferfish: it sits flat until something comes within a few blocks, swells over a
+ * second in two steps, and stays swollen a moment after whatever it was goes away.
+ */
+export const pufferPuffGoal = (): Goal => ({
+  flags: 0,
+  canUse: () => true,
+  tick: (m, w) => {
+    const near = w.playerTargetable() && m.distanceTo(w.playerPos()) < PUFF_RANGE;
+    const puff = typeof m.extra.puff === 'number' ? m.extra.puff : 0;
+    // it swells fast and settles slowly, which is what vanilla's two counters come to
+    m.extra.puff = near ? Math.min(2, puff + (m.age % 10 === 0 ? 1 : 0)) : Math.max(0, puff - (m.age % 40 === 0 ? 1 : 0));
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Golems
 // ---------------------------------------------------------------------------------------------
 /** What an iron golem counts as an enemy: the monsters, and never a creeper, which vanilla spares. */
