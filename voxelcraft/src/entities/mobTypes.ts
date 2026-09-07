@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -426,6 +426,44 @@ const allayModel: ModelDef = {
     { name: 'left_arm', parent: 'body', pivot: [1.75, 19.5, 0], boxes: [{ uv: [23, 6], box: [-0.25, -0.5, -1, 1, 4, 2] }] },
     { name: 'left_wing', parent: 'body', pivot: [0.5, 20, 1], boxes: [{ uv: [16, 14], box: [0, 0, 0, 0, 5, 8] }] },
     { name: 'right_wing', parent: 'body', pivot: [-0.5, 20, 1], boxes: [{ uv: [16, 14], box: [0, 0, 0, 0, 5, 8] }] },
+  ],
+};
+
+
+/** The bogged: a skeleton with mushrooms growing out of its skull. */
+const boggedModel = (): ModelDef => {
+  const m = biped('skeleton/bogged.png', 32, true, 'skeleton/bogged_overlay.png');
+  m.parts.push({
+    name: 'mushrooms', parent: 'head', pivot: [3, -7.5, 3],
+    boxes: [
+      { uv: [50, 22], box: [-9, -3.5, -6, 6, 4, 0] },
+      { uv: [50, 16], box: [-3, -3.5, 0, 6, 4, 0] },
+      { uv: [50, 27], box: [-8, 1.5, 0, 6, 5, 0] },
+    ],
+  });
+  return m;
+};
+
+/** The breeze: three rods spinning under a cube of a head. */
+const breezeModel: ModelDef = {
+  texture: 'breeze/breeze.png', texW: 32, texH: 32,
+  parts: [
+    { name: 'rods', pivot: [0, 8, 0], boxes: [{ uv: [0, 17], box: [-1, -3, -6, 2, 8, 2] }, { uv: [0, 17], box: [-3.5981, -3, -1.5, 2, 8, 2] }, { uv: [0, 17], box: [1.5981, -3, -1.5, 2, 8, 2] }] },
+    { name: 'head', pivot: [0, 4, 0], boxes: [{ uv: [0, 0], box: [-4, -8, -4, 8, 8, 8] }] },
+    { name: 'eyes', parent: 'head', pivot: [0, 4, 0], boxes: [{ uv: [4, 24], box: [-5, -5, -4.2, 10, 3, 4] }] },
+  ],
+};
+
+/** The creaking, all long limbs and bark. */
+const creakingModel: ModelDef = {
+  texture: 'creaking/creaking.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'head', pivot: [-4, -6, 0], boxes: [{ uv: [0, 0], box: [-3, -10, -3, 6, 10, 6] }, { uv: [28, 31], box: [-3, -13, -3, 6, 3, 6] }, { uv: [12, 40], box: [3, -13, 0, 9, 14, 0] }, { uv: [34, 12], box: [-12, -14, 0, 9, 14, 0] }] },
+    { name: 'body', pivot: [-1, -2, 1], boxes: [{ uv: [0, 16], box: [0, -3, -3, 6, 13, 5] }, { uv: [24, 0], box: [-6, -4, -3, 6, 7, 5] }] },
+    { name: 'right_arm', pivot: [-8, -4.5, 1.5], boxes: [{ uv: [22, 13], box: [-2, -1.5, -1.5, 3, 21, 3] }, { uv: [46, 0], box: [-2, 19.5, -1.5, 3, 4, 3] }] },
+    { name: 'left_arm', pivot: [5, -4, 0.5], boxes: [{ uv: [30, 40], box: [0, -1, -1.5, 3, 16, 3] }, { uv: [52, 12], box: [0, -5, -1.5, 3, 4, 3] }, { uv: [52, 19], box: [0, 15, -1.5, 3, 4, 3] }] },
+    { name: 'left_leg', pivot: [1.5, 8, 0.5], boxes: [{ uv: [42, 40], box: [-1.5, 0, -1.5, 3, 16, 3] }, { uv: [45, 55], box: [-1.5, 15.7, -4.5, 5, 0, 9] }] },
+    { name: 'right_leg', pivot: [-1, 6.5, 0.5], boxes: [{ uv: [0, 34], box: [-3, -1.5, -1.5, 3, 19, 3] }, { uv: [45, 46], box: [-5, 17.2, -4.5, 5, 0, 9] }, { uv: [12, 34], box: [-3, -4.5, -1.5, 3, 3, 3] }] },
   ],
 };
 
@@ -1268,6 +1306,10 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   tadpole: { model: tadpoleModel, animation: 'fish', eyeHeight: 0.2, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
   // the jungle's parrot, which dances to whatever a jukebox is playing
   parrot: { model: parrotModel(), animation: 'chicken', eyeHeight: 0.8, followRange: 16, flapping: true, goals: () => [floatGoal, parrotDanceGoal(), panicGoal(1.4), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // the three newest hostiles: a poisonous skeleton, a wind that jumps, and a thing in the pale wood
+  bogged: { model: boggedModel(), animation: 'biped', eyeHeight: 1.74, followRange: 16, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), bowAttackGoal({ id: 'poison', ticks: 200 }), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  breeze: { model: breezeModel, animation: 'breeze', eyeHeight: 1.3, followRange: 24, goals: () => [loseTargetGoal(), targetPlayerGoal(24), breezeGoal()] },
+  creaking: { model: creakingModel, animation: 'biped', eyeHeight: 2.4, followRange: 32, goals: () => [creakingStalkGoal(), meleeAttackGoal()] },
   // the desert, the savanna and the two that are found rather than met
   camel: { model: camelModel, animation: 'quadruped', eyeHeight: 2.1, followRange: 16, goals: () => [floatGoal, camelSitGoal(), panicGoal(1.2), breedGoal(), followParentGoal(), wanderGoal(160, 0.6, 10), lookAtPlayerGoal(8), randomLookGoal] },
   armadillo: { model: armadilloModel, animation: 'quadruped', eyeHeight: 0.5, followRange: 16, goals: () => [floatGoal, armadilloRollGoal(), panicGoal(1.4), breedGoal(), followParentGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(6), randomLookGoal] },
@@ -1478,6 +1520,8 @@ export function pickHostile(rng: () => number, biome: BiomeDef | undefined, y: n
   // deserts spawn husks and snowy biomes strays in place of most zombies and skeletons
   if (type === 'zombie' && biome?.category === 'desert' && rng() < 0.8) return 'husk';
   if (type === 'skeleton' && biome?.precipitation === 'snow' && rng() < 0.8) return 'stray';
+  // vanilla's swamps trade most of their skeletons for bogged ones
+  if (type === 'skeleton' && (biome?.id === 'swamp' || biome?.id === 'mangrove_swamp') && rng() < 0.8) return 'bogged';
   return type;
 }
 export const ANIMAL_TYPES = ['cow', 'pig', 'sheep', 'chicken'];

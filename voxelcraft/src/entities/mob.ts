@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'silverfish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'silverfish' | 'breeze' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -834,6 +834,12 @@ export class Mob {
         }
         break;
       }
+      case 'breeze': {
+        // the rods spin under the head, faster while it is hunting
+        const rods = parts.get('rods');
+        if (rods) rods.rotation.y = (this.age + alpha) * (this.target ? 0.35 : 0.12);
+        break;
+      }
       case 'silverfish': {
         // vanilla ripples a silverfish's segments along its length as it scuttles
         let i = 0;
@@ -1110,6 +1116,13 @@ export class Mob {
       if (typeof this.extra.playDead === 'number' && this.extra.playDead > 0) g.rotation.z = Math.PI;
     }
     if (this.def.id === 'frog') this.setTexture(`frog/${String(this.extra.variant ?? 'temperate')}_frog.png`);
+    if (this.def.id === 'creaking' && this.extra.frozen === true) {
+      // frozen, it holds whatever pose it was caught in: no swing, no sway
+      for (const [name, base] of this.model.basePose) {
+        const part = parts.get(name);
+        if (part) part.rotation.copy(base);
+      }
+    }
     if (this.def.id === 'armadillo') {
       // rolled up it is a ball and nothing else, which is how vanilla draws it
       const rolled = this.extra.rolled === true;

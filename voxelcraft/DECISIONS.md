@@ -1316,3 +1316,16 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      The sniffer was checked by measuring its model rather than photographing it: at just over two
      blocks tall with all twelve of its parts and six legs where they should be, it would not sit in
      the little photo pool the other portraits use.
+
+127. **The bogged, the breeze and the creaking.** The bogged is a skeleton with mushrooms on its
+     skull and poison on its arrows, and it takes four in five of a swamp's skeletons the way a
+     stray takes four in five of a snowy biome's — the same rule, one line further down. The breeze
+     will not stand still: it hops in and out of a fight and throws a charge that does no damage at
+     all, because the shove is what it is for.
+
+     The creaking is the odd one. It closes on whoever is near and stops stock still the moment the
+     player's own line of sight falls on it, holding whatever pose it was caught in — which meant
+     restoring every part to its rest pose rather than letting the walk cycle keep running. What it
+     does not have is the heart: in vanilla a creaking cannot be killed while its creaking heart
+     still stands in the pale garden, and nothing here generates one, so this one dies like anything
+     else.

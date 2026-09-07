@@ -1367,6 +1367,74 @@ export const allayFollowGoal = (range = 32): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Breezes and creakings
+// ---------------------------------------------------------------------------------------------
+/** How hard a wind charge throws what it hits; vanilla's does no damage at all. */
+export const WIND_CHARGE_KNOCKBACK = 2;
+
+/**
+ * Vanilla's breeze: it will not stand still, hopping about the fight and firing wind charges that
+ * throw rather than hurt.
+ */
+export const breezeGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m) => m.target !== null,
+  tick: (m, w) => {
+    const eye = w.playerEye();
+    m.lookTarget = eye;
+    const d = m.distanceTo(w.playerPos());
+    // it keeps its distance, hopping in and out rather than closing
+    if (m.onGround && w.rng() < 0.12) {
+      const away = d < 6;
+      const dir = m.pos.clone().sub(w.playerPos());
+      dir.y = 0;
+      if (dir.lengthSq() < 1e-4) dir.set(1, 0, 0);
+      dir.normalize().multiplyScalar(away ? 6 : -4);
+      m.moveTarget = m.pos.clone().add(dir);
+      m.moveSpeed = 1.4;
+      m.moveTimeout = 30;
+      m.vel.y = 0.55;
+    }
+    if (m.attackCooldown > 0 || d > 24) return;
+    m.attackCooldown = 60;
+    w.shootArrow(m.eyePos(), eye, 1.2, 0);
+    w.playSound('ghast_shoot', m.pos.x, m.pos.y, m.pos.z, 1.4);
+  },
+});
+
+/** How far a creaking can be seen from, which is the reach vanilla gives its stare. */
+export const CREAKING_RANGE = 32;
+
+/**
+ * Vanilla's creaking: it closes on whoever is in the pale wood, and freezes stock still the moment
+ * they look at it. Nothing else in the game stops when it is watched.
+ */
+export const creakingStalkGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => w.playerTargetable() && m.distanceTo(w.playerPos()) < CREAKING_RANGE,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    // vanilla freezes it while the player's own line of sight falls on it
+    const look = w.playerLookDir();
+    const toMob = m.pos.clone().sub(w.playerEye()).normalize();
+    const watched = look.dot(toMob) > 0.5 && (w.lineOfSight?.(w.playerEye(), m.eyePos()) ?? true);
+    m.extra.frozen = watched;
+    if (watched) {
+      m.moveTarget = null;
+      m.lookTarget = null;
+      m.vel.x = 0;
+      m.vel.z = 0;
+      return;
+    }
+    m.target = 'player';
+    m.lookTarget = p.clone();
+    m.moveTarget = p.clone();
+    m.moveSpeed = 1.2;
+    m.moveTimeout = 40;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Golems
 // ---------------------------------------------------------------------------------------------
 /** What an iron golem counts as an enemy: the monsters, and never a creeper, which vanilla spares. */
