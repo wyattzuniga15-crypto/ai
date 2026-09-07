@@ -111,3 +111,10 @@ node tools/build.js CubeRoll.desktop.html desktop
 node tools/smoke.js  CubeRoll.html                   # 70 islands + daily + endless
 node tools/device.js CubeRoll.phone.html CubeRoll.desktop.html CubeRoll.html /tmp
 ```
+
+## Also in this repository
+
+- `mcbot/` — **Minecraft AI Player.** An AI that joins a real Minecraft server as
+  a player: it equips the right tool for each block, mines what you ask it to in
+  chat, and fights hostile mobs. Unrelated to Cube Roll; see
+  [`mcbot/README.md`](mcbot/README.md).
