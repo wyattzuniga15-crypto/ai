@@ -62,6 +62,7 @@ async function main() {
       const templates: Record<string, TemplateJson> = {};
       const pools: Record<string, Record<string, PoolEntry[]>> = {};
       await Promise.all(index.map(async (entry) => {
+        if (!entry.pieces.length) return; // structures built in code (mineshafts) ship no templates
         const r = await fetch(`${base}structures/${entry.name}.json`);
         if (!r.ok) return;
         const bundle = (await r.json()) as { pieces: Record<string, TemplateJson>; pools?: Record<string, PoolEntry[]> };

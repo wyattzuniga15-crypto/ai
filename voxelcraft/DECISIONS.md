@@ -392,3 +392,15 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     picking a start pool at random from the set, which put sandstone desert villages in plains. The
     converter now writes one variant per structure in the set, with that structure's own biomes, and
     the generator picks the same way vanilla does.
+
+68. **Mineshafts are walked, not stamped.** Vanilla builds them in code rather than from templates,
+    so `src/world/gen/mineshaft.ts` follows `MineshaftPieces`: a room, then corridors, crossings and
+    stairs branching off it, each piece placed beside the last and rejected where it would run into
+    one already there, nine pieces deep at most. Placement comes from the data files like every other
+    structure: spacing one with a frequency of 0.004, which is vanilla's roll in every chunk, and a
+    badlands shaft is timbered in dark oak. Two things are ours rather than vanilla's. The walk is
+    kept inside 80 blocks of its own room (vanilla measures that from the parent piece, which lets a
+    shaft wander further than a chunk can know to ask about), and every decision inside a piece is
+    hashed from the block's position instead of drawn in order, so a corridor comes out the same
+    however its chunks are visited. Chests hold the abandoned mineshaft table; vanilla puts that loot
+    in a chest minecart on a rail, and until minecarts exist ours stands on the floor.

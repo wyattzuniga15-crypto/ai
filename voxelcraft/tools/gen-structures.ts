@@ -160,7 +160,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -261,6 +261,41 @@ for (const want of JIGSAW) {
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
     pieces, biomes: [...biomes].sort(), variants, maxDepth: 6,
   });
+}
+
+/**
+ * Structures vanilla builds in code rather than from templates. Only their placement comes out of
+ * the data files: the spread, the per-chunk frequency and each variant's biome list.
+ */
+const PROCEDURAL: { name: string; set: string }[] = [
+  { name: 'mineshaft', set: 'mineshafts' },
+];
+
+for (const want of PROCEDURAL) {
+  const setFile = path.join(setDir, `${want.set}.json`);
+  if (!fs.existsSync(setFile)) continue;
+  const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as {
+    placement: { spacing: number; separation: number; salt: number; frequency?: number };
+    structures: { structure: string; weight: number }[];
+  };
+  const variants: Variant[] = [];
+  const biomes = new Set<string>();
+  for (const entry of set.structures) {
+    const name = entry.structure.replace('minecraft:', '');
+    const file = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
+    if (!fs.existsSync(file)) continue;
+    // the mineshaft's own JSON says which kind of shaft it builds (normal timbers or mesa's dark oak)
+    const def = JSON.parse(fs.readFileSync(file, 'utf8')) as { mineshaft_type?: string };
+    const own = biomesFor(mc, [name]);
+    variants.push({ start: def.mineshaft_type ?? name, weight: entry.weight ?? 1, biomes: own });
+    for (const b of own) biomes.add(b);
+  }
+  index.push({
+    name: want.name, placement: want.name,
+    spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
+    frequency: set.placement.frequency, pieces: [], biomes: [...biomes].sort(), variants,
+  });
+  console.log(`  ${want.name}: built in code, frequency ${set.placement.frequency}, ${biomes.size} biomes`);
 }
 
 fs.writeFileSync(path.join(outDir, 'index.json'), `${JSON.stringify(index, null, 1)}\n`);

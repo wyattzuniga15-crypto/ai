@@ -12,6 +12,11 @@ import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
 import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
+import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
+
+/** A structure that has been worked out for a start chunk: template pieces, or a mineshaft's walk. */
+interface StructureInstance { pieces: StructurePlacement[]; shaft?: { kind: ShaftKind; pieces: ShaftPiece[] } }
+const EMPTY_STRUCTURE: StructureInstance = { pieces: [] };
 
 const st = (id: string) => blocks.defaultState(id);
 
@@ -814,14 +819,22 @@ export class WorldGenerator {
    */
   private placeStructures(chunk: ChunkData, world: BlockAccess): void {
     const clip = { x0: chunk.cx * 16, x1: chunk.cx * 16 + 15, z0: chunk.cz * 16, z1: chunk.cz * 16 + 15 };
+    const loot = (lx: number, ly: number, lz: number, table: string) => this.lootSpots.push({ x: lx, y: ly, z: lz, table });
     for (const set of this.structures) {
       for (const start of this.nearbyStarts(set, chunk.cx, chunk.cz)) {
-        for (const piece of this.structurePieces(set, start.cx, start.cz)) {
+        const instance = this.structureAt(set, start.cx, start.cz);
+        for (const piece of instance.pieces) {
           const box = placementBox(piece);
           if (box.x1 < clip.x0 || box.x0 > clip.x1 || box.z1 < clip.z0 || box.z0 > clip.z1) continue;
           const written = new Set<string>();
-          stampStructure(world, piece, written, (lx, ly, lz, table) => this.lootSpots.push({ x: lx, y: ly, z: lz, table }), clip);
+          stampStructure(world, piece, written, loot, clip);
           this.fitStructureToTerrain(world, box, written, piece.placement ?? 'surface', clip);
+        }
+        if (!instance.shaft) continue;
+        for (const piece of instance.shaft.pieces) {
+          const b = piece.box;
+          if (b.x1 < clip.x0 || b.x0 > clip.x1 || b.z1 < clip.z0 || b.z0 > clip.z1) continue;
+          fillShaftPiece(piece, instance.shaft.kind, world, clip, loot);
         }
       }
     }
@@ -834,45 +847,68 @@ export class WorldGenerator {
     for (let rx = Math.floor((cx - r) / set.spacing); rx <= Math.floor((cx + r) / set.spacing); rx++)
       for (let rz = Math.floor((cz - r) / set.spacing); rz <= Math.floor((cz + r) / set.spacing); rz++) {
         const start = structureStart(this.seed, set, rx, rz);
-        if (Math.abs(start.cx - cx) <= r && Math.abs(start.cz - cz) <= r) out.push(start);
+        if (Math.abs(start.cx - cx) > r || Math.abs(start.cz - cz) > r) continue;
+        // a structure spread one per chunk (a mineshaft) rolls its chance in every chunk instead
+        if (set.frequency !== undefined && hashPos(this.seed ^ set.salt, start.cx, 0x5eed, start.cz) >= set.frequency) continue;
+        out.push(start);
       }
     return out;
   }
 
   /**
-   * The pieces of the structure starting in a chunk, or none when the roll fails there. A start is
-   * worked out once and kept, because the chunks it covers all ask for the same one.
+   * The structure starting in a chunk, or an empty one when the roll fails there. A start is worked
+   * out once and kept, because the chunks it covers all ask for the same one.
    */
-  private structurePieces(set: StructureSet, cx: number, cz: number): StructurePlacement[] {
+  private structureAt(set: StructureSet, cx: number, cz: number): StructureInstance {
     const key = `${set.name}:${cx}:${cz}`;
     const cached = this.structureCache.get(key);
     if (cached) return cached;
-    const pieces = this.buildStructure(set, cx, cz);
+    const instance = this.buildStructure(set, cx, cz);
     // the cache is only a stamping aid, so anything is safe to drop once it grows large
     if (this.structureCache.size > 256) this.structureCache.clear();
-    this.structureCache.set(key, pieces);
-    return pieces;
+    this.structureCache.set(key, instance);
+    return instance;
   }
 
-  private buildStructure(set: StructureSet, cx: number, cz: number): StructurePlacement[] {
+  private buildStructure(set: StructureSet, cx: number, cz: number): StructureInstance {
     const rng = new Rng(mix(this.seed ^ set.salt, cx, cz, 0x5747));
     const wx = cx * 16 + rng.int(8);
     const wz = cz * 16 + rng.int(8);
-    if (!set.biomeSet.has(biomes[this.columnInfo(wx, wz).biome].id)) return [];
+    if (!set.biomeSet.has(biomes[this.columnInfo(wx, wz).biome].id)) return EMPTY_STRUCTURE;
     const decaySeed = mix(this.seed ^ set.salt, cx, cz, 0x0d3c);
-    if (set.placement === 'jigsaw') return this.buildJigsaw(set, wx, wz, rng, decaySeed);
+    if (set.placement === 'mineshaft') return this.buildMineshaft(set, cx, cz, wx, wz, rng);
+    if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, wx, wz, rng, decaySeed) };
     const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
     const rotation = rng.int(4);
     const [sx, , sz] = template.size;
     const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
     const y = this.structureGroundY(wx, wz, rw, rd, set.placement);
-    if (y === null) return [];
+    if (y === null) return EMPTY_STRUCTURE;
     // ruined portals crumble; everything else is placed whole
     const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
     const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: set.placement }];
     if (set.name === 'igloo') pieces.push(...this.iglooBasement(set, template, wx, y, wz, rotation, rng, decaySeed));
     this.lastStructure = { name: set.name, x: wx, y, z: wz };
-    return pieces;
+    return { pieces };
+  }
+
+  /**
+   * Abandoned mineshafts: vanilla rolls one in every chunk at a low chance, builds the room and its
+   * corridors around it, then drops the lot underground — a mesa shaft just below the badlands
+   * surface, where the cliffs cut into it, and an ordinary one anywhere under the sea level.
+   */
+  private buildMineshaft(set: StructureSet, cx: number, cz: number, wx: number, wz: number, rng: Rng): StructureInstance {
+    const variant = pickVariant(set, biomes[this.columnInfo(wx, wz).biome].id, rng);
+    if (!variant) return EMPTY_STRUCTURE;
+    const kind: ShaftKind = variant.start === 'mesa' ? 'mesa' : 'normal';
+    const surface = Math.floor(this.columnInfo(cx * 16 + 2, cz * 16 + 2).height);
+    const topY = kind === 'mesa'
+      ? Math.max(SEA_LEVEL, surface - 4)
+      : Math.min(surface - 8, WORLD_MIN_Y + 30 + rng.int(SEA_LEVEL - WORLD_MIN_Y - 40));
+    if (topY < WORLD_MIN_Y + 20) return EMPTY_STRUCTURE;
+    const pieces = assembleMineshaft(mix(this.seed, cx, cz, 0x5e17), cx, cz, topY);
+    this.lastStructure = { name: set.name, x: cx * 16 + 2, y: topY, z: cz * 16 + 2, pieces: pieces.length, variant: kind };
+    return { pieces: [], shaft: { kind, pieces } };
   }
 
   /**
@@ -995,7 +1031,7 @@ export class WorldGenerator {
   /** Chests placed by structures in the chunk being decorated, with their loot tables. */
   lootSpots: { x: number; y: number; z: number; table: string }[] = [];
   /** Structures already worked out, keyed by set and start chunk; every chunk they cover reuses them. */
-  private readonly structureCache = new Map<string, StructurePlacement[]>();
+  private readonly structureCache = new Map<string, StructureInstance>();
 
   /** Pale gardens hang moss from their canopy and spread pale moss over the ground, as vanilla does. */
   private decoratePaleGarden(chunk: ChunkData, world: BlockAccess, rng: Rng, biomeAt: (lx: number, lz: number) => BiomeDef): void {

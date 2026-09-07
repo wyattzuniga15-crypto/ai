@@ -15,10 +15,13 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 
 export interface StructureIndexEntry {
   name: string;
-  placement: 'surface' | 'ocean_floor' | 'jigsaw';
+  /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft';
   spacing: number;
   separation: number;
   salt: number;
+  /** Structures spread one per chunk (mineshafts) roll this chance in every chunk instead. */
+  frequency?: number;
   pieces: string[];
   biomes: string[];
   /** Pieces that may be placed as the structure itself; the rest are extras the generator adds. */
@@ -85,6 +88,8 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
  */
 function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]): number {
   if (entry.placement === 'jigsaw') return 8;
+  // a mineshaft's walk stays inside 80 blocks of its room, and a piece can be 13 more
+  if (entry.placement === 'mineshaft') return 7;
   let widest = 0;
   for (const t of templates) widest = Math.max(widest, t.size[0], t.size[2]);
   return Math.ceil((widest + 8) / 16);
@@ -108,7 +113,7 @@ export function buildStructureSets(
       pools: pools[entry.name] ?? {},
       variantBiomes: (entry.variants ?? []).map((v) => new Set(v.biomes)),
     };
-  }).filter((s) => s.templates.length > 0);
+  }).filter((s) => s.templates.length > 0 || s.placement === 'mineshaft');
 }
 
 /**
@@ -138,6 +143,8 @@ export function pickVariant(set: StructureSet, biome: string, rng: Rng): Structu
  * placed at a random offset inside the region's free part (spacing minus separation).
  */
 export function structureStart(seed: number, set: StructureSet, regionX: number, regionZ: number): { cx: number; cz: number } {
+  // a spread of one chunk leaves no room to offset into, so every chunk is its own start
+  if (set.spacing <= 1) return { cx: regionX, cz: regionZ };
   const rng = new Rng(mix(seed ^ set.salt, regionX, regionZ, 0x57ac));
   const free = Math.max(1, set.spacing - set.separation);
   return { cx: regionX * set.spacing + rng.int(free), cz: regionZ * set.spacing + rng.int(free) };

@@ -72,7 +72,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Structures, second slice: villages assembled from vanilla's template pools by a jigsaw placer (town centre, streets, houses, farms and workstations for all five village types), with a villager per bed who claims a job from the village's own workstations, and a village cat
 - [x] Structures, third slice: every structure chest rolls its own vanilla loot table (56 chest tables, enchanted gear from `enchant_with_levels`/`enchant_randomly`), including the chests vanilla marks with a data block rather than a loot tag, and igloos get their ladder shaft down to the laboratory
 - [x] Structures, fourth slice: placement the way vanilla does it, where every chunk writes its own part of any start that reaches it, so a structure comes out whole and identical however the player approaches it, and a village is of the type its biome calls for
-- [ ] Structures, next: mineshafts, strongholds, temples, monuments, mansions, trial chambers, ancient cities, witch huts
+- [x] Abandoned mineshafts: vanilla's own piece walk (room, corridors with supports, cobwebs, rails and chests, crossings, stairs) rolled one chunk in 250, dark oak in the badlands, with the abandoned mineshaft loot table in its chests
+- [ ] Structures, next: strongholds, temples, monuments, mansions, trial chambers, ancient cities, witch huts
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)

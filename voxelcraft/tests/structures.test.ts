@@ -12,6 +12,7 @@ const load = () => {
   const templates: Record<string, TemplateJson> = {};
   const pools: Record<string, Record<string, PoolEntry[]>> = {};
   for (const e of index) {
+    if (!e.pieces.length) continue; // mineshafts are built in code, so they have no bundle
     const bundle = JSON.parse(fs.readFileSync(`public/structures/${e.name}.json`, 'utf8')) as { pieces: Record<string, TemplateJson>; pools?: Record<string, PoolEntry[]> };
     Object.assign(templates, bundle.pieces);
     if (bundle.pools) pools[e.name] = bundle.pools;
@@ -67,7 +68,7 @@ describe('structure templates', () => {
   it.runIf(hasTemplates)('loads the vanilla templates and stamps one into a world', () => {
     const { index, templates, pools } = load();
     const sets = buildStructureSets(index, templates, pools);
-    expect(sets.map((s) => s.name).sort()).toEqual(['igloo', 'pillager_outpost', 'ruined_portal', 'shipwreck', 'village']);
+    expect(sets.map((s) => s.name).sort()).toEqual(['igloo', 'mineshaft', 'pillager_outpost', 'ruined_portal', 'shipwreck', 'village']);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
     expect(igloo.spacing).toBe(32);
