@@ -656,3 +656,12 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     a fire where it lands, charges a creeper it hits and hurts whoever is standing too close. The
     moon's phase already showed in the sky; now it also decides whether swamp slimes come out, on
     vanilla's brightness per phase.
+
+92. **Raids come to villages that have villagers and beds.** Vanilla tracks a village as a cluster of
+    points of interest; ours looks for villagers within forty-eight blocks and a bed among them,
+    which is the same village by a shorter road. A player carrying Bad Omen who walks into one has
+    it taken off them and the raid begins: three waves, or up to five for a stronger omen, each of
+    the mix vanilla's own table gives — pillagers throughout, vindicators from the second, a ravager
+    in the third, witches in the fourth, evokers in the fifth. A bar across the top names the wave
+    and shows what is left of it, the next wave waits until the last one is dead, and seeing them all
+    off earns Hero of the Village.

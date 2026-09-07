@@ -85,6 +85,7 @@ import { createMap, deserializeMap, fillAround, serializeMap, type MapData } fro
 import { MapColors, shade } from '../render/mapColors.ts';
 import { LIGHTNING_CHANCE, moonBrightness, moonPhase, newWeather, setWeather, skyDarken as weatherDarken, tickWeather, weatherOf, type WeatherState } from '../world/weather.ts';
 import { RainRenderer } from '../render/rain.ts';
+import { raidTitle, startRaid, waveMobs, type RaidState } from '../entities/raid.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
 
 export interface GameAssets {
@@ -195,6 +196,9 @@ export class Game {
   private readonly blockEntities: BlockEntityRenderer;
   /** The beams beacons pour into the sky. */
   private readonly beams: BeaconBeamRenderer;
+  /** The raid on the village the player walked into, while one is running. */
+  private raid: RaidState | null = null;
+  private raiders: Mob[] = [];
   /** The sky's mood: whether it is raining and whether it is thundering. */
   readonly weather: WeatherState;
   private readonly rain: RainRenderer;
@@ -614,6 +618,7 @@ export class Game {
     this.tickBobber();
     if (this.tickCount % 10 === 0) this.tickMap();
     this.tickWeather();
+    this.tickRaid();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -1633,6 +1638,110 @@ export class Game {
     this.maps.set(wider.id, wider);
     this.fillMap(wider);
     return { id: 'filled_map', count: 1, map: wider.id };
+  }
+
+  /**
+   * Raids. A player carrying Bad Omen who walks into a village brings one down on it: waves of
+   * illagers arrive until the village has seen them all off, and seeing them off is what earns
+   * Hero of the Village.
+   */
+  private tickRaid(): void {
+    if (!this.raid) {
+      if (this.tickCount % 40 !== 0) return;
+      const omen = this.player.effects.level('bad_omen');
+      if (!omen || this.player.gamemode !== 'survival') return;
+      const village = this.villageAround();
+      if (!village) return;
+      this.player.effects.remove('bad_omen');
+      this.raid = startRaid(village.x, village.y, village.z, omen);
+      this.chat.addLine('A raid has begun!', '#f55');
+      this.audio.play('explode', { volume: 0.5, pitch: 1.8 });
+      return;
+    }
+    const raid = this.raid;
+    this.raiders = this.raiders.filter((m) => !m.dead && !m.removed);
+    if (raid.over) {
+      if (--raid.next > 0) return;
+      this.hud.setRaidBar(null, 0);
+      this.raid = null;
+      return;
+    }
+    if (this.raiders.length === 0 && --raid.next <= 0) {
+      if (raid.wave >= raid.waves) {
+        raid.over = true;
+        raid.won = true;
+        raid.next = 100;
+        this.hud.setRaidBar(raidTitle(raid), 1);
+        this.chat.addLine('Raid defeated — Hero of the Village!', '#5f5');
+        this.player.effects.add('hero_of_the_village', 48000, 0);
+        return;
+      }
+      this.spawnWave(raid);
+    }
+    const left = this.raiders.length;
+    this.hud.setRaidBar(raidTitle(raid), raid.waveSize ? left / raid.waveSize : 0);
+    // a raid gives up if the raiders can find nothing to fight
+    if (this.player.dead) {
+      raid.over = true;
+      raid.won = false;
+      raid.next = 100;
+    }
+  }
+
+  /** Brings one wave in around the village, on vanilla's table of who comes when. */
+  private spawnWave(raid: RaidState): void {
+    raid.wave++;
+    raid.waveSize = 0;
+    for (const { type, count } of waveMobs(raid.wave)) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 20 + Math.random() * 12;
+        const x = raid.cx + Math.cos(angle) * dist;
+        const z = raid.cz + Math.sin(angle) * dist;
+        const y = this.world.topBlock(Math.floor(x), Math.floor(z));
+        if (y < WORLD_MIN_Y) continue;
+        const mob = this.entities.spawn(type, x + 0.5, y + 1, z + 0.5, Math.random() * Math.PI * 2);
+        if (!mob) continue;
+        mob.extra.raider = true;
+        mob.persistent = true;
+        this.raiders.push(mob);
+        raid.waveSize++;
+      }
+    }
+    raid.next = 200;
+    this.chat.addLine(`Wave ${raid.wave} of ${raid.waves}`, '#fa5');
+    this.audio.play('explode', { volume: 0.4, pitch: 1.4 });
+  }
+
+  /**
+   * The village around the player, if there is one: vanilla counts beds and job sites, and this
+   * counts the same blocks along with the villagers living beside them.
+   */
+  private villageAround(): { x: number; y: number; z: number } | null {
+    const p = this.player;
+    const villagers = this.entities.mobs.filter((m) => !m.dead && m.def.id === 'villager' && m.pos.distanceTo(p.pos) < 48);
+    if (!villagers.length) return null;
+    let beds = 0;
+    const px = Math.floor(p.pos.x);
+    const py = Math.floor(p.pos.y);
+    const pz = Math.floor(p.pos.z);
+    for (let x = px - 24; x <= px + 24 && beds < 1; x += 2) {
+      for (let z = pz - 24; z <= pz + 24 && beds < 1; z += 2) {
+        for (let y = py - 8; y <= py + 8; y++) {
+          const state = this.world.getBlock(x, y, z);
+          if (state !== 0 && blocks.blockOf(state).id.endsWith('_bed')) {
+            beds++;
+            break;
+          }
+        }
+      }
+    }
+    if (!beds) return null;
+    // the raid centres on the villagers, which is near enough vanilla's village centre
+    const middle = villagers.reduce((a, m) => ({ x: a.x + m.pos.x, z: a.z + m.pos.z }), { x: 0, z: 0 });
+    const x = Math.floor(middle.x / villagers.length);
+    const z = Math.floor(middle.z / villagers.length);
+    return { x, y: this.world.topBlock(x, z), z };
   }
 
   /**

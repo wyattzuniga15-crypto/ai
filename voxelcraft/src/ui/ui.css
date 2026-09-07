@@ -115,3 +115,9 @@ h2 { font-size: 18px; margin: 0 0 16px; text-shadow: 2px 2px 0 #3f3f3f; font-wei
 .btn.reset { width: 70px; height: 32px; margin: 0; font-size: 14px; }
 .btn.waiting { color: #ffff55; }
 .btn.dup { color: #ff5555; }
+
+/* Raid bar: vanilla shows a boss bar across the top of the screen. */
+.bossbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 360px; text-align: center; pointer-events: none; }
+.bossbar .label { font-size: 14px; text-shadow: 2px 2px #3f3f3f; margin-bottom: 2px; }
+.bossbar .track { height: 10px; background: rgba(0, 0, 0, 0.6); border: 1px solid #000; }
+.bossbar .fill { height: 100%; background: linear-gradient(#f55, #a00); }

@@ -94,7 +94,7 @@ coverage counts in `COVERAGE.md`.
 - [x] The beacon: the pyramid counted the way vanilla counts it, the effect screen with a tier per level and the second column a full pyramid opens, an effect given to everyone within range and refreshed every four seconds, and the beam pouring into the sky in the colour of the glass over it
 - [x] Maps and the cartography table: an empty map centred the way vanilla centres one, filled in from the world as it is carried, drawn from the colours of the blocks' own textures with vanilla's four shades, saved with the world, and a table that copies, zooms out and locks them
 - [x] Weather: vanilla's rain and thunder counters, rain and snow falling around the player, the sky greying over and the light dimming with it, fires put out, cauldrons filling, snow settling and water freezing in the cold, lightning that starts fires and charges creepers, `/weather`, and the moon's phase deciding whether swamp slimes come out
-- [ ] Raids (needs villages to be tracked as villages)
+- [x] Raids: Bad Omen carried into a village starts one, vanilla's wave table of pillagers, vindicators, evokers, witches and ravagers, a bar showing the wave and what is left of it, and Hero of the Village for seeing them all off
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
 - [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)
 - [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)

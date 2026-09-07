@@ -25,6 +25,7 @@ export function renderSlot(el: HTMLElement, stack: ItemStack | null, icons: Item
 
 export class Hud {
   readonly root: HTMLElement;
+  private raidBar: HTMLElement | null = null;
   private readonly hotbarSlots: HTMLElement[] = [];
   private readonly hotbarSel: HTMLElement;
   private readonly hearts: HTMLElement[] = [];
@@ -120,6 +121,18 @@ export class Hud {
 
   setVisible(v: boolean): void {
     this.root.classList.toggle('hidden', !v);
+  }
+
+  /** Shows the raid bar, or hides it when `title` is null. */
+  setRaidBar(title: string | null, fraction: number): void {
+    if (!this.raidBar) {
+      this.raidBar = h('div', { class: 'bossbar' }, h('div', { class: 'label' }), h('div', { class: 'track' }, h('div', { class: 'fill' })));
+      this.root.append(this.raidBar);
+    }
+    this.raidBar.classList.toggle('hidden', !title);
+    if (!title) return;
+    (this.raidBar.querySelector('.label') as HTMLElement).textContent = title;
+    (this.raidBar.querySelector('.fill') as HTMLElement).style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
   }
 
   showToast(text: string): void {
