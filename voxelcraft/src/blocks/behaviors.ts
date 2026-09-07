@@ -154,10 +154,13 @@ function redstoneChanged(ctx: BlockContext): void {
       if ((baseId !== 'piston' && baseId !== 'sticky_piston') || blocks.prop(base, 'extended') !== 'true') w.setBlock(x, y, z, 0);
       return;
     }
-    case 'dispenser': case 'dropper': {
+    case 'crafter': case 'dispenser': case 'dropper': {
       const powered = isPowered(w, x, y, z);
       if (powered === (blocks.prop(ctx.state, 'triggered') === 'true')) return;
-      w.setBlock(x, y, z, blocks.withProp(ctx.state, 'triggered', powered ? 'true' : 'false'));
+      let next = blocks.withProp(ctx.state, 'triggered', powered ? 'true' : 'false');
+      // a crafter shows itself crafting while the signal is on it
+      if (id === 'crafter') next = blocks.withProp(next, 'crafting', powered ? 'true' : 'false');
+      w.setBlock(x, y, z, next);
       if (powered) w.schedule(x, y, z, 4);
       return;
     }
@@ -226,8 +229,10 @@ function redstoneTick(ctx: BlockContext): void {
     if (blocks.prop(state, 'powered') === 'true') w.setBlock(x, y, z, blocks.withProp(state, 'powered', 'false'));
     return;
   }
-  if (id === 'dispenser' || id === 'dropper') {
+  if (id === 'dispenser' || id === 'dropper' || id === 'crafter') {
+    // the game has the items: a dispenser fires, a dropper drops and a crafter crafts
     w.dispense(x, y, z);
+    if (id === 'crafter') w.setBlock(x, y, z, blocks.withProp(w.getBlock(x, y, z), 'crafting', 'false'));
     return;
   }
   if (id === 'target') {
@@ -594,9 +599,10 @@ const behaviors: Record<string, Behavior> = {
   },
 };
 
-/** A dispenser and a dropper are containers that also answer a signal. */
+/** A dispenser, a dropper and a crafter are containers that also answer a signal. */
 const dispenserBehavior: Behavior = {
-  onUse: (ctx) => behaviors.container.onUse!(ctx),
+  // the game opens the screen itself, since the items live on the main thread
+  onUse: () => false,
   onNeighborChanged: (ctx) => redstoneChanged(ctx),
   scheduledTick: (ctx) => redstoneTick(ctx),
 };
@@ -604,6 +610,7 @@ const dispenserBehavior: Behavior = {
 const byId: Record<string, Behavior> = {
   dispenser: dispenserBehavior,
   dropper: dispenserBehavior,
+  crafter: dispenserBehavior,
   lever: {
     onUse: (ctx) => {
       ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'powered', blocks.prop(ctx.state, 'powered') === 'true' ? 'false' : 'true'));

@@ -4,7 +4,8 @@ import type { Inventory, ItemStack, Slot } from '../../items/inventory.ts';
 import { craftingMatcher, consumeIngredients } from '../../items/crafting.ts';
 import { findCookingRecipe, isFuel } from '../../items/smelting.ts';
 import { items } from '../../items/registry.ts';
-import type { BrewingEntity, FurnaceEntity } from '../../blocks/blockEntity.ts';
+import type { BrewingEntity, CrafterEntity, FurnaceEntity } from '../../blocks/blockEntity.ts';
+import { crafterResult, toggleSlot } from '../../blocks/crafter.ts';
 import { BREW_TICKS, FUEL_BREWS } from '../../blocks/brewing.ts';
 import { isBrewingIngredient } from '../../items/potions.ts';
 
@@ -319,6 +320,54 @@ export function brewingScreen(inv: Inventory, e: BrewingEntity, onChange?: () =>
       if (isBrewingIngredient(stack.id)) return [ingredient];
       if (from.group === 'hotbar') return byGroup(player, 'inventory');
       return byGroup(player, 'hotbar');
+    },
+  };
+}
+
+/**
+ * The crafter: three by three of slots that can each be switched off, with the result it would make
+ * shown at the side. Clicking an empty slot with nothing in hand turns it off, as vanilla does.
+ */
+export function crafterScreen(inv: Inventory, e: CrafterEntity, onChange?: () => void): ScreenDef {
+  const player = playerSlots(inv);
+  const grid: SlotDef[] = [];
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 3; c++) {
+      const i = r * 3 + c;
+      grid.push({
+        x: 30 + c * 18, y: 17 + r * 18, group: 'container',
+        get: () => (e.disabled[i] ? null : e.items[i]),
+        set: (s) => { e.items[i] = s; if (s) e.disabled[i] = false; onChange?.(); },
+        onClickEmpty: () => { toggleSlot(e, i); onChange?.(); },
+      });
+    }
+  const result: SlotDef = { x: 124, y: 35, group: 'result', result: true, get: () => crafterResult(e), set: () => {} };
+  return {
+    texture: 'container/crafter.png', width: 176, height: 166, slots: [...grid, result, ...player],
+    labels: [{ text: 'Crafter', x: 29, y: 6 }, { text: 'Inventory', x: 8, y: 72 }],
+    overlay(root) {
+      const s = Number(getComputedStyle(document.documentElement).getPropertyValue('--gui')) || 3;
+      const base = `${import.meta.env.BASE_URL}textures/gui/sprites/container/crafter/`;
+      let marks = root.querySelector('.crafter-marks') as HTMLElement | null;
+      if (!marks) {
+        marks = document.createElement('div');
+        marks.className = 'crafter-marks';
+        marks.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
+        root.append(marks);
+      }
+      marks.replaceChildren();
+      for (let i = 0; i < 9; i++) {
+        if (!e.disabled[i]) continue;
+        const cell = document.createElement('div');
+        const x = 30 + (i % 3) * 18;
+        const y = 17 + Math.floor(i / 3) * 18;
+        cell.style.cssText = `position:absolute;left:${x * s}px;top:${y * s}px;width:${16 * s}px;height:${16 * s}px;background:url('${base}disabled_slot.png') center / 100% 100% no-repeat;`;
+        marks.append(cell);
+      }
+    },
+    quickMove(from) {
+      if (from.group === 'container' || from.group === 'result') return reversePlayer(player);
+      return grid;
     },
   };
 }

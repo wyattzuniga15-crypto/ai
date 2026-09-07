@@ -23,6 +23,8 @@ export interface SlotDef {
   accepts?(s: ItemStack): boolean;
   /** Called after the player takes `taken` from a result slot; return false to refuse. */
   onTake?(taken: ItemStack): void;
+  /** Clicking an empty slot with an empty hand: the crafter switches a slot off this way. */
+  onClickEmpty?(): void;
   /** Result slots can't receive items and craft on take. */
   result?: boolean;
   /** For result slots: whether the player may take the item right now (level costs). */
@@ -226,7 +228,14 @@ export class ContainerScreen {
       return;
     }
     if (!cur) {
-      if (!st) return;
+      if (!st) {
+        // an empty hand on an empty slot: only the crafter does anything with that
+        if (slot.onClickEmpty) {
+          slot.onClickEmpty();
+          this.changed();
+        }
+        return;
+      }
       if (button === 0) {
         this.cursor = st;
         slot.set(null);

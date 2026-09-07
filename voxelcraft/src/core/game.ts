@@ -34,10 +34,11 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { brewingScreen, chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
-import { containerKind, createBlockEntity, type BrewingEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { brewingScreen, chestScreen, crafterScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { containerKind, createBlockEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { tickBrewing } from '../blocks/brewing.ts';
+import { craftOnce } from '../blocks/crafter.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
@@ -77,6 +78,7 @@ import { ChestRenderer, chestModel, chestStates, isChestBlock } from '../blocks/
 import { BlockEntityRenderer, drawnStates } from '../blocks/blockEntityRender.ts';
 import { compost, composterLevel, composterState } from '../blocks/composter.ts';
 import { openSignEditor } from '../ui/signEditor.ts';
+import { openBookEditor, openBookReader } from '../ui/bookScreen.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
 
 export interface GameAssets {
@@ -192,6 +194,8 @@ export class Game {
   private readonly blockAtlas: LoadedAtlas;
   private enchantSeed = (Math.random() * 0xffffffff) >>> 0;
   private signEditorClose: (() => void) | null = null;
+  /** Closes whatever full-screen overlay is up: a book being read or written. */
+  private overlayClose: (() => void) | null = null;
   private stepDistance = 0;
   private attackTicks = 100;
   private readonly animalChunks: Set<string>;
@@ -499,6 +503,7 @@ export class Game {
   async quit(): Promise<void> {
     this.closeScreen();
     this.signEditorClose?.();
+    this.overlayClose?.();
     this.signs.clear();
     this.chests.prune(new Set());
     this.chestBlocks.clear();
@@ -1551,6 +1556,123 @@ export class Game {
   }
 
   /**
+   * A lectern holds one book: an empty one takes whatever book is held, and one with a book on it
+   * opens at the page it was left at. Sneaking takes the book back.
+   */
+  private useLectern(t: RaycastHit): boolean {
+    const p = this.player;
+    let entity = this.world.getBlockEntity(t.x, t.y, t.z) as LecternEntity | undefined;
+    if (!entity || entity.type !== 'lectern') {
+      entity = createBlockEntity('lectern') as LecternEntity;
+      this.world.setBlockEntity(t.x, t.y, t.z, entity);
+    }
+    const mark = () => this.world.markModifiedAt(t.x, t.z);
+    const held = p.heldItem();
+    if (!entity.book) {
+      if (!held || (held.id !== 'written_book' && held.id !== 'writable_book')) return false;
+      entity.book = { ...held, count: 1 };
+      if (p.gamemode !== 'creative') p.inventory.consumeSelected();
+      this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'has_book', 'true'));
+      mark();
+      this.audio.play('click', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+      return true;
+    }
+    const book = entity.book;
+    const take = (): void => {
+      entity.book = null;
+      entity.page = 0;
+      this.world.setBlock(t.x, t.y, t.z, blocks.withProp(this.world.getBlock(t.x, t.y, t.z), 'has_book', 'false'));
+      if (p.inventory.add(book) > 0) this.dropStack(book, t.x + 0.5, t.y + 1, t.z + 0.5, true);
+      mark();
+    };
+    if (p.sneaking) {
+      take();
+      return true;
+    }
+    this.openReader(book, entity.page, (n) => {
+      entity.page = n;
+      mark();
+    }, take);
+    return true;
+  }
+
+  /** A book in the hand: a written one is read, a book and quill is written in. */
+  private openBook(stack: ItemStack): void {
+    if (stack.id === 'written_book') {
+      this.openReader(stack, 0, () => {});
+      return;
+    }
+    this.pauseForOverlay();
+    this.overlayClose = openBookEditor(this.renderer.canvas.parentElement ?? document.body, stack.pages ?? [''], (pages, title) => {
+      this.overlayClose = null;
+      if (title) {
+        // signing turns the quill book into a written one, as vanilla does
+        const written: ItemStack = { id: 'written_book', count: 1, pages, name: title, author: 'Player' };
+        this.player.inventory.slots[this.player.inventory.selected] = written;
+      } else {
+        stack.pages = pages;
+      }
+      this.resumeFromOverlay();
+    });
+  }
+
+  /** Opens the reading view over the world, pausing input while it is up. */
+  private openReader(stack: ItemStack, page: number, onPage: (n: number) => void, onTake?: () => void): void {
+    const title = stack.name ?? (stack.id === 'written_book' ? 'Written Book' : 'Book and Quill');
+    this.pauseForOverlay();
+    this.overlayClose = openBookReader(this.renderer.canvas.parentElement ?? document.body, title, stack.pages ?? [''], page, onPage, () => {
+      this.overlayClose = null;
+      this.resumeFromOverlay();
+    }, onTake);
+  }
+
+  /** Books and the sign editor both take over the screen the same way. */
+  private pauseForOverlay(): void {
+    this.state = 'gui';
+    this.input.enabled = false;
+    this.input.exitLock();
+  }
+
+  private resumeFromOverlay(): void {
+    if (this.state !== 'gui') return;
+    this.state = 'playing';
+    this.input.enabled = true;
+    this.input.requestLock();
+    this.input.endFrame();
+    this.input.endTick();
+  }
+
+  /**
+   * A crafter fired by a signal: it makes one of whatever its pattern makes and pushes it out of the
+   * face it points at, into a container when there is one and into the world when there is not.
+   */
+  private craftFromCrafter(x: number, y: number, z: number, state: number): void {
+    const entity = this.world.getBlockEntity(x, y, z) as CrafterEntity | null;
+    if (!entity || entity.type !== 'crafter') return;
+    const made = craftOnce(entity);
+    if (!made) {
+      this.audio.play('click', { x: x + 0.5, y: y + 0.5, z: z + 0.5, pitch: 0.6 });
+      return;
+    }
+    // the orientation names the face it points at first, as in `down_east` or `north_up`
+    const orientation = blocks.prop(state, 'orientation') ?? 'north_up';
+    const facing = orientation.split('_')[0];
+    const [dx, dy, dz] = FACING_OFFSET[facing] ?? FACING_OFFSET.north;
+    const target = containerAt(this.hopperWorld(), x + dx, y + dy, z + dz);
+    let left = made.count;
+    while (target && left > 0 && insertOne(target, made, facing)) left--;
+    if (target) this.world.markModifiedAt(x + dx, z + dz);
+    // whatever the container would not take is thrown out the front instead
+    if (left > 0) {
+      const e = this.dropStack({ ...made, count: left }, x + 0.5 + dx * 0.7, y + 0.5 + dy * 0.7, z + 0.5 + dz * 0.7, false);
+      e.vel.set(dx * 0.25, dy * 0.25 + 0.1, dz * 0.25);
+      e.pickupDelay = 10;
+    }
+    this.world.markModifiedAt(x, z);
+    this.audio.play('click', { x: x + 0.5, y: y + 0.5, z: z + 0.5, pitch: 1.4 });
+  }
+
+  /**
    * A cauldron: buckets fill and empty it, bottles take and give a third of it, and dyed leather
    * and patterned banners are washed clean in the water, each taking a level with them.
    */
@@ -1857,6 +1979,20 @@ export class Game {
     }
     if (def.id === 'composter') return this.useComposter(t);
     if (def.id.endsWith('cauldron')) return this.useCauldron(t, def.id);
+    if (def.id === 'lectern') {
+      return this.useLectern(t);
+    }
+    if (def.id === 'crafter') {
+      let entity = this.world.getBlockEntity(t.x, t.y, t.z) as CrafterEntity | undefined;
+      if (!entity || entity.type !== 'crafter') {
+        entity = createBlockEntity('crafter') as CrafterEntity;
+        this.world.setBlockEntity(t.x, t.y, t.z, entity);
+      }
+      const screen = crafterScreen(inv, entity, mark);
+      screen.onChange = mark;
+      this.openScreen(screen);
+      return true;
+    }
     if (def.id === 'brewing_stand') {
       let entity = this.world.getBlockEntity(t.x, t.y, t.z) as BrewingEntity | undefined;
       if (!entity || entity.type !== 'brewing_stand') {
@@ -1986,6 +2122,10 @@ export class Game {
     }
     if (def.behavior === 'fishing_rod') {
       this.useRod();
+      return;
+    }
+    if (held.id === 'writable_book' || held.id === 'written_book') {
+      this.openBook(held);
       return;
     }
     if (def.behavior === 'potion' && held.id !== 'potion') {
@@ -2230,6 +2370,10 @@ export class Game {
     const state = this.world.getBlock(x, y, z);
     if (state === 0) return;
     const def = blocks.blockOf(state);
+    if (def.id === 'crafter') {
+      this.craftFromCrafter(x, y, z, state);
+      return;
+    }
     if (def.id !== 'dispenser' && def.id !== 'dropper') return;
     const entity = this.world.getBlockEntity(x, y, z) as ContainerEntity | null;
     if (!entity || !('items' in entity)) return;

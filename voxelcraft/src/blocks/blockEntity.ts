@@ -21,6 +21,23 @@ export interface FurnaceEntity {
   xp: number;
 }
 
+/** Crafters: a three-by-three of slots, some of which can be switched off. */
+export interface CrafterEntity {
+  type: 'crafter';
+  items: Slot[];
+  /** Slots the player has switched off, which stay empty and are left out of the pattern. */
+  disabled: boolean[];
+  /** True while the crafter is playing its craft, which vanilla shows on the block. */
+  crafting: boolean;
+}
+
+/** Lecterns: the book on the stand and the page it is open at. */
+export interface LecternEntity {
+  type: 'lectern';
+  book: Slot;
+  page: number;
+}
+
 /** Brewing stands: three bottles, the ingredient over them and the blaze powder that fires it. */
 export interface BrewingEntity {
   type: 'brewing_stand';
@@ -58,7 +75,7 @@ export interface SpawnerEntity {
   delay: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | SignEntity | HiveEntity | SpawnerEntity;
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | SignEntity | HiveEntity | SpawnerEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -77,6 +94,8 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
     return { type: blockId, items: [null, null, null], burnTime: 0, burnTotal: 0, cookTime: 0, cookTotal: blockId === 'furnace' ? 200 : 100, xp: 0 };
   }
   if (blockId === 'brewing_stand') return { type: 'brewing_stand', items: [null, null, null, null, null], brewTime: 0, fuel: 0 };
+  if (blockId === 'crafter') return { type: 'crafter', items: new Array(9).fill(null), disabled: new Array(9).fill(false), crafting: false };
+  if (blockId === 'lectern') return { type: 'lectern', book: null, page: 0 };
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };

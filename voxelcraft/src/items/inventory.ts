@@ -16,6 +16,9 @@ export interface ItemStack {
   contents?: (ItemStack | null)[];
   /** What a bottle holds: a potion id from `items/potions.ts`. */
   potion?: string;
+  /** Written and writable books: their pages, and who wrote a signed one. */
+  pages?: string[];
+  author?: string;
 }
 
 export type Slot = ItemStack | null;

@@ -605,3 +605,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     bottles, washes the dye and the name off what is dipped in it, burns whoever stands in a lava
     one and puts out whoever stands in a water one, taking a level for it. Rain filling a cauldron
     waits for weather.
+
+87. **The crafter and the lectern.** A crafter is a three-by-three whose slots can each be switched
+    off with an empty hand, exactly as vanilla lets you; a signal makes one of whatever the pattern
+    makes and pushes it out of the face the block points at, into a container when there is one and
+    onto the ground when there is not. An item hoppered in goes to the emptiest slot that is on, so
+    a line of hoppers fills the grid evenly. A lectern holds one book, remembers the page it was
+    left at, and hands the book back to whoever sneaks at it. Books are read on vanilla's book
+    background and written on it too, the title typed on the book itself rather than in a dialog,
+    since signing turns a book and quill into a written book. Fixing the crafter turned up a
+    long-standing crash: right-clicking a dispenser or dropper by hand called a behaviour that did
+    not exist.
