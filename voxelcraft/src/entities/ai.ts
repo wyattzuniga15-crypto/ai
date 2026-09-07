@@ -1224,6 +1224,62 @@ export const llamaSpitGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Axolotls and parrots
+// ---------------------------------------------------------------------------------------------
+/** How long an axolotl plays dead for, which is vanilla's ten seconds. */
+export const AXOLOTL_PLAY_DEAD_TICKS = 200;
+
+/**
+ * Vanilla's axolotl: badly hurt in the water, it rolls over and plays dead, healing while it lies
+ * there and being left alone by whatever was chasing it.
+ */
+export const axolotlPlayDeadGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => {
+    const left = typeof m.extra.playDead === 'number' ? m.extra.playDead : 0;
+    if (left > 0) return true;
+    // it starts when a blow leaves it under half health and it is still in the water
+    return m.inWater && m.age - m.lastHurtTime < 3 && m.health <= m.def.health / 2 && w.rng() < 0.5;
+  },
+  canContinue: (m) => (typeof m.extra.playDead === 'number' ? m.extra.playDead : 0) > 0,
+  tick: (m) => {
+    const left = typeof m.extra.playDead === 'number' && m.extra.playDead > 0 ? m.extra.playDead : AXOLOTL_PLAY_DEAD_TICKS;
+    m.extra.playDead = left - 1;
+    m.moveTarget = null;
+    m.lookTarget = null;
+    m.vel.x = 0;
+    m.vel.z = 0;
+    // vanilla heals it a little while it lies there, which is what makes the trick worth doing
+    if (left % 20 === 0) m.health = Math.min(m.def.health, m.health + 1);
+  },
+  stop: (m) => {
+    m.extra.playDead = 0;
+  },
+});
+
+/** How far a parrot hears a record, which is the reach vanilla gives a jukebox. */
+export const PARROT_DANCE_RANGE = 3;
+
+/**
+ * Vanilla's parrot dances to a record: one within three blocks of a jukebox that is playing bobs
+ * where it stands until the music stops.
+ */
+export const parrotDanceGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => !!w.recordNear?.(m.pos.x, m.pos.y, m.pos.z, PARROT_DANCE_RANGE),
+  canContinue: (m, w) => !!w.recordNear?.(m.pos.x, m.pos.y, m.pos.z, PARROT_DANCE_RANGE),
+  tick: (m) => {
+    m.extra.dancing = true;
+    m.moveTarget = null;
+    m.vel.x = 0;
+    m.vel.z = 0;
+  },
+  stop: (m) => {
+    m.extra.dancing = false;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Golems
 // ---------------------------------------------------------------------------------------------
 /** What an iron golem counts as an enemy: the monsters, and never a creeper, which vanilla spares. */

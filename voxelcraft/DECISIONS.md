@@ -1283,3 +1283,19 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      whoever hits it. What it does not do yet is belong to a village: vanilla's golems are spawned
      by villagers who are frightened, and they hand out poppies. The villages here have villagers
      but no fear, so a golem still has to be built by hand.
+
+125. **Axolotls, frogs, tadpoles and parrots.** Four more, each with the thing that makes it worth
+     meeting.
+
+     An axolotl comes in vanilla's five colours, with blue drawn once in twelve hundred and the
+     other four evenly; badly hurt in the water it rolls onto its back and plays dead for ten
+     seconds, healing a heart a second while it lies there, which is the whole trick. Vanilla puts
+     them in the lush caves, and since nothing here asks a cave which biome it is, they spawn in the
+     same sunless underground water the glow squid use — but only over a bed of clay, which is a
+     real vanilla condition and gets them into roughly the right caves.
+
+     A frog takes its colour from how warm the swamp it hatched in is, cold, temperate or warm, and
+     a tadpole is the head and tail it grew from. A parrot comes in vanilla's five colours and
+     dances beside a jukebox that is playing, which needed the mob world to be able to ask whether
+     there is a record spinning within three blocks — the reach vanilla gives it. It bobs from foot
+     to foot until the music stops, which is exactly as much as vanilla's parrot does about it.

@@ -412,6 +412,7 @@ export class Game {
       topBlock: (x, z) => this.world.topBlock(x, z),
       arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
       blockMesh: (state) => this.blockMeshes.mesh(state),
+      recordNear: (x, y, z, range) => !!this.record && Math.hypot(this.record.x + 0.5 - x, this.record.y + 0.5 - y, this.record.z + 0.5 - z) <= range,
       arrowHitMob: (box, damage, fire, knockback, effects, pierced) => {
         // a bolt that has already gone through a mob never hits the same one twice
         const hit = this.entities.mobsIntersecting(box).find((m) => !pierced?.includes(m));

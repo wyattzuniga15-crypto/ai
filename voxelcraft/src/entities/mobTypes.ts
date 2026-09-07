@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -304,6 +304,62 @@ const snowGolemModel: ModelDef = {
     { name: 'left_arm', parent: 'piece1', pivot: [0, 6, 0], rotation: [0, Math.PI, 0], boxes: [{ uv: [32, 0], box: [1, -4, -1, 12, 2, 2], inflate: -0.5 }] },
   ],
 };
+
+
+/** The axolotl, whose gills fan out either side of its head. */
+const axolotlModel = (texture = 'axolotl/axolotl_lucy.png'): ModelDef => ({
+  texture, texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 21, 4], boxes: [{ uv: [0, 11], box: [-4, -1, -9, 8, 4, 10] }, { uv: [2, 17], box: [0, -2, -9, 0, 5, 9] }] },
+    { name: 'right_front_leg', parent: 'body', pivot: [-4, 23, -4], rotation: [0, HALF_PI, 0], boxes: [{ uv: [2, 13], box: [-2, 0, 0, 3, 5, 0] }] },
+    { name: 'right_hind_leg', parent: 'body', pivot: [-4, 23, 4], rotation: [0, -HALF_PI, 0], boxes: [{ uv: [2, 13], box: [-1, 0, 0, 3, 5, 0] }] },
+    { name: 'left_front_leg', parent: 'body', pivot: [4, 23, -4], rotation: [0, -HALF_PI, 0], boxes: [{ uv: [2, 13], box: [-1, 0, 0, 3, 5, 0] }] },
+    { name: 'left_hind_leg', parent: 'body', pivot: [4, 23, 4], rotation: [0, HALF_PI, 0], boxes: [{ uv: [2, 13], box: [-2, 0, 0, 3, 5, 0] }] },
+    { name: 'tail_fin', parent: 'body', pivot: [0, 22, 4], boxes: [{ uv: [2, 19], box: [0, -3, 0, 0, 5, 12] }] },
+    { name: 'head', parent: 'body', pivot: [0, 22, -5], boxes: [{ uv: [0, 1], box: [-4, -3, -5, 8, 5, 5] }] },
+    { name: 'left_gills', parent: 'head', pivot: [4, 22, -6], boxes: [{ uv: [11, 40], box: [0, -5, 0, 3, 7, 0] }] },
+    { name: 'right_gills', parent: 'head', pivot: [-4, 22, -6], boxes: [{ uv: [0, 40], box: [-3, -5, 0, 3, 7, 0] }] },
+    { name: 'top_gills', parent: 'head', pivot: [0, 19, -6], boxes: [{ uv: [3, 37], box: [-4, -3, 0, 8, 3, 0] }] },
+  ],
+});
+
+/** The frog, which hops on its long back legs. */
+const frogModel = (texture = 'frog/temperate_frog.png'): ModelDef => ({
+  texture, texW: 48, texH: 48,
+  parts: [
+    { name: 'body', pivot: [0, 22, 4], boxes: [{ uv: [3, 1], box: [-3.5, -2, -8, 7, 3, 9] }, { uv: [23, 22], box: [-3.5, -1, -8, 7, 0, 9] }] },
+    { name: 'head', parent: 'body', pivot: [0, 20, 3], boxes: [{ uv: [23, 13], box: [-3.5, -1, -7, 7, 0, 9] }, { uv: [0, 13], box: [-3.5, -2, -7, 7, 3, 9] }] },
+    { name: 'right_eye', parent: 'head', pivot: [-2, 17, -1.5], boxes: [{ uv: [0, 0], box: [-1.5, -1, -1.5, 3, 2, 3] }] },
+    { name: 'left_eye', parent: 'head', pivot: [2, 17, -1.5], boxes: [{ uv: [0, 5], box: [-1.5, -1, -1.5, 3, 2, 3] }] },
+    { name: 'left_front_leg', parent: 'body', pivot: [4, 21, -2.5], boxes: [{ uv: [0, 32], box: [-1, 0, -1, 2, 3, 3] }, { uv: [18, 40], box: [-4, 3.01, -5, 8, 0, 8] }] },
+    { name: 'right_front_leg', parent: 'body', pivot: [-4, 21, -2.5], boxes: [{ uv: [0, 38], box: [-1, 0, -1, 2, 3, 3] }, { uv: [2, 40], box: [-4, 3.01, -5, 8, 0, 8] }] },
+    { name: 'left_hind_leg', pivot: [3.5, 21, 4], boxes: [{ uv: [14, 25], box: [-1, 0, -2, 3, 3, 4] }, { uv: [2, 32], box: [-2, 3.01, -4, 8, 0, 8] }] },
+    { name: 'right_hind_leg', pivot: [-3.5, 21, 4], boxes: [{ uv: [0, 25], box: [-2, 0, -2, 3, 3, 4] }, { uv: [18, 32], box: [-6, 3.01, -4, 8, 0, 8] }] },
+  ],
+});
+
+/** The tadpole: a head and a tail, and nothing else. */
+const tadpoleModel: ModelDef = {
+  texture: 'tadpole/tadpole.png', texW: 16, texH: 16,
+  parts: [
+    { name: 'body', pivot: [0, 24, 1], boxes: [{ uv: [0, 0], box: [-1.5, -5, -3.5, 3, 2, 3] }] },
+    { name: 'tail_fin', pivot: [0, 24, 1], boxes: [{ uv: [0, 0], box: [0, -5, -1.5, 0, 2, 7] }] },
+  ],
+};
+
+/** The parrot, whose wings beat when it is off the ground and whose feet shuffle when it dances. */
+const parrotModel = (texture = 'parrot/parrot_red_blue.png'): ModelDef => ({
+  texture, texW: 32, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 16.5, -3], boxes: [{ uv: [2, 8], box: [-1.5, 0, -1.5, 3, 6, 3] }] },
+    { name: 'head', parent: 'body', pivot: [0, 15.7, -2.8], boxes: [{ uv: [2, 2], box: [-1, -1.5, -1, 2, 3, 2] }, { uv: [10, 0], box: [-1, -2.3, -3, 2, 1, 4] }, { uv: [11, 7], box: [-0.5, -1.5, -2.2, 1, 2, 1] }, { uv: [16, 7], box: [-0.5, -0.2, -2.2, 1, 1.7, 1] }, { uv: [2, 18], box: [0, -3.7, -3.3, 0, 5, 4] }] },
+    { name: 'tail', parent: 'body', pivot: [0, 21.1, 1.2], boxes: [{ uv: [22, 1], box: [-1.5, -1, -1, 3, 4, 1] }] },
+    { name: 'left_wing', parent: 'body', pivot: [1.5, 16.9, -2.8], boxes: [{ uv: [19, 8], box: [-0.5, 0, -1.5, 1, 5, 3] }] },
+    { name: 'right_wing', parent: 'body', pivot: [-1.5, 16.9, -2.8], boxes: [{ uv: [19, 8], box: [-0.5, 0, -1.5, 1, 5, 3] }] },
+    { name: 'left_leg', parent: 'body', pivot: [1.5, 23, -0.5], boxes: [{ uv: [14, 18], box: [-1, -0.5, -1, 1, 2, 1] }] },
+    { name: 'right_leg', parent: 'body', pivot: [-0.5, 23, -0.5], boxes: [{ uv: [14, 18], box: [-1, -0.5, -1, 1, 2, 1] }] },
+  ],
+});
 
 const phantomModel: ModelDef = {
   texture: 'phantom.png', texW: 64, texH: 64,
@@ -1001,6 +1057,7 @@ export const BREEDING_FOODS: Record<string, string[]> = {
   cow: ['wheat'], mooshroom: ['wheat'], sheep: ['wheat'], pig: ['carrot', 'potato', 'beetroot'],
   turtle: ['seagrass'], goat: ['wheat'], fox: ['sweet_berries', 'glow_berries'],
   rabbit: ['carrot', 'golden_carrot', 'dandelion'], panda: ['bamboo'], llama: ['hay_block'],
+  axolotl: ['tropical_fish_bucket'], frog: ['slime_ball'], parrot: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds'],
   chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
 };
 export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
@@ -1038,6 +1095,22 @@ export function pandaGene(rng: () => number): string {
   if (r < 0.97) return 'weak';
   return 'brown';
 }
+
+/** Vanilla's axolotl colours: one in twelve hundred is blue, and the rest are drawn evenly. */
+export const AXOLOTL_COLORS = ['lucy', 'wild', 'gold', 'cyan'];
+export function axolotlColor(rng: () => number): string {
+  if (rng() < 1 / 1200) return 'blue';
+  return AXOLOTL_COLORS[Math.floor(rng() * AXOLOTL_COLORS.length)];
+}
+
+/** Vanilla's frogs take their colour from how warm the swamp they hatched in is. */
+export function frogVariantFor(temperature: number): string {
+  if (temperature <= 0.3) return 'cold';
+  return temperature >= 1 ? 'warm' : 'temperate';
+}
+
+/** Vanilla's parrot colours, drawn evenly. */
+export const PARROT_COLORS = ['red_blue', 'blue', 'green', 'yellow_blue', 'grey'];
 
 /** Vanilla's llama coats. */
 export const LLAMA_COATS = ['creamy', 'white', 'brown', 'gray'];
@@ -1120,6 +1193,12 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   skeleton_horse: { model: equineModel('horse/horse_skeleton.png', 'horse', null, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   zombie_horse: { model: equineModel('horse/horse_zombie.png', 'horse', null, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   // and the villager the plague took, which cures back into one given time and a golden apple
+  // the water and the swamp: an axolotl that plays dead, a frog and the tadpole it grew from
+  axolotl: { model: axolotlModel(), animation: 'fish', eyeHeight: 0.3, followRange: 16, aquatic: true, goals: () => [swimGoal(), axolotlPlayDeadGoal(), panicGoal(1.6)] },
+  frog: { model: frogModel(), animation: 'rabbit', eyeHeight: 0.4, followRange: 16, goals: () => passiveGoals(1.5) },
+  tadpole: { model: tadpoleModel, animation: 'fish', eyeHeight: 0.2, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
+  // the jungle's parrot, which dances to whatever a jukebox is playing
+  parrot: { model: parrotModel(), animation: 'chicken', eyeHeight: 0.8, followRange: 16, flapping: true, goals: () => [floatGoal, parrotDanceGoal(), panicGoal(1.4), wanderGoal(120, 1, 10), lookAtPlayerGoal(8), randomLookGoal] },
   // the two that are built rather than born: a village's guardian and the player's own snowman
   iron_golem: { model: ironGolemModel, animation: 'biped', eyeHeight: 2.4, followRange: 32, goals: () => golemGoals() },
   snow_golem: { model: snowGolemModel, animation: 'biped', eyeHeight: 1.7, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), snowGolemGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(8), randomLookGoal] },

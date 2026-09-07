@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, PARROT_COLORS, axolotlColor, frogVariantFor, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -51,6 +51,8 @@ const PANDA_BIOMES = new Set(['bamboo_jungle', 'jungle']);
 const BEAR_BIOMES = new Set(['snowy_plains', 'snowy_taiga', 'snowy_slopes', 'frozen_peaks', 'ice_spikes', 'frozen_river', 'grove']);
 const LLAMA_BIOMES = new Set(['savanna', 'savanna_plateau', 'windswept_savanna', 'windswept_hills', 'windswept_forest', 'windswept_gravelly_hills']);
 const RABBIT_BIOMES = new Set(['desert', 'flower_forest', 'taiga', 'snowy_taiga', 'snowy_plains', 'ice_spikes', 'grove', 'meadow', 'badlands', 'wooded_badlands', 'eroded_badlands']);
+const PARROT_BIOMES = new Set(['jungle', 'sparse_jungle', 'bamboo_jungle']);
+const FROG_BIOMES = new Set(['swamp', 'mangrove_swamp']);
 
 /** Vanilla's goat biomes: the peaks and the slopes under them. */
 const GOAT_BIOMES = new Set(['frozen_peaks', 'jagged_peaks', 'stony_peaks', 'snowy_slopes', 'windswept_hills', 'meadow']);
@@ -87,6 +89,8 @@ export class EntityManager {
     if (type === 'rabbit') m.extra.variant = rabbitVariantFor(biomes[this.host.getBiome(Math.floor(x), Math.floor(z))]?.id ?? 'plains', this.host.rng);
     if (type === 'panda') m.extra.gene = pandaGene(this.host.rng);
     if (type === 'llama') m.extra.coat = LLAMA_COATS[Math.floor(this.host.rng() * LLAMA_COATS.length)];
+    if (type === 'axolotl') m.extra.color = axolotlColor(this.host.rng);
+    if (type === 'parrot') m.extra.color = PARROT_COLORS[Math.floor(this.host.rng() * PARROT_COLORS.length)];
     if (EQUINE_TYPES.includes(type)) initEquine(m, this.host.rng);
     this.mobs.push(m);
     this.host.scene.add(m.model.group);
@@ -291,17 +295,19 @@ export class EntityManager {
     const bear = BEAR_BIOMES.has(biome.id) && h.rng() < 0.4;
     const llama = LLAMA_BIOMES.has(biome.id) && h.rng() < 0.35;
     const rabbit = RABBIT_BIOMES.has(biome.id) && h.rng() < 0.4;
+    const parrot = PARROT_BIOMES.has(biome.id) && h.rng() < 0.4;
+    const frog = FROG_BIOMES.has(biome.id) && h.rng() < 0.6;
     // vanilla spawns ocelots only in the jungles, in pairs
     const ocelot = biome.category === 'jungle' && h.rng() < 0.25;
     // vanilla plains and savannas spawn herds of horses, and one in five of those is a donkey
     const equine = HORSE_BIOMES.has(biome.id) && h.rng() < 0.4;
-    const type = panda ? 'panda' : bear ? 'polar_bear' : llama ? 'llama' : rabbit ? 'rabbit' : fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    const type = parrot ? 'parrot' : frog ? 'frog' : panda ? 'panda' : bear ? 'polar_bear' : llama ? 'llama' : rabbit ? 'rabbit' : fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
     // horse herds share one coat like vanilla's group spawn
     const herdCoat = HORSE_COATS[Math.floor(h.rng() * HORSE_COATS.length)];
     // a llama herd shares a coat the way a horse herd shares one
     const herdCoatLlama = LLAMA_COATS[Math.floor(h.rng() * LLAMA_COATS.length)];
-    const want = ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : bear ? 1 + Math.floor(h.rng() * 2) : llama ? 4 + Math.floor(h.rng() * 3) : rabbit ? 2 + Math.floor(h.rng() * 3) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
+    const want = parrot ? 1 + Math.floor(h.rng() * 2) : frog ? 2 + Math.floor(h.rng() * 4) : ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : bear ? 1 + Math.floor(h.rng() * 2) : llama ? 4 + Math.floor(h.rng() * 3) : rabbit ? 2 + Math.floor(h.rng() * 3) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
     let spawned = 0;
     for (let i = 0; i < 12 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 7) - 3 + 0.5;
@@ -318,6 +324,8 @@ export class EntityManager {
       if (m && type === 'rabbit') m.extra.variant = rabbitVariantFor(biome.id, h.rng);
       if (m && type === 'panda') m.extra.gene = pandaGene(h.rng);
       if (m && type === 'llama') m.extra.coat = herdCoatLlama;
+      if (m && type === 'parrot') m.extra.color = PARROT_COLORS[Math.floor(h.rng() * PARROT_COLORS.length)];
+      if (m && type === 'frog') m.extra.variant = frogVariantFor(biome.temperature);
       spawned++;
     }
   }
@@ -543,7 +551,9 @@ export class EntityManager {
     if (top < WORLD_MIN_Y) return;
     // vanilla turns half the bat attempts away before it looks at anything else
     const glow = h.rng() < 0.5;
-    const type = glow ? 'glow_squid' : 'bat';
+    // vanilla's axolotls share the underground water with the glow squid, over a bed of clay
+    const axolotl = glow && h.rng() < 0.4;
+    const type = axolotl ? 'axolotl' : glow ? 'glow_squid' : 'bat';
     if (this.mobs.filter((m) => !m.dead && m.def.id === type).length >= cap) return;
     const ceiling = glow ? 30 : Math.min(top, SEA_LEVEL - 1);
     if (ceiling <= WORLD_MIN_Y + 2) return;
@@ -561,6 +571,12 @@ export class EntityManager {
       if (glow) {
         // glow squid want water with more water over it, out of the sun
         if (!water || h.getSkyLight(Math.floor(px), py, Math.floor(pz)) > 0) continue;
+        // vanilla's axolotls want a lush cave, which here means clay under the water they are in
+        if (axolotl) {
+          let clay = false;
+          for (let d = 1; d <= 5 && !clay; d++) clay = blocks.blockOf(h.getBlock(Math.floor(px), py - d, Math.floor(pz))).id === 'clay';
+          if (!clay) continue;
+        }
       } else {
         if (at !== 0) continue;
         if (h.getBlock(Math.floor(px), py - 1, Math.floor(pz)) === 0 && h.rng() < 0.5) continue;

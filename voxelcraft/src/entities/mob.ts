@@ -64,6 +64,8 @@ export interface MobWorld extends BlockSource {
   playerHasEffect(id: string): boolean;
   /** Item id the player is holding, for goals that follow food (vanilla TemptGoal). */
   playerHolding(): string | null;
+  /** Whether a jukebox within `range` is spinning a record, which is what a parrot dances to. */
+  recordNear?(x: number, y: number, z: number, range: number): boolean;
   /** Nearest block matching any of `ids` (bees looking for flowers or their hive). */
   findBlock?(x: number, y: number, z: number, range: number, ids: string[]): { x: number; y: number; z: number; block: string } | null;
   /** A bee carrying nectar reached its hive: stores it and returns whether the bee went inside. */
@@ -1102,6 +1104,21 @@ export class Mob {
       }
     }
     if (this.def.id === 'rabbit') this.setTexture(`rabbit/${String(this.extra.variant ?? 'brown')}.png`);
+    if (this.def.id === 'axolotl') {
+      this.setTexture(`axolotl/axolotl_${String(this.extra.color ?? 'lucy')}.png`);
+      // vanilla rolls a playing-dead axolotl onto its back
+      if (typeof this.extra.playDead === 'number' && this.extra.playDead > 0) g.rotation.z = Math.PI;
+    }
+    if (this.def.id === 'frog') this.setTexture(`frog/${String(this.extra.variant ?? 'temperate')}_frog.png`);
+    if (this.def.id === 'parrot') {
+      this.setTexture(`parrot/parrot_${String(this.extra.color ?? 'red_blue')}.png`);
+      if (this.extra.dancing === true) {
+        // vanilla bobs a dancing parrot from foot to foot rather than moving it anywhere
+        const bob = Math.sin((this.age + alpha) * 0.4);
+        g.position.y += Math.abs(bob) * 0.12;
+        g.rotation.z = bob * 0.25;
+      }
+    }
     if (this.def.id === 'fox') {
       // vanilla curls a sleeping fox onto its side and gives it a skin with its eyes shut
       const snow = this.extra.variant === 'snow';
