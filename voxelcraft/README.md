@@ -16,7 +16,7 @@ npm run build      # static site in dist/ – host it anywhere
 
 `npm run assets` downloads the Minecraft client jar from Mojang's public launcher CDN, or falls back
 to the InventivetalentDev GitHub mirror of the same files, and unpacks what the game needs into
-gitignored folders (`assets/`, `public/atlas`, `public/textures`, `public/models.json`). Nothing
+gitignored folders (`assets/`, `public/atlas`, `public/textures`, `public/texts`, `public/models.json`). Nothing
 Mojang-owned is committed. It also builds the block/item texture atlases. Re-run with
 `-- --force` to refresh, or `-- --source=mirror` to skip the official CDN.
 

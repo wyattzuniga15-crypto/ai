@@ -25,6 +25,10 @@ export interface WorldMeta {
   dragonKilled?: boolean;
   /** The level the End's exit portal stands at, kept as vanilla keeps the fight's portal position. */
   endPodiumY?: number;
+  /** Set once the end poem has rolled, so it only ever plays the first time home. */
+  seenCredits?: boolean;
+  /** Every End gateway that has been opened, and where the one it is paired with stands. */
+  endGateways?: { x: number; y: number; z: number; exit?: [number, number, number] }[];
   /** Which world the player logged out in, and where they stood in the ones they have left. */
   dimension?: Dimension;
   dimensionSpots?: Partial<Record<Dimension, [number, number, number]>>;

@@ -870,3 +870,22 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      being ticked while the next dimension was still being built — a world with no chunks in it yet
      — so anyone crossing in survival fell through the floor and died of it before they arrived.
      They are held still until they land, as vanilla holds them.
+
+102. **Gateways, and the poem.** The gateway the dragon's death opens sits in one of vanilla's
+     twenty slots on a circle of radius ninety-six, shuffled with the world seed and taken from the
+     back so a second dragon would open a second one somewhere else, inside vanilla's own little
+     bedrock shrine. Stepping into it throws a traveller a thousand blocks out along the line from
+     the middle of the island and opens the way back ten blocks above whatever it lands on, which is
+     what vanilla does; where vanilla grows one of its own end islands if that stretch is empty,
+     ours lays a small disc of end stone, because our islands come out of the chunk generator rather
+     than out of a feature that can be placed on demand. Because the world streams chunks around
+     whoever is playing, the traveller is moved out there first and the ground they are landing on
+     is only looked for once it has arrived.
+
+     The end poem and the credits are Mojang's own files, `texts/end.txt` and `texts/credits.json`,
+     fetched by the asset script like every other asset and never committed. The screen reads them
+     at runtime and plays whatever it finds: the poem with vanilla's own colour codes, the reader's
+     name where `PLAYERNAME` stands, and the scrambling drawn as flickering glyphs; then the credits
+     by section. With neither file there it says only that the game is over, which is the same rule
+     the textures follow. It rolls the first time a traveller walks back out of a beaten End, as
+     vanilla plays it once, and Escape skips it.

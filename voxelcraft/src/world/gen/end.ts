@@ -261,3 +261,40 @@ export function endPodium(base: number, active: boolean): PodiumBlock[] {
   if (active) out.push({ x: 0, y: base + 4, z: 0, id: 'dragon_egg' });
   return out;
 }
+
+/** Vanilla's twenty gateway slots: a circle of radius ninety-six around the middle island. */
+export const GATEWAY_SLOTS = 20;
+export const GATEWAY_RADIUS = 96;
+export const GATEWAY_Y = 75;
+/** How far out a gateway throws a traveller, and how far its landing looks for ground. */
+export const GATEWAY_REACH = 1024;
+
+/** Where the gateway in slot `i` stands, straight from vanilla's own arithmetic. */
+export function gatewaySlot(i: number): [number, number] {
+  const a = 2 * (-Math.PI + (Math.PI / GATEWAY_SLOTS) * i);
+  return [Math.floor(GATEWAY_RADIUS * Math.cos(a)), Math.floor(GATEWAY_RADIUS * Math.sin(a))];
+}
+
+/**
+ * Vanilla's `EndGatewayFeature`: the little bedrock shrine a gateway sits in. Its middle layer is
+ * hollow but for the gateway block itself, the layers above and below are a bedrock plus, and one
+ * block caps each end.
+ */
+export function endGatewayShrine(x: number, y: number, z: number): PodiumBlock[] {
+  const out: PodiumBlock[] = [];
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dz = -1; dz <= 1; dz++) {
+        const onX = dx === 0;
+        const level = dy === 0;
+        const onZ = dz === 0;
+        const cap = Math.abs(dy) === 2;
+        const id = onX && level && onZ ? 'end_gateway'
+          : level ? 'air'
+          : cap && onX && onZ ? 'bedrock'
+          : (onX || onZ) && !cap ? 'bedrock'
+          : 'air';
+        out.push({ x: x + dx, y: y + dy, z: z + dz, id });
+      }
+  return out;
+}

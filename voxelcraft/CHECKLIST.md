@@ -111,7 +111,8 @@ coverage counts in `COVERAGE.md`.
 ## Phase 5 – End
 - [x] End, first slice: the dimension itself — vanilla's island noise for the middle island and the outer ones past the void, end stone and the chorus plants that grow out there, its violet sky and its own ambient light; and the way in: eyes of ender filling a stronghold's twelve frames opens the portal, and standing in it puts the traveller on vanilla's obsidian platform at (100, 49, 0), with the way home going back to where they sleep
 - [x] End, second slice: the dragon fight — the ten obsidian pillars with their end crystals, three of them caged; the dragon itself circling the island and diving at whoever is on it, healed by every crystal still standing and untouchable while one is, on vanilla's pink boss bar; a crystal exploding where it stands when it is broken; and the exit portal vanilla's `EndPodiumFeature` builds, empty from the start and filled with the way home, the dragon egg and five hundred experience when the dragon falls
-- [ ] End, next: credits/poem, end cities, elytra, gateways
+- [x] End, third slice: the gateways and the poem — the gateway the dragon's death opens, in one of vanilla's twenty slots around the island, its little bedrock shrine, and the thousand-block throw out to the far islands with the way back opened over whatever it lands on; and vanilla's own end poem and credits rolling the first time a traveller walks back out of a beaten End
+- [ ] End, next: end cities and their ships, shulkers, elytra, purpur and chorus fruit
 
 ## Phase 6 – polish
 - [ ] Everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio, creative inventory tabs and search

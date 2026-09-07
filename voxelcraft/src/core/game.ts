@@ -17,7 +17,7 @@ import { World, FACE_NORMALS, type LoadedChunk, type RaycastHit, type WorldOptio
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
-import { END_PLATFORM, END_SURFACE, endPodium } from '../world/gen/end.ts';
+import { END_PLATFORM, END_SURFACE, GATEWAY_REACH, GATEWAY_SLOTS, GATEWAY_Y, endGatewayShrine, endPodium, gatewaySlot } from '../world/gen/end.ts';
 import { DRAGON_HEIGHT, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
@@ -34,6 +34,7 @@ import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
 import { Chat } from '../ui/chat.ts';
+import { CreditsScreen } from '../ui/credits.ts';
 import { ItemIcons } from '../ui/icons.ts';
 import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
@@ -229,6 +230,10 @@ export class Game {
   private drawTicks = 0;
   /** The raid on the village the player walked into, while one is running. */
   private raid: RaidState | null = null;
+  /** Where the HUD and the screens over it are mounted. */
+  private readonly container: HTMLElement;
+  /** The end poem, while it is rolling. */
+  private credits: CreditsScreen | null = null;
   /** True while the Wither's bar is up, so it can be taken down again when it dies. */
   private witherBar = false;
   /** The same for the dragon's bar, which is up for as long as one is alive in the End. */
@@ -401,6 +406,7 @@ export class Game {
       },
     };
     this.entities = new EntityManager(host);
+    this.container = opts.container;
     this.hud = new Hud(opts.container, this.icons);
     this.chat = new Chat(opts.container);
     this.chat.onSubmit = (t) => this.handleChat(t);
@@ -630,7 +636,17 @@ export class Game {
     const standingIn = blocks.blockOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.5), Math.floor(p.pos.z)))?.id ?? 'air';
     // an end portal takes a traveller at once, as vanilla's does; a nether one counts them in
     if (!p.dead && standingIn === 'end_portal' && !this.travelling && this.portalCooldown <= 0) {
+      // the first walk out of a beaten End is the one vanilla plays the poem over
+      if (this.world.dimension === 'end' && this.meta.dragonKilled && !this.meta.seenCredits) {
+        this.meta.seenCredits = true;
+        this.showCredits();
+      }
       void this.travel(this.world.dimension === 'end' ? 'overworld' : 'end');
+      return;
+    }
+    // a gateway throws them across the End instead of into another world
+    if (!p.dead && standingIn === 'end_gateway' && !this.travelling && this.portalCooldown <= 0) {
+      void this.useGateway(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.5), Math.floor(p.pos.z));
       return;
     }
     const inPortal = !p.dead && standingIn === 'nether_portal';
@@ -797,6 +813,99 @@ export class Game {
       this.world.setBlock(b.x, b.y, b.z, state);
     }
     if (active) this.audio.play('enchant', { x: 0, y: base, z: 0 });
+  }
+
+  /**
+   * Opens the gateway the dragon's death leaves behind. Vanilla shuffles its twenty slots with the
+   * world seed and takes them from the back, one for each dragon beaten, so the first sits wherever
+   * that shuffle put it.
+   */
+  private spawnGateway(): void {
+    const opened = this.meta.endGateways ?? (this.meta.endGateways = []);
+    const order = [...Array(GATEWAY_SLOTS).keys()];
+    const rng = new Rng(this.meta.seed >>> 0);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = rng.int(i + 1);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const inner = opened.filter((g) => Math.hypot(g.x, g.z) < GATEWAY_REACH / 2).length;
+    if (inner >= order.length) return;
+    const [x, z] = gatewaySlot(order[order.length - 1 - inner]);
+    this.placeGateway(x, GATEWAY_Y, z);
+    opened.push({ x, y: GATEWAY_Y, z });
+    this.chat.addLine('A gateway has opened');
+  }
+
+  /** Lays vanilla's little bedrock shrine, with the gateway block in the middle of it. */
+  private placeGateway(x: number, y: number, z: number): void {
+    for (const b of endGatewayShrine(x, y, z)) this.world.setBlock(b.x, b.y, b.z, b.id === 'air' ? 0 : blocks.defaultState(b.id));
+  }
+
+  /**
+   * Stepping into a gateway. Vanilla throws a traveller a thousand blocks out along the line from
+   * the middle of the island, lands them on the tallest thing it finds there — growing an island
+   * first if that stretch of the End is empty — and opens the gateway home ten blocks over it.
+   */
+  private async useGateway(x: number, y: number, z: number): Promise<void> {
+    if (this.world.dimension !== 'end' || this.travelling) return;
+    const opened = this.meta.endGateways ?? (this.meta.endGateways = []);
+    const here = opened.find((g) => Math.abs(g.x - x) <= 1 && Math.abs(g.y - y) <= 1 && Math.abs(g.z - z) <= 1);
+    if (!here) return;
+    this.travelling = true;
+    const p = this.player;
+    try {
+      if (!here.exit) {
+        const len = Math.hypot(x, z) || 1;
+        const tx = Math.round((x / len) * GATEWAY_REACH);
+        const tz = Math.round((z / len) * GATEWAY_REACH);
+        // the world streams chunks around whoever is playing, so the traveller goes first and the
+        // ground they are going to land on is found once it has arrived
+        p.pos.set(tx + 0.5, GATEWAY_Y, tz + 0.5);
+        p.vel.set(0, 0, 0);
+        await this.waitForChunks(tx, tz);
+        let top = this.world.topBlock(tx, tz);
+        if (top <= WORLD_MIN_Y) {
+          // nothing out there to land on: vanilla grows an island under the gateway rather than
+          // leaving a traveller in the void
+          const stone = blocks.defaultState('end_stone');
+          for (let dx = -6; dx <= 6; dx++)
+            for (let dz = -6; dz <= 6; dz++)
+              for (let dy = -3; dy <= 0; dy++)
+                if (dx * dx + dz * dz + dy * dy * 4 <= 36) this.world.setBlock(tx + dx, GATEWAY_Y - 10 + dy, tz + dz, stone);
+          top = GATEWAY_Y - 10;
+        }
+        const ey = top + 10;
+        this.placeGateway(tx, ey, tz);
+        here.exit = [tx, ey, tz];
+        opened.push({ x: tx, y: ey, z: tz, exit: [here.x, here.y, here.z] });
+      }
+      const [ex, ey, ez] = here.exit;
+      p.pos.set(ex + 0.5, ey, ez + 0.5);
+      p.vel.set(0, 0, 0);
+      await this.waitForChunks(ex, ez);
+      p.pos.set(ex + 0.5, ey, ez + 0.5);
+      p.vel.set(0, 0, 0);
+      p.fallDistance = 0;
+      p.onGround = false;
+      this.portalCooldown = PORTAL_COOLDOWN;
+      this.audio.play('enchant', { x: ex, y: ey, z: ez });
+    } finally {
+      this.travelling = false;
+    }
+  }
+
+  /** Rolls the end poem and the credits over everything, until they run out or are skipped. */
+  private showCredits(): void {
+    if (this.credits) return;
+    this.hud.setVisible(false);
+    this.credits = new CreditsScreen(this.container, {
+      base: import.meta.env.BASE_URL,
+      playerName: 'Player',
+      onDone: () => {
+        this.credits = null;
+        this.hud.setVisible(true);
+      },
+    });
   }
 
   /** A chunk going out of view: its mobs and dropped items go with it, saved if it holds any. */
@@ -4385,6 +4494,7 @@ export class Game {
     if (m.def.id === 'ender_dragon') {
       this.meta.dragonKilled = true;
       this.buildExitPortal(true);
+      this.spawnGateway();
       this.spawnXp(500, 0, 68, 0);
       this.chat.addLine('The Ender Dragon has been slain');
       this.hud.showToast('Free the End');

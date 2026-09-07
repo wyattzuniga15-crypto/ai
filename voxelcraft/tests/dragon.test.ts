@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Mob, type MobWorld } from '../src/entities/mob.ts';
 import { mobStats } from '../src/entities/mobTypes.ts';
 import { dragonGoal, dragonShielded } from '../src/entities/ai.ts';
-import { endPodium } from '../src/world/gen/end.ts';
+import { GATEWAY_RADIUS, GATEWAY_SLOTS, endGatewayShrine, endPodium, gatewaySlot } from '../src/world/gen/end.ts';
 
 /** A stand-in for the real mob, as the other entity tests use: the model needs a DOM. */
 const makeMob = (type: string, x = 0, y = 78, z = 0): Mob => {
@@ -119,5 +119,30 @@ describe("the exit portal's podium", () => {
     const low = endPodium(60, true);
     expect(at(low, 0, 64, 0)).toBe('dragon_egg');
     expect(at(low, 1, 60, 0)).toBe('end_portal');
+  });
+});
+
+describe('the gateways the dragon leaves behind', () => {
+  it('puts its twenty slots evenly around vanilla\'s circle', () => {
+    const slots = [...Array(GATEWAY_SLOTS).keys()].map(gatewaySlot);
+    // vanilla floors both coordinates, so a slot lands within a block or so of the circle
+    for (const [x, z] of slots) expect(Math.hypot(x, z)).toBeGreaterThan(GATEWAY_RADIUS - 2);
+    for (const [x, z] of slots) expect(Math.hypot(x, z)).toBeLessThan(GATEWAY_RADIUS + 2);
+    // every one of them stands somewhere different
+    expect(new Set(slots.map(String)).size).toBe(GATEWAY_SLOTS);
+  });
+
+  it('builds vanilla\'s little bedrock shrine around the gateway block', () => {
+    const shrine = endGatewayShrine(10, 75, -20);
+    const at = (x: number, y: number, z: number) => shrine.find((b) => b.x === x && b.y === y && b.z === z)?.id;
+    expect(at(10, 75, -20)).toBe('end_gateway');
+    expect(at(10, 74, -20)).toBe('bedrock'); // the block it stands on
+    expect(at(10, 76, -20)).toBe('bedrock');
+    expect(at(11, 74, -20)).toBe('bedrock'); // the plus around it
+    expect(at(11, 74, -19)).toBe('air'); // but not the corners
+    expect(at(10, 73, -20)).toBe('bedrock'); // the caps, which are the middle column alone
+    expect(at(11, 73, -20)).toBe('air');
+    expect(at(11, 75, -20)).toBe('air'); // and its own layer is open, so it can be walked into
+    expect(shrine).toHaveLength(3 * 5 * 3);
   });
 });

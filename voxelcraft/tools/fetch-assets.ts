@@ -53,6 +53,7 @@ const JAR_PATHS = [
   'assets/minecraft/blockstates/',
   'assets/minecraft/models/',
   'assets/minecraft/items/',
+  'assets/minecraft/texts/',
   'assets/minecraft/lang/en_us.json',
   'data/minecraft/recipe/',
   'data/minecraft/loot_table/',
@@ -184,7 +185,13 @@ async function fetchMirrorRaw(dest: string): Promise<void> {
   }
   while (queue.length) {
     const dir = queue.pop()!;
-    const listing = await fetchJson<Listing>(`${MIRROR_RAW}/${dir}/_list.json`);
+    // a listing that is not there means this source does not carry that folder, which is only ever
+    // true of the optional ones: the fetch goes on without it rather than failing outright
+    const listing = await fetchJson<Listing>(`${MIRROR_RAW}/${dir}/_list.json`).catch(() => null);
+    if (!listing) {
+      log(`mirror: ${dir} not in this source, skipped`);
+      continue;
+    }
     for (const d of listing.directories) queue.push(`${dir}/${d}`);
     for (const f of listing.files) if (!/^_(list|all)\.json$/.test(f)) files.push(`${dir}/${f}`);
   }
@@ -268,10 +275,15 @@ function syncAssets(): void {
     ['blockstates', 'blockstates'],
     ['models', 'models'],
     ['items', 'items'],
+    ['texts', 'texts'],
     ['lang', 'lang'],
   ];
   for (const [from, to] of pairs) {
     fs.rmSync(path.join(ASSETS, to), { recursive: true, force: true });
+    if (!fs.existsSync(path.join(mc, from))) {
+      log(`assets/${to}: not in this source, skipped`);
+      continue;
+    }
     const n = copyDir(path.join(mc, from), path.join(ASSETS, to));
     log(`assets/${to}: ${n} files`);
   }
@@ -293,6 +305,9 @@ function buildRuntimeBundles(): void {
   log(`public/textures: ${n} files`);
   ensureDir(path.join(PUBLIC, 'lang'));
   fs.copyFileSync(path.join(ASSETS, 'lang', 'en_us.json'), path.join(PUBLIC, 'lang', 'en_us.json'));
+  // the end poem and the credits, read at runtime by the screen that plays after the dragon
+  fs.rmSync(path.join(PUBLIC, 'texts'), { recursive: true, force: true });
+  if (fs.existsSync(path.join(ASSETS, 'texts'))) log(`public/texts: ${copyDir(path.join(ASSETS, 'texts'), path.join(PUBLIC, 'texts'))} files`);
 }
 
 async function main() {
