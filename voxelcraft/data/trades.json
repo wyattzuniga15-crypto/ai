@@ -1,0 +1,4642 @@
+{
+ "armorer": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "coal",
+       "count": 15
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "iron_leggings",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "iron_boots",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "iron_helmet",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 9
+      }
+     ],
+     "gives": {
+      "id": "iron_chestplate",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "iron_ingot",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 36
+      }
+     ],
+     "gives": {
+      "id": "bell",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "chainmail_boots",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "chainmail_leggings",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "bucket",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "diamond",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "chainmail_helmet",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "chainmail_chestplate",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "shield",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 14
+      }
+     ],
+     "gives": {
+      "id": "diamond_leggings",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      }
+     ],
+     "gives": {
+      "id": "diamond_boots",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      }
+     ],
+     "gives": {
+      "id": "diamond_helmet",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 30,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 16
+      }
+     ],
+     "gives": {
+      "id": "diamond_chestplate",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 30,
+     "price": 0.2
+    }
+   ]
+  }
+ ],
+ "butcher": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "chicken",
+       "count": 14
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "rabbit",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "porkchop",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "rabbit_stew",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "coal",
+       "count": 15
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "cooked_chicken",
+      "count": 8
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "cooked_porkchop",
+      "count": 5
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "beef",
+       "count": 10
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "mutton",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 20,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "dried_kelp_block",
+       "count": 10
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "sweet_berries",
+       "count": 10
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "cartographer": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "paper",
+       "count": 24
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "glass_pane",
+       "count": 11
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 13
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 12
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "item_frame",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      }
+     ],
+     "gives": {
+      "id": "globe_banner_pattern",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 14
+      },
+      {
+       "id": "compass",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "map",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "cleric": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "rotten_flesh",
+       "count": 32
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "redstone",
+      "count": 2
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "gold_ingot",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "lapis_lazuli",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "rabbit_foot",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "glowstone",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "turtle_scute",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "glass_bottle",
+       "count": 9
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "ender_pearl",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "nether_wart",
+       "count": 22
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "experience_bottle",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "farmer": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "wheat",
+       "count": 20
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "potato",
+       "count": 26
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "beetroot",
+       "count": 15
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "carrot",
+       "count": 22
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "bread",
+      "count": 6
+     },
+     "maxUses": 16,
+     "xp": 1,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "pumpkin",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pumpkin_pie",
+      "count": 4
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "apple",
+      "count": 4
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "melon",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "cookie",
+      "count": 18
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "suspicious_stew",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "cake",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "golden_carrot",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "glistering_melon_slice",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "fisherman": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "string",
+       "count": 20
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "coal",
+       "count": 10
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "bucket",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 1,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "cod",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "cooked_cod",
+      "count": 6
+     },
+     "maxUses": 16,
+     "xp": 1,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "cod",
+       "count": 15
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "campfire",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "salmon",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "cooked_salmon",
+      "count": 6
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "salmon",
+       "count": 13
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "fishing_rod",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 10,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "tropical_fish",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "pufferfish",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "oak_boat",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "fletcher": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "stick",
+       "count": 32
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "arrow",
+      "count": 16
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "gravel",
+       "count": 10
+      }
+     ],
+     "gives": {
+      "id": "flint",
+      "count": 10
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "flint",
+       "count": 26
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "bow",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "string",
+       "count": 14
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "crossbow",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "feather",
+       "count": 24
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "bow",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "tripwire_hook",
+       "count": 8
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "crossbow",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      },
+      {
+       "id": "arrow",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "arrow",
+      "count": 5
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "leather_worker": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "leather",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "leather_leggings",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "leather_chestplate",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "flint",
+       "count": 26
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "leather_helmet",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "leather_boots",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "rabbit_hide",
+       "count": 9
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 7
+      }
+     ],
+     "gives": {
+      "id": "leather_chestplate",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "turtle_scute",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "leather_horse_armor",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "leather_helmet",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "saddle",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.2
+    }
+   ]
+  }
+ ],
+ "librarian": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "paper",
+       "count": 24
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 9
+      }
+     ],
+     "gives": {
+      "id": "bookshelf",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "book",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "enchanted_book",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "book",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "lantern",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "book",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "enchanted_book",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "ink_sac",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "glass",
+      "count": 4
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "book",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "enchanted_book",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "writable_book",
+       "count": 1
+      },
+      {
+       "id": "writable_book",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "compass",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "clock",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      },
+      {
+       "id": "book",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "enchanted_book",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "red_candle",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "red_candle",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "red_candle",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "yellow_candle",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "mason": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "clay_ball",
+       "count": 10
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "brick",
+      "count": 10
+     },
+     "maxUses": 16,
+     "xp": 0,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "stone",
+       "count": 20
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "chiseled_stone_bricks",
+      "count": 4
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "granite",
+       "count": 16
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "polished_granite",
+      "count": 4
+     },
+     "maxUses": 16,
+     "xp": 10,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "quartz",
+       "count": 12
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "white_terracotta",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "quartz_block",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "shepherd": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "white_wool",
+       "count": 18
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "shears",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "black_dye",
+       "count": 12
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "white_wool",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "white_carpet",
+      "count": 4
+     },
+     "maxUses": 16,
+     "xp": 5,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "red_dye",
+       "count": 12
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "white_bed",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "green_dye",
+       "count": 12
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "white_banner",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 15,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "painting",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "tool_smith": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "coal",
+       "count": 15
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "stone_axe",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "stone_shovel",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "stone_pickaxe",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "stone_hoe",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "iron_ingot",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 36
+      }
+     ],
+     "gives": {
+      "id": "bell",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "flint",
+       "count": 30
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "iron_axe",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 10,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "iron_shovel",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 10,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "iron_pickaxe",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 10,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "diamond_hoe",
+      "count": 1
+     },
+     "maxUses": 3,
+     "xp": 10,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "diamond",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 12
+      }
+     ],
+     "gives": {
+      "id": "diamond_axe",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "diamond_shovel",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 13
+      }
+     ],
+     "gives": {
+      "id": "diamond_pickaxe",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 30,
+     "price": 0.2
+    }
+   ]
+  }
+ ],
+ "wandering_trader": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "potion",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "water_bucket",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 2
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "milk_bucket",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 2
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "fermented_spider_eye",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 3
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "baked_potato",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "hay_block",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "packed_ice",
+      "count": 1
+     },
+     "maxUses": 6,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 6
+      }
+     ],
+     "gives": {
+      "id": "blue_ice",
+      "count": 1
+     },
+     "maxUses": 6,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "gunpowder",
+      "count": 4
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "podzol",
+      "count": 3
+     },
+     "maxUses": 6,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "acacia_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "birch_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "dark_oak_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "jungle_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "oak_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "spruce_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "cherry_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pale_oak_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "mangrove_log",
+      "count": 8
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "iron_pickaxe",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 1,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "potion",
+      "count": 1
+     },
+     "maxUses": 1,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "tropical_fish_bucket",
+      "count": 1
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "pufferfish_bucket",
+      "count": 1
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "sea_pickle",
+      "count": 1
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "slime_ball",
+      "count": 1
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "glowstone",
+      "count": 1
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "nautilus_shell",
+      "count": 1
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "fern",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "tall_dry_grass",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "sugar_cane",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pumpkin",
+      "count": 1
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "kelp",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "cactus",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "dandelion",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "poppy",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "blue_orchid",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "allium",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "azure_bluet",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "red_tulip",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "orange_tulip",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "white_tulip",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pink_tulip",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "oxeye_daisy",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "cornflower",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "wildflowers",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "firefly_bush",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "lily_of_the_valley",
+      "count": 1
+     },
+     "maxUses": 7,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "open_eyeblossom",
+      "count": 1
+     },
+     "maxUses": 7,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "wheat_seeds",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "beetroot_seeds",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pumpkin_seeds",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "melon_seeds",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "acacia_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "birch_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "dark_oak_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "jungle_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "oak_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "spruce_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "cherry_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "pale_oak_sapling",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 5
+      }
+     ],
+     "gives": {
+      "id": "mangrove_propagule",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "red_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "white_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "blue_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pink_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "black_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "green_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "light_gray_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "magenta_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "yellow_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "gray_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "purple_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "light_blue_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "lime_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "orange_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "brown_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "cyan_dye",
+      "count": 3
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "brain_coral_block",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "bubble_coral_block",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "fire_coral_block",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "horn_coral_block",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "tube_coral_block",
+      "count": 1
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "vine",
+      "count": 3
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pale_hanging_moss",
+      "count": 3
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "brown_mushroom",
+      "count": 3
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "red_mushroom",
+      "count": 3
+     },
+     "maxUses": 4,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "lily_pad",
+      "count": 5
+     },
+     "maxUses": 2,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "small_dripleaf",
+      "count": 2
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "sand",
+      "count": 8
+     },
+     "maxUses": 8,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "red_sand",
+      "count": 4
+     },
+     "maxUses": 6,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pointed_dripstone",
+      "count": 2
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "rooted_dirt",
+      "count": 2
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "moss_block",
+      "count": 2
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pale_moss_block",
+      "count": 2
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "dandelion",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "name_tag",
+      "count": 1
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "pointed_dripstone",
+      "count": 2
+     },
+     "maxUses": 5,
+     "xp": 0,
+     "price": 0.05
+    }
+   ]
+  }
+ ],
+ "weapon_smith": [
+  {
+   "xp": 0,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "coal",
+       "count": 15
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 16,
+     "xp": 2,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 3
+      }
+     ],
+     "gives": {
+      "id": "iron_axe",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 1,
+     "price": 0.2
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 2
+      }
+     ],
+     "gives": {
+      "id": "iron_sword",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 5,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 10,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "iron_ingot",
+       "count": 4
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 10,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 36
+      }
+     ],
+     "gives": {
+      "id": "bell",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 5,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 70,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "flint",
+       "count": 24
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 20,
+     "price": 0.05
+    }
+   ]
+  },
+  {
+   "xp": 150,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "diamond",
+       "count": 1
+      }
+     ],
+     "gives": {
+      "id": "emerald",
+      "count": 1
+     },
+     "maxUses": 12,
+     "xp": 30,
+     "price": 0.05
+    },
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 12
+      }
+     ],
+     "gives": {
+      "id": "diamond_axe",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 15,
+     "price": 0.2
+    }
+   ]
+  },
+  {
+   "xp": 250,
+   "trades": [
+    {
+     "wants": [
+      {
+       "id": "emerald",
+       "count": 8
+      }
+     ],
+     "gives": {
+      "id": "diamond_sword",
+      "count": 1,
+      "enchanted": true
+     },
+     "maxUses": 3,
+     "xp": 30,
+     "price": 0.2
+    }
+   ]
+  }
+ ]
+}

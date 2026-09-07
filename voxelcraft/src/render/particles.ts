@@ -6,9 +6,9 @@
 import * as THREE from 'three';
 import type { LoadedAtlas } from './atlas.ts';
 
-export type SpriteName = 'heart' | 'crit' | 'damage' | 'poof' | 'smoke' | 'angry';
+export type SpriteName = 'heart' | 'crit' | 'damage' | 'poof' | 'smoke' | 'angry' | 'happy';
 const SPRITE_FILES: Record<SpriteName, string[]> = {
-  heart: ['heart'], crit: ['critical_hit'], damage: ['damage'], angry: ['angry'],
+  heart: ['heart'], crit: ['critical_hit'], damage: ['damage'], angry: ['angry'], happy: ['glint'],
   poof: ['generic_0', 'generic_1', 'generic_2', 'generic_3', 'generic_4', 'generic_5', 'generic_6', 'generic_7'],
   smoke: ['big_smoke_0', 'big_smoke_1', 'big_smoke_2', 'big_smoke_3', 'big_smoke_4', 'big_smoke_5', 'big_smoke_6', 'big_smoke_7'],
 };
@@ -185,7 +185,7 @@ export class ParticleSystem {
     const first = this.sheetRects.get(files[0]);
     if (!first) return;
     const frames = files.length > 1 ? files.map((f) => this.sheetRects.get(f) ?? first) : undefined;
-    this.push({ x, y, z, px: x, py: y, pz: z, vx, vy, vz, age: 0, life, size, gravity, r: ((color >> 16) & 255) / 255, g: ((color >> 8) & 255) / 255, b: (color & 255) / 255, u: first.u, v: first.v, w: first.w, h: first.h, frames, sheet: 1, physics: name !== 'heart' && name !== 'angry' });
+    this.push({ x, y, z, px: x, py: y, pz: z, vx, vy, vz, age: 0, life, size, gravity, r: ((color >> 16) & 255) / 255, g: ((color >> 8) & 255) / 255, b: (color & 255) / 255, u: first.u, v: first.v, w: first.w, h: first.h, frames, sheet: 1, physics: name !== 'heart' && name !== 'angry' && name !== 'happy' });
   }
 
   /** Vanilla-style helpers. */

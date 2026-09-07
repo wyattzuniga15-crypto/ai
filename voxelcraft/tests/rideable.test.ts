@@ -184,8 +184,8 @@ describe('cats and ocelots', () => {
     } as unknown as MobWorld;
     let held: string | null = 'cod';
     const cat = makeMob('cat');
-    cat.pos = new THREE.Vector3(3, 64, 0);
-    cat.distanceTo = (v: THREE.Vector3) => cat.pos.distanceTo(v);
+    (cat as { pos: THREE.Vector3 }).pos = new THREE.Vector3(3, 64, 0);
+    (cat as { distanceTo: (v: THREE.Vector3) => number }).distanceTo = (v) => cat.pos.distanceTo(v);
     const tempt = temptGoal(CAT_FOODS, 10);
     const flee = catAvoidGoal();
     expect(tempt.canUse(cat, world)).toBe(true);

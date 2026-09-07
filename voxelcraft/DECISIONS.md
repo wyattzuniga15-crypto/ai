@@ -296,3 +296,17 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     until those structures exist they arrive through breeding or `/summon` rather than by wandering
     the world. Making them spawn anywhere else would be less faithful, not more.
 
+56. **The trade economy is generated, not hand-written.** Java keeps villager trades in code, but
+    Mojang publishes the same economy as data for Bedrock, so `tools/gen-trades.ts` converts those
+    tables into `data/trades.json`: five tiers per profession on vanilla's 0/10/70/150/250 experience
+    thresholds, plus the wandering trader's pool. Legacy Bedrock item names are mapped back to their
+    1.21 ids and the four trades whose items do not exist in 1.21 are dropped. Villagers pick two
+    trades per unlocked tier, prices climb with demand, and a used-up trade sends the villager back
+    to its job site to restock.
+
+57. **Villagers exist before villages do.** A villager takes its profession from any job site block
+    the player puts down (a composter makes a farmer, a lectern a librarian) rather than from a
+    village, and the wandering trader turns up near the player for a day at a time, so trading is
+    reachable now. Village-only behaviour (beds, breeding, gossip, raids and iron golems) waits for
+    the structures phase.
+

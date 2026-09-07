@@ -34,6 +34,7 @@ export class EntityManager {
   hostileCapBase = 70;
   passiveCap = 10;
   private phantomTimer = 1200;
+  private traderTimer = 6000;
 
   constructor(private readonly host: ManagerHost) {}
 
@@ -261,6 +262,46 @@ export class EntityManager {
       const y = p.y + 20 + h.rng() * 15;
       if (h.getBlock(Math.floor(x), Math.floor(y), Math.floor(z)) !== 0) continue;
       this.spawn('phantom', x, y, z, h.rng() * Math.PI * 2);
+    }
+  }
+
+  /**
+   * Wandering trader spawns: vanilla rolls for one about every twenty minutes and it stays for a
+   * day before wandering off, which is how a player without a village still gets trades.
+   */
+  /** Wandering traders leave again after their timer runs out, unless the player is trading. */
+  traderDespawnTick(): void {
+    for (const m of this.mobs) {
+      if (m.def.id !== 'wandering_trader' || m.dead || m.extra.trading === true) continue;
+      const limit = typeof m.extra.despawnAt === 'number' ? m.extra.despawnAt : 48000;
+      if (m.age > limit) {
+        this.host.emitParticles?.('poof', m.pos.x, m.pos.y + 1, m.pos.z, 12, m.width, m.height);
+        this.remove(m);
+      }
+    }
+  }
+
+  traderSpawnTick(day: boolean): void {
+    if (--this.traderTimer > 0) return;
+    const h = this.host;
+    this.traderTimer = 24000; // one in-game day between attempts
+    if (!day || !h.playerTargetable()) return;
+    if (h.rng() > 0.4) return; // vanilla's spawn chance climbs from 2.5%; ours is one roll a day
+    if (this.mobs.some((m) => m.def.id === 'wandering_trader' && !m.dead)) return;
+    const p = h.playerPos();
+    const stats = mobStats('wandering_trader')!;
+    for (let i = 0; i < 24; i++) {
+      const x = Math.floor(p.x) + Math.floor((h.rng() * 2 - 1) * 24) + 0.5;
+      const z = Math.floor(p.z) + Math.floor((h.rng() * 2 - 1) * 24) + 0.5;
+      const top = h.topBlock(Math.floor(x), Math.floor(z));
+      if (top < 0 || h.getSkyLight(Math.floor(x), top + 1, Math.floor(z)) < 8) continue;
+      if (!Mob.fits(h, stats, x, top + 1, z)) continue;
+      const m = this.spawn('wandering_trader', x, top + 1, z, h.rng() * Math.PI * 2);
+      if (m) {
+        m.persistent = true;
+        m.extra.despawnAt = 48000; // wanders off after a couple of days, like vanilla's timer
+      }
+      return;
     }
   }
 

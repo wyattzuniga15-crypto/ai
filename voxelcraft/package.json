@@ -12,6 +12,8 @@
     "assets": "tsx tools/fetch-assets.ts",
     "atlas": "tsx tools/build-atlas.ts",
     "data": "tsx tools/gen-data.ts",
+    "trades": "tsx tools/gen-trades.ts",
+    "geo": "tsx tools/geo-to-model.ts",
     "textures:gen": "tsx tools/gen-textures.ts",
     "test": "vitest run",
     "test:watch": "vitest",

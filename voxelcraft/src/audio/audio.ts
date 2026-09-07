@@ -114,6 +114,10 @@ const SOUNDS: Record<string, Synth> = {
   horse_gallop: (c, o, p, t) => { [0, 0.07, 0.16, 0.22].forEach((d) => burst(c, o, t + d, 'lowpass', 260, 1, 0.004, 0.09, 0.16, p)); },
   donkey: (c, o, p, t) => { [0, 0.18].forEach((d, i) => { tone(c, o, t + d, 'square', i ? 240 : 520, i ? 140 : 300, 0.28, 0.16, p); }); },
   saddle: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1200, 1.5, 0.01, 0.2, 0.15, p); tone(c, o, t, 'sine', 220, 160, 0.15, 0.08, p); },
+  // villagers: the vanilla "hmm", a bright note when a trade lands and a chime on level-up
+  villager: (c, o, p, t) => { tone(c, o, t, 'square', 300, 220, 0.25, 0.12, p); burst(c, o, t, 'lowpass', 500, 1, 0.02, 0.2, 0.08, p); },
+  villager_trade: (c, o, p, t) => { tone(c, o, t, 'square', 380, 520, 0.14, 0.12, p); tone(c, o, t + 0.09, 'square', 520, 640, 0.16, 0.1, p); },
+  level_up: (c, o, p, t) => { [523, 659, 784].forEach((f, i) => tone(c, o, t + i * 0.08, 'sine', f, f, 0.2, 0.1, p)); },
   // a short two-tone meow
   cat: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 700, 900, 0.12, 0.12, p); tone(c, o, t + 0.1, 'sawtooth', 900, 600, 0.2, 0.12, p); },
   wolf: (c, o, p, t) => { tone(c, o, t, 'square', 420, 300, 0.12, 0.25, p); burst(c, o, t, 'bandpass', 900, 1.5, 0.005, 0.1, 0.3, p); },

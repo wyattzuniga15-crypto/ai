@@ -6,7 +6,7 @@ import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './box
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, catTexture, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -54,6 +54,10 @@ export interface MobWorld extends BlockSource {
   playerHasEffect(id: string): boolean;
   /** Item id the player is holding, for goals that follow food (vanilla TemptGoal). */
   playerHolding(): string | null;
+  /** Nearest job site block a villager can claim, optionally restricted to one profession. */
+  findJobSite?(x: number, y: number, z: number, range: number, profession: string | null): { x: number; y: number; z: number; block: string } | null;
+  /** Called when a villager reaches its job site: takes the profession or restocks. */
+  claimJobSite?(m: Mob, block: string): void;
   playerHealth(): number;
   /** Witch splash potion: applies `effect` to the player within four blocks of where it lands. */
   throwPotion(from: THREE.Vector3, to: THREE.Vector3, effect: ArrowEffect, color: number): void;
@@ -688,6 +692,28 @@ export class Mob {
       const armorTex = horseArmorTexture(armor);
       for (const [name, part] of this.model.parts) if (name.endsWith('_armor')) part.visible = armorTex !== null;
       if (armorTex) this.setLayerTexture(HORSE_ARMOR_LAYER, armorTex);
+    }
+    if (this.def.id === 'villager') {
+      const type = villagerTypeTexture(String(this.extra.villagerType ?? 'plains'));
+      this.setLayerTexture(VILLAGER_TYPE_LAYER, type);
+      const profession = String(this.extra.profession ?? 'none');
+      const job = villagerProfessionTexture(profession);
+      const level = typeof this.extra.level === 'number' ? this.extra.level : 1;
+      const badge = profession !== 'none' && profession !== 'nitwit' ? villagerBadgeTexture(level) : null;
+      for (const [name, part] of this.model.parts) {
+        if (name.startsWith('brim')) continue;
+        if (name.endsWith('_type')) part.visible = true;
+        else if (name.endsWith('_job')) part.visible = job !== null;
+        else if (name.endsWith('_badge')) part.visible = badge !== null;
+      }
+      // only the profession skin paints a brimmed hat, so only that layer's brim is drawn
+      const brim = villagerWearsBrim(profession);
+      for (const name of ['brim', 'brim_type', 'brim_job', 'brim_badge']) {
+        const part = this.model.parts.get(name);
+        if (part) part.visible = brim && name === 'brim_job';
+      }
+      if (job) this.setLayerTexture(VILLAGER_PROFESSION_LAYER, job);
+      if (badge) this.setLayerTexture(VILLAGER_LEVEL_LAYER, badge);
     }
     if (this.def.id === 'cat') {
       this.setTexture(catTexture(String(this.extra.variant ?? 'tabby')));

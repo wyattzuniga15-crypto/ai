@@ -44,7 +44,9 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS, VILLAGER_TYPES, villagerTypeFor } from '../entities/mobTypes.ts';
+import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
+import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
 import { XpOrb, splitXp } from '../entities/xpOrb.ts';
 import { AudioEngine, blockSoundGroup } from '../audio/audio.ts';
@@ -234,6 +236,8 @@ export class Game {
       },
       playSound: (name, x, y, z, pitch = 1) => this.audio.play(name, { x, y, z, pitch }),
       playerHolding: () => this.player.heldItem()?.id ?? null,
+      findJobSite: (x, y, z, range, profession) => this.findJobSite(x, y, z, range, profession),
+      claimJobSite: (m, block) => this.claimJobSite(m, block),
       playerHasEffect: (id) => !!this.player.effects.get(id),
       playerHealth: () => this.player.health,
       throwPotion: (from, to, effect, color) => this.throwPotion(from, to, effect, color),
@@ -513,6 +517,8 @@ export class Game {
     if (this.player.gamemode !== 'creative' || true) this.entities.hostileSpawnTick(pcx, pcz, Math.min(6, this.world.renderDistance));
     if (this.player.gamemode === 'survival') this.player.timeSinceRest++;
     this.entities.phantomSpawnTick(this.player.timeSinceRest, !this.isDay());
+    this.entities.traderSpawnTick(this.isDay());
+    if (this.tickCount % 100 === 0) this.entities.traderDespawnTick();
     if (this.sleeping > 0 && --this.sleeping === 0) {
       const day = Math.floor(this.time / DAY_LENGTH);
       this.time = (day + 1) * DAY_LENGTH;
@@ -1722,6 +1728,11 @@ export class Game {
     if (m.def.id === 'wolf' && this.interactWolf(m, held, survival, at)) return true;
     if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
     if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
+    if (m.def.id === 'villager' || m.def.id === 'wandering_trader') {
+      if (m.isBaby) return false;
+      this.openTradeScreen(m);
+      return true;
+    }
     if (!held) return false;
     if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {
       m.extra.sheared = true;
@@ -1760,6 +1771,130 @@ export class Game {
       return true;
     }
     return false;
+  }
+
+  /** Nearest unclaimed job site block for a villager, or the one matching its profession. */
+  private findJobSite(x: number, y: number, z: number, range: number, profession: string | null): { x: number; y: number; z: number; block: string } | null {
+    let best: { x: number; y: number; z: number; block: string } | null = null;
+    let bestDist = Infinity;
+    const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
+    for (let dy = -3; dy <= 3; dy++)
+      for (let dx = -range; dx <= range; dx++)
+        for (let dz = -range; dz <= range; dz++) {
+          const state = this.world.getBlock(bx + dx, by + dy, bz + dz);
+          if (state === 0) continue;
+          const id = blocks.blockOf(state).id;
+          const job = professionForBlock(id);
+          if (!job || (profession && job !== profession)) continue;
+          const d = dx * dx + dy * dy + dz * dz;
+          if (d < bestDist) {
+            bestDist = d;
+            best = { x: bx + dx, y: by + dy, z: bz + dz, block: id };
+          }
+        }
+    return best;
+  }
+
+  /** A villager standing at a job site takes that profession, or restocks the trades it has used. */
+  private claimJobSite(m: Mob, block: string): void {
+    const job = professionForBlock(block);
+    if (!job) return;
+    if (!m.extra.profession || m.extra.profession === 'none') {
+      m.extra.profession = job;
+      m.extra.level = 1;
+      m.extra.tradeXp = 0;
+      m.persistent = true;
+      this.particles.spawnSprite('happy', m.pos.x, m.pos.y + m.height, m.pos.z, 0, 0.05, 0, 20, 0.4);
+      this.audio.play('villager', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.2 });
+      return;
+    }
+    if (m.extra.restock === true) {
+      const offers = (m.extra as unknown as { offers?: Offer[] }).offers ?? [];
+      for (const o of offers) {
+        o.uses = 0;
+        o.demand = Math.max(0, o.demand - 1); // demand decays when the villager restocks
+      }
+      m.extra.restock = false;
+      this.particles.spawnSprite('happy', m.pos.x, m.pos.y + m.height, m.pos.z, 0, 0.05, 0, 20, 0.4);
+    }
+  }
+
+  /**
+   * Villager trading: the offers a villager knows come from its profession and level, and every
+   * completed trade earns it experience toward the next tier and eventually empties its stock.
+   */
+  private openTradeScreen(m: Mob): void {
+    const profession = m.def.id === 'wandering_trader' ? 'wandering_trader' : String(m.extra.profession ?? 'none');
+    if (profession === 'none' || profession === 'nitwit') {
+      this.hud.showToast(`${m.def.name} has nothing to trade`);
+      return;
+    }
+    const offers = this.villagerOffers(m, profession);
+    if (!offers.length) return;
+    const merchant: Merchant = {
+      name: m.def.id === 'wandering_trader' ? 'Wandering Trader' : professionName(profession),
+      offers,
+      level: m.def.id === 'wandering_trader' ? 0 : (typeof m.extra.level === 'number' ? m.extra.level : 1),
+      xp: typeof m.extra.tradeXp === 'number' ? m.extra.tradeXp : 0,
+      levelled: false,
+      onTrade: (offer) => {
+        this.tradeDone(m, offer, merchant);
+      },
+    };
+    const screen = tradingScreen(this.player.inventory, { ...this.enchantHost(), icons: this.icons, refresh: () => this.screen?.refresh() }, merchant);
+    m.extra.trading = true;
+    this.audio.play('villager', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+    this.openScreen(screen, () => {
+      // whatever the player left in the payment slots comes back, as vanilla does on close
+      for (const st of screen.state.slots) {
+        if (!st) continue;
+        const left = this.player.inventory.add(st);
+        if (left > 0) this.dropStack({ ...st, count: left }, this.player.pos.x, this.player.pos.y + 1, this.player.pos.z, true);
+      }
+      screen.state.slots = [null, null];
+      this.saveOffers(m, merchant.offers);
+      m.extra.trading = false;
+    });
+  }
+
+  /** Offers a villager knows, generated once per profession and level and then kept in `extra`. */
+  private villagerOffers(m: Mob, profession: string): Offer[] {
+    const level = m.def.id === 'wandering_trader' ? 1 : (typeof m.extra.level === 'number' ? m.extra.level : 1);
+    const stored = (m.extra as unknown as { offers?: Offer[]; offersFor?: string }).offersFor;
+    const store = m.extra as unknown as { offers?: Offer[]; offersFor?: string };
+    if (stored === `${profession}:${level}` && store.offers?.length) return store.offers;
+    const offers = buildOffers(profession, level, Math.random);
+    store.offers = offers;
+    store.offersFor = `${profession}:${level}`;
+    return offers;
+  }
+
+  private saveOffers(m: Mob, offers: Offer[]): void {
+    (m.extra as unknown as { offers?: Offer[] }).offers = offers;
+  }
+
+  /** Books a completed trade: villager experience, player experience and a level-up when earned. */
+  private tradeDone(m: Mob, offer: Offer, merchant: Merchant): void {
+    this.spawnXp(3 + Math.floor(Math.random() * 4), m.pos.x, m.pos.y + 1, m.pos.z);
+    if (m.def.id === 'wandering_trader') return;
+    const xp = (typeof m.extra.tradeXp === 'number' ? m.extra.tradeXp : 0) + offer.xp;
+    m.extra.tradeXp = xp;
+    merchant.xp = xp;
+    const level = Math.min(5, levelFor(xp));
+    if (level > (typeof m.extra.level === 'number' ? m.extra.level : 1)) {
+      m.extra.level = level;
+      merchant.level = level;
+      merchant.levelled = true;
+      // a new tier means new offers on top of the ones the villager already knows
+      const extra = buildOffers(String(m.extra.profession), level, Math.random).slice(merchant.offers.length);
+      merchant.offers.push(...extra);
+      this.saveOffers(m, merchant.offers);
+      (m.extra as unknown as { offersFor?: string }).offersFor = `${String(m.extra.profession)}:${level}`;
+      this.particles.spawnSprite('happy', m.pos.x, m.pos.y + m.height, m.pos.z, 0, 0.05, 0, 20, 0.4);
+      this.audio.play('level_up', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+    }
+    if (offer.uses >= offer.maxUses) m.extra.restock = true;
+    m.persistent = true;
   }
 
   /**

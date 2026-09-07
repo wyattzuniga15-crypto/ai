@@ -21,7 +21,10 @@ Mojang-owned is committed. It also builds the block/item texture atlases. Re-run
 `-- --force` to refresh, or `-- --source=mirror` to skip the official CDN.
 
 `npm run data` regenerates the committed `data/` files (blocks, items, recipes, loot, tags, mobs,
-biomes, enchantments, effects, collision shapes) from the fetched sources.
+biomes, enchantments, effects, collision shapes) from the fetched sources. Two smaller tools cover
+what Java keeps in code rather than in the assets: `npm run trades` turns Mojang's published trade
+tables into `data/trades.json`, and `npm run geo` converts a published entity geometry file into the
+box model format `src/entities/boxModel.ts` uses.
 
 ## Controls
 

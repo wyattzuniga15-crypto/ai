@@ -38,6 +38,8 @@ export interface ScreenDef {
   height: number;
   /** Extra background pieces: [textureX, textureY, w, h, destX, destY]. */
   pieces?: [number, number, number, number, number, number][];
+  /** Size of the background texture sheet in pixels (vanilla windows are 256×256, the merchant 512×256). */
+  textureSize?: [number, number];
   /** Sprites drawn over the background from their own files (slot frames vanilla blits at runtime). */
   sprites?: { texture: string; x: number; y: number; w: number; h: number }[];
   slots: SlotDef[];
@@ -81,13 +83,15 @@ export class ContainerScreen {
     this.gui.style.width = `${def.width * s}px`;
     this.gui.style.height = `${def.height * s}px`;
     if (def.pieces) {
+      const [sheetW, sheetH] = def.textureSize ?? [256, 256];
       for (const [tx, ty, w, hh, dx, dy] of def.pieces) {
         const piece = h('div');
-        piece.style.cssText = `position:absolute;left:${dx * s}px;top:${dy * s}px;width:${w * s}px;height:${hh * s}px;background:${T(def.texture)} ${-tx * s}px ${-ty * s}px / ${256 * s}px ${256 * s}px no-repeat;image-rendering:pixelated;`;
+        piece.style.cssText = `position:absolute;left:${dx * s}px;top:${dy * s}px;width:${w * s}px;height:${hh * s}px;background:${T(def.texture)} ${-tx * s}px ${-ty * s}px / ${sheetW * s}px ${sheetH * s}px no-repeat;image-rendering:pixelated;`;
         this.gui.append(piece);
       }
     } else {
-      this.gui.style.background = `${T(def.texture)} 0 0 / ${256 * s}px ${256 * s}px no-repeat`;
+      const [sheetW, sheetH] = def.textureSize ?? [256, 256];
+      this.gui.style.background = `${T(def.texture)} 0 0 / ${sheetW * s}px ${sheetH * s}px no-repeat`;
     }
     for (const sp of def.sprites ?? []) {
       const el = h('div');

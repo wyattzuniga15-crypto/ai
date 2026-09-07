@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, bowAttackGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, avoidMonstersGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -348,6 +348,75 @@ export function catTexture(variant: string): string {
 /** Raw fish tames a cat and wins an ocelot's trust (vanilla `Cat`/`Ocelot` temptation items). */
 export const CAT_FOODS = ['cod', 'salmon'];
 
+/**
+ * Vanilla villager model (converted from the shipped geometry). Villagers are drawn as three
+ * layered skins: the biome type, the profession clothes and the level badge, so the model carries
+ * an overlay copy of every part for each layer, like vanilla's `VillagerProfessionLayer`.
+ */
+const villagerModel = (texture: string, layers = true): ModelDef => {
+  const skin: ModelDef['parts'] = [
+    { name: 'body', pivot: [0, 24, 0], boxes: [{ uv: [16, 20], box: [-4, -24, -3, 8, 12, 6] }, { uv: [0, 38], box: [-4, -24, -3, 8, 18, 6], inflate: 0.5 }] },
+    { name: 'head', parent: 'body', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-4, -10, -4, 8, 10, 8] }] },
+    { name: 'hat', parent: 'head', pivot: [0, 0, 0], boxes: [{ uv: [32, 0], box: [-4, -10, -4, 8, 10, 8], inflate: 0.5 }] },
+    { name: 'brim', parent: 'head', pivot: [0, 0, 0], hidden: true, boxes: [{ uv: [30, 47], box: [-8, -8, -6, 16, 16, 1], inflate: 0.1 }] },
+    { name: 'nose', parent: 'head', pivot: [0, -2, 0], boxes: [{ uv: [24, 0], box: [-1, -1, -6, 2, 4, 2] }] },
+    { name: 'arms', parent: 'body', pivot: [0, 2, 0], boxes: [{ uv: [40, 38], box: [-4, 2, -2, 8, 4, 4] }, { uv: [44, 22], box: [-8, -2, -2, 4, 8, 4] }, { uv: [44, 22], box: [4, -2, -2, 4, 8, 4], mirror: true }] },
+    { name: 'right_leg', parent: 'body', pivot: [-2, 12, 0], boxes: [{ uv: [0, 22], box: [-2, 0, -2, 4, 12, 4] }] },
+    { name: 'left_leg', parent: 'body', pivot: [2, 12, 0], boxes: [{ uv: [0, 22], box: [-2, 0, -2, 4, 12, 4], mirror: true }] },
+  ];
+  const parts = skin.slice();
+  if (layers) {
+    for (const [suffix, layer, inflate] of [['_type', VILLAGER_TYPE_LAYER, 0.02], ['_job', VILLAGER_PROFESSION_LAYER, 0.04], ['_badge', VILLAGER_LEVEL_LAYER, 0.06]] as const) {
+      for (const p of skin) {
+        parts.push({ name: `${p.name}${suffix}`, parent: p.name, pivot: p.pivot, texture: layer, hidden: true, boxes: p.boxes.map((b) => ({ ...b, inflate: (b.inflate ?? 0) + inflate })) });
+      }
+    }
+  }
+  return { texture, texW: 64, texH: 64, parts };
+};
+
+/**
+ * Layer textures the villager model is built with; swapped per villager at render time. Vanilla
+ * stacks four skins: the bare villager, the biome outfit, the profession clothes and the level badge.
+ */
+export const VILLAGER_TYPE_LAYER = 'villager/type/plains.png';
+export const VILLAGER_PROFESSION_LAYER = 'villager/profession/farmer.png';
+export const VILLAGER_LEVEL_LAYER = 'villager/profession_level/stone.png';
+
+/** Vanilla villager biome types, chosen by where the villager spawned. */
+export const VILLAGER_TYPES = ['plains', 'desert', 'jungle', 'savanna', 'snow', 'swamp', 'taiga'];
+
+/** Professions whose texture paints a brimmed hat (farmer, fisherman and shepherd, per the skins). */
+const BRIMMED = new Set(['farmer', 'fisherman', 'shepherd']);
+
+export function villagerTypeTexture(type: string): string {
+  return `villager/type/${VILLAGER_TYPES.includes(type) ? type : 'plains'}.png`;
+}
+
+export function villagerProfessionTexture(profession: string): string | null {
+  return profession && profession !== 'none' ? `villager/profession/${profession}.png` : null;
+}
+
+export function villagerBadgeTexture(level: number): string | null {
+  const badge = ['stone', 'iron', 'gold', 'emerald', 'diamond'][Math.max(0, Math.min(4, level - 1))];
+  return badge ? `villager/profession_level/${badge}.png` : null;
+}
+
+export function villagerWearsBrim(profession: string): boolean {
+  return BRIMMED.has(profession);
+}
+
+/** Biome type a villager born in this biome takes (vanilla VillagerType.byBiome). */
+export function villagerTypeFor(biomeId: string): string {
+  if (biomeId.includes('desert') || biomeId.includes('badlands')) return 'desert';
+  if (biomeId.includes('jungle')) return 'jungle';
+  if (biomeId.includes('savanna')) return 'savanna';
+  if (biomeId.includes('snowy') || biomeId.includes('frozen') || biomeId.includes('ice')) return 'snow';
+  if (biomeId.includes('swamp') || biomeId.includes('mangrove')) return 'swamp';
+  if (biomeId.includes('taiga') || biomeId.includes('grove')) return 'taiga';
+  return 'plains';
+}
+
 interface MobSpec {
   model: ModelDef;
   animation: MobStats['animation'];
@@ -438,11 +507,17 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // cats and ocelots share the vanilla model; ocelots only ever grow to trust the player
   cat: { model: catModel('cat/tabby.png', true), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, sitGoal(), catAvoidGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), followOwnerGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
   ocelot: { model: catModel('cat/ocelot.png'), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, ocelotFleeGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  // villagers keep a profession, level and trade list in `extra`; the wandering trader is unlayered
+  villager: { model: villagerModel('villager/villager.png'), animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => villagerGoals() },
+  wandering_trader: { model: villagerModel('wandering_trader.png', false), animation: 'biped', eyeHeight: 1.62, followRange: 16, data: 'villager', loot: 'wandering_trader', goals: () => villagerGoals() },
   // equines: attributes are rolled per animal, so the table values are only the vanilla averages
   horse: { model: equineModel('horse/horse_white.png', 'horse', HORSE_MARKING_LAYER, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   donkey: { model: equineModel('horse/donkey.png', 'mule', null, 'equipment/donkey_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.425, followRange: 16, goals: () => equineGoals() },
   mule: { model: equineModel('horse/mule.png', 'mule', null, 'equipment/mule_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
 };
+
+/** Villagers wander, watch the player, flee monsters and look for a job site block. */
+const villagerGoals = (): Goal[] => [floatGoal, panicGoal(1.3), avoidMonstersGoal(), jobSiteGoal(), wanderGoal(120, 0.6, 8), lookAtPlayerGoal(8), randomLookGoal];
 
 /** Equines wander and panic like other animals but never follow the player for food. */
 const equineGoals = (): Goal[] => [floatGoal, panicGoal(1.2), breedGoal(), followParentGoal(), wanderGoal(120, 0.7, 10), lookAtPlayerGoal(6), randomLookGoal];

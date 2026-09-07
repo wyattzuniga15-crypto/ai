@@ -598,6 +598,62 @@ export const avoidCatsGoal = (range = 6): Goal => ({
   },
 });
 
+/** Villagers keep away from zombies and illagers (vanilla avoid goals with a wider radius). */
+export const avoidMonstersGoal = (range = 8): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => w.mobsNear(m.pos.x, m.pos.y, m.pos.z, range).some((o) => !o.dead && o.def.disposition === 'hostile'),
+  tick: (m, w) => {
+    const foe = w.mobsNear(m.pos.x, m.pos.y, m.pos.z, range).find((o) => !o.dead && o.def.disposition === 'hostile');
+    if (foe && m.age % 10 === 0) fleeFrom(m, w, foe.pos, 1.5);
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.moveSpeed = 1;
+  },
+});
+
+/**
+ * Unemployed villagers walk to a nearby job site block and take its profession, and employed ones
+ * return to it to restock, which is what refills their trades (vanilla restocks twice a day).
+ */
+export const jobSiteGoal = (): Goal => {
+  let site: { x: number; y: number; z: number; block: string } | null = null;
+  return {
+    flags: FLAG_MOVE | FLAG_LOOK,
+    canUse: (m, w) => {
+      if (m.def.id !== 'villager' || m.isBaby || m.extra.profession === 'nitwit') return false;
+      if (m.age % 40 !== 0 && !site) return false;
+      const needsJob = !m.extra.profession || m.extra.profession === 'none';
+      const wantsRestock = m.extra.restock === true;
+      if (!needsJob && !wantsRestock) return false;
+      site = w.findJobSite ? w.findJobSite(m.pos.x, m.pos.y, m.pos.z, 12, needsJob ? null : String(m.extra.profession)) : null;
+      return site !== null;
+    },
+    canContinue: (m) => site !== null && (!m.extra.profession || m.extra.profession === 'none' || m.extra.restock === true),
+    tick: (m, w) => {
+      if (!site) return;
+      const target = new THREE.Vector3(site.x + 0.5, site.y, site.z + 0.5);
+      m.lookTarget = target;
+      if (m.distanceTo(target) < 2.2) {
+        w.claimJobSite?.(m, site.block);
+        site = null;
+        m.moveTarget = null;
+        return;
+      }
+      if (m.age % 10 === 0) {
+        m.moveTarget = target;
+        m.moveSpeed = 0.8;
+        m.moveTimeout = 60;
+      }
+    },
+    stop: (m) => {
+      m.moveTarget = null;
+      m.lookTarget = null;
+      site = null;
+    },
+  };
+};
+
 /** Wild wolves fight back as a pack; tamed wolves fight whatever hurts or is hit by their owner. */
 export const wolfDefendGoal = (): Goal => ({
   flags: 0,
