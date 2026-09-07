@@ -12,6 +12,8 @@ import { biomes } from '../world/biomes.ts';
 export interface ManagerHost extends MobWorld {
   scene: THREE.Scene;
   base: string;
+  /** How bright the moon is tonight, which swamp slimes wait for. */
+  moonBrightness?(): number;
   /** World seed (slime chunks). */
   seed: number;
   isChunkLoaded(cx: number, cz: number): boolean;
@@ -394,7 +396,7 @@ export class EntityManager {
     // drowned spawn inside water in ocean and river biomes; everything else needs air on solid ground
     const inWater = centre !== 0 && blocks.blockOf(centre).id === 'water';
     if (inWater && biome?.category !== 'ocean' && biome?.category !== 'river') return;
-    const type = inWater ? 'drowned' : pickHostile(h.rng, biome, y, isSlimeChunk(cx, cz, h.seed));
+    const type = inWater ? 'drowned' : pickHostile(h.rng, biome, y, isSlimeChunk(cx, cz, h.seed), h.moonBrightness?.() ?? 1);
     const stats = mobStats(type)!;
     const packSize = type === 'creeper' || type === 'enderman' ? 1 : 1 + Math.floor(h.rng() * 4);
     const p = h.playerPos();

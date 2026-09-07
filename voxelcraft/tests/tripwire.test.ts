@@ -62,6 +62,10 @@ class Bench implements BlockWorld {
     return true;
   }
 
+  isRaining(): boolean {
+    return false;
+  }
+
   dropItem(): void {}
   igniteTnt(): void {}
   playNote(): void {}

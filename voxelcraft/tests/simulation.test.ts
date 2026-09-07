@@ -69,6 +69,10 @@ class TestWorld implements BlockWorld {
     return this.day;
   }
 
+  isRaining(): boolean {
+    return false;
+  }
+
   message(): void {}
   sleep(): void {}
   addXp(): void {}

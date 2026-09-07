@@ -83,6 +83,8 @@ import { openBookEditor, openBookReader } from '../ui/bookScreen.ts';
 import { openMapScreen } from '../ui/mapScreen.ts';
 import { createMap, deserializeMap, fillAround, serializeMap, type MapData } from '../world/maps.ts';
 import { MapColors, shade } from '../render/mapColors.ts';
+import { LIGHTNING_CHANCE, moonBrightness, moonPhase, newWeather, setWeather, skyDarken as weatherDarken, tickWeather, weatherOf, type WeatherState } from '../world/weather.ts';
+import { RainRenderer } from '../render/rain.ts';
 import type { SignEntity } from '../blocks/blockEntity.ts';
 
 export interface GameAssets {
@@ -119,6 +121,9 @@ const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_m
 
 /** How far above a cart its rider sits, matching vanilla's minecart passenger offset. */
 const RIDE_HEIGHT = 0.06;
+
+/** Vanilla's eight moon phases, in the order the sky shows them. */
+const MOON_NAMES = ['full', 'waning gibbous', 'third quarter', 'waning crescent', 'new', 'waxing crescent', 'first quarter', 'waxing gibbous'];
 
 export class Game {
   readonly renderer: GameRenderer;
@@ -190,6 +195,9 @@ export class Game {
   private readonly blockEntities: BlockEntityRenderer;
   /** The beams beacons pour into the sky. */
   private readonly beams: BeaconBeamRenderer;
+  /** The sky's mood: whether it is raining and whether it is thundering. */
+  readonly weather: WeatherState;
+  private readonly rain: RainRenderer;
   /** Every map the player has made, by id, and the colours a map draws blocks with. */
   private readonly maps = new Map<number, MapData>();
   private nextMapId = 0;
@@ -261,6 +269,7 @@ export class Game {
       getSkyLight: (x, y, z) => this.world.getSkyLight(x, y, z),
       startFalling: (x, y, z, state) => this.startFalling(x, y, z, state),
       isDay: () => this.isDay(),
+      isRaining: () => this.weather.raining,
       message: (text) => this.chat.addLine(text, '#fa5'),
       sleep: (x, y, z) => this.sleepInBed(x, y, z),
       addXp: (n) => this.addXp(n),
@@ -285,6 +294,7 @@ export class Game {
       getSkyLight: (x, y, z) => this.world.getSkyLight(x, y, z),
       getBlockLight: (x, y, z) => this.world.getBlockLight(x, y, z),
       skyDarken: () => this.skyDarken(),
+      moonBrightness: () => moonBrightness(Math.floor(this.time / DAY_LENGTH)),
       playerPos: () => this.player.pos,
       playerEye: () => this.player.eyePosition(1),
       playerBox: () => this.player.aabb(),
@@ -398,6 +408,8 @@ export class Game {
     this.chests = new ChestRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.blockEntities = new BlockEntityRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.beams = new BeaconBeamRenderer(this.renderer.scene, import.meta.env.BASE_URL);
+    this.weather = opts.meta.weather ? { ...newWeather(), ...opts.meta.weather } : newWeather();
+    this.rain = new RainRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.mapColors = new MapColors(opts.assets.blocks, this.baker);
     for (const saved of opts.meta.maps ?? []) {
       const map = deserializeMap(saved);
@@ -570,6 +582,7 @@ export class Game {
     this.meta.lastPlayed = Date.now();
     this.meta.player = this.player.serialize();
     this.meta.maps = [...this.maps.values()].map(serializeMap);
+    this.meta.weather = { ...this.weather };
     this.meta.gamemode = this.player.gamemode === 'creative' ? 'creative' : 'survival';
     try {
       await Promise.all([this.save.saveChunks(this.meta.id, dirty), this.save.saveWorld(this.meta)]);
@@ -600,6 +613,7 @@ export class Game {
     this.tickMinecarts();
     this.tickBobber();
     if (this.tickCount % 10 === 0) this.tickMap();
+    this.tickWeather();
     this.tickEffects();
     this.attackTicks++;
     this.rideTick();
@@ -1621,6 +1635,78 @@ export class Game {
     return { id: 'filled_map', count: 1, map: wider.id };
   }
 
+  /**
+   * The weather: the counters run down, the rain puts fires out and fills cauldrons, snow settles in
+   * the cold, and a storm throws lightning about.
+   */
+  private tickWeather(): void {
+    tickWeather(this.weather);
+    if (this.weather.rainLevel <= 0) return;
+    const p = this.player;
+    // vanilla picks a random column in every loaded chunk each tick; ours works near the player
+    for (let i = 0; i < 6; i++) {
+      const x = Math.floor(p.pos.x) + Math.floor(Math.random() * 64) - 32;
+      const z = Math.floor(p.pos.z) + Math.floor(Math.random() * 64) - 32;
+      this.weatherAt(x, z);
+    }
+    if (this.weather.thunderLevel > 0 && this.tickCount % 20 === 0 && Math.random() < LIGHTNING_CHANCE * 20) {
+      const x = Math.floor(p.pos.x) + Math.floor(Math.random() * 120) - 60;
+      const z = Math.floor(p.pos.z) + Math.floor(Math.random() * 120) - 60;
+      this.strikeLightning(x, z);
+    }
+  }
+
+  /** What the rain does to one column: puts out fire, fills a cauldron, lays snow or freezes water. */
+  private weatherAt(x: number, z: number): void {
+    const y = this.world.topBlock(x, z);
+    if (y < WORLD_MIN_Y) return;
+    const biome = biomes[this.world.getBiome(x, z)];
+    if (!biome || biome.precipitation === 'none') return;
+    const state = this.world.getBlock(x, y, z);
+    const id = blocks.idOf(state);
+    if (id === 'fire') {
+      this.world.setBlock(x, y, z, 0);
+      return;
+    }
+    if (id === 'cauldron' || id === 'water_cauldron') {
+      if (biome.precipitation !== 'rain') return;
+      const level = id === 'cauldron' ? 0 : Number(blocks.prop(state, 'level') ?? '0');
+      if (level >= 3) return;
+      this.world.setBlock(x, y, z, blocks.stateWith('water_cauldron', { level: String(level + 1) }));
+      return;
+    }
+    if (biome.precipitation !== 'snow') return;
+    // in the cold it settles: a layer of snow on the ground and ice over still water
+    if (id === 'water' && blocks.prop(state, 'level') === '0') {
+      this.world.setBlock(x, y, z, blocks.defaultState('ice'));
+      return;
+    }
+    const above = this.world.getBlock(x, y + 1, z);
+    const def = blocks.blockOf(state);
+    if (above === 0 && def.solid && id !== 'ice' && id !== 'snow') {
+      this.world.setBlock(x, y + 1, z, blocks.stateWith('snow', { layers: '1' }));
+    }
+  }
+
+  /** Lightning: it lights a fire where it lands and charges a creeper it hits, as vanilla does. */
+  strikeLightning(x: number, z: number): void {
+    const y = this.world.topBlock(x, z);
+    if (y < WORLD_MIN_Y) return;
+    this.audio.play('explode', { x: x + 0.5, y: y + 1, z: z + 0.5, volume: 0.8, pitch: 1.6 });
+    this.particles.poof(x + 0.5, y + 1.5, z + 0.5, 40, Math.random, 1, 3);
+    if (this.world.getBlock(x, y + 1, z) === 0) this.world.setBlock(x, y + 1, z, blocks.defaultState('fire'));
+    for (const m of this.entities.mobs) {
+      if (m.dead || Math.hypot(m.pos.x - x - 0.5, m.pos.z - z - 0.5) > 3 || Math.abs(m.pos.y - y) > 4) continue;
+      if (m.def.id === 'creeper') m.extra.charged = true;
+      else m.hurt(5, this.player.pos, 'player', 0);
+    }
+    const p = this.player;
+    if (!p.dead && p.gamemode === 'survival' && Math.hypot(p.pos.x - x - 0.5, p.pos.z - z - 0.5) < 3 && Math.abs(p.pos.y - y) < 4) {
+      this.damage(5);
+      p.fireTicks = Math.max(p.fireTicks, 160);
+    }
+  }
+
   /** An empty map becomes a map of where the player is standing, as vanilla centres a new one. */
   private makeMap(): void {
     const p = this.player;
@@ -2272,7 +2358,9 @@ export class Game {
   }
 
   skyDarken(): number {
-    return Math.round(((1 - this.sky.dayLight) / 0.73) * 11);
+    // rain and thunder take their share of the daylight, as vanilla darkens the sky
+    const light = this.sky.dayLightClear * weatherDarken(this.weather);
+    return Math.round(((1 - light) / 0.73) * 11);
   }
 
   isDay(): boolean {
@@ -3917,7 +4005,7 @@ export class Game {
     // world streaming and sky
     this.world.update(p.pos.x, p.pos.z);
     const partialTime = this.time + alpha;
-    this.sky.update(partialTime, cam.position);
+    this.sky.update(partialTime, cam.position, this.weather.rainLevel);
     this.renderer.scene.background = this.sky.skyColor;
     this.uniforms.dayLight.value = this.sky.dayLight;
     const eyeState = this.world.getBlock(Math.floor(eye.x), Math.floor(eye.y), Math.floor(eye.z));
@@ -3950,6 +4038,9 @@ export class Game {
     this.chests.animate();
     this.blockEntities.animate(this.tickCount + partialTime / 50);
     this.beams.animate(this.tickCount + partialTime / 50);
+    const wet = biomes[this.world.getBiome(Math.floor(this.player.pos.x), Math.floor(this.player.pos.z))];
+    const falls = wet && wet.precipitation !== 'none' ? this.weather.rainLevel : 0;
+    this.rain.update(cam.position, falls, wet?.precipitation === 'snow', (x, z) => this.world.topBlock(Math.floor(x), Math.floor(z)) + 1, 1 / 60);
     this.bobber?.updateMesh(alpha);
     this.updateBobberLine(alpha);
     mobFireAssets.viewYaw = this.player.yaw;
@@ -4041,7 +4132,7 @@ export class Game {
       `Block: ${x} ${y} ${z}  Chunk: ${x & 15} ${(y - WORLD_MIN_Y) & 15} ${z & 15} in ${x >> 4} ${(y - WORLD_MIN_Y) >> 4} ${z >> 4}`,
       `Facing: ${facing} (yaw ${((p.yaw * 180) / Math.PI).toFixed(1)} pitch ${((p.pitch * 180) / Math.PI).toFixed(1)})`,
       `Light: sky ${this.world.getSkyLight(x, y, z)} block ${this.world.getBlockLight(x, y, z)}  Biome: ${biome}`,
-      `Day ${day}, time ${tod} (${Math.floor((tod / 1000 + 6) % 24).toString().padStart(2, '0')}:${Math.floor(((tod % 1000) / 1000) * 60).toString().padStart(2, '0')})`,
+      `Day ${day}, time ${tod} (${Math.floor((tod / 1000 + 6) % 24).toString().padStart(2, '0')}:${Math.floor(((tod % 1000) / 1000) * 60).toString().padStart(2, '0')})  Weather: ${weatherOf(this.weather)}  Moon: ${MOON_NAMES[moonPhase(day)]}`,
       `Chunks: ${this.world.chunks.size} loaded, ${this.world.stats.chunks} in worker, ${this.world.stats.pending} sections pending`,
       `Mode: ${p.gamemode}${p.flying ? ' (flying)' : ''}${p.sprinting ? ' sprinting' : ''}${p.sneaking ? ' sneaking' : ''}  onGround ${p.onGround}  eye in: ${eyeBlock || 'air'}`,
       `Entities: ${this.entities.mobs.length} mobs (${this.entities.count('hostile')} hostile), ${this.entities.arrows.length} arrows, ${this.itemEntities.length} items, ${this.fallingBlocks.length} falling`,
@@ -4103,6 +4194,14 @@ export class Game {
         else err('Usage: /time <set|add|query> ...');
         break;
       }
+      case 'weather': {
+        const kind = args[0];
+        if (kind !== 'clear' && kind !== 'rain' && kind !== 'thunder') return err('Usage: /weather <clear|rain|thunder> [duration]');
+        const ticks = args[1] ? Number(args[1]) * 20 : 0;
+        setWeather(this.weather, kind, ticks);
+        say(kind === 'clear' ? 'Set the weather to clear' : kind === 'rain' ? 'Set the weather to rain' : 'Set the weather to thunder');
+        break;
+      }
       case 'tp': case 'teleport': {
         if (args.length < 3) return err('Usage: /tp <x> <y> <z>');
         const x = num(args[0], p.pos.x);
@@ -4147,9 +4246,6 @@ export class Game {
       case 'spawnpoint':
         p.spawn = [p.pos.x, p.pos.y, p.pos.z];
         say('Set spawn point');
-        break;
-      case 'weather':
-        say('Weather is not implemented yet (Phase 3)', '#fa5');
         break;
       case 'locate': {
         const wanted = args[0]?.replace(/^minecraft:/, '');

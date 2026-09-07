@@ -20,6 +20,8 @@ export interface BlockWorld extends FluidWorld {
   /** Make the block fall as an entity. */
   startFalling(x: number, y: number, z: number, state: number): void;
   isDay(): boolean;
+  /** Whether rain is falling, which is what puts a fire out. */
+  isRaining(): boolean;
   rng: Rng;
   /** Player-facing message (e.g. "You can only sleep at night"). */
   message(text: string): void;
@@ -633,6 +635,14 @@ const byId: Record<string, Behavior> = {
       ctx.w.dropItem('sweet_berries', 1 + ctx.w.rng.int(2) + (age === 3 ? 1 : 0), ctx.x + 0.5, ctx.y + 0.5, ctx.z + 0.5);
       ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.withProp(ctx.state, 'age', '1'));
       return true;
+    },
+  },
+  fire: {
+    // rain puts a fire out, which in vanilla is the fire block's own tick noticing the weather
+    randomTick: (ctx) => {
+      if (!ctx.w.isRaining()) return;
+      if (ctx.w.getSkyLight(ctx.x, ctx.y, ctx.z) <= 0) return;
+      ctx.w.setBlock(ctx.x, ctx.y, ctx.z, 0);
     },
   },
   composter: {

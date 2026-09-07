@@ -645,3 +645,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     cartography table copies a map, zooms it out a step, or locks it so it stops filling in. Vanilla
     draws a held map in the hand; with no first-person hand to draw one in, using a map opens it as
     a page of its own.
+
+91. **Weather runs on vanilla's two counters.** One counts down to the rain turning on or off, the
+    other to the thunder, and each level eases in a hundredth a tick so the sky greys over rather
+    than snapping. Rain falls as a cylinder of streaks around the player, snow where the biome is
+    cold and nothing at all where it never rains; the sky and fog fade toward storm grey and the
+    daylight drops by a third, which is what makes the world darken. What rain does, it does the way
+    vanilla does it: a fire goes out on its own tick when it can see the sky, cauldrons fill a level
+    at a time, snow settles and still water freezes in the cold, and during a storm lightning starts
+    a fire where it lands, charges a creeper it hits and hurts whoever is standing too close. The
+    moon's phase already showed in the sky; now it also decides whether swamp slimes come out, on
+    vanilla's brightness per phase.

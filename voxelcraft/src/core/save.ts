@@ -18,6 +18,8 @@ export interface WorldMeta {
   animalChunks?: string[];
   /** Maps the player has made, as base64 colours. */
   maps?: { id: number; scale: number; cx: number; cz: number; locked?: boolean; colors: string }[];
+  /** The state of the sky: whether it is raining, and how long until it changes. */
+  weather?: { rainTime: number; thunderTime: number; raining: boolean; thundering: boolean; rainLevel: number; thunderLevel: number };
 }
 
 interface ChunkRecord {

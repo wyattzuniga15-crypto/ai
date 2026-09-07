@@ -713,9 +713,10 @@ export function isSlimeChunk(cx: number, cz: number, seed: number): boolean {
 }
 
 /** Picks a monster for a natural spawn attempt following vanilla biome rules. */
-export function pickHostile(rng: () => number, biome: BiomeDef | undefined, y: number, slimeChunk: boolean): string {
+export function pickHostile(rng: () => number, biome: BiomeDef | undefined, y: number, slimeChunk: boolean, moon = 1): string {
   if (slimeChunk && y < 40 && rng() < 0.5) return SLIME_SIZES[Math.floor(rng() * 3)];
-  if (biome?.category === 'swamp' && y >= 50 && y <= 70 && rng() < 0.5) return SLIME_SIZES[Math.floor(rng() * 3)];
+  // vanilla only lets swamp slimes out by the light of the moon, and the fuller it is the more come
+  if (biome?.category === 'swamp' && y >= 50 && y <= 70 && rng() < 0.5 && rng() < moon) return SLIME_SIZES[Math.floor(rng() * 3)];
   let total = 0;
   for (const [, w] of HOSTILE_WEIGHTS) total += w;
   let r = rng() * total;

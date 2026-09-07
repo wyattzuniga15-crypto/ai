@@ -54,6 +54,10 @@ class Field implements BlockWorld {
     return true;
   }
 
+  isRaining(): boolean {
+    return false;
+  }
+
   breakBlock(x: number, y: number, z: number): void {
     this.setBlock(x, y, z, 0);
   }
