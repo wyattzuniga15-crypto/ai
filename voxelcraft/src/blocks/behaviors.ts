@@ -71,6 +71,92 @@ function needsSupportBelow(ctx: BlockContext, nx: number, ny: number, nz: number
 
 const OPPOSITE: Record<string, [number, number, number]> = { north: [0, 0, 1], south: [0, 0, -1], west: [1, 0, 0], east: [-1, 0, 0], up: [0, -1, 0], down: [0, 1, 0] };
 
+/** Whether a chorus plant still has something to hold on to, by vanilla's own reading of it. */
+function chorusStands(ctx: BlockContext): boolean {
+  const idAt = (x: number, y: number, z: number) => blocks.blockOf(ctx.w.getBlock(x, y, z)).id;
+  const below = idAt(ctx.x, ctx.y - 1, ctx.z);
+  // a plant with something over it and something under it is a middle piece: it hangs off neither side
+  const stacked = ctx.w.getBlock(ctx.x, ctx.y + 1, ctx.z) !== 0 && ctx.w.getBlock(ctx.x, ctx.y - 1, ctx.z) !== 0;
+  for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as [number, number][]) {
+    if (idAt(ctx.x + dx, ctx.y, ctx.z + dz) !== 'chorus_plant') continue;
+    if (stacked) return false;
+    const under = idAt(ctx.x + dx, ctx.y - 1, ctx.z + dz);
+    if (under === 'chorus_plant' || under === 'end_stone') return true;
+  }
+  return below === 'chorus_plant' || below === 'end_stone';
+}
+
+/** The chorus plant a grown flower leaves behind, wired to whatever it touches. */
+function chorusPlantState(ctx: BlockContext, x: number, y: number, z: number): number {
+  const touching = (bx: number, by: number, bz: number) => {
+    const id = blocks.blockOf(ctx.w.getBlock(bx, by, bz)).id;
+    return id === 'chorus_plant' || id === 'chorus_flower' || (by < y && id === 'end_stone');
+  };
+  let state = blocks.defaultState('chorus_plant');
+  for (const [name, dx, dy, dz] of [['up', 0, 1, 0], ['down', 0, -1, 0], ['north', 0, 0, -1], ['south', 0, 0, 1], ['west', -1, 0, 0], ['east', 1, 0, 0]] as [string, number, number, number][])
+    state = blocks.withProp(state, name, touching(x + dx, y + dy, z + dz) ? 'true' : 'false');
+  return state;
+}
+
+/**
+ * Vanilla's chorus flower: it climbs while there is room above, dying off after four blocks unless
+ * it is standing on end stone, and branches sideways when it cannot climb. A flower that can do
+ * neither ages out and stops.
+ */
+function growChorus(ctx: BlockContext): void {
+  const above = ctx.w.getBlock(ctx.x, ctx.y + 1, ctx.z);
+  const age = Number(blocks.prop(ctx.state, 'age') ?? 0);
+  if (above !== 0 || age >= 5) return;
+  const flower = (x: number, y: number, z: number, a: number) => ctx.w.setBlock(x, y, z, blocks.stateWith('chorus_flower', { age: String(Math.min(5, a)) }));
+  const empty = (x: number, y: number, z: number) => ctx.w.getBlock(x, y, z) === 0;
+  // nothing may be growing into the sides of where it is going, or it would grow through itself
+  const clearAround = (x: number, y: number, z: number, from?: [number, number]) => {
+    for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as [number, number][]) {
+      if (from && dx === from[0] && dz === from[1]) continue;
+      if (!empty(x + dx, y, z + dz)) return false;
+    }
+    return true;
+  };
+  const belowId = blocks.blockOf(ctx.w.getBlock(ctx.x, ctx.y - 1, ctx.z)).id;
+  let climbs = false;
+  let onEndStone = false;
+  if (belowId === 'end_stone') climbs = true;
+  else if (belowId === 'chorus_plant') {
+    // vanilla lets a stem climb four blocks, or five when the whole of it stands on end stone
+    let height = 1;
+    for (let i = 0; i < 4; i++) {
+      const id = blocks.blockOf(ctx.w.getBlock(ctx.x, ctx.y - height - 1, ctx.z)).id;
+      if (id !== 'chorus_plant') {
+        if (id === 'end_stone') onEndStone = true;
+        break;
+      }
+      height++;
+    }
+    if (height < 2 || height <= ctx.w.rng.int(onEndStone ? 5 : 4)) climbs = true;
+  } else if (belowId === 'air') climbs = true;
+  if (climbs && clearAround(ctx.x, ctx.y + 1, ctx.z) && empty(ctx.x, ctx.y + 2, ctx.z)) {
+    // the flower goes up first so the stem it leaves behind knows there is something over it
+    flower(ctx.x, ctx.y + 1, ctx.z, age);
+    ctx.w.setBlock(ctx.x, ctx.y, ctx.z, chorusPlantState(ctx, ctx.x, ctx.y, ctx.z));
+    return;
+  }
+  if (age >= 4) {
+    ctx.w.setBlock(ctx.x, ctx.y, ctx.z, blocks.stateWith('chorus_flower', { age: '5' }));
+    return;
+  }
+  let branched = false;
+  const tries = ctx.w.rng.int(4) + (onEndStone ? 1 : 0);
+  for (let i = 0; i < tries; i++) {
+    const [dx, dz] = ([[0, -1], [0, 1], [-1, 0], [1, 0]] as [number, number][])[ctx.w.rng.int(4)];
+    const x = ctx.x + dx;
+    const z = ctx.z + dz;
+    if (!empty(x, ctx.y, z) || !empty(x, ctx.y - 1, z) || !clearAround(x, ctx.y, z, [-dx, -dz])) continue;
+    flower(x, ctx.y, z, age + 1);
+    branched = true;
+  }
+  ctx.w.setBlock(ctx.x, ctx.y, ctx.z, branched ? chorusPlantState(ctx, ctx.x, ctx.y, ctx.z) : blocks.stateWith('chorus_flower', { age: '5' }));
+}
+
 /** Trapdoors and gates simply follow whatever signal reaches them. */
 function openOnPower(ctx: BlockContext): void {
   const powered = isPowered(ctx.w, ctx.x, ctx.y, ctx.z);
@@ -380,10 +466,20 @@ const behaviors: Record<string, Behavior> = {
       if (id === 'sugar_cane') needsSupportBelow(ctx, nx, ny, nz, (b) => b === 'sugar_cane' || SUPPORT_SOIL.has(b) || b === 'sand' || b === 'red_sand');
       else if (id === 'cactus') needsSupportBelow(ctx, nx, ny, nz, (b) => b === 'cactus' || b === 'sand' || b === 'red_sand');
       else if (id === 'bamboo') needsSupportBelow(ctx, nx, ny, nz, (b) => b === 'bamboo' || b === 'bamboo_sapling' || SUPPORT_SOIL.has(b) || b === 'sand' || b === 'gravel');
+      else if (id === 'chorus_flower') needsSupportBelow(ctx, nx, ny, nz, (b) => b === 'end_stone' || b === 'chorus_plant' || b === 'air');
+      else if (id === 'chorus_plant') {
+        if (!chorusStands(ctx)) ctx.w.breakBlock(ctx.x, ctx.y, ctx.z);
+        else {
+          // a plant re-reads what it is joined to whenever anything beside it changes
+          const wired = chorusPlantState(ctx, ctx.x, ctx.y, ctx.z);
+          if (wired !== ctx.state) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, wired);
+        }
+      }
     },
     randomTick: (ctx) => {
       const id = ctx.def.id;
-      if (id === 'sugar_cane') growStalk(ctx, id, 3);
+      if (id === 'chorus_flower') growChorus(ctx);
+      else if (id === 'sugar_cane') growStalk(ctx, id, 3);
       else if (id === 'cactus') growStalk(ctx, id, 3);
       else if (id === 'bamboo' && ctx.w.rng.int(3) === 0 && isAir(ctx.w.getBlock(ctx.x, ctx.y + 1, ctx.z))) {
         let h = 1;

@@ -3291,9 +3291,38 @@ export class Game {
     for (const e of f.effects ?? []) if (e.chance === undefined || Math.random() < e.chance) p.effects.add(e.effect, e.duration, e.amplifier ?? 0);
     if (def.id === 'milk_bucket') p.effects.clear();
     if (def.id === 'honey_bottle') p.effects.remove('poison');
+    if (def.id === 'chorus_fruit') this.chorusTeleport();
     if (p.gamemode !== 'creative') {
       p.inventory.consumeSelected();
       if (f.container && p.inventory.add({ id: f.container, count: 1 }) > 0) this.dropStack({ id: f.container, count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+    }
+  }
+
+  /**
+   * Vanilla's chorus fruit: it throws whoever eats it up to eight blocks in any direction, sixteen
+   * tries at finding somewhere with a floor and room to stand, and does nothing at all if none of
+   * them lands anywhere safe.
+   */
+  private chorusTeleport(): void {
+    const p = this.player;
+    const from = p.pos.clone();
+    for (let i = 0; i < 16; i++) {
+      const tx = Math.floor(from.x + (Math.random() - 0.5) * 16);
+      const tz = Math.floor(from.z + (Math.random() - 0.5) * 16);
+      let ty = Math.floor(from.y + (Math.random() - 0.5) * 16);
+      // vanilla walks down from the spot it rolled until it finds something to stand on
+      while (ty > WORLD_MIN_Y && !this.world.getBlock(tx, ty - 1, tz)) ty--;
+      if (ty <= WORLD_MIN_Y) continue;
+      const solid = blocks.blockOf(this.world.getBlock(tx, ty - 1, tz));
+      if (!solid.solid || this.world.getBlock(tx, ty, tz) || this.world.getBlock(tx, ty + 1, tz)) continue;
+      p.pos.set(tx + 0.5, ty, tz + 0.5);
+      p.vel.set(0, 0, 0);
+      p.fallDistance = 0;
+      p.onGround = false;
+      this.particles.poof(from.x, from.y + 1, from.z, 16, Math.random, 0.6, 1.8);
+      this.audio.play('enderman', { x: from.x, y: from.y, z: from.z, pitch: 1.4 });
+      this.audio.play('enderman', { x: p.pos.x, y: p.pos.y, z: p.pos.z, pitch: 1.4 });
+      return;
     }
   }
 

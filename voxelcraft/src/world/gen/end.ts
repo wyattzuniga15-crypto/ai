@@ -288,18 +288,33 @@ export class EndGenerator {
   private chorusPlant(world: BlockAccess, x: number, y: number, z: number, rng: Rng): void {
     const PLANT = this.block('chorus_plant');
     const FLOWER = this.block('chorus_flower');
+    const stem: [number, number, number][] = [];
     const height = 2 + rng.int(4);
-    for (let i = 0; i < height; i++) world.set(x, y + i, z, PLANT);
+    for (let i = 0; i < height; i++) stem.push([x, y + i, z]);
     // a branch or two off the trunk, each ending in a flower
+    const flowers: [number, number, number][] = [[x, y + height, z]];
     for (let b = 0; b < 1 + rng.int(3); b++) {
       const bx = x + rng.int(3) - 1;
       const bz = z + rng.int(3) - 1;
       const by = y + 1 + rng.int(Math.max(1, height - 1));
       if (bx === x && bz === z) continue;
-      world.set(bx, by, bz, PLANT);
-      world.set(bx, by + 1, bz, FLOWER);
+      stem.push([bx, by, bz]);
+      flowers.push([bx, by + 1, bz]);
     }
-    world.set(x, y + height, z, FLOWER);
+    for (const [px, py, pz] of stem) world.set(px, py, pz, PLANT);
+    for (const [px, py, pz] of flowers) world.set(px, py, pz, FLOWER);
+    // the stem's own blocks say which way each piece reaches, which is what shapes it
+    const holds = new Set(stem.map(([px, py, pz]) => `${px},${py},${pz}`));
+    const tips = new Set(flowers.map(([px, py, pz]) => `${px},${py},${pz}`));
+    for (const [px, py, pz] of stem) {
+      let state = PLANT;
+      for (const [name, dx, dy, dz] of [['up', 0, 1, 0], ['down', 0, -1, 0], ['north', 0, 0, -1], ['south', 0, 0, 1], ['west', -1, 0, 0], ['east', 1, 0, 0]] as [string, number, number, number][]) {
+        const key = `${px + dx},${py + dy},${pz + dz}`;
+        const rooted = dy < 0 && blocks.blockOf(world.get(px + dx, py + dy, pz + dz)).id === 'end_stone';
+        state = blocks.withProp(state, name, holds.has(key) || tips.has(key) || rooted ? 'true' : 'false');
+      }
+      world.set(px, py, pz, state);
+    }
   }
 }
 

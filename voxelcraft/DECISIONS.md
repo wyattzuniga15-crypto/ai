@@ -927,3 +927,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      something at speed hurts for ten times the speed lost, less three, which is vanilla's kinetic
      damage. A firework rocket lit while gliding pushes along the line of sight for as long as it
      burns. Note that fireworks cannot be crafted yet, so for now a rocket has to be given.
+
+106. **Chorus fruit and purpur.** The flower is vanilla's `ChorusFlowerBlock`: it climbs while there
+     is room above and nothing growing into the sides of where it is going, dies off after four
+     blocks of stem unless the whole of it stands on end stone, and branches sideways when it cannot
+     climb, ageing out into a spent flower when it can do neither. What it leaves behind is a stem
+     that re-reads what it is joined to whenever anything beside it changes, and that comes down the
+     moment the end stone or the stem under it goes — vanilla's own rule, which is why a chorus
+     plant harvests itself from the bottom. Eating the fruit throws the eater up to eight blocks in
+     any direction, sixteen tries at somewhere with a floor and room to stand and nothing at all if
+     none of them is safe. Smelting the fruit and crafting the popped one into purpur and end rods
+     were already in the recipe data and needed nothing new.
