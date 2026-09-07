@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -192,6 +192,62 @@ const goatModel: ModelDef = {
     { name: 'left_front_leg', pivot: [1, 14, -6], boxes: [{ uv: [35, 2], box: [0, 0, 0, 3, 10, 3] }] },
   ],
 };
+
+
+/** The rabbit, whose haunches and ears vanilla animates as it hops. */
+const rabbitModel = (texture = 'rabbit/brown.png'): ModelDef => ({
+  texture, texW: 64, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 19, 8], boxes: [{ uv: [0, 0], box: [-3, -2, -10, 6, 5, 10] }] },
+    { name: 'left_hind_leg', parent: 'body', pivot: [3, 17.5, 3.7], boxes: [{ uv: [8, 24], box: [-1, 5.5, -3.7, 2, 1, 7] }, { uv: [16, 15], box: [-1, 0, 0, 2, 4, 5] }] },
+    { name: 'right_hind_leg', parent: 'body', pivot: [-3, 17.5, 3.7], boxes: [{ uv: [26, 24], box: [-1, 5.5, -3.7, 2, 1, 7] }, { uv: [30, 15], box: [-1, 0, 0, 2, 4, 5] }] },
+    { name: 'left_front_leg', parent: 'body', pivot: [3, 17, -1], boxes: [{ uv: [8, 15], box: [-1, 0, -1, 2, 7, 2] }] },
+    { name: 'right_front_leg', parent: 'body', pivot: [-3, 17, -1], boxes: [{ uv: [0, 15], box: [-1, 0, -1, 2, 7, 2] }] },
+    { name: 'head', parent: 'body', pivot: [0, 16, -1], boxes: [{ uv: [32, 0], box: [-2.5, -4, -5, 5, 4, 5] }, { uv: [58, 0], box: [-2.5, -9, -1, 2, 5, 1] }, { uv: [52, 0], box: [0.5, -9, -1, 2, 5, 1] }, { uv: [32, 9], box: [-0.5, -2.5, -5.5, 1, 1, 1] }] },
+    { name: 'tail', parent: 'body', pivot: [0, 20, 7], boxes: [{ uv: [52, 6], box: [-1.5, -1.5, 0, 3, 3, 2] }] },
+  ],
+});
+
+/** The panda, whose skin says which way it was born. */
+const pandaModel = (texture = 'panda/panda.png'): ModelDef => ({
+  texture, texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 10, 0], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [0, 25], box: [-9.5, -13, -6.5, 19, 26, 13] }] },
+    { name: 'head', pivot: [0, 11.5, -17], boxes: [{ uv: [0, 6], box: [-6.5, -5, -4, 13, 10, 9] }, { uv: [45, 16], box: [-3.5, 0, -6, 7, 5, 2] }, { uv: [52, 25], box: [-8.5, -8, -1, 5, 4, 1] }, { uv: [52, 25], box: [3.5, -8, -1, 5, 4, 1] }] },
+    { name: 'right_hind_leg', pivot: [-5.5, 15, 9], boxes: [{ uv: [40, 0], box: [-3, 0, -3, 6, 9, 6] }] },
+    { name: 'left_hind_leg', pivot: [5.5, 15, 9], boxes: [{ uv: [40, 0], box: [-3, 0, -3, 6, 9, 6] }] },
+    { name: 'right_front_leg', pivot: [-5.5, 15, -9], boxes: [{ uv: [40, 0], box: [-3, 0, -3, 6, 9, 6] }] },
+    { name: 'left_front_leg', pivot: [5.5, 15, -9], boxes: [{ uv: [40, 0], box: [-3, 0, -3, 6, 9, 6] }] },
+  ],
+});
+
+/** The polar bear. */
+const polarBearModel: ModelDef = {
+  texture: 'bear/polarbear.png', texW: 128, texH: 64,
+  parts: [
+    { name: 'body', pivot: [-2, 9, 12], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [0, 19], box: [-5, -13, -7, 14, 14, 11] }, { uv: [39, 0], box: [-4, -25, -7, 12, 12, 10] }] },
+    { name: 'head', pivot: [0, 10, -16], boxes: [{ uv: [0, 0], box: [-3.5, -3, -3, 7, 7, 7] }, { uv: [0, 44], box: [-2.5, 1, -6, 5, 3, 3] }, { uv: [26, 0], box: [-4.5, -4, -1, 2, 2, 1] }, { uv: [26, 0], box: [2.5, -4, -1, 2, 2, 1] }] },
+    { name: 'right_hind_leg', pivot: [-4.5, 14, 6], boxes: [{ uv: [50, 22], box: [-2, 0, -2, 4, 10, 8] }] },
+    { name: 'left_hind_leg', pivot: [4.5, 14, 6], boxes: [{ uv: [50, 22], box: [-2, 0, -2, 4, 10, 8] }] },
+    { name: 'right_front_leg', pivot: [-3.5, 14, -8], boxes: [{ uv: [50, 40], box: [-2, 0, -2, 4, 10, 6] }] },
+    { name: 'left_front_leg', pivot: [3.5, 14, -8], boxes: [{ uv: [50, 40], box: [-2, 0, -2, 4, 10, 6] }] },
+  ],
+};
+
+/** The llama, chests and all; a trader's llama is the same animal in its own coat. */
+const llamaModel = (texture = 'llama/creamy.png'): ModelDef => ({
+  texture, texW: 128, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 5, 2], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [29, 0], box: [-6, -10, -7, 12, 18, 10] }] },
+    { name: 'head', pivot: [0, 7, -6], boxes: [{ uv: [0, 0], box: [-2, -14, -10, 4, 4, 9] }, { uv: [0, 14], box: [-4, -16, -6, 8, 18, 6] }, { uv: [17, 0], box: [-4, -19, -4, 3, 3, 2] }, { uv: [17, 0], box: [1, -19, -4, 3, 3, 2] }] },
+    { name: 'chest_right', pivot: [-8.5, 3, 3], rotation: [0, -HALF_PI, 0], hidden: true, boxes: [{ uv: [45, 28], box: [-3, 0, 0, 8, 8, 3] }] },
+    { name: 'chest_left', pivot: [5.5, 3, 3], rotation: [0, -HALF_PI, 0], hidden: true, boxes: [{ uv: [45, 41], box: [-3, 0, 0, 8, 8, 3] }] },
+    { name: 'right_hind_leg', pivot: [-3.5, 10, 6], boxes: [{ uv: [29, 29], box: [-2, 0, -2, 4, 14, 4] }] },
+    { name: 'left_hind_leg', pivot: [3.5, 10, 6], boxes: [{ uv: [29, 29], box: [-2, 0, -2, 4, 14, 4] }] },
+    { name: 'right_front_leg', pivot: [-3.5, 10, -5], boxes: [{ uv: [29, 29], box: [-2, 0, -2, 4, 14, 4] }] },
+    { name: 'left_front_leg', pivot: [3.5, 10, -5], boxes: [{ uv: [29, 29], box: [-2, 0, -2, 4, 14, 4] }] },
+  ],
+});
 
 const phantomModel: ModelDef = {
   texture: 'phantom.png', texW: 64, texH: 64,
@@ -872,10 +928,20 @@ const foxGoals = (): Goal[] => [floatGoal, foxSleepGoal(), panicGoal(1.6), avoid
 /** Goats wander the peaks and lower their heads at whatever has stood too close for too long. */
 const goatGoals = (): Goal[] => [floatGoal, panicGoal(1.4), goatRamGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 1, 10), lookAtPlayerGoal(6), randomLookGoal];
 
+/** A lazy panda lies down where it is; the rest amble about the jungle. */
+const pandaGoals = (): Goal[] => [floatGoal, pandaLieGoal(), panicGoal(1.2), loseTargetGoal(), meleeAttackGoal(), breedGoal(), followParentGoal(), wanderGoal(160, 0.7, 8), lookAtPlayerGoal(6), randomLookGoal];
+
+/** A polar bear minds its own business until somebody touches its cub. */
+const bearGoals = (): Goal[] => [floatGoal, bearDefendGoal(), loseTargetGoal(), meleeAttackGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(6), randomLookGoal];
+
+/** Llamas keep to their herd and spit at whatever hurts them. */
+const llamaGoals = (): Goal[] => [floatGoal, llamaSpitGoal(), panicGoal(1.2), breedGoal(), followParentGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(6), randomLookGoal];
+
 /** Vanilla breeding items per animal. */
 export const BREEDING_FOODS: Record<string, string[]> = {
   cow: ['wheat'], mooshroom: ['wheat'], sheep: ['wheat'], pig: ['carrot', 'potato', 'beetroot'],
   turtle: ['seagrass'], goat: ['wheat'], fox: ['sweet_berries', 'glow_berries'],
+  rabbit: ['carrot', 'golden_carrot', 'dandelion'], panda: ['bamboo'], llama: ['hay_block'],
   chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
 };
 export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
@@ -887,6 +953,35 @@ BREEDING_FOODS.cat = ['cod', 'salmon'];
 BREEDING_FOODS.bee = BEE_FLOWERS;
 BREEDING_FOODS.ocelot = ['cod', 'salmon'];
 for (const e of ['horse', 'donkey', 'mule']) BREEDING_FOODS[e] = ['golden_carrot', 'golden_apple', 'enchanted_golden_apple'];
+
+/**
+ * Vanilla `Rabbit.getRandomRabbitType`: snowy biomes give white rabbits (one in five splotched),
+ * the desert gives gold ones, and everywhere else rolls brown, salt or black.
+ */
+export function rabbitVariantFor(biomeId: string, rng: () => number): string {
+  const i = Math.floor(rng() * 100);
+  if (biomeId.startsWith('snowy') || biomeId.includes('frozen') || biomeId === 'grove' || biomeId.includes('peaks')) return i < 80 ? 'white' : 'white_splotched';
+  if (biomeId === 'desert' || biomeId === 'badlands') return 'gold';
+  return i < 50 ? 'brown' : i < 90 ? 'salt' : 'black';
+}
+
+/** Vanilla's panda genes, with the two recessive ones only showing when both parents carry them. */
+export const PANDA_GENES = ['normal', 'lazy', 'worried', 'playful', 'aggressive', 'weak', 'brown'];
+
+/** One rolled gene, on vanilla's own weights: the plain one most of the time. */
+export function pandaGene(rng: () => number): string {
+  const r = rng();
+  if (r < 0.45) return 'normal';
+  if (r < 0.6) return 'lazy';
+  if (r < 0.72) return 'worried';
+  if (r < 0.84) return 'playful';
+  if (r < 0.92) return 'aggressive';
+  if (r < 0.97) return 'weak';
+  return 'brown';
+}
+
+/** Vanilla's llama coats. */
+export const LLAMA_COATS = ['creamy', 'white', 'brown', 'gray'];
 
 /** Vanilla 1.20.5 wolf variants by spawn biome; null where wolves do not spawn naturally. */
 export function wolfVariantFor(biomeId: string): string | null {
@@ -951,6 +1046,12 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   turtle: { model: turtleModel, animation: 'quadruped', eyeHeight: 0.25, followRange: 16, goals: () => turtleGoals() },
   fox: { model: foxModel(), animation: 'quadruped', eyeHeight: 0.55, followRange: 16, goals: () => foxGoals() },
   goat: { model: goatModel, animation: 'quadruped', eyeHeight: 1.2, followRange: 16, goals: () => goatGoals() },
+  // and the rest of the overworld's animals: a rabbit that hops, a panda born one way or another,
+  // a polar bear that turns on whoever touches its cub, and a llama that spits
+  rabbit: { model: rabbitModel(), animation: 'rabbit', eyeHeight: 0.4, followRange: 16, goals: () => passiveGoals(2.2) },
+  panda: { model: pandaModel(), animation: 'quadruped', eyeHeight: 1.1, followRange: 16, goals: () => pandaGoals() },
+  polar_bear: { model: polarBearModel, animation: 'quadruped', eyeHeight: 1.3, followRange: 32, goals: () => bearGoals() },
+  llama: { model: llamaModel(), animation: 'quadruped', eyeHeight: 1.75, followRange: 32, goals: () => llamaGoals() },
   // vanilla phantom attack damage is 6
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
   witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },

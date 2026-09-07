@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -831,6 +831,18 @@ export class Mob {
         }
         break;
       }
+      case 'rabbit': {
+        // vanilla's rabbit gathers itself and springs rather than walking: the haunches tuck up and
+        // the front legs reach out over the hop
+        const hop = amt > 0.01 ? (Math.sin(swing * 0.5) + 1) / 2 : 0;
+        set('right_hind_leg', -hop * 1.3);
+        set('left_hind_leg', -hop * 1.3);
+        set('right_front_leg', -hop * 1.6);
+        set('left_front_leg', -hop * 1.6);
+        const head = parts.get('head');
+        if (head) head.rotation.x = -this.headPitch - hop * 0.2;
+        break;
+      }
       case 'horse': {
         // vanilla equine gait: the diagonal pairs swing together, faster than a walking cow
         const gallop = Math.min(1, amt * 1.4);
@@ -1065,6 +1077,20 @@ export class Mob {
       this.setTexture(this.extra.variant === 'brown' ? 'cow/brown_mooshroom.png' : 'cow/red_mooshroom.png');
       if (this.decoration) this.decoration.visible = !baby;
     }
+    if (this.def.id === 'panda') {
+      // vanilla's genes each have a skin of their own, and the laziest one lies on its back
+      const gene = String(this.extra.gene ?? 'normal');
+      this.setTexture(`panda/${gene === 'normal' ? 'panda' : `${gene}_panda`}.png`);
+      if (this.extra.lying === true) g.rotation.z = Math.PI / 2;
+    }
+    if (this.def.id === 'llama') {
+      this.setTexture(`llama/${String(this.extra.coat ?? 'creamy')}.png`);
+      for (const name of ['chest_left', 'chest_right']) {
+        const part = parts.get(name);
+        if (part) part.visible = this.extra.chest === true;
+      }
+    }
+    if (this.def.id === 'rabbit') this.setTexture(`rabbit/${String(this.extra.variant ?? 'brown')}.png`);
     if (this.def.id === 'fox') {
       // vanilla curls a sleeping fox onto its side and gives it a skin with its eyes shut
       const snow = this.extra.variant === 'snow';

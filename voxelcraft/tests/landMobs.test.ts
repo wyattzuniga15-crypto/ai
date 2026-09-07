@@ -4,8 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { BREEDING_FOODS, MOB_SPECS, mobStats } from '../src/entities/mobTypes.ts';
-import { GOAT_RAM_COOLDOWN, avoidPlayerGoal, foxSleepGoal, goatRamGoal, turtleLayGoal } from '../src/entities/ai.ts';
+import { BREEDING_FOODS, LLAMA_COATS, MOB_SPECS, PANDA_GENES, mobStats, pandaGene, rabbitVariantFor } from '../src/entities/mobTypes.ts';
+import { GOAT_RAM_COOLDOWN, LLAMA_SPIT_DAMAGE, avoidPlayerGoal, bearDefendGoal, foxSleepGoal, goatRamGoal, llamaSpitGoal, pandaLieGoal, turtleLayGoal } from '../src/entities/ai.ts';
 import type { Mob, MobWorld } from '../src/entities/mob.ts';
 import { blocks } from '../src/blocks/registry.ts';
 
@@ -137,5 +137,103 @@ describe('the beach, the taiga and the peaks', () => {
     expect(m.extra.ramCooldown).toBe(GOAT_RAM_COOLDOWN);
     expect(goal.canUse!(m, near())).toBe(false);
     expect(m.extra.ramCooldown).toBe(GOAT_RAM_COOLDOWN - 1);
+  });
+});
+
+describe('the jungle, the ice and the hills', () => {
+  it('registers the four with vanilla’s stats and foods', () => {
+    expect(MOB_SPECS.rabbit.animation).toBe('rabbit');
+    expect(MOB_SPECS.panda.model.texture).toBe('panda/panda.png');
+    expect(MOB_SPECS.polar_bear.model.texture).toBe('bear/polarbear.png');
+    expect(MOB_SPECS.llama.model.texture).toBe('llama/creamy.png');
+    expect(mobStats('rabbit')).toMatchObject({ health: 3, width: 0.4, height: 0.5 });
+    expect(mobStats('panda')).toMatchObject({ health: 20, damage: 6, disposition: 'neutral' });
+    expect(mobStats('polar_bear')).toMatchObject({ health: 30, damage: 6 });
+    expect(mobStats('llama')).toMatchObject({ health: 22, damage: 1 });
+    expect(BREEDING_FOODS.rabbit).toContain('carrot');
+    expect(BREEDING_FOODS.panda).toEqual(['bamboo']);
+    expect(BREEDING_FOODS.llama).toEqual(['hay_block']);
+    // the llama's chests only show once it is carrying them
+    expect(MOB_SPECS.llama.model.parts.find((p) => p.name === 'chest_left')?.hidden).toBe(true);
+  });
+
+  it('colours a rabbit by where it was born, the way vanilla rolls it', () => {
+    // snow gives white, one in five splotched
+    expect(rabbitVariantFor('snowy_plains', () => 0.1)).toBe('white');
+    expect(rabbitVariantFor('snowy_taiga', () => 0.9)).toBe('white_splotched');
+    expect(rabbitVariantFor('jagged_peaks', () => 0.1)).toBe('white');
+    expect(rabbitVariantFor('desert', () => 0.5)).toBe('gold');
+    // everywhere else: half brown, then salt, then black
+    expect(rabbitVariantFor('plains', () => 0.1)).toBe('brown');
+    expect(rabbitVariantFor('plains', () => 0.7)).toBe('salt');
+    expect(rabbitVariantFor('plains', () => 0.95)).toBe('black');
+  });
+
+  it('rolls a panda’s gene, most of them plain', () => {
+    expect(pandaGene(() => 0)).toBe('normal');
+    expect(pandaGene(() => 0.5)).toBe('lazy');
+    expect(pandaGene(() => 0.99)).toBe('brown');
+    for (const g of PANDA_GENES) expect(typeof g).toBe('string');
+    // every gene it can roll has a skin behind it
+    const seen = new Set<string>();
+    for (let i = 0; i < 100; i++) seen.add(pandaGene(() => i / 100));
+    for (const g of seen) expect(PANDA_GENES).toContain(g);
+    expect(LLAMA_COATS).toEqual(['creamy', 'white', 'brown', 'gray']);
+  });
+
+  it('lies a lazy panda down and leaves the rest walking', () => {
+    const goal = pandaLieGoal();
+    const lazy = makeMob('panda');
+    lazy.extra.gene = 'lazy';
+    expect(goal.canUse!(lazy, makeWorld({ rng: () => 0.001 }))).toBe(true);
+    goal.tick!(lazy, makeWorld());
+    expect(lazy.extra.lying).toBe(true);
+    goal.stop!(lazy, makeWorld());
+    expect(lazy.extra.lying).toBe(false);
+    const busy = makeMob('panda');
+    busy.extra.gene = 'playful';
+    expect(goal.canUse!(busy, makeWorld({ rng: () => 0.001 }))).toBe(false);
+  });
+
+  it('turns a polar bear on whoever touches its cub', () => {
+    const goal = bearDefendGoal();
+    const bear = makeMob('polar_bear');
+    const quiet = makeWorld({ mobsNear: () => [] });
+    expect(goal.canUse!(bear, quiet)).toBe(false);
+    // a cub of its own, freshly hurt, is what sets it off
+    const cub = makeMob('polar_bear');
+    (cub as unknown as { isBaby: boolean }).isBaby = true;
+    cub.age = 100;
+    cub.lastHurtTime = 90;
+    const angry = makeWorld({ mobsNear: () => [cub] });
+    expect(goal.canUse!(bear, angry)).toBe(true);
+    goal.tick!(bear, angry);
+    expect(bear.target).toBe('player');
+    // a cub that was hurt a long time ago is water under the bridge
+    cub.lastHurtTime = 0;
+    expect(goal.canUse!(bear, makeWorld({ mobsNear: () => [cub] }))).toBe(false);
+  });
+
+  it('makes a llama spit at whatever hurt it', () => {
+    const goal = llamaSpitGoal();
+    const m = makeMob('llama');
+    (m as unknown as { eyePos: () => THREE.Vector3 }).eyePos = () => m.pos.clone();
+    const shots: number[] = [];
+    const world = makeWorld({
+      playerPos: () => new THREE.Vector3(0, 64, 6),
+      playerEye: () => new THREE.Vector3(0, 65.6, 6),
+      shootArrow: (_f: THREE.Vector3, _t: THREE.Vector3, _v: number, d: number) => shots.push(d),
+    });
+    // unhurt, it has nothing to say
+    expect(goal.canUse!(m, world)).toBe(false);
+    m.age = 100;
+    m.lastHurtTime = 90;
+    expect(goal.canUse!(m, world)).toBe(true);
+    goal.tick!(m, world);
+    expect(shots).toEqual([LLAMA_SPIT_DAMAGE]);
+    // and then it has to reload
+    expect(m.attackCooldown).toBe(40);
+    goal.tick!(m, world);
+    expect(shots).toEqual([LLAMA_SPIT_DAMAGE]);
   });
 });

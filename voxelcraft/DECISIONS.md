@@ -1238,3 +1238,19 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
 
      Spawning follows vanilla's lists: turtles on beaches, foxes in the taigas and groves (white in
      the snowy ones), goats on the peaks, the snowy slopes and the meadows.
+
+122. **Rabbits, pandas, polar bears and llamas.** The last four of the overworld's ordinary animals,
+     on the same footing as the rest: Mojang's geometry for the models, vanilla's own rules for what
+     they are and what they do.
+
+     A rabbit's coat is rolled the way `Rabbit.getRandomRabbitType` rolls it — white in the snow
+     with one in five splotched, gold in the desert and the badlands, and half brown, then salt,
+     then black everywhere else — and it hops rather than walks, the haunches tucking and the front
+     legs reaching out over each spring. A panda is born with one of vanilla's seven genes, each
+     with a skin of its own, and the laziest of them lies on its back for a while at a time. A polar
+     bear minds its own business until a cub within a dozen blocks is hurt, and then it comes for
+     whoever did it. A llama herd shares a coat the way a horse herd shares one, and a llama that
+     has been hurt spits rather than walking over to bite.
+
+     Three of the four needed vanilla's quarter turn on the body, the same one the cow and the
+     turtle need: Bedrock authors a bear's, a panda's and a llama's barrel standing on end.

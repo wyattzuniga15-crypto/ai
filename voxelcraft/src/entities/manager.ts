@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, MOB_SPECS, initEquine, isSlimeChunk, mobStats, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -46,6 +46,12 @@ const HORSE_BIOMES = new Set(['plains', 'sunflower_plains', 'savanna', 'savanna_
 const FOX_BIOMES = new Set(['taiga', 'old_growth_pine_taiga', 'old_growth_spruce_taiga', 'snowy_taiga', 'grove']);
 const SNOW_FOX_BIOMES = new Set(['snowy_taiga', 'grove']);
 
+/** Where vanilla puts the rest of the overworld's animals. */
+const PANDA_BIOMES = new Set(['bamboo_jungle', 'jungle']);
+const BEAR_BIOMES = new Set(['snowy_plains', 'snowy_taiga', 'snowy_slopes', 'frozen_peaks', 'ice_spikes', 'frozen_river', 'grove']);
+const LLAMA_BIOMES = new Set(['savanna', 'savanna_plateau', 'windswept_savanna', 'windswept_hills', 'windswept_forest', 'windswept_gravelly_hills']);
+const RABBIT_BIOMES = new Set(['desert', 'flower_forest', 'taiga', 'snowy_taiga', 'snowy_plains', 'ice_spikes', 'grove', 'meadow', 'badlands', 'wooded_badlands', 'eroded_badlands']);
+
 /** Vanilla's goat biomes: the peaks and the slopes under them. */
 const GOAT_BIOMES = new Set(['frozen_peaks', 'jagged_peaks', 'stony_peaks', 'snowy_slopes', 'windswept_hills', 'meadow']);
 
@@ -77,6 +83,9 @@ export class EntityManager {
     if (type === 'sheep') m.extra.color = randomSheepColor(this.host.rng);
     if (type === 'mooshroom') this.dressMooshroom(m);
     if (type === 'cat') m.extra.variant = CAT_VARIANTS[Math.floor(this.host.rng() * CAT_VARIANTS.length)];
+    if (type === 'rabbit') m.extra.variant = rabbitVariantFor(biomes[this.host.getBiome(Math.floor(x), Math.floor(z))]?.id ?? 'plains', this.host.rng);
+    if (type === 'panda') m.extra.gene = pandaGene(this.host.rng);
+    if (type === 'llama') m.extra.coat = LLAMA_COATS[Math.floor(this.host.rng() * LLAMA_COATS.length)];
     if (EQUINE_TYPES.includes(type)) initEquine(m, this.host.rng);
     this.mobs.push(m);
     this.host.scene.add(m.model.group);
@@ -277,15 +286,21 @@ export class EntityManager {
     const wolfVariant = wolfVariantFor(biome.id);
     const fox = FOX_BIOMES.has(biome.id) && h.rng() < 0.5;
     const goat = GOAT_BIOMES.has(biome.id) && h.rng() < 0.5;
+    const panda = PANDA_BIOMES.has(biome.id) && h.rng() < (biome.id === 'bamboo_jungle' ? 0.6 : 0.15);
+    const bear = BEAR_BIOMES.has(biome.id) && h.rng() < 0.4;
+    const llama = LLAMA_BIOMES.has(biome.id) && h.rng() < 0.35;
+    const rabbit = RABBIT_BIOMES.has(biome.id) && h.rng() < 0.4;
     // vanilla spawns ocelots only in the jungles, in pairs
     const ocelot = biome.category === 'jungle' && h.rng() < 0.25;
     // vanilla plains and savannas spawn herds of horses, and one in five of those is a donkey
     const equine = HORSE_BIOMES.has(biome.id) && h.rng() < 0.4;
-    const type = fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    const type = panda ? 'panda' : bear ? 'polar_bear' : llama ? 'llama' : rabbit ? 'rabbit' : fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
     // horse herds share one coat like vanilla's group spawn
     const herdCoat = HORSE_COATS[Math.floor(h.rng() * HORSE_COATS.length)];
-    const want = ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
+    // a llama herd shares a coat the way a horse herd shares one
+    const herdCoatLlama = LLAMA_COATS[Math.floor(h.rng() * LLAMA_COATS.length)];
+    const want = ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : bear ? 1 + Math.floor(h.rng() * 2) : llama ? 4 + Math.floor(h.rng() * 3) : rabbit ? 2 + Math.floor(h.rng() * 3) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
     let spawned = 0;
     for (let i = 0; i < 12 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 7) - 3 + 0.5;
@@ -299,6 +314,9 @@ export class EntityManager {
       if (m && type === 'wolf') m.extra.variant = wolfVariant!;
       if (m && type === 'horse') m.extra.coat = herdCoat;
       if (m && type === 'fox' && SNOW_FOX_BIOMES.has(biome.id)) m.extra.variant = 'snow';
+      if (m && type === 'rabbit') m.extra.variant = rabbitVariantFor(biome.id, h.rng);
+      if (m && type === 'panda') m.extra.gene = pandaGene(h.rng);
+      if (m && type === 'llama') m.extra.coat = herdCoatLlama;
       spawned++;
     }
   }

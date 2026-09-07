@@ -1171,6 +1171,59 @@ export const goatRamGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Pandas, polar bears and llamas
+// ---------------------------------------------------------------------------------------------
+/** A lazy panda lies on its back for a while at a time, which is all vanilla's laziest gene does. */
+export const pandaLieGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => m.extra.gene === 'lazy' && !m.isBaby && w.rng() < 0.005,
+  canContinue: (m, w) => w.rng() > 0.005,
+  tick: (m) => {
+    m.extra.lying = true;
+    m.moveTarget = null;
+    m.vel.x = 0;
+    m.vel.z = 0;
+  },
+  stop: (m) => {
+    m.extra.lying = false;
+  },
+});
+
+/**
+ * Vanilla's polar bear: it leaves everyone alone until a cub of its own is hurt, and then it comes
+ * for whoever did it.
+ */
+export const bearDefendGoal = (): Goal => ({
+  flags: 0,
+  canUse: (m, w) => {
+    if (m.isBaby) return false;
+    // its own hurt, or a cub's within a dozen blocks, sets it off
+    const cubHurt = w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 12).some((o) => o.def.id === 'polar_bear' && o.isBaby && o.age - o.lastHurtTime < 40);
+    return (cubHurt || m.age - m.lastHurtTime < 40) && w.playerTargetable();
+  },
+  tick: (m) => {
+    m.target = 'player';
+  },
+});
+
+/** How hard a llama's spit hits, which is the damage vanilla gives it. */
+export const LLAMA_SPIT_DAMAGE = 1;
+
+/** Vanilla's llama: it spits at whatever hurt it rather than walking over to bite. */
+export const llamaSpitGoal = (): Goal => ({
+  flags: FLAG_LOOK,
+  canUse: (m, w) => m.age - m.lastHurtTime < 100 && w.playerTargetable() && m.distanceTo(w.playerPos()) < 16,
+  tick: (m, w) => {
+    const eye = w.playerEye();
+    m.lookTarget = eye;
+    if (m.attackCooldown > 0) return;
+    m.attackCooldown = 40;
+    w.shootArrow(m.eyePos(), eye, 1.5, LLAMA_SPIT_DAMAGE);
+    w.playSound('llama_spit', m.pos.x, m.pos.y, m.pos.z);
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
 // Phantoms
 // ---------------------------------------------------------------------------------------------
 /** Phantoms circle high above the player and swoop at their head (vanilla PhantomCircleAroundAnchorGoal / SweepAttackGoal). */
