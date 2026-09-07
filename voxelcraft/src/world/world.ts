@@ -375,6 +375,12 @@ export class World {
         if (c) c.light = msg.light;
         break;
       }
+      case 'lightPatch': {
+        // one section's worth of light, which is what an edit or a torch changes
+        const c = this.chunks.get(chunkKey(msg.cx, msg.cz));
+        if (c) c.light.set(msg.light, msg.sy * 16 * CHUNK_SIZE * CHUNK_SIZE);
+        break;
+      }
       case 'unload': {
         const key = chunkKey(msg.cx, msg.cz);
         const c = this.chunks.get(key);

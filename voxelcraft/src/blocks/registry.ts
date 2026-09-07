@@ -37,10 +37,67 @@ export interface BlockDef {
   replaceable?: boolean;
 }
 
+/**
+ * Light that depends on the block's own state. Vanilla keeps these in code as a function of the
+ * state rather than as one number per block, and the data we generate from can only carry the
+ * default state's value — which is why an unlit furnace would otherwise glow and a lit one would
+ * not. The numbers are vanilla's own.
+ */
+const STATE_LIGHT: Record<string, (p: Record<string, string>) => number> = {
+  candle: (p) => (p.lit === 'true' ? 3 * Number(p.candles ?? 1) : 0),
+  candle_cake: (p) => (p.lit === 'true' ? 3 : 0),
+  redstone_lamp: (p) => (p.lit === 'true' ? 15 : 0),
+  redstone_torch: (p) => (p.lit === 'true' ? 7 : 0),
+  redstone_wall_torch: (p) => (p.lit === 'true' ? 7 : 0),
+  redstone_ore: (p) => (p.lit === 'true' ? 9 : 0),
+  deepslate_redstone_ore: (p) => (p.lit === 'true' ? 9 : 0),
+  furnace: (p) => (p.lit === 'true' ? 13 : 0),
+  blast_furnace: (p) => (p.lit === 'true' ? 13 : 0),
+  smoker: (p) => (p.lit === 'true' ? 13 : 0),
+  campfire: (p) => (p.lit === 'true' ? 15 : 0),
+  soul_campfire: (p) => (p.lit === 'true' ? 10 : 0),
+  respawn_anchor: (p) => Math.floor((Number(p.charges ?? 0) * 15) / 4),
+  sea_pickle: (p) => (p.waterlogged === 'true' ? 3 + 3 * Number(p.pickles ?? 1) : 0),
+  cave_vines: (p) => (p.berries === 'true' ? 14 : 0),
+  cave_vines_plant: (p) => (p.berries === 'true' ? 14 : 0),
+  light: (p) => Number(p.level ?? 15),
+  copper_bulb: (p) => (p.lit === 'true' ? 15 : 0),
+  exposed_copper_bulb: (p) => (p.lit === 'true' ? 12 : 0),
+  weathered_copper_bulb: (p) => (p.lit === 'true' ? 8 : 0),
+  oxidized_copper_bulb: (p) => (p.lit === 'true' ? 4 : 0),
+};
+
+/** The same rule for every block whose id ends this way: the dyed candles and the waxed bulbs. */
+const STATE_LIGHT_SUFFIX: [string, (p: Record<string, string>) => number][] = [
+  ['_candle_cake', STATE_LIGHT.candle_cake],
+  ['_candle', STATE_LIGHT.candle],
+];
+
+/** The light rule for a block, if its light depends on more than which block it is. */
+function stateLightRule(id: string): ((p: Record<string, string>) => number) | null {
+  if (STATE_LIGHT[id]) return STATE_LIGHT[id];
+  const waxed = id.startsWith('waxed_') ? id.slice(6) : null;
+  if (waxed && STATE_LIGHT[waxed]) return STATE_LIGHT[waxed];
+  for (const [suffix, rule] of STATE_LIGHT_SUFFIX) if (id.endsWith(suffix)) return rule;
+  return null;
+}
+
 /** Blocks rendered with alpha blending instead of alpha testing. */
 const TRANSLUCENT = new Set([
   'water', 'ice', 'frosted_ice', 'slime_block', 'honey_block', 'nether_portal', 'bubble_column', 'tinted_glass',
 ]);
+
+/** The properties of one state id, read straight off the block's own list of them. */
+function decodeProps(d: BlockDef, state: number): Record<string, string> {
+  const out: Record<string, string> = {};
+  let idx = state - d.min;
+  for (let i = d.states.length - 1; i >= 0; i--) {
+    const p = d.states[i];
+    out[p.name] = p.values[idx % p.values.length];
+    idx = Math.floor(idx / p.values.length);
+  }
+  return out;
+}
 
 export class BlockRegistry {
   readonly defs: BlockDef[];
@@ -71,10 +128,11 @@ export class BlockRegistry {
     this.stateOpaque = new Uint8Array(max + 1);
     defs.forEach((d, i) => {
       const opaque = d.filter >= 15 && !d.transparent && d.solid ? 1 : 0;
+      const rule = stateLightRule(d.id);
       for (let s = d.min; s <= d.max; s++) {
         this.stateBlock[s] = i;
         this.stateFilter[s] = d.filter;
-        this.stateEmit[s] = d.emit;
+        this.stateEmit[s] = rule ? Math.max(0, Math.min(15, rule(decodeProps(d, s)))) : d.emit;
         this.stateOpaque[s] = opaque;
       }
     });

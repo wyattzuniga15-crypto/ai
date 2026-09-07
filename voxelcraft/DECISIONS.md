@@ -971,3 +971,21 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      Two smaller stubs went with it: flint and steel lights a candle or a campfire where it stands
      rather than setting a fire beside it, and a hand puts a lit candle out; and coral with no water
      against it dies into the dead one of its kind, keeping the way it faces.
+
+109. **Light that depends on the state, and two bugs behind it.** Vanilla works out how much light a
+     block gives off from its state rather than from the block alone, and the data the game is
+     generated from can only carry one number per block — the default state's. So an unlit furnace
+     glowed and a lit one did not, an unlit campfire lit a room, and a lit redstone lamp did nothing.
+     The registry now applies vanilla's own rule per state where there is one: the furnace family at
+     thirteen when lit, campfires at fifteen and soul campfires at ten, redstone lamps at fifteen,
+     redstone torches at seven, redstone ore at nine, a candle at three for each candle on it, a
+     respawn anchor by its charges, a sea pickle by how many are in the water, cave vines by their
+     berries, and the copper bulbs at fifteen down to four as they weather.
+
+     Two real bugs turned up on the way. The worker owns the light engine, and nothing ever told the
+     main thread what it had worked out: the copy the main thread reads — for mob spawning, for
+     growing crops, for how brightly to draw a mob, for the debug readout — was whatever it had been
+     when the chunk was first delivered. Each section now carries its light back as it is remeshed.
+     And the light engine's spread queue trusted entries that were queued before a removal walk ran,
+     so taking a torch away lit the room straight back up from the light it had just cleared: an
+     entry that names light the cell no longer holds is now skipped.

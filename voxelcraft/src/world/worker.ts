@@ -3,7 +3,7 @@
  * decorates, lights and meshes them, and streams results to the main thread. Work is done in
  * time-sliced pumps so block edits from the player are handled with low latency.
  */
-import { SECTION_COUNT, WORLD_MIN_Y } from '../core/constants.ts';
+import { CHUNK_SIZE, SECTION_COUNT, WORLD_MIN_Y } from '../core/constants.ts';
 import { blocks } from '../blocks/registry.ts';
 import { ChunkData } from './chunk.ts';
 import { buildStructureSets } from './gen/structures.ts';
@@ -218,6 +218,17 @@ function neighboursLit(cx: number, cz: number): boolean {
   return true;
 }
 
+/**
+ * The light of one section, sent on to the main thread. The worker owns the light engine, so
+ * without this the copy the main thread reads — for mob spawning, for growing crops, for how bright
+ * to draw a mob — would still be whatever it was when the chunk was first delivered.
+ */
+function sendLight(c: ChunkData, sy: number): void {
+  const from = sy * 16 * CHUNK_SIZE * CHUNK_SIZE;
+  const light = c.light.slice(from, from + 16 * CHUNK_SIZE * CHUNK_SIZE);
+  post({ type: 'lightPatch', cx: c.cx, cz: c.cz, sy, light }, [light.buffer]);
+}
+
 function meshSection(cx: number, sy: number, cz: number): void {
   const key = sectionKey(cx, sy, cz);
   const c = chunks.get(packKey(cx, cz));
@@ -249,6 +260,7 @@ function meshDirty(deadline: number): boolean {
     if (!neighboursLit(cx, cz)) continue;
     dirty.delete(key);
     if (!delivered.has(packKey(cx, cz))) deliver(c);
+    else sendLight(c, sy);
     meshSection(cx, sy, cz);
     if (performance.now() > deadline) return false;
   }

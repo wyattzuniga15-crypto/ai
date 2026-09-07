@@ -299,6 +299,12 @@ export class LightEngine {
       const y = t[1];
       const z = t[2];
       const level = t[3];
+      // an entry queued before the removal walk ran can name light the cell no longer has: spreading
+      // it would light the room back up from a torch that has just been taken away
+      const c = this.chunkAt(x, z);
+      if (!c) continue;
+      const held = sky ? c.getSky(x & 15, y, z & 15) : c.getBlockLight(x & 15, y, z & 15);
+      if (held < level) continue;
       for (let d = 0; d < 6; d++) {
         const nx = x + DX[d];
         const ny = y + DY[d];
