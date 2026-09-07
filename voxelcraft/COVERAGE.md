@@ -14,7 +14,7 @@ registered (data present, no behavior). Regenerate the data counts with `npm run
 | Stonecutting / smithing | 254 / 30 | 0 | – | all |
 | Loot tables | 1085 blocks, 158 entities, 121 chests, gameplay/archaeology | block drops (silk touch, fortune, block-state conditions) and entity drops (killed-by-player, looting, cooked when burning) | – | chest/gameplay tables unused |
 | Mobs | 157 entity types (91 with stats) | 35 (zombie, husk, drowned, skeleton, stray, wither skeleton, creeper, spider, cave spider, slime ×3 sizes, enderman, witch, phantom, wolf, cod, salmon, cow, pig, sheep, chicken, horse, donkey, mule, cat, ocelot, villager, wandering trader, bee, pillager, vindicator, evoker, vex, ravager) with AI, spawning, loot, combat, breeding/babies, taming, riding, trading, shearing, milking, eggs | – | 122 |
-| Biomes | 65 | 48 placed by the generator with surfaces, colours and vegetation | rest have colours/data only | nether/end (no dimensions yet) |
+| Biomes | 65 | 48 placed by the generator with surfaces, colours, vegetation, ocean floors (seagrass, kelp, coral reefs, icebergs) and per-world badlands bands | rest have colours/data only | nether/end (no dimensions yet) |
 | Enchantments | 43 | all 43 obtainable from the table/anvil with vanilla costs and exclusions; efficiency, silk touch, fortune, unbreaking, sharpness, knockback, looting have gameplay effects | – | 36 enchantments have no gameplay effect yet |
 | Status effects | 40 | 17 (regeneration, poison, wither, hunger, saturation, instant health/damage, speed, slowness, jump boost, haste, mining fatigue, resistance, fire resistance, water breathing, night vision, bad omen) | – | 23 (mostly need mobs, combat or visuals) |
 | Structures | 0 | – | – | – |

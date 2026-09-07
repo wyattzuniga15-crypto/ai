@@ -231,3 +231,79 @@ describe('world generation', () => {
     for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = -29; y < -10; y++) if (blocks.idOf(c.get(x, y, z)) === 'lava') expect(c.get(x, y - 1, z)).not.toBe(0);
   });
 });
+
+describe('biome features', () => {
+  /** Generates a chunk with its neighbours so decoration can reach across borders. */
+  const decorated = (gen: WorldGenerator, cx: number, cz: number): ChunkData => {
+    const map = new Map<string, ChunkData>();
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dz = -1; dz <= 1; dz++) {
+        const n = new ChunkData(cx + dx, cz + dz);
+        gen.generateTerrain(n);
+        map.set(`${cx + dx},${cz + dz}`, n);
+      }
+    const access = {
+      get: (x: number, y: number, z: number) => map.get(`${x >> 4},${z >> 4}`)?.get(x & 15, y, z & 15) ?? 0,
+      set: (x: number, y: number, z: number, s: number) => { map.get(`${x >> 4},${z >> 4}`)?.set(x & 15, y, z & 15, s); },
+    };
+    const c = map.get(`${cx},${cz}`)!;
+    gen.decorate(c, access);
+    return c;
+  };
+
+  const tally = (c: ChunkData): Map<string, number> => {
+    const out = new Map<string, number>();
+    for (let i = 0; i < c.blocks.length; i++) {
+      const id = blocks.idOf(c.blocks[i]);
+      const key = id.endsWith('_coral_block') ? 'coral_block' : id.endsWith('_coral_fan') ? 'coral_fan' : id.startsWith('kelp') ? 'kelp' : id;
+      out.set(key, (out.get(key) ?? 0) + 1);
+    }
+    return out;
+  };
+
+  it('grows a coral reef with fans and sea pickles in a warm ocean', () => {
+    const gen = new WorldGenerator(parseSeed('mesa1'));
+    expect(biomes[gen.columnInfo(-131 * 16 + 8, -55 * 16 + 8).biome].id).toBe('warm_ocean');
+    const t = tally(decorated(gen, -131, -55));
+    expect(t.get('coral_block') ?? 0).toBeGreaterThan(10);
+    expect(t.get('coral_fan') ?? 0).toBeGreaterThan(0);
+    expect(t.get('sea_pickle') ?? 0).toBeGreaterThan(0);
+    expect(t.get('seagrass') ?? 0).toBeGreaterThan(0);
+    expect(t.get('kelp') ?? 0).toBe(0); // vanilla keeps kelp out of warm water
+  });
+
+  it('raises an iceberg above a frozen ocean', () => {
+    const gen = new WorldGenerator(parseSeed('mesa1'));
+    const c = decorated(gen, -344, 311);
+    const t = tally(c);
+    expect(t.get('packed_ice') ?? 0).toBeGreaterThan(100);
+    expect(t.get('blue_ice') ?? 0).toBeGreaterThan(0);
+    // the berg breaks the surface, which is the point of it
+    let highest = 0;
+    for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = 60; y < 100; y++) if (blocks.idOf(c.get(x, y, z)) === 'packed_ice') highest = Math.max(highest, y);
+    expect(highest).toBeGreaterThan(SEA_LEVEL);
+  });
+
+  it('hangs moss in a pale garden', () => {
+    const gen = new WorldGenerator(parseSeed('mesa1'));
+    const t = tally(decorated(gen, -315, -212));
+    expect(biomes[gen.columnInfo(-315 * 16 + 8, -212 * 16 + 8).biome].id).toBe('pale_garden');
+    expect(t.get('pale_hanging_moss') ?? 0).toBeGreaterThan(0);
+  });
+
+  it('bands badlands terracotta in vanilla colours, differently per seed', () => {
+    const gen = new WorldGenerator(parseSeed('mesa1'));
+    const colours = new Set<string>();
+    for (let y = 0; y < 192; y++) colours.add(gen.terracottaBand(y));
+    expect(colours.size).toBeGreaterThanOrEqual(4);
+    expect(colours.has('terracotta')).toBe(true);
+    expect(colours.has('orange_terracotta')).toBe(true);
+    for (const c of colours) expect(c.endsWith('terracotta')).toBe(true);
+    // the table repeats every 192 layers and is stable within a world
+    expect(gen.terracottaBand(5)).toBe(gen.terracottaBand(5 + 192));
+    expect(gen.terracottaBand(-1)).toBe(gen.terracottaBand(191));
+    const other = new WorldGenerator(parseSeed('other-seed'));
+    const same = Array.from({ length: 192 }, (_, y) => gen.terracottaBand(y) === other.terracottaBand(y)).filter(Boolean).length;
+    expect(same).toBeLessThan(192);
+  });
+});

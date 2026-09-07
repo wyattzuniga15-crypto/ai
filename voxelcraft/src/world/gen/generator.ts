@@ -8,7 +8,7 @@ import { CHUNK_SIZE, SEA_LEVEL, WORLD_MIN_Y } from '../../core/constants.ts';
 import { Noise } from '../../core/noise.ts';
 import { Rng, hashPos, mix } from '../../core/rng.ts';
 import { blocks } from '../../blocks/registry.ts';
-import { biomeIndex, biomes } from '../biomes.ts';
+import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
 
@@ -562,10 +562,48 @@ export class WorldGenerator {
     return true;
   }
 
-  private terracottaBand(y: number): string {
-    const bands = ['terracotta', 'orange_terracotta', 'terracotta', 'yellow_terracotta', 'white_terracotta', 'red_terracotta', 'terracotta', 'brown_terracotta', 'light_gray_terracotta'];
-    return bands[Math.abs(Math.floor(y / 2)) % bands.length];
+  /**
+   * Vanilla's badlands band table (`SurfaceSystem.generateBands`): 192 layers of plain terracotta
+   * with runs of orange laid down first, then single bands of yellow, brown and red, then white
+   * bands edged in light gray. It is rolled once per world, so a seed's stripes are its own.
+   */
+  private buildTerracottaBands(): string[] {
+    const rng = new Rng(mix(this.seed, 0, 0, 0xba7d));
+    const bands = new Array<string>(192).fill('terracotta');
+    for (let i = 0; i < 192; i += rng.range(1, 5) + 1) {
+      const run = rng.range(0, 3);
+      if (i + run >= 192) break;
+      for (let j = 0; j <= run; j++) bands[i + j] = 'orange_terracotta';
+    }
+    const runs = (count: number, block: string, maxLen: number) => {
+      for (let n = 0; n < count; n++) {
+        const len = rng.range(1, maxLen);
+        const at = rng.int(192);
+        for (let j = 0; j < len && at + j < 192; j++) bands[at + j] = block;
+      }
+    };
+    runs(rng.range(6, 15), 'yellow_terracotta', 3);
+    runs(rng.range(6, 15), 'brown_terracotta', 3);
+    runs(rng.range(6, 15), 'red_terracotta', 3);
+    for (let n = 0, count = rng.range(3, 6); n < count; n++) {
+      const at = rng.int(192);
+      const len = rng.range(1, 3);
+      for (let j = 0; j < len && at + j < 192; j++) {
+        bands[at + j] = 'white_terracotta';
+        // white bands sit between light gray edges in vanilla
+        if (at + j - 1 >= 0 && bands[at + j - 1] === 'terracotta') bands[at + j - 1] = 'light_gray_terracotta';
+        if (at + j + 1 < 192 && bands[at + j + 1] === 'terracotta') bands[at + j + 1] = 'light_gray_terracotta';
+      }
+    }
+    return bands;
   }
+
+  /** Badlands stripe colour at a height, from this world's band table. */
+  terracottaBand(y: number): string {
+    if (!this.bands) this.bands = this.buildTerracottaBands();
+    return this.bands[((y % 192) + 192) % 192];
+  }
+  private bands: string[] | null = null;
 
   private isCave(wx: number, y: number, wz: number, surface: number): boolean {
     const depth = surface - y;
@@ -750,7 +788,152 @@ export class WorldGenerator {
         world.set(wx, y + 1, wz, this.block('fern'));
       }
     }
+    this.decorateOcean(chunk, world, rng, biomeAt, surfaceAt);
+    this.decoratePaleGarden(chunk, world, rng, biomeAt);
     chunk.status = 'decorated';
+  }
+
+  /** Pale gardens hang moss from their canopy and spread pale moss over the ground, as vanilla does. */
+  private decoratePaleGarden(chunk: ChunkData, world: BlockAccess, rng: Rng, biomeAt: (lx: number, lz: number) => BiomeDef): void {
+    if (biomeAt(8, 8).id !== 'pale_garden') return;
+    const ox = chunk.cx * 16;
+    const oz = chunk.cz * 16;
+    for (let lz = 0; lz < 16; lz++)
+      for (let lx = 0; lx < 16; lx++) {
+        const wx = ox + lx;
+        const wz = oz + lz;
+        const top = chunk.topBlock(lx, lz);
+        for (let y = top; y > top - 24 && y > SEA_LEVEL - 8; y--) {
+          const here = chunk.get(lx, y, lz);
+          if (blocks.idOf(here) !== 'pale_oak_leaves') continue;
+          if (chunk.get(lx, y - 1, lz) !== this.air || !rng.chance(0.25)) continue;
+          const length = rng.range(1, 4);
+          for (let k = 1; k <= length; k++) {
+            if (world.get(wx, y - k, wz) !== this.air) break;
+            world.set(wx, y - k, wz, blocks.stateWith('pale_hanging_moss', { tip: k === length ? 'true' : 'false' }));
+          }
+        }
+        // patches of pale moss on the forest floor
+        if (top > SEA_LEVEL && blocks.idOf(chunk.get(lx, top, lz)) === 'grass_block' && rng.chance(0.08)) {
+          world.set(wx, top, wz, this.block('pale_moss_block'));
+        }
+      }
+  }
+
+  /**
+   * Ocean floors: vanilla dresses them with seagrass everywhere, kelp forests in the cooler seas,
+   * coral reefs with fans and sea pickles in warm water, and icebergs in the frozen ones.
+   */
+  private decorateOcean(
+    chunk: ChunkData,
+    world: BlockAccess,
+    rng: Rng,
+    biomeAt: (lx: number, lz: number) => BiomeDef,
+    surfaceAt: (lx: number, lz: number) => { y: number; block: number },
+  ): void {
+    const ox = chunk.cx * 16;
+    const oz = chunk.cz * 16;
+    const b = biomeAt(8, 8);
+    if (b.category !== 'ocean' && b.category !== 'river' && !(b.category === 'ice' && b.id.includes('ocean'))) return;
+    const frozen = b.id.includes('frozen');
+    // only true warm oceans grow coral; lukewarm ones get kelp like the colder seas
+    const warm = b.id === 'warm_ocean';
+    // the sea floor: the topmost solid block under the water column, not the water surface
+    const floorAt = (lx: number, lz: number): number => {
+      for (let y = SEA_LEVEL - 1; y > WORLD_MIN_Y; y--) {
+        const s2 = chunk.get(lx, y, lz);
+        if (s2 !== this.water && s2 !== this.air) return y;
+      }
+      return WORLD_MIN_Y - 1;
+    };
+    void surfaceAt;
+    // seagrass and kelp
+    for (let i = 0; i < 40; i++) {
+      const lx = rng.int(16);
+      const lz = rng.int(16);
+      const y = floorAt(lx, lz);
+      if (y >= SEA_LEVEL - 2 || y < WORLD_MIN_Y) continue;
+      const wx = ox + lx;
+      const wz = oz + lz;
+      if (world.get(wx, y + 1, wz) !== this.water) continue;
+      if (!warm && rng.chance(0.12)) {
+        // a kelp column reaching most of the way to the surface
+        const height = rng.range(3, Math.max(3, SEA_LEVEL - y - 2));
+        for (let k = 1; k <= height; k++) {
+          if (world.get(wx, y + k, wz) !== this.water) break;
+          world.set(wx, y + k, wz, this.block(k === height ? 'kelp' : 'kelp_plant'));
+        }
+        continue;
+      }
+      if (rng.chance(0.35)) {
+        if (rng.chance(0.25) && world.get(wx, y + 2, wz) === this.water) {
+          world.set(wx, y + 1, wz, blocks.stateWith('tall_seagrass', { half: 'lower' }));
+          world.set(wx, y + 2, wz, blocks.stateWith('tall_seagrass', { half: 'upper' }));
+        } else world.set(wx, y + 1, wz, this.block('seagrass'));
+      }
+    }
+    if (warm && rng.chance(0.6)) {
+      const lx = rng.int(16), lz = rng.int(16);
+      this.placeCoralReef(world, rng, ox + lx, oz + lz, floorAt(lx, lz));
+    }
+    if (frozen && rng.chance(0.12)) this.placeIceberg(world, rng, ox + rng.int(16), oz + rng.int(16));
+  }
+
+  /** A blob of coral blocks with fans and sea pickles, vanilla's warm-ocean reef in miniature. */
+  private placeCoralReef(world: BlockAccess, rng: Rng, wx: number, wz: number, y: number): void {
+    if (y >= SEA_LEVEL - 3 || y < WORLD_MIN_Y) return;
+    const kinds = ['tube', 'brain', 'bubble', 'fire', 'horn'];
+    const kind = rng.pick(kinds);
+    const radius = 2 + rng.int(3);
+    for (let dx = -radius; dx <= radius; dx++)
+      for (let dz = -radius; dz <= radius; dz++)
+        for (let dy = 0; dy <= radius; dy++) {
+          if (dx * dx + dz * dz + dy * dy > radius * radius) continue;
+          const x = wx + dx, z = wz + dz, cy = y + dy;
+          if (world.get(x, cy, z) !== this.water) continue;
+          if (dy === 0 || rng.chance(0.55)) world.set(x, cy, z, this.block(`${rng.chance(0.7) ? kind : rng.pick(kinds)}_coral_block`));
+        }
+    // fans and pickles on top of the reef
+    for (let i = 0; i < 24; i++) {
+      const x = wx + rng.range(-radius, radius);
+      const z = wz + rng.range(-radius, radius);
+      for (let dy = radius + 1; dy >= 0; dy--) {
+        const cy = y + dy;
+        if (world.get(x, cy, z) !== this.water || !blocks.idOf(world.get(x, cy - 1, z)).endsWith('_coral_block')) continue;
+        if (rng.chance(0.35)) world.set(x, cy, z, blocks.stateWith('sea_pickle', { pickles: String(rng.range(1, 4)), waterlogged: 'true' }));
+        else world.set(x, cy, z, blocks.stateWith(`${rng.pick(kinds)}_coral_fan`, { waterlogged: 'true' }));
+        break;
+      }
+    }
+  }
+
+  /** Packed-ice iceberg with a blue ice core and snow on top, like vanilla's frozen ocean feature. */
+  private placeIceberg(world: BlockAccess, rng: Rng, wx: number, wz: number): void {
+    const height = rng.range(6, 20);
+    const radius = rng.range(3, 8);
+    const base = SEA_LEVEL - 1 - rng.range(2, 6);
+    for (let dy = 0; dy < height; dy++) {
+      // the berg tapers as it rises, with a wobble so it does not read as a cone
+      const t = dy / height;
+      const r = Math.max(1, radius * (1 - t * 0.8) + (rng.chance(0.3) ? 1 : 0));
+      for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++)
+        for (let dz = -Math.ceil(r); dz <= Math.ceil(r); dz++) {
+          if (dx * dx + dz * dz > r * r) continue;
+          const y = base + dy;
+          const cur = world.get(wx + dx, y, wz + dz);
+          if (cur !== this.water && cur !== this.air) continue;
+          const core = dy < height * 0.3 && dx * dx + dz * dz < (r * 0.4) ** 2;
+          world.set(wx + dx, y, wz + dz, this.block(core ? 'blue_ice' : 'packed_ice'));
+        }
+    }
+    for (let dx = -radius; dx <= radius; dx++)
+      for (let dz = -radius; dz <= radius; dz++) {
+        for (let y = base + height; y > base; y--) {
+          if (blocks.idOf(world.get(wx + dx, y, wz + dz)) !== 'packed_ice') continue;
+          if (world.get(wx + dx, y + 1, wz + dz) === this.air && rng.chance(0.6)) world.set(wx + dx, y + 1, wz + dz, this.block('snow'));
+          break;
+        }
+      }
   }
 
   /**

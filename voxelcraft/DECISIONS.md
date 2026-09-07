@@ -329,3 +329,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     player, which is the raid trigger in vanilla; the raid itself needs villages, so for now the
     effect simply sits on the player.
 
+61. **Ocean floors and badlands stripes follow vanilla's own rules.** Every ocean floor now grows
+    seagrass, the cooler ones grow kelp forests, warm oceans get coral reefs with fans and sea
+    pickles, and frozen oceans raise packed-ice icebergs with blue-ice cores and snow caps. The
+    badlands band table is rolled once per world like vanilla's `SurfaceSystem.generateBands`:
+    orange runs over plain terracotta, then yellow, brown and red bands, then white bands edged in
+    light gray, so two seeds stripe differently.
+
