@@ -917,3 +917,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      Levitation. Shut, it carries vanilla's twenty points of armour and takes a fifth of a hit;
      open, it takes all of it, which is what makes the timing of the fight. They come only with end
      cities, from the `Sentry` markers their templates carry, exactly as vanilla spawns them.
+
+105. **The elytra.** Vanilla's fall flying, transcribed as it is written: gravity is cut by how flat
+     the wings are held (the cosine of the pitch, squared), a dive turns falling into speed along the
+     line of sight, pulling up trades that speed back for height at three and a fifth times the rate,
+     and the whole thing is drawn a tenth of the way toward wherever the player is looking each tick,
+     with vanilla's own drag. It opens on a jump press in the air and shuts on the ground, in water,
+     or when there is nothing left of the wings; it costs a point of wear a second; and flying into
+     something at speed hurts for ten times the speed lost, less three, which is vanilla's kinetic
+     damage. A firework rocket lit while gliding pushes along the line of sight for as long as it
+     burns. Note that fireworks cannot be crafted yet, so for now a rocket has to be given.

@@ -115,6 +115,9 @@ type State = 'loading' | 'playing' | 'paused' | 'chat' | 'dead' | 'gui';
 
 const isReplaceable = (def: BlockDef): boolean => !!def.replaceable || def.behavior === 'air';
 
+/** How long one rocket pushes a glider, which is vanilla's duration for a plain one-gunpowder firework. */
+const FIREWORK_BOOST_TICKS = 20;
+
 /** Vanilla's lightmap never reaches black: about 0.03 at Moody, lifted further by the brightness slider. */
 const lightFloor = (gamma: number): number => 0.03 + gamma * 0.1;
 /**
@@ -908,6 +911,21 @@ export class Game {
     });
   }
 
+  /** One point of wear on the elytra, which stops the glide when there is nothing left of it. */
+  private wearElytra(): void {
+    const p = this.player;
+    const chest = p.inventory.armor[2];
+    if (!chest || chest.id !== 'elytra') return;
+    const def = items.byId.get('elytra');
+    chest.damage = (chest.damage ?? 0) + 1;
+    p.inventory.version++;
+    if (def?.durability && chest.damage >= def.durability) {
+      p.inventory.armor[2] = null;
+      p.gliding = false;
+      this.audio.play('break');
+    }
+  }
+
   /** A chunk going out of view: its mobs and dropped items go with it, saved if it holds any. */
   private onChunkUnloaded(c: LoadedChunk): void {
     const mobs = this.serializeChunkEntities(c.cx, c.cz);
@@ -1060,6 +1078,12 @@ export class Game {
   private survivalTick(): void {
     const p = this.player;
     if (p.gamemode !== 'survival' || p.dead) return;
+    // the elytra: a point of wear every second in the air, and the bruise from flying into a wall
+    if (p.gliding && p.glideTicks > 0 && p.glideTicks % 20 === 0) this.wearElytra();
+    if (p.kinetic > 0) {
+      this.damage(Math.floor(p.kinetic));
+      p.kinetic = 0;
+    }
     // fall damage
     if (p.landed > 0) {
       const dmg = Math.floor(p.landed - 3);
@@ -3108,6 +3132,14 @@ export class Game {
     }
     if (def.behavior === 'fishing_rod') {
       this.useRod();
+      return;
+    }
+    // a firework lit while gliding pushes the flier along, as vanilla's rocket does
+    if (def.behavior === 'firework') {
+      if (!p.gliding) return;
+      p.boostTicks = FIREWORK_BOOST_TICKS;
+      if (p.gamemode === 'survival') p.inventory.consumeSelected();
+      this.audio.play('firework', { x: p.pos.x, y: p.pos.y, z: p.pos.z });
       return;
     }
     if (held.id === 'map') {

@@ -139,6 +139,8 @@ const SOUNDS: Record<string, Synth> = {
   wither_spawn: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 120, 40, 2.2, 0.3, p, 0.2); tone(c, o, t + 0.3, 'square', 200, 60, 1.8, 0.16, p, 0.2); burst(c, o, t, 'lowpass', 400, 1, 0.3, 1.8, 0.2, p); },
   wither_shoot: (c, o, p, t) => { tone(c, o, t, 'square', 500, 140, 0.3, 0.16, p); burst(c, o, t, 'bandpass', 900, 3, 0.01, 0.3, 0.12, p); },
   wither: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 90, 55, 1.0, 0.22, p, 0.15); burst(c, o, t, 'lowpass', 350, 1.2, 0.1, 0.9, 0.16, p); },
+  // a firework lifting off, which is what a glider hears when one is lit
+  firework: (c, o, p, t) => { burst(c, o, t, 'highpass', 1200, 1, 0.02, 0.7, 0.16, p); tone(c, o, t, 'sawtooth', 200, 900, 0.6, 0.06, p); },
   // the shulker: the stone scrape of its lid and the pop of the bullet it fires
   shulker: (c, o, p, t) => { burst(c, o, t, 'bandpass', 700, 2, 0.03, 0.3, 0.12, p); tone(c, o, t, 'triangle', 260, 180, 0.25, 0.08, p); },
   shulker_shoot: (c, o, p, t) => { tone(c, o, t, 'square', 900, 500, 0.15, 0.12, p); burst(c, o, t, 'highpass', 2200, 1, 0.005, 0.15, 0.14, p); },

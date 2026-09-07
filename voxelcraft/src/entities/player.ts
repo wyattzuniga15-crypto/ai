@@ -31,6 +31,14 @@ export class Player {
   sneaking = false;
   sprinting = false;
   flying = false;
+  /** True while the elytra is carrying the player, which is a movement mode of its own. */
+  gliding = false;
+  /** Ticks spent gliding since the last time the elytra was charged for its wear. */
+  glideTicks = 0;
+  /** Speed lost running into something while gliding, which the game turns into damage. */
+  kinetic = 0;
+  /** Ticks left of a firework's push, and the direction it was lit in. */
+  boostTicks = 0;
   inWater = false;
   inLava = false;
   gamemode: GameMode = 'survival';
@@ -206,6 +214,18 @@ export class Player {
     const wx = -mx * cos - mz * sin;
     const wz = mx * sin - mz * cos;
 
+    // vanilla starts a glide on a jump press in the air and ends it on landing, in water, or when
+    // there is nothing left of the elytra to fly with
+    if (input.tickPressed('jump') && !this.onGround && !this.flying && !this.gliding && !this.inWater && !this.inLava && this.canGlide()) {
+      this.gliding = true;
+      this.glideTicks = 0;
+    }
+    if (this.gliding && (this.onGround || this.inWater || this.inLava || this.flying || !this.canGlide())) this.gliding = false;
+    if (this.gliding) {
+      this.glide(world);
+      return;
+    }
+
     if (this.flying) {
       const speed = (this.sprinting ? 0.1 : 0.05) * 1.0;
       this.vel.x += wx * speed;
@@ -289,6 +309,65 @@ export class Player {
 
   /** Fall distance at the moment of the last landing, consumed by the game for fall damage. */
   landed = 0;
+
+  /** Whether there is an elytra on the player's back with any wear left in it. */
+  canGlide(): boolean {
+    const chest = this.inventory.armor[2];
+    if (!chest || chest.id !== 'elytra') return false;
+    const def = items.byId.get('elytra');
+    return !def?.durability || (chest.damage ?? 0) < def.durability - 1;
+  }
+
+  /**
+   * Vanilla's fall flying, transcribed: gravity is cut by how flat the wings are held, a dive is
+   * turned back into forward speed, pulling up trades speed for height, and the whole thing is
+   * pulled gently toward wherever the player is looking.
+   */
+  private glide(world: BlockSource): void {
+    this.glideTicks++;
+    const look = this.lookDirection();
+    const flat = Math.hypot(look.x, look.z);
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    const v = this.vel;
+    // how much of gravity the wings hold up, from the pitch they are held at
+    let lift = Math.cos(this.pitch);
+    lift = lift * lift * Math.min(1, look.length() / 0.4);
+    v.y += 0.08 * (-1 + lift * 0.75);
+    if (v.y < 0 && flat > 0) {
+      // a dive turns falling into speed along the line of sight
+      const d = v.y * -0.1 * lift;
+      v.x += (look.x * d) / flat;
+      v.y += d;
+      v.z += (look.z * d) / flat;
+    }
+    if (this.pitch > 0 && flat > 0) {
+      // and pulling up trades that speed back for height
+      const d = speed * Math.sin(this.pitch) * 0.04;
+      v.x -= (look.x * d) / flat;
+      v.y += d * 3.2;
+      v.z -= (look.z * d) / flat;
+    }
+    if (flat > 0) {
+      v.x += ((look.x / flat) * speed - v.x) * 0.1;
+      v.z += ((look.z / flat) * speed - v.z) * 0.1;
+    }
+    // a lit firework pushes along the line of sight for as long as it burns
+    if (this.boostTicks > 0) {
+      this.boostTicks--;
+      v.x += look.x * 0.1 + (look.x * 1.5 - v.x) * 0.5;
+      v.y += look.y * 0.1 + (look.y * 1.5 - v.y) * 0.5;
+      v.z += look.z * 0.1 + (look.z * 1.5 - v.z) * 0.5;
+    }
+    v.x *= 0.99;
+    v.y *= 0.98;
+    v.z *= 0.99;
+    const before = Math.hypot(v.x, v.z);
+    this.move(world, 0);
+    // running into something at speed hurts, as vanilla's kinetic damage does
+    const after = Math.hypot(this.vel.x, this.vel.z);
+    if (before - after > 0.3) this.kinetic = Math.max(this.kinetic, (before - after) * 10 - 3);
+    this.fallDistance = 0;
+  }
 
   private move(world: BlockSource, stepHeight: number): void {
     const box = this.aabb();

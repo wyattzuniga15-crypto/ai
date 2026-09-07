@@ -113,7 +113,8 @@ coverage counts in `COVERAGE.md`.
 - [x] End, second slice: the dragon fight — the ten obsidian pillars with their end crystals, three of them caged; the dragon itself circling the island and diving at whoever is on it, healed by every crystal still standing and untouchable while one is, on vanilla's pink boss bar; a crystal exploding where it stands when it is broken; and the exit portal vanilla's `EndPodiumFeature` builds, empty from the start and filled with the way home, the dragon egg and five hundred experience when the dragon falls
 - [x] End, third slice: the gateways and the poem — the gateway the dragon's death opens, in one of vanilla's twenty slots around the island, its little bedrock shrine, and the thousand-block throw out to the far islands with the way back opened over whatever it lands on; and vanilla's own end poem and credits rolling the first time a traveller walks back out of a beaten End
 - [x] End, fourth slice: the cities — vanilla's twenty templates stacked by its own grammar, a base tower with the thin tower rising out of it, bridges reaching off to more towers or to a fat tower, and one ship moored at the end of a bridge with the elytra hanging in it and its treasure chests filled from vanilla's table
-- [ ] End, next: shulkers, elytra flight, purpur and chorus fruit
+- [x] End, fifth slice: shulkers and the elytra — the box that opens to fire a levitating bullet and is armoured while it is shut, and vanilla's fall flying with its wear, its kinetic damage and the firework rockets that push it
+- [ ] End, next: chorus fruit and the purpur it pops into
 
 ## Phase 6 – polish
 - [ ] Everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio, creative inventory tabs and search
