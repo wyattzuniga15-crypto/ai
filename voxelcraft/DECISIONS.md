@@ -1048,3 +1048,40 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      middle of the world's height, which is in view from everywhere: nothing was ever culled. Each
      column is now bounded by the sections that actually hold geometry, so looking at the sky draws
      thirty-six calls where it drew nearly six hundred.
+
+113. **Mushroom fields and windswept savanna.** These were the last two overworld biomes with data
+     but no ground: the picker never returned either. Vanilla reaches mushroom fields through a
+     continentalness band of its own — a strip of the deepest ocean the other biomes never claim —
+     and windswept savanna through erosion, as the broken-up savanna. Ours does the same in the
+     shape our own noise takes: below −0.55 continentalness a slow noise decides where an island
+     stands and lifts the column out of the water for it, and the savanna branch splits on erosion
+     the way the picker's other branches split on weirdness. Over ten seeds and eight thousand
+     blocks either way the picker now reaches fifty-one of the fifty-five overworld biomes; the
+     three that are left are the cave biomes, which are assigned underground rather than by column,
+     and `the_void`, which vanilla never generates either.
+
+     A mushroom island is nothing without its mushrooms, so `placeHugeMushroom` grows vanilla's
+     two: four to six blocks of stem (one in twelve twice that) with both ends left open, and a cap
+     whose six booleans say which faces wear the skin. The red one is a dome — three rings whose
+     corners and middles are cut away, closed over by a solid square one ring narrower — and the
+     brown one is a single flat disc of radius three with only its four corners missing. The island
+     gets three attempts a chunk, weighted three red to one brown, which is the ratio vanilla's own
+     selector rolls.
+
+114. **The mooshroom.** Vanilla spawns nothing but mooshrooms in mushroom fields, in groups of four
+     to eight, on mycelium, wherever the sky reaches — so that is the one spawn rule the biome has.
+     It is a cow underneath: the same model and stats, milked with a bucket, bred with wheat, and
+     dropping what a cow drops. A bowl held to one comes back as mushroom stew; a red one struck by
+     lightning turns brown and takes no damage; shears take five mushrooms off it and leave a plain
+     cow standing in its place with the same health, which is what vanilla does rather than
+     changing the animal in place. The one piece left out is the suspicious stew a brown mooshroom
+     serves after eating a flower, since nothing in the game stores a stew's effect yet.
+
+     Vanilla renders the three mushrooms on its back as block models rather than as part of the
+     skin, and so does this: the game bakes a `red_mushroom` or `brown_mushroom` block model and
+     hangs three of them off the mob's group, two on the back and one on the shoulder, each turned
+     a little. Their offsets are by eye against how a mooshroom looks in game rather than copied
+     from vanilla's renderer, whose numbers were not to hand; measured against the cow model, the
+     body's back sits at 1.375 blocks and the mushrooms stand from 1.30, so each rides the back
+     with its stem in the fur. They are lit by the block atlas rather than by the mob's own light,
+     which is the same compromise falling blocks and minecart contents already make.

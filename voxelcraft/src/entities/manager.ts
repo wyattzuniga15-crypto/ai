@@ -25,7 +25,19 @@ export interface ManagerHost extends MobWorld {
   /** Told where an arrow stuck, so the game can wake a target block. */
   arrowHitBlock?: (x: number, y: number, z: number, point: THREE.Vector3) => void;
   arrowHitMob?: (box: AABB, damage: number, fire: number, knockback: number, effects: { id: string; ticks: number; amplifier?: number }[], pierced?: unknown[]) => boolean;
+  /** Bakes one block state into a mesh, which is how a mooshroom comes by its mushrooms. */
+  blockMesh?: (state: number) => THREE.Object3D;
 }
+
+/**
+ * Where a mooshroom's three mushrooms stand, in blocks out from the animal's feet and degrees of
+ * turn: two on its back and one behind its head, as vanilla's MushroomCowRenderer arranges them.
+ */
+const MOOSHROOM_MUSHROOMS: [number, number, number, number][] = [
+  [0.17, 1.3, 0.3, -48],
+  [-0.18, 1.3, -0.05, 42],
+  [0.02, 1.32, -0.4, 12],
+];
 
 /** Biomes whose animal groups can be horse or donkey herds (vanilla plains and savannas). */
 const HORSE_BIOMES = new Set(['plains', 'sunflower_plains', 'savanna', 'savanna_plateau', 'windswept_savanna']);
@@ -53,6 +65,7 @@ export class EntityManager {
       m.extra.grow = 24000;
     }
     if (type === 'sheep') m.extra.color = randomSheepColor(this.host.rng);
+    if (type === 'mooshroom') this.dressMooshroom(m);
     if (type === 'cat') m.extra.variant = CAT_VARIANTS[Math.floor(this.host.rng() * CAT_VARIANTS.length)];
     if (EQUINE_TYPES.includes(type)) initEquine(m, this.host.rng);
     this.mobs.push(m);
@@ -216,6 +229,7 @@ export class EntityManager {
       }
       const m = this.spawn(s.type, s.x, s.y, s.z, s.yaw);
       m?.restore(s);
+      if (m && s.type === 'mooshroom') this.dressMooshroom(m);
     }
   }
 
@@ -234,7 +248,12 @@ export class EntityManager {
       this.spawnFishSchool(x, z, biome.category === 'river' || biome.id.includes('cold') || biome.id.includes('frozen') ? 'salmon' : 'cod');
       return;
     }
-    if (biome.surface.top !== 'grass_block' || biome.category === 'mushroom') return;
+    // mushroom fields are the one biome that spawns nothing but mooshrooms, on their mycelium
+    if (biome.category === 'mushroom') {
+      this.spawnMooshroomHerd(x, z);
+      return;
+    }
+    if (biome.surface.top !== 'grass_block') return;
     const wolfVariant = wolfVariantFor(biome.id);
     // vanilla spawns ocelots only in the jungles, in pairs
     const ocelot = biome.category === 'jungle' && h.rng() < 0.25;
@@ -259,6 +278,47 @@ export class EntityManager {
       if (m && type === 'horse') m.extra.coat = herdCoat;
       spawned++;
     }
+  }
+
+  /**
+   * Vanilla's mushroom island spawner: mooshrooms in groups of four to eight, on mycelium, wherever
+   * the sky reaches. They are the only mob the biome spawns.
+   */
+  private spawnMooshroomHerd(x: number, z: number): void {
+    const h = this.host;
+    const stats = mobStats('mooshroom')!;
+    const want = 4 + Math.floor(h.rng() * 5);
+    let spawned = 0;
+    for (let i = 0; i < 20 && spawned < want; i++) {
+      const px = x + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const pz = z + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const top = h.topBlock(Math.floor(px), Math.floor(pz));
+      const ground = h.getBlock(Math.floor(px), top, Math.floor(pz));
+      if (ground === 0 || blocks.blockOf(ground).id !== 'mycelium') continue;
+      if (h.getSkyLight(Math.floor(px), top + 1, Math.floor(pz)) < 9) continue;
+      if (!Mob.fits(h, stats, px, top + 1, pz)) continue;
+      this.spawn('mooshroom', px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05);
+      spawned++;
+    }
+  }
+
+  /** Hangs the three mushrooms a grown mooshroom carries off its model, in the colour it wears. */
+  dressMooshroom(m: Mob): void {
+    const make = this.host.blockMesh;
+    if (!make) return;
+    const state = blocks.defaultState(m.extra.variant === 'brown' ? 'brown_mushroom' : 'red_mushroom');
+    const group = new THREE.Group();
+    for (const [mx, my, mz, deg] of MOOSHROOM_MUSHROOMS) {
+      const pivot = new THREE.Group();
+      pivot.position.set(mx, my, mz);
+      pivot.rotation.y = (deg * Math.PI) / 180;
+      const mesh = make(state);
+      // a block model is built out from its corner, so it has to come back half a block to centre
+      mesh.position.set(-0.5, 0, -0.5);
+      pivot.add(mesh);
+      group.add(pivot);
+    }
+    m.setDecoration(group);
   }
 
   /** Cod and salmon schools in ocean and river water. */

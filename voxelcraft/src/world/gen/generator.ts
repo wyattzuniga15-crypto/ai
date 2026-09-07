@@ -120,6 +120,12 @@ export interface ColumnInfo {
   river: boolean;
 }
 
+/** Ground a tree (or a huge mushroom) will stand on, beside the grass block every biome starts from. */
+const TREE_GROUND = new Set(['podzol', 'mud', 'snow_block', 'dirt', 'mycelium']);
+
+/** How high the island noise has to run before an ocean lifts a mushroom island out of itself. */
+const MUSHROOM_ISLAND = 0.42;
+
 export class WorldGenerator {
   readonly seed: number;
   /** Structure templates and their spreads, installed once the runtime has fetched them. */
@@ -130,6 +136,8 @@ export class WorldGenerator {
   private readonly temperature: Noise;
   private readonly humidity: Noise;
   private readonly weird: Noise;
+  /** Where the ocean lifts a mushroom island out of itself, which vanilla gives a band of its own. */
+  private readonly mushroom: Noise;
   private readonly river: Noise;
   private readonly density: Noise;
   private readonly cheese: Noise;
@@ -162,6 +170,7 @@ export class WorldGenerator {
     this.temperature = n(4);
     this.humidity = n(5);
     this.weird = n(6);
+    this.mushroom = n(31);
     this.river = n(7);
     this.density = n(8);
     this.cheese = n(9);
@@ -230,6 +239,14 @@ export class WorldGenerator {
     const hu = this.humidity.fbm2(wx / 1100, wz / 1100 + 100, 3);
     const w = this.weird.fbm2(wx / 900, wz / 900, 2);
     let { h } = this.baseHeight(c, e, pv);
+    // vanilla keeps a band of continentalness for mushroom fields alone, out where the ocean is
+    // deepest; ours lifts an island out of that ocean where a slow noise says one stands
+    const island = c < -0.55 ? this.mushroom.fbm2(wx / 900 + 500, wz / 900 - 500, 2) : -1;
+    const mushroom = island > MUSHROOM_ISLAND;
+    if (mushroom) {
+      const rise = (island - MUSHROOM_ISLAND) / (1 - MUSHROOM_ISLAND);
+      h = Math.max(h, SEA_LEVEL + 1 + rise * 26 + pv * 4);
+    }
     let river = false;
     if (c > -0.2 && h < 110) {
       const r = this.river.ridge2(wx / 520, wz / 520, 2);
@@ -241,7 +258,7 @@ export class WorldGenerator {
         river = r < width * 0.7 && h < SEA_LEVEL;
       }
     }
-    const biome = this.pickBiome(c, e, t, hu, w, h, river);
+    const biome = mushroom && h > SEA_LEVEL ? biomeIndex('mushroom_fields') : this.pickBiome(c, e, t, hu, w, h, river);
     return { height: h, biome, river };
   }
 
@@ -288,7 +305,8 @@ export class WorldGenerator {
     if (t < 0.55) {
       if (hu > 0.35) return b(w > 0.3 ? 'bamboo_jungle' : 'jungle');
       if (hu > 0.1) return b('sparse_jungle');
-      if (hu > -0.25) return b(w > 0.4 ? 'savanna_plateau' : 'savanna');
+      // vanilla's windswept savanna is the eroded one: cliffs and bare rock among the acacia
+      if (hu > -0.25) return b(e < -0.4 ? 'windswept_savanna' : w > 0.4 ? 'savanna_plateau' : 'savanna');
       return b('plains');
     }
     if (hu > 0.3 && h < SEA_LEVEL + 6) return b('mangrove_swamp');
@@ -774,7 +792,7 @@ export class WorldGenerator {
         const tl = b.surface.trees;
         if (!tl || !tl.length) continue;
         const { y, block } = surfaceAt(lx, lz);
-        if (y < SEA_LEVEL - 1 || (block !== grass && blocks.blockOf(block).id !== 'podzol' && blocks.blockOf(block).id !== 'mud' && blocks.blockOf(block).id !== 'snow_block' && blocks.blockOf(block).id !== 'dirt')) continue;
+        if (y < SEA_LEVEL - 1 || (block !== grass && !TREE_GROUND.has(blocks.blockOf(block).id))) continue;
         const type = rng.weighted(tl);
         if (placeTree(world, rng, type, ox + lx, y + 1, oz + lz) && rng.chance(BEE_NEST_CHANCE[b.id] ?? 0)) {
           placeBeeNest(world, rng, ox + lx, y + 1, oz + lz);

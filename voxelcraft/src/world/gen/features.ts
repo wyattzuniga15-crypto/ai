@@ -295,6 +295,54 @@ export function placeAzalea(w: BlockAccess, rng: Rng, x: number, y: number, z: n
   return true;
 }
 
+/**
+ * Huge mushrooms, as vanilla's `HugeRedMushroomFeature` and `HugeBrownMushroomFeature` grow them: a
+ * stem of `mushroom_stem` with its ends open, and a cap whose six booleans say which of its faces
+ * wear the cap skin. A red cap is a dome three blocks deep with its corners cut away; a brown one is
+ * a single flat disc with only its four corners missing.
+ */
+export function placeHugeMushroom(w: BlockAccess, rng: Rng, x: number, y: number, z: number, red: boolean): boolean {
+  // vanilla AbstractHugeMushroomFeature.getTreeHeight: 4-6 tall, and one in twelve grows twice that
+  let height = rng.int(3) + 4;
+  if (rng.int(12) === 0) height *= 2;
+  const radius = red ? 2 : 3;
+  if (!canGrow(w, x, y, z, height + 1, radius)) return false;
+  const cap = red ? 'red_mushroom_block' : 'brown_mushroom_block';
+  const capAt = (dx: number, dz: number, up: boolean) =>
+    blocks.stateWith(cap, {
+      up: String(up), down: 'false',
+      west: String(dx < 0), east: String(dx > 0), north: String(dz < 0), south: String(dz > 0),
+    });
+  const stem = blocks.stateWith('mushroom_stem', { up: 'false', down: 'false', north: 'true', south: 'true', east: 'true', west: 'true' });
+  for (let dy = 0; dy < height; dy++) if (isReplaceable(w.get(x, y + dy, z))) w.set(x, y + dy, z, stem);
+  if (red) {
+    // the dome: its lowest three rings ring the stem, and the top one is closed over it
+    for (let dy = height - 3; dy <= height; dy++) {
+      const r = dy < height ? radius : radius - 1;
+      for (let dx = -r; dx <= r; dx++)
+        for (let dz = -r; dz <= r; dz++) {
+          const edgeX = dx === -r || dx === r;
+          const edgeZ = dz === -r || dz === r;
+          // the ring's corners are cut away; the closed top is laid whole
+          if (dy < height && edgeX === edgeZ) continue;
+          if (isReplaceable(w.get(x + dx, y + dy, z + dz))) w.set(x + dx, y + dy, z + dz, capAt(dx, dz, dy >= height - 1));
+        }
+    }
+  } else {
+    for (let dx = -radius; dx <= radius; dx++)
+      for (let dz = -radius; dz <= radius; dz++) {
+        if ((dx === -radius || dx === radius) && (dz === -radius || dz === radius)) continue;
+        if (isReplaceable(w.get(x + dx, y + height, z + dz))) {
+          w.set(x + dx, y + height, z + dz, blocks.stateWith(cap, {
+            up: 'true', down: 'false',
+            west: String(dx === -radius), east: String(dx === radius), north: String(dz === -radius), south: String(dz === radius),
+          }));
+        }
+      }
+  }
+  return true;
+}
+
 export function placeTree(w: BlockAccess, rng: Rng, type: string, x: number, y: number, z: number): boolean {
   switch (type) {
     case 'oak': return placeOak(w, rng, x, y, z);
@@ -314,6 +362,8 @@ export function placeTree(w: BlockAccess, rng: Rng, type: string, x: number, y: 
     case 'cherry': return placeCherry(w, rng, x, y, z);
     case 'mangrove': return placeMangrove(w, rng, x, y, z);
     case 'azalea': return placeAzalea(w, rng, x, y, z);
+    case 'huge_red_mushroom': return placeHugeMushroom(w, rng, x, y, z, true);
+    case 'huge_brown_mushroom': return placeHugeMushroom(w, rng, x, y, z, false);
     default: return placeOak(w, rng, x, y, z);
   }
 }

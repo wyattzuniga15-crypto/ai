@@ -229,6 +229,7 @@ export class Mob {
   /** Built the first time the mob glows, then just hidden and shown. */
   private outline: GlowOutline | null = null;
   private woolMaterials: THREE.MeshBasicMaterial[] | null = null;
+  private decoration: THREE.Object3D | null = null;
   private readonly base: string;
 
   constructor(readonly def: MobStats, goals: Goal[], base: string, x: number, y: number, z: number) {
@@ -570,6 +571,16 @@ export class Mob {
   }
 
   /** Swaps the main model texture (wolf tame/angry skins). */
+  /**
+   * Extra geometry hung off the model in world units, which is how a mooshroom wears its mushrooms:
+   * the game builds it, since only the game can bake a block model, and the mob carries it about.
+   */
+  setDecoration(obj: THREE.Object3D | null): void {
+    if (this.decoration) this.model.group.remove(this.decoration);
+    this.decoration = obj;
+    if (obj) this.model.group.add(obj);
+  }
+
   setTexture(path: string): void {
     if (this.currentTexture === path) return;
     this.currentTexture = path;
@@ -596,6 +607,10 @@ export class Mob {
 
   /** Removes render objects that live outside the model group. */
   destroy(): void {
+    if (this.decoration) {
+      this.model.group.remove(this.decoration);
+      this.decoration = null;
+    }
     if (this.fireMesh) {
       this.fireMesh.parent?.remove(this.fireMesh);
       this.fireMesh.geometry.dispose();
@@ -1020,6 +1035,11 @@ export class Mob {
       }
       if (job) this.setLayerTexture(VILLAGER_PROFESSION_LAYER, job);
       if (badge) this.setLayerTexture(VILLAGER_LEVEL_LAYER, badge);
+    }
+    if (this.def.id === 'mooshroom') {
+      // lightning turns a red mooshroom brown and back; vanilla leaves calves bare
+      this.setTexture(this.extra.variant === 'brown' ? 'cow/brown_mooshroom.png' : 'cow/red_mooshroom.png');
+      if (this.decoration) this.decoration.visible = !baby;
     }
     if (this.def.id === 'cat') {
       this.setTexture(catTexture(String(this.extra.variant ?? 'tabby')));

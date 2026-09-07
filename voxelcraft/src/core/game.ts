@@ -400,6 +400,7 @@ export class Game {
       getBiome: (x, z) => this.world.getBiome(x, z),
       topBlock: (x, z) => this.world.topBlock(x, z),
       arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
+      blockMesh: (state) => this.blockMeshes.mesh(state),
       arrowHitMob: (box, damage, fire, knockback, effects, pierced) => {
         // a bolt that has already gone through a mob never hits the same one twice
         const hit = this.entities.mobsIntersecting(box).find((m) => !pierced?.includes(m));
@@ -2559,7 +2560,11 @@ export class Game {
     for (const m of this.entities.mobs) {
       if (m.dead || Math.hypot(m.pos.x - x - 0.5, m.pos.z - z - 0.5) > 3 || Math.abs(m.pos.y - y) > 4) continue;
       if (m.def.id === 'creeper') m.extra.charged = true;
-      else m.hurt(5, this.player.pos, 'player', 0);
+      else if (m.def.id === 'mooshroom') {
+        // vanilla turns a struck mooshroom the other colour and leaves it unhurt
+        m.extra.variant = m.extra.variant === 'brown' ? 'red' : 'brown';
+        this.entities.dressMooshroom(m);
+      } else m.hurt(5, this.player.pos, 'player', 0);
     }
     const p = this.player;
     if (!p.dead && p.gamemode === 'survival' && Math.hypot(p.pos.x - x - 0.5, p.pos.z - z - 0.5) < 3 && Math.abs(p.pos.y - y) < 4) {
@@ -4512,7 +4517,32 @@ export class Game {
       this.audio.play('shear', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       return true;
     }
-    if (held.id === 'bucket' && m.def.id === 'cow' && !m.isBaby) {
+    if (held.id === 'shears' && m.def.id === 'mooshroom' && !m.isBaby) {
+      // vanilla shears the mushrooms off and leaves a plain cow standing in its place
+      const kind = m.extra.variant === 'brown' ? 'brown_mushroom' : 'red_mushroom';
+      this.dropStack({ id: kind, count: 5 }, m.pos.x, at.y, m.pos.z, true);
+      if (survival) p.inventory.damageSelected(1);
+      this.audio.play('shear', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      this.particles.poof(m.pos.x, m.pos.y + m.height * 0.7, m.pos.z, 8, Math.random, m.width, 0.4);
+      const cow = this.entities.spawn('cow', m.pos.x, m.pos.y, m.pos.z, m.yaw);
+      if (cow) cow.health = Math.min(cow.maxHealth, m.health);
+      this.entities.remove(m);
+      return true;
+    }
+    if (held.id === 'bowl' && m.def.id === 'mooshroom' && !m.isBaby) {
+      // a bowl held to a mooshroom comes back full; only one that has eaten a flower makes it suspicious
+      if (held.count === 1) {
+        held.id = 'mushroom_stew';
+        p.inventory.version++;
+      } else if (survival) {
+        held.count--;
+        p.inventory.version++;
+        if (p.inventory.add({ id: 'mushroom_stew', count: 1 }) > 0) this.dropStack({ id: 'mushroom_stew', count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+      }
+      this.audio.play('cow', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.2 });
+      return true;
+    }
+    if (held.id === 'bucket' && (m.def.id === 'cow' || m.def.id === 'mooshroom') && !m.isBaby) {
       if (held.count === 1) {
         held.id = 'milk_bucket';
         p.inventory.version++;
@@ -5486,7 +5516,7 @@ export class Game {
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat', guardian: 'guardian', elder_guardian: 'guardian', blaze: 'blaze', ghast: 'ghast', piglin: 'piglin', piglin_brute: 'piglin', zombified_piglin: 'piglin', hoglin: 'hoglin', zoglin: 'hoglin', strider: 'strider', magma_cube: 'magma_cube', magma_cube_medium: 'magma_cube', magma_cube_big: 'magma_cube', wither: 'wither' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', mooshroom: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat', guardian: 'guardian', elder_guardian: 'guardian', blaze: 'blaze', ghast: 'ghast', piglin: 'piglin', piglin_brute: 'piglin', zombified_piglin: 'piglin', hoglin: 'hoglin', zoglin: 'hoglin', strider: 'strider', magma_cube: 'magma_cube', magma_cube_medium: 'magma_cube', magma_cube_big: 'magma_cube', wither: 'wither' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }

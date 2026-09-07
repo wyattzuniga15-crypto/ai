@@ -151,8 +151,8 @@ const spiderModel = (texture = 'spider/spider.png'): ModelDef => ({
   ],
 });
 
-const cowModel: ModelDef = {
-  texture: 'cow/temperate_cow.png', texW: 64, texH: 64,
+const cowModel = (texture = 'cow/temperate_cow.png'): ModelDef => ({
+  texture, texW: 64, texH: 64,
   parts: [
     { name: 'head', pivot: [0, 4, -8], boxes: [{ uv: [0, 0], box: [-4, -4, -6, 8, 8, 6] }, { uv: [22, 0], box: [-5, -5, -4, 1, 3, 1] }, { uv: [22, 0], box: [4, -5, -4, 1, 3, 1] }] },
     { name: 'body', pivot: [0, 5, 2], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [18, 4], box: [-6, -10, -7, 12, 18, 10] }, { uv: [52, 0], box: [-2, 2, -8, 4, 6, 1] }] },
@@ -161,7 +161,7 @@ const cowModel: ModelDef = {
     { name: 'right_front_leg', pivot: [-4, 12, -6], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 12, 4] }] },
     { name: 'left_front_leg', pivot: [4, 12, -6], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 12, 4], mirror: true }] },
   ],
-};
+});
 
 const pigModel: ModelDef = {
   texture: 'pig/temperate_pig.png', texW: 64, texH: 64,
@@ -767,7 +767,7 @@ const passiveGoals = (panicSpeed = 1.25, extra: Goal[] = []) => [floatGoal, pani
 
 /** Vanilla breeding items per animal. */
 export const BREEDING_FOODS: Record<string, string[]> = {
-  cow: ['wheat'], sheep: ['wheat'], pig: ['carrot', 'potato', 'beetroot'],
+  cow: ['wheat'], mooshroom: ['wheat'], sheep: ['wheat'], pig: ['carrot', 'potato', 'beetroot'],
   chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
 };
 export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
@@ -823,7 +823,9 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   slime_medium: { model: slimeModel(), animation: 'slime', eyeHeight: 0.65, followRange: 16, scale: 2, data: 'slime', loot: 'slime_medium', override: { width: 1.02, height: 1.02, health: 4, damage: 2, xp: 2 }, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
   slime_big: { model: slimeModel(), animation: 'slime', eyeHeight: 1.3, followRange: 16, scale: 4, data: 'slime', loot: 'slime_big', override: { width: 2.04, height: 2.04, health: 16, damage: 4, xp: 4 }, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
   enderman: { model: endermanModel, animation: 'biped', eyeHeight: 2.55, followRange: 64, goals: () => [endermanGoal(), loseTargetGoal(), meleeAttackGoal(0.3), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
-  cow: { model: cowModel, animation: 'quadruped', eyeHeight: 1.3, followRange: 16, goals: () => passiveGoals() },
+  cow: { model: cowModel(), animation: 'quadruped', eyeHeight: 1.3, followRange: 16, goals: () => passiveGoals() },
+  // the mooshroom is a cow in a red skin with mushrooms growing on its back; only mushroom fields have it
+  mooshroom: { model: cowModel('cow/red_mooshroom.png'), animation: 'quadruped', eyeHeight: 1.3, followRange: 16, goals: () => passiveGoals() },
   pig: { model: pigModel, animation: 'quadruped', eyeHeight: 0.8, followRange: 16, goals: () => passiveGoals() },
   sheep: { model: sheepModel, animation: 'quadruped', eyeHeight: 1.2, followRange: 16, goals: () => passiveGoals(1.25, [eatGrassGoal()]) },
   chicken: { model: chickenModel, animation: 'chicken', eyeHeight: 0.644, followRange: 16, flapping: true, goals: () => passiveGoals(1.4) },

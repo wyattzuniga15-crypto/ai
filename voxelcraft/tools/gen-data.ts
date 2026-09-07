@@ -323,7 +323,8 @@ const BIOME_SURFACE: Record<string, BiomeSurface> = {
   deep_cold_ocean: { top: 'gravel', filler: 'gravel', underwater: 'gravel' },
   frozen_ocean: { top: 'gravel', filler: 'gravel', underwater: 'gravel', snow: true },
   deep_frozen_ocean: { top: 'gravel', filler: 'gravel', underwater: 'gravel', snow: true },
-  mushroom_fields: { top: 'mycelium', filler: 'dirt', extra: ['brown_mushroom', 'red_mushroom'] },
+  // vanilla mushroom islands are dotted with huge mushrooms, three red to every brown one
+  mushroom_fields: { top: 'mycelium', filler: 'dirt', trees: [['huge_red_mushroom', 0.15], ['huge_brown_mushroom', 0.05]], extra: ['brown_mushroom', 'red_mushroom'] },
   windswept_hills: { top: 'grass_block', filler: 'dirt', trees: [['spruce', 0.5], ['oak', 0.5]], grassDensity: 0.1 },
   windswept_gravelly_hills: { top: 'gravel', filler: 'gravel', trees: [['spruce', 0.5], ['oak', 0.5]] },
   windswept_forest: { top: 'grass_block', filler: 'dirt', trees: [['spruce', 0.5], ['oak', 0.5]], grassDensity: 0.2 },
