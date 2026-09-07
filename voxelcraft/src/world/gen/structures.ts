@@ -9,7 +9,7 @@ import type { BlockAccess } from './features.ts';
 export interface JigsawJson { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 export interface LootSpot { pos: [number, number, number]; table: string }
 export interface MobSpot { pos: [number, number, number]; id: string }
-export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[]; mobs?: MobSpot[]; spawners?: MobSpot[] }
+export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[]; mobs?: MobSpot[]; spawners?: MobSpot[]; items?: MobSpot[] }
 export interface PoolEntry { location: string; weight: number; projection: string }
 /**
  * A pool alias: a trial chamber decides once per chamber which mobs its spawners hold, by pointing
@@ -26,7 +26,7 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion' | 'monument' | 'fortress';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion' | 'monument' | 'fortress' | 'end_city';
   spacing: number;
   separation: number;
   salt: number;
@@ -71,6 +71,8 @@ export interface RuntimeTemplate {
   mobs: MobSpot[];
   /** Spawners in the piece and the mob each turns (a trial chamber's spawner rooms). */
   spawners: MobSpot[];
+  /** Items the piece is built around, such as the elytra hanging in an end ship. */
+  items: MobSpot[];
   /** Key in the bundle, for pool lookups. */
   key: string;
 }
@@ -111,6 +113,7 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
   loot: t.loot ?? [],
   mobs: t.mobs ?? [],
   spawners: t.spawners ?? [],
+  items: t.items ?? [],
   states: Int32Array.from(t.palette.map(parseState)),
   // air is a real instruction in a template (it hollows the structure out), unknown blocks are not
   known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
@@ -131,6 +134,8 @@ function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]
   if (entry.placement === 'mansion') return 5;
   // a monument is 58 blocks square, so it reaches four chunks past the one it starts in
   if (entry.placement === 'monument') return 5;
+  // an end city's bridges wander, and the ship at the end of one is moored seventy blocks further
+  if (entry.placement === 'end_city') return 12;
   // anything else built in code is one piece, and the largest of them (a pyramid) is 21 blocks
   if (!templates.length) return 3;
   let widest = 0;
@@ -295,10 +300,11 @@ export interface StampHooks {
   onLoot?: (x: number, y: number, z: number, table: string) => void;
   onEntity?: (x: number, y: number, z: number, mob: string) => void;
   onSpawner?: (x: number, y: number, z: number, mob: string) => void;
+  onItem?: (x: number, y: number, z: number, item: string) => void;
 }
 
 export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks: StampHooks = {}): number {
-  const { written, clip, onLoot, onEntity, onSpawner } = hooks;
+  const { written, clip, onLoot, onEntity, onSpawner, onItem } = hooks;
   const { template, rotation } = p;
   const [sx, , sz] = template.size;
   const inside = (x: number, z: number) => !clip || (x >= clip.x0 && x <= clip.x1 && z >= clip.z0 && z <= clip.z1);
@@ -314,6 +320,10 @@ export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks:
   for (const spot of template.spawners) {
     const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
     if (inside(p.x + rx, p.z + rz)) onSpawner?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.id);
+  }
+  for (const spot of template.items) {
+    const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
+    if (inside(p.x + rx, p.z + rz)) onItem?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.id);
   }
   for (let i = 0; i < template.blocks.length; i += 4) {
     const lx = template.blocks[i];

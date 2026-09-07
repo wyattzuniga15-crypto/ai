@@ -25,6 +25,8 @@ export class ItemEntity {
   thrown = 0;
   dead = false;
   onGround = false;
+  /** Set on an item a structure was built around, which vanilla never lets rot away. */
+  persistent = false;
   readonly sprite: THREE.Sprite;
 
   constructor(readonly stack: ItemStack, x: number, y: number, z: number, iconUrl: string, isBlock: boolean) {
@@ -53,7 +55,8 @@ export class ItemEntity {
     this.prev.copy(this.pos);
     this.age++;
     if (this.pickupDelay > 0) this.pickupDelay--;
-    if (this.age > 6000) this.dead = true;
+    // an item a structure was built around (the elytra in an end ship) waits as long as it takes
+    if (this.age > 6000 && !this.persistent) this.dead = true;
     const here = world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.1), Math.floor(this.pos.z));
     const hereId = here === 0 ? 'air' : blocks.blockOf(here).id;
     const inWater = hereId === 'water';

@@ -37,7 +37,7 @@ const ruinPieces = (warm: boolean): string[] => {
   return out;
 };
 
-const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor' | 'mansion'; structures: string[]; main?: string[] }[] = [
+const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor' | 'mansion' | 'end_city'; structures: string[]; main?: string[] }[] = [
   // the igloo's basement pieces are stamped by the generator under the top, never on their own
   { name: 'igloo', set: 'igloos', pieces: ['igloo/top', 'igloo/middle', 'igloo/bottom'], main: ['igloo_top'], placement: 'surface', structures: ['igloo'] },
   { name: 'shipwreck', set: 'shipwrecks', pieces: [], placement: 'ocean_floor', structures: ['shipwreck', 'shipwreck_beached'] },
@@ -48,6 +48,8 @@ const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface
   // the two ocean ruin sets share one spread, so a start lands in whichever of them the biome allows
   { name: 'ocean_ruin_warm', set: 'ocean_ruins', pieces: ruinPieces(true), placement: 'ocean_floor', structures: ['ocean_ruin_warm'] },
   { name: 'ocean_ruin_cold', set: 'ocean_ruins', pieces: ruinPieces(false), placement: 'ocean_floor', structures: ['ocean_ruin_cold'] },
+  // every end city template; vanilla stacks them in code rather than through a pool, and so do we
+  { name: 'end_city', set: 'end_cities', pieces: [], placement: 'end_city', structures: ['end_city'] },
 ];
 
 /** Reads a structure's biome list, following the `#minecraft:has_structure/...` tag it points at. */
@@ -95,7 +97,7 @@ const num = (v: NbtValue): number => Number(v as number);
 interface Jigsaw { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 interface LootSpot { pos: [number, number, number]; table: string }
 interface MobSpot { pos: [number, number, number]; id: string }
-interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[]; mobs?: MobSpot[]; spawners?: MobSpot[] }
+interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[]; mobs?: MobSpot[]; spawners?: MobSpot[]; items?: MobSpot[] }
 
 /**
  * Vanilla marks some chests with a `structure_block` in DATA mode sitting one block above the chest
@@ -110,6 +112,8 @@ const DATA_TABLES: Record<string, string> = {
 
 /** Loot table a DATA marker stands for; plain `chest` means different things per structure. */
 function markerTable(structure: string, piece: string, meta: string): string | null {
+  // an end city marks the chest under the marker, the way a shipwreck marks the one under its own
+  if (structure === 'end_city' && meta.startsWith('Chest')) return 'chests/end_city_treasure';
   if (CHEST_FACING[meta]) return structure === 'mansion' ? 'chests/woodland_mansion' : null;
   if (meta !== 'chest') return DATA_TABLES[meta] ?? null;
   if (structure === 'igloo') return 'chests/igloo_chest';
@@ -118,7 +122,10 @@ function markerTable(structure: string, piece: string, meta: string): string | n
 }
 
 /** Mobs a DATA marker stands for: the drowned of an ocean ruin, the illagers of a mansion. */
-const DATA_MOBS: Record<string, string> = { drowned: 'drowned', Mage: 'evoker', Warrior: 'vindicator' };
+const DATA_MOBS: Record<string, string> = { drowned: 'drowned', Mage: 'evoker', Warrior: 'vindicator', Sentry: 'shulker' };
+
+/** Items a DATA marker leaves standing: vanilla hangs the elytra in a frame on the ship's wall. */
+const DATA_ITEMS: Record<string, string> = { Elytra: 'elytra' };
 
 /** Chest markers that also say which way the chest faces (a mansion marks its chests this way). */
 const CHEST_FACING: Record<string, string> = { Chest: 'north', ChestNorth: 'north', ChestSouth: 'south', ChestEast: 'east', ChestWest: 'west' };
@@ -138,6 +145,7 @@ function convert(file: string, structure: string, piece: string): Template | nul
   const jigsaws: Jigsaw[] = [];
   const loot: LootSpot[] = [];
   const mobs: MobSpot[] = [];
+  const items: MobSpot[] = [];
   // some templates carry several palettes (block variants); vanilla picks one, we take the first
   const paletteTag = (root.palette ?? (root.palettes as NbtValue[] | undefined)?.[0]) as NbtTag[] | undefined;
   if (!paletteTag) return null;
@@ -172,10 +180,14 @@ function convert(file: string, structure: string, piece: string): Template | nul
         mobs.push({ pos: pos as [number, number, number], id: DATA_MOBS[meta] });
         continue;
       }
+      if (DATA_ITEMS[meta]) {
+        items.push({ pos: pos as [number, number, number], id: DATA_ITEMS[meta] });
+        continue;
+      }
       const marked = markerTable(structure, piece, meta);
       if (!marked) continue;
       // an ocean ruin or a mansion marks where its chest goes; everywhere else it is below the marker
-      if (structure.startsWith('ocean_ruin') || CHEST_FACING[meta]) {
+      if (structure !== 'end_city' && (structure.startsWith('ocean_ruin') || CHEST_FACING[meta])) {
         const chest = `chest[facing=${CHEST_FACING[meta] ?? 'north'},type=single,waterlogged=false]`;
         let entry = palette.indexOf(chest);
         if (entry < 0) entry = palette.push(chest) - 1;
@@ -207,6 +219,7 @@ function convert(file: string, structure: string, piece: string): Template | nul
       ...(loot.length ? { loot } : {}),
       ...(mobs.length ? { mobs } : {}),
       ...(spawners.length ? { spawners } : {}),
+      ...(items.length ? { items } : {}),
     }
     : null;
 }

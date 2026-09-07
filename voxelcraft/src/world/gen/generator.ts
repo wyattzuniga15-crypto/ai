@@ -25,7 +25,7 @@ const TEMPLE_KINDS = new Set<string>(['desert_pyramid', 'jungle_temple', 'swamp_
  * Something a structure placed that the main thread has to finish: a chest with the loot table that
  * fills it, a spawner with the mob it turns, or a mob the structure comes with (a hut's witch).
  */
-export interface StructureSpot { x: number; y: number; z: number; table?: string; mob?: string; entity?: string }
+export interface StructureSpot { x: number; y: number; z: number; table?: string; mob?: string; entity?: string; item?: string }
 
 /** A structure worked out for a start chunk: template pieces, a mineshaft's walk, or a temple. */
 interface StructureInstance {

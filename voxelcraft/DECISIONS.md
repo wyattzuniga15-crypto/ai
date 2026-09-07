@@ -889,3 +889,23 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      by section. With neither file there it says only that the game is over, which is the same rule
      the textures follow. It rolls the first time a traveller walks back out of a beaten End, as
      vanilla plays it once, and Escape skips it.
+
+103. **End cities.** Vanilla builds these in code rather than through a template pool: twenty
+     templates stacked by a little grammar of four sections — a house tower of one, two or three
+     floors; the thin tower that rises out of its roof; the bridges that reach off a tower's landings
+     to more house towers, to a fat tower, or to the one ship a city gets; and the fat tower with
+     bridges off each of its middle floors. Ours is that grammar with vanilla's own offsets, each
+     piece laid against the one before it in that piece's turned frame, so a whole city turns with
+     the rotation its start rolled. Whether a run of the grammar is kept is vanilla's rule too: every
+     section is built into a list of its own and thrown away whole if any of it lands in a piece
+     another run laid, which is what stops a bridge growing through a tower. The offsets, and the
+     rule that a piece's footprint runs backwards from its anchor when it is turned, were taken from
+     Cubiomes, an MIT-licensed reimplementation of vanilla's world generation, rather than guessed.
+
+     The city sites itself the way vanilla does: on the outer islands, in a chunk whose four corners
+     all stand at least sixty blocks up, measured from the same island function the terrain is built
+     from so the site can be judged before its chunks exist. Its chests are the `Chest` markers with
+     vanilla's own treasure table under them, its shulkers the `Sentry` markers, and the `Elytra`
+     marker in the ship leaves the elytra itself standing where vanilla hangs it. Vanilla hangs it in
+     an item frame, which this game has no entity for yet, so for now it stands there as a dropped
+     item that never rots away — the same place, and the same thing to pick up.

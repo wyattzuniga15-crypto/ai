@@ -1767,6 +1767,13 @@ export class Game {
         }
         continue;
       }
+      // an item a structure was built around: vanilla hangs the elytra in a frame on its ship's wall
+      if (spot.item) {
+        if (!items.byId.has(spot.item)) continue;
+        const e = this.dropStack({ id: spot.item, count: 1 }, spot.x + 0.5, spot.y + 0.3, spot.z + 0.5, false);
+        e.persistent = true;
+        continue;
+      }
       const state = this.world.getBlock(spot.x, spot.y, spot.z);
       if (!state) continue;
       const id = blocks.blockOf(state).id;

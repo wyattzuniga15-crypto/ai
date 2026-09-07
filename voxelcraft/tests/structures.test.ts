@@ -70,8 +70,8 @@ describe('structure templates', () => {
     const { index, templates, pools } = load();
     const sets = buildStructureSets(index, templates, pools);
     expect(sets.map((s) => s.name).sort()).toEqual([
-      'ancient_city', 'bastion_remnant', 'buried_treasure', 'desert_pyramid', 'fortress', 'fossil', 'igloo', 'jungle_temple',
-      'mansion', 'mineshaft', 'monument', 'ocean_ruin_cold', 'ocean_ruin_warm', 'pillager_outpost',
+      'ancient_city', 'bastion_remnant', 'buried_treasure', 'desert_pyramid', 'end_city', 'fortress', 'fossil', 'igloo',
+      'jungle_temple', 'mansion', 'mineshaft', 'monument', 'ocean_ruin_cold', 'ocean_ruin_warm', 'pillager_outpost',
       'ruined_portal', 'shipwreck', 'stronghold', 'swamp_hut', 'trial_chambers', 'village',
     ]);
     const igloo = sets.find((s) => s.name === 'igloo')!;

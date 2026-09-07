@@ -15,7 +15,12 @@ import { biomeIndex } from '../biomes.ts';
 import type { ChunkData } from '../chunk.ts';
 import type { BlockAccess } from './features.ts';
 import type { StructureSpot } from './generator.ts';
-import type { StructureSet } from './structures.ts';
+import { claimsStart, nearbyStarts, placementBox, stampStructure, type StructurePlacement, type StructureSet } from './structures.ts';
+import { assembleEndCity } from './endCity.ts';
+import { biomes } from '../biomes.ts';
+
+/** The biomes the End is made of, so a structure set meant for another dimension is left alone. */
+const END_BIOMES = new Set(['the_end', 'end_highlands', 'end_midlands', 'end_barrens', 'small_end_islands']);
 
 /** The height the main island sits at, and where the player arrives. */
 export const END_SURFACE = 64;
@@ -67,6 +72,8 @@ export class EndGenerator {
   private readonly island: Noise;
   private readonly detail: Noise;
   private readonly S: Record<string, number> = {};
+  /** Pieces of each structure start, worked out once: every chunk it covers asks for the same. */
+  private readonly structureCache = new Map<string, StructurePlacement[]>();
 
   constructor(seed: number) {
     this.seed = seed >>> 0;
@@ -135,10 +142,22 @@ export class EndGenerator {
       }
   }
 
+  /**
+   * The height the island's surface comes to in a column, worked out the way `generateTerrain`
+   * does, so a structure can be sited without the chunk it stands in having been built yet.
+   */
+  surfaceAt(wx: number, wz: number): number {
+    const f = this.islandAt(wx, wz);
+    if (f <= 0) return -1;
+    const crag = this.detail.fbm2(wx / 40, wz / 40, 3) * 6;
+    return Math.round(END_SURFACE + f / 16 + crag * 0.4);
+  }
+
   /** Chorus plants on the outer islands, and the dragon's pillars on the middle one. */
   decorate(chunk: ChunkData, world: BlockAccess): void {
     this.structureSpots = [];
     this.placeSpikes(chunk, world);
+    this.placeStructures(chunk, world);
     const rng = new Rng(mix(this.seed, chunk.cx, chunk.cz, 0xdec2));
     const ox = chunk.cx * 16;
     const oz = chunk.cz * 16;
@@ -155,6 +174,68 @@ export class EndGenerator {
       if (y < 0 || blocks.blockOf(world.get(x, y, z)).id !== 'end_stone') continue;
       if (rng.next() < 0.35) this.chorusPlant(world, x, y + 1, z, rng);
     }
+  }
+
+  /**
+   * The End's structures — its cities — stamped the way every other dimension's are: a chunk asks
+   * each set which nearby starts could reach it and writes their pieces clipped to its own columns.
+   */
+  private placeStructures(chunk: ChunkData, world: BlockAccess): void {
+    if (!this.structures.length) return;
+    const clip = { x0: chunk.cx * 16, x1: chunk.cx * 16 + 15, z0: chunk.cz * 16, z1: chunk.cz * 16 + 15 };
+    const loot = (x: number, y: number, z: number, table: string) => this.structureSpots.push({ x, y, z, table });
+    const entity = (x: number, y: number, z: number, mob: string) => this.structureSpots.push({ x, y, z, entity: mob });
+    const item = (x: number, y: number, z: number, id: string) => this.structureSpots.push({ x, y, z, item: id });
+    for (const set of this.structures) {
+      if (!set.biomes.some((b) => END_BIOMES.has(b))) continue;
+      for (const start of nearbyStarts(this.seed, set, chunk.cx, chunk.cz)) {
+        if (!claimsStart(this.seed, set, start.cx, start.cz)) continue;
+        for (const piece of this.structureAt(set, start.cx, start.cz)) {
+          const box = placementBox(piece);
+          if (box.x1 < clip.x0 || box.x0 > clip.x1 || box.z1 < clip.z0 || box.z0 > clip.z1) continue;
+          stampStructure(world, piece, { clip, onLoot: loot, onEntity: entity, onItem: item });
+        }
+      }
+    }
+  }
+
+  /**
+   * One start's pieces. A city stands on the outer islands where the ground under the whole of the
+   * start chunk is solid, which is vanilla's own rule for siting one.
+   */
+  private structureAt(set: StructureSet, cx: number, cz: number): StructurePlacement[] {
+    const key = `${set.name}:${cx}:${cz}`;
+    const cached = this.structureCache.get(key);
+    if (cached) return cached;
+    const rng = new Rng(mix(this.seed ^ set.salt, cx, cz, 0x5c17));
+    const wx = cx * 16 + 8;
+    const wz = cz * 16 + 8;
+    let pieces: StructurePlacement[] = [];
+    const biome = biomes[this.biomeAt(wx, wz)].id;
+    if (set.placement === 'end_city' && set.biomeSet.has(biome)) {
+      // vanilla takes the lowest of the chunk's four corners and wants sixty blocks under it
+      let y = Infinity;
+      for (const [ox, oz] of [[0, 0], [0, 15], [15, 0], [15, 15]] as [number, number][]) y = Math.min(y, this.surfaceAt(cx * 16 + ox, cz * 16 + oz));
+      if (y >= 60) {
+        const byName = new Map(set.templates.map((t) => [t.key, t]));
+        pieces = assembleEndCity(rng, wx, y, wz)
+          .map((piece) => {
+            const template = byName.get(`end_city_${piece.name}`);
+            return template ? { set, template, x: piece.x, y: piece.y, z: piece.z, rotation: piece.rotation, integrity: 1, decaySeed: 0 } : null;
+          })
+          .filter((p): p is StructurePlacement => p !== null);
+      }
+    }
+    if (this.structureCache.size > 256) this.structureCache.clear();
+    this.structureCache.set(key, pieces);
+    return pieces;
+  }
+
+  /** The biome a column falls in, by the same rule `generateTerrain` writes into the chunk. */
+  private biomeAt(wx: number, wz: number): number {
+    const f = this.islandAt(wx, wz);
+    if (Math.hypot(wx, wz) <= 1024) return biomeIndex('the_end');
+    return f > 40 ? biomeIndex('end_highlands') : f > 20 ? biomeIndex('end_midlands') : f > 0 ? biomeIndex('end_barrens') : biomeIndex('small_end_islands');
   }
 
   /**
