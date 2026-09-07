@@ -91,7 +91,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Hanging signs (vanilla's board, bar and chains on the hanging-sign textures, hung under a block or off a wall, with text on both faces) and cauldrons (filled and emptied by buckets, a third at a time by bottles, washing dyed and named things clean, lava burning and water dousing whoever stands in one)
 - [x] The crafter (a three-by-three that crafts on a signal and pushes what it made into whatever it faces, with slots that can be switched off) and the lectern (a book on the stand, opened at the page it was left at, taken back with a sneak), plus books that can be read, written and signed
 - [x] The loom: vanilla's pattern list (and the eight that need their own pattern item), weaving up to six layers onto a banner, with the patterns drawn on the banner in the world, in the hand and on the icon
-- [ ] Cartography table (needs maps), beacon
+- [x] The beacon: the pyramid counted the way vanilla counts it, the effect screen with a tier per level and the second column a full pyramid opens, an effect given to everyone within range and refreshed every four seconds, and the beam pouring into the sky in the colour of the glass over it
+- [ ] Cartography table and maps
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
 - [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)
 - [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)

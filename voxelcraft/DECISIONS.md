@@ -625,3 +625,12 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     which is how the banner ends up looking the same in the world, in the hand and on the loom's own
     pattern list. Item stacks now carry potions, book pages and banner patterns, so two that differ
     no longer stack together.
+
+89. **The beacon.** It counts the pyramid under it the way vanilla counts one — four steps at most,
+    of iron, gold, emerald, diamond or netherite, each complete or the count stops there — and the
+    screen offers a tier of effects for each step, with the second column a full pyramid opens: the
+    regeneration vanilla keeps for it, or a second helping of the first effect, which is what makes
+    that effect stronger. Paying an ingot sets it going, and every four seconds it gives whoever is
+    within ten blocks per level eleven seconds of what it is set to. The beam is drawn as vanilla
+    draws it, a bright inner column and a softer outer one climbing into the sky, taking its colour
+    from the last pane of stained glass the light passes through.

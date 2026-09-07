@@ -235,3 +235,74 @@ export class BlockEntityRenderer {
     return this.meshes.size;
   }
 }
+
+/**
+ * Beacon beams. Vanilla draws a bright inner column and a softer outer one all the way to the sky,
+ * tinted by the stained glass the light passes through.
+ */
+export class BeaconBeamRenderer {
+  private readonly beams = new Map<string, { group: THREE.Group; key: string }>();
+  private texture: THREE.Texture | null = null;
+
+  constructor(private readonly scene: THREE.Scene, private readonly base: string) {}
+
+  /** Shows or hides the beam over a beacon; `color` is the dye the glass above it gives. */
+  update(x: number, y: number, z: number, on: boolean, color: number): void {
+    const at = `${x},${y},${z}`;
+    const existing = this.beams.get(at);
+    const key = `${on}:${color.toString(16)}`;
+    if (existing && existing.key === key) return;
+    if (existing) this.remove(x, y, z);
+    if (!on) return;
+    if (!this.texture) {
+      this.texture = new THREE.TextureLoader().load(`${this.base}textures/entity/beacon_beam.png`);
+      this.texture.wrapS = THREE.RepeatWrapping;
+      this.texture.wrapT = THREE.RepeatWrapping;
+      this.texture.magFilter = THREE.NearestFilter;
+      this.texture.minFilter = THREE.NearestFilter;
+      this.texture.colorSpace = THREE.SRGBColorSpace;
+      this.texture.repeat.set(1, 64);
+    }
+    const group = new THREE.Group();
+    const height = 128;
+    const beam = (width: number, opacity: number): THREE.Mesh => {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(width, height, width),
+        new THREE.MeshBasicMaterial({ map: this.texture, color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      mesh.position.y = height / 2;
+      mesh.renderOrder = 5;
+      return mesh;
+    };
+    group.add(beam(0.2, 0.9), beam(0.35, 0.28));
+    group.position.set(x + 0.5, y + 1, z + 0.5);
+    this.scene.add(group);
+    this.beams.set(at, { group, key });
+  }
+
+  /** The beam's texture slides upward, which is what makes it look like it is pouring out. */
+  animate(time: number): void {
+    if (this.texture) this.texture.offset.y = -time * 0.02;
+  }
+
+  remove(x: number, y: number, z: number): void {
+    const at = `${x},${y},${z}`;
+    const m = this.beams.get(at);
+    if (!m) return;
+    this.scene.remove(m.group);
+    m.group.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+    this.beams.delete(at);
+  }
+
+  prune(seen: Set<string>): void {
+    for (const key of [...this.beams.keys()]) {
+      if (seen.has(key)) continue;
+      const [x, y, z] = key.split(',').map(Number);
+      this.remove(x, y, z);
+    }
+  }
+
+  get count(): number {
+    return this.beams.size;
+  }
+}

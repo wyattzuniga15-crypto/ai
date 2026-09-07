@@ -4,9 +4,10 @@ import type { Inventory, ItemStack, Slot } from '../../items/inventory.ts';
 import { craftingMatcher, consumeIngredients } from '../../items/crafting.ts';
 import { findCookingRecipe, isFuel } from '../../items/smelting.ts';
 import { items } from '../../items/registry.ts';
-import type { BrewingEntity, CrafterEntity, FurnaceEntity } from '../../blocks/blockEntity.ts';
+import type { BeaconEntity, BrewingEntity, CrafterEntity, FurnaceEntity } from '../../blocks/blockEntity.ts';
 import { crafterResult, toggleSlot } from '../../blocks/crafter.ts';
 import { LOOM_PATTERNS, PATTERN_ITEMS, dyeColor, isBanner, loomResult, type BannerLayer } from '../../items/banners.ts';
+import { BEACON_EFFECTS, BEACON_PAYMENT, BEACON_SECONDARY } from '../../blocks/beacon.ts';
 import { BREW_TICKS, FUEL_BREWS } from '../../blocks/brewing.ts';
 import { isBrewingIngredient } from '../../items/potions.ts';
 
@@ -446,6 +447,93 @@ export function loomScreen(inv: Inventory, host: { icons: { bannerIcon(color: st
       if (isBanner(stack.id)) return [banner];
       if (dyeColor(stack.id)) return [dye];
       if (stack.id in PATTERN_ITEMS) return [pattern];
+      if (from.group === 'hotbar') return byGroup(player, 'inventory');
+      return byGroup(player, 'hotbar');
+    },
+  };
+}
+
+/**
+ * The beacon: one payment slot and the effects the pyramid has earned, with vanilla's second column
+ * for a full pyramid. Choosing an effect and paying sets the beacon going.
+ */
+export function beaconScreen(inv: Inventory, e: BeaconEntity, host: { icons: { icon(id: string): string } }, onSet: (primary: string | null, secondary: string | null) => void): ScreenDef {
+  const player = playerSlots(inv, 36, 137, 195);
+  let payment: Slot = null;
+  let primary: string | null = e.primary;
+  let secondary: string | null = e.secondary;
+  const slot: SlotDef = {
+    x: 136, y: 110, group: 'container', maxCount: 1,
+    get: () => payment,
+    set: (s) => { payment = s; },
+    accepts: (s) => BEACON_PAYMENT.has(s.id),
+  };
+  return {
+    texture: 'container/beacon.png', width: 230, height: 219, textureSize: [256, 256],
+    slots: [slot, ...player],
+    labels: [{ text: 'Beacon', x: 60, y: 6 }, { text: 'Primary', x: 60, y: 12 }, { text: 'Secondary', x: 158, y: 12 }],
+    overlay(root) {
+      const s = Number(getComputedStyle(document.documentElement).getPropertyValue('--gui')) || 3;
+      const base = `${import.meta.env.BASE_URL}textures/gui/sprites/container/beacon/`;
+      let panel = root.querySelector('.beacon-panel') as HTMLElement | null;
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.className = 'beacon-panel';
+        panel.style.cssText = 'position:absolute;left:0;top:0;';
+        root.append(panel);
+      }
+      panel.replaceChildren();
+      const cell = (effect: string, x: number, y: number, chosen: boolean, enabled: boolean, onPick: () => void): void => {
+        const el = document.createElement('div');
+        const sprite = !enabled ? 'button_disabled.png' : chosen ? 'button_selected.png' : 'button.png';
+        el.style.cssText = `position:absolute;left:${x * s}px;top:${y * s}px;width:${22 * s}px;height:${22 * s}px;background:url('${base}${sprite}') 0 0 / 100% 100% no-repeat;cursor:${enabled ? 'pointer' : 'default'};`;
+        const icon = document.createElement('div');
+        icon.style.cssText = `position:absolute;left:${2 * s}px;top:${2 * s}px;width:${18 * s}px;height:${18 * s}px;background:url('${import.meta.env.BASE_URL}textures/mob_effect/${effect}.png') 0 0 / 100% 100% no-repeat;image-rendering:pixelated;opacity:${enabled ? 1 : 0.4};`;
+        el.append(icon);
+        if (enabled) el.addEventListener('mousedown', (ev) => { ev.stopPropagation(); onPick(); });
+        panel!.append(el);
+      };
+      // vanilla lays each tier out centred on x = 76, a row every 25 pixels
+      BEACON_EFFECTS.slice(0, 3).forEach((list, row) => {
+        const span = list.length * 22 + (list.length - 1) * 2;
+        list.forEach((effect, i) => {
+          cell(effect, 76 + i * 24 - span / 2, 22 + row * 25, primary === effect, e.levels > row, () => {
+            primary = effect;
+            root.dispatchEvent(new Event('beacon-refresh'));
+          });
+        });
+      });
+      if (e.levels >= 4) {
+        cell(BEACON_SECONDARY, 167, 22, secondary === BEACON_SECONDARY, true, () => {
+          secondary = BEACON_SECONDARY;
+          root.dispatchEvent(new Event('beacon-refresh'));
+        });
+        if (primary) {
+          cell(primary, 167, 47, secondary === primary, true, () => {
+            secondary = primary;
+            root.dispatchEvent(new Event('beacon-refresh'));
+          });
+        }
+      }
+      let confirm = root.querySelector('.beacon-confirm') as HTMLElement | null;
+      if (!confirm) {
+        confirm = document.createElement('div');
+        confirm.className = 'beacon-confirm';
+        confirm.style.cssText = `position:absolute;left:${164 * s}px;top:${107 * s}px;width:${22 * s}px;height:${22 * s}px;background:url('${base}confirm.png') 0 0 / 100% 100% no-repeat;cursor:pointer;`;
+        confirm.addEventListener('mousedown', (ev) => {
+          ev.stopPropagation();
+          if (!payment || !primary) return;
+          if (--payment.count <= 0) payment = null;
+          onSet(primary, secondary);
+        });
+        root.append(confirm);
+      }
+      confirm.style.opacity = payment && primary ? '1' : '0.4';
+      void host;
+    },
+    quickMove(from, stack) {
+      if (from.group === 'container') return reversePlayer(player);
+      if (BEACON_PAYMENT.has(stack.id)) return [slot];
       if (from.group === 'hotbar') return byGroup(player, 'inventory');
       return byGroup(player, 'hotbar');
     },

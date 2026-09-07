@@ -31,6 +31,14 @@ export interface CrafterEntity {
   crafting: boolean;
 }
 
+/** Beacons: the pyramid under it and the effects it has been set to give. */
+export interface BeaconEntity {
+  type: 'beacon';
+  levels: number;
+  primary: string | null;
+  secondary: string | null;
+}
+
 /** Banners: the patterns woven onto the one standing here. */
 export interface BannerEntity {
   type: 'banner';
@@ -81,7 +89,7 @@ export interface SpawnerEntity {
   delay: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | SignEntity | HiveEntity | SpawnerEntity;
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -103,6 +111,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId === 'crafter') return { type: 'crafter', items: new Array(9).fill(null), disabled: new Array(9).fill(false), crafting: false };
   if (blockId === 'lectern') return { type: 'lectern', book: null, page: 0 };
   if (blockId.endsWith('_banner')) return { type: 'banner', layers: [] };
+  if (blockId === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };

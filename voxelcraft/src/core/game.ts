@@ -34,11 +34,12 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { brewingScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
-import { containerKind, createBlockEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { beaconScreen, brewingScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { tickBrewing } from '../blocks/brewing.ts';
 import { craftOnce } from '../blocks/crafter.ts';
+import { beaconRange, beamColors, pyramidLevels, seesSky } from '../blocks/beacon.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
@@ -75,7 +76,7 @@ import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts'
 import { PlayerPreview } from '../ui/playerPreview.ts';
 import { SignRenderer, isHangingSign, isSignBlock } from '../blocks/signs.ts';
 import { ChestRenderer, chestModel, chestStates, isChestBlock } from '../blocks/chests.ts';
-import { BlockEntityRenderer, drawnStates } from '../blocks/blockEntityRender.ts';
+import { BeaconBeamRenderer, BlockEntityRenderer, drawnStates } from '../blocks/blockEntityRender.ts';
 import { compost, composterLevel, composterState } from '../blocks/composter.ts';
 import { openSignEditor } from '../ui/signEditor.ts';
 import { openBookEditor, openBookReader } from '../ui/bookScreen.ts';
@@ -184,6 +185,8 @@ export class Game {
   private readonly chests: ChestRenderer;
   /** Beds, banners, shulker boxes, skulls and the conduit, which vanilla also draws itself. */
   private readonly blockEntities: BlockEntityRenderer;
+  /** The beams beacons pour into the sky. */
+  private readonly beams: BeaconBeamRenderer;
   /** Every one of those in the loaded world. */
   private readonly drawnBlocks = new Set<string>();
   /** Every chest in the loaded world, so their meshes can be kept in step. */
@@ -387,6 +390,7 @@ export class Game {
     this.signs = new SignRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.chests = new ChestRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.blockEntities = new BlockEntityRenderer(this.renderer.scene, import.meta.env.BASE_URL);
+    this.beams = new BeaconBeamRenderer(this.renderer.scene, import.meta.env.BASE_URL);
     this.audio.setVolume(opts.options.volume);
     const unlock = () => this.audio.unlock();
     this.renderer.canvas.addEventListener('mousedown', unlock);
@@ -508,6 +512,7 @@ export class Game {
     this.chests.prune(new Set());
     this.chestBlocks.clear();
     this.blockEntities.prune(new Set());
+    this.beams.prune(new Set());
     this.drawnBlocks.clear();
     this.loop.stop();
     window.removeEventListener('beforeunload', this.unloadHandler);
@@ -1137,6 +1142,10 @@ export class Game {
         this.tickSpawner(x, y, z, e as SpawnerEntity);
         return;
       }
+      if (e.type === 'beacon') {
+        if (this.tickCount % 80 === 0) this.tickBeacon(x, y, z, e as BeaconEntity);
+        return;
+      }
       if (e.type === 'brewing_stand') {
         const brewer = e as BrewingEntity;
         if (tickBrewing(brewer)) {
@@ -1652,6 +1661,27 @@ export class Game {
   }
 
   /**
+   * A beacon: it counts its pyramid again and gives whoever is near it the effect it is set to, for
+   * as long as vanilla gives it — eleven seconds, refreshed every four.
+   */
+  private tickBeacon(x: number, y: number, z: number, e: BeaconEntity): void {
+    const levels = pyramidLevels(this.world, x, y, z);
+    if (levels !== e.levels) {
+      e.levels = levels;
+      this.world.markModifiedAt(x, z);
+    }
+    if (!levels || !e.primary || !seesSky(this.world, x, y, z)) return;
+    const p = this.player;
+    if (p.dead || p.gamemode === 'spectator') return;
+    const range = beaconRange(levels);
+    if (Math.abs(p.pos.x - x) > range || Math.abs(p.pos.y - y) > range || Math.abs(p.pos.z - z) > range) return;
+    // a full pyramid can pour the same effect twice, which is vanilla's way of making it stronger
+    const strong = levels >= 4 && e.secondary === e.primary;
+    p.effects.add(e.primary, 220, strong ? 1 : 0);
+    if (e.secondary && e.secondary !== e.primary) p.effects.add(e.secondary, 220, 0);
+  }
+
+  /**
    * A crafter fired by a signal: it makes one of whatever its pattern makes and pushes it out of the
    * face it points at, into a container when there is one and into the world when there is not.
    */
@@ -1988,6 +2018,24 @@ export class Game {
     }
     if (def.id === 'composter') return this.useComposter(t);
     if (def.id.endsWith('cauldron')) return this.useCauldron(t, def.id);
+    if (def.id === 'beacon') {
+      let entity = this.world.getBlockEntity(t.x, t.y, t.z) as BeaconEntity | undefined;
+      if (!entity || entity.type !== 'beacon') {
+        entity = createBlockEntity('beacon') as BeaconEntity;
+        this.world.setBlockEntity(t.x, t.y, t.z, entity);
+      }
+      entity.levels = pyramidLevels(this.world, t.x, t.y, t.z);
+      const screen = beaconScreen(inv, entity, { icons: this.icons }, (primary, secondary) => {
+        entity!.primary = primary;
+        entity!.secondary = entity!.levels >= 4 ? secondary : null;
+        mark();
+        this.closeScreen();
+        this.audio.play('orb', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5, pitch: 1.3 });
+      });
+      this.openScreen(screen);
+      this.screen?.root.addEventListener('beacon-refresh', () => this.screen?.refresh());
+      return true;
+    }
     if (def.id === 'loom') {
       const state = { banner: null as Slot, dye: null as Slot, pattern: null as Slot, selected: null as string | null, scroll: 0 };
       const screen = loomScreen(inv, { icons: this.icons }, state, () => this.screen?.refresh());
@@ -3611,6 +3659,19 @@ export class Game {
       this.blockEntities.update(x, y, z, state, entity?.type === 'banner' ? entity.layers : []);
     }
     this.blockEntities.prune(drawn);
+
+    // beacons pour a beam while their pyramid stands and the sky is clear over them
+    const lit = new Set<string>();
+    this.world.forEachBlockEntity((x, y, z, e) => {
+      if (e.type !== 'beacon') return;
+      const state = this.world.getBlock(x, y, z);
+      if (state === 0 || blocks.idOf(state) !== 'beacon') return;
+      const on = e.levels > 0 && seesSky(this.world, x, y, z);
+      const colors = beamColors(this.world, x, y, z, (dye) => DYE_COLORS[dye]);
+      lit.add(`${x},${y},${z}`);
+      this.beams.update(x, y, z, on, colors.length ? colors[colors.length - 1] : 0xffffff);
+    });
+    this.beams.prune(lit);
   }
 
   private syncSigns(): void {
@@ -3770,6 +3831,7 @@ export class Game {
     for (const e of this.minecarts) e.updateMesh(alpha);
     this.chests.animate();
     this.blockEntities.animate(this.tickCount + partialTime / 50);
+    this.beams.animate(this.tickCount + partialTime / 50);
     this.bobber?.updateMesh(alpha);
     this.updateBobberLine(alpha);
     mobFireAssets.viewYaw = this.player.yaw;
