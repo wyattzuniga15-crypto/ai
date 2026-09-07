@@ -337,6 +337,30 @@ export function blockDrops(state: number, tool: ItemStack | null, random: () => 
   return evalTable(table, { tool, blockState: state, random });
 }
 
+/**
+ * Experience a block drops when it is mined, from vanilla's `Block.getExpDrop` (a silk touch pick
+ * takes the block itself instead, and drops no experience).
+ */
+const BLOCK_XP: Record<string, [number, number]> = {
+  coal_ore: [0, 2], deepslate_coal_ore: [0, 2],
+  diamond_ore: [3, 7], deepslate_diamond_ore: [3, 7],
+  emerald_ore: [3, 7], deepslate_emerald_ore: [3, 7],
+  lapis_ore: [2, 5], deepslate_lapis_ore: [2, 5],
+  redstone_ore: [1, 5], deepslate_redstone_ore: [1, 5],
+  nether_gold_ore: [0, 1], nether_quartz_ore: [2, 5],
+  spawner: [15, 43], trial_spawner: [15, 43],
+  sculk: [1, 1], sculk_catalyst: [5, 5], sculk_shrieker: [5, 5], sculk_sensor: [5, 5], calibrated_sculk_sensor: [5, 5],
+  sculk_vein: [1, 1], infested_stone: [0, 0],
+};
+
+/** Experience dropped by breaking a block with the given tool. */
+export function blockXp(blockId: string, tool: ItemStack | null, random: () => number = Math.random): number {
+  const range = BLOCK_XP[blockId];
+  if (!range) return 0;
+  if (tool?.enchantments?.silk_touch) return 0;
+  return range[0] + Math.floor(random() * (range[1] - range[0] + 1));
+}
+
 export function hasLootTable(blockId: string): boolean {
   return blockId in blockTables;
 }

@@ -31,8 +31,8 @@ export interface LoadedChunk {
   entities: Map<string, BlockEntity>;
   /** Saved mobs (JSON) waiting to be restored by the entity manager. */
   pendingMobs: string | null;
-  /** Structure chests to fill on first load (JSON from the generator). */
-  pendingLoot: string | null;
+  /** Structure chests and spawners to make on first load (JSON from the generator). */
+  pendingSpots: string | null;
 }
 
 export interface RaycastHit {
@@ -335,7 +335,7 @@ export class World {
         const key = chunkKey(msg.cx, msg.cz);
         let c = this.chunks.get(key);
         if (!c) {
-          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)), pendingMobs: this.pendingMobs.get(key) ?? null, pendingLoot: msg.loot ?? null };
+          c = { cx: msg.cx, cz: msg.cz, blocks: msg.blocks, biomes: msg.biomes, light: msg.light, modified: false, sections: new Array(SECTION_COUNT).fill(null), translucentSections: new Array(SECTION_COUNT).fill(null), solidMesh: null, translucentMesh: null, dirtyGeometry: false, entities: deserializeEntities(this.pendingEntities.get(key)), pendingMobs: this.pendingMobs.get(key) ?? null, pendingSpots: msg.spots ?? null };
           this.pendingEntities.delete(key);
           this.pendingMobs.delete(key);
           this.chunks.set(key, c);
@@ -343,7 +343,7 @@ export class World {
           c.blocks = msg.blocks;
           c.biomes = msg.biomes;
           c.light = msg.light;
-          if (msg.loot) c.pendingLoot = msg.loot;
+          if (msg.spots) c.pendingSpots = msg.spots;
         }
         this.onChunkLoaded?.(msg.cx, msg.cz);
         break;

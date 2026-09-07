@@ -14,6 +14,9 @@ import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './fea
 import { assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
 import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
 
+/** A chest or spawner a structure placed, for the main thread to give its block entity. */
+export interface StructureSpot { x: number; y: number; z: number; table?: string; mob?: string }
+
 /** A structure that has been worked out for a start chunk: template pieces, or a mineshaft's walk. */
 interface StructureInstance { pieces: StructurePlacement[]; shaft?: { kind: ShaftKind; pieces: ShaftPiece[] } }
 const EMPTY_STRUCTURE: StructureInstance = { pieces: [] };
@@ -709,7 +712,7 @@ export class WorldGenerator {
   // Stage 2: decoration (trees, plants) – needs the 3x3 neighbourhood to have terrain
   // ---------------------------------------------------------------------------------------------
   decorate(chunk: ChunkData, world: BlockAccess): void {
-    this.lootSpots = [];
+    this.structureSpots = [];
     const rng = new Rng(mix(this.seed, chunk.cx, chunk.cz, 0xdec0));
     const ox = chunk.cx * 16;
     const oz = chunk.cz * 16;
@@ -819,7 +822,8 @@ export class WorldGenerator {
    */
   private placeStructures(chunk: ChunkData, world: BlockAccess): void {
     const clip = { x0: chunk.cx * 16, x1: chunk.cx * 16 + 15, z0: chunk.cz * 16, z1: chunk.cz * 16 + 15 };
-    const loot = (lx: number, ly: number, lz: number, table: string) => this.lootSpots.push({ x: lx, y: ly, z: lz, table });
+    const loot = (lx: number, ly: number, lz: number, table: string) => this.structureSpots.push({ x: lx, y: ly, z: lz, table });
+    const spawner = (lx: number, ly: number, lz: number, mob: string) => this.structureSpots.push({ x: lx, y: ly, z: lz, mob });
     for (const set of this.structures) {
       for (const start of this.nearbyStarts(set, chunk.cx, chunk.cz)) {
         const instance = this.structureAt(set, start.cx, start.cz);
@@ -834,7 +838,7 @@ export class WorldGenerator {
         for (const piece of instance.shaft.pieces) {
           const b = piece.box;
           if (b.x1 < clip.x0 || b.x0 > clip.x1 || b.z1 < clip.z0 || b.z0 > clip.z1) continue;
-          fillShaftPiece(piece, instance.shaft.kind, world, clip, loot);
+          fillShaftPiece(piece, instance.shaft.kind, world, clip, loot, spawner);
         }
       }
     }
@@ -1028,8 +1032,11 @@ export class WorldGenerator {
 
   /** The last structure worked out, for tests and debugging. */
   lastStructure: { name: string; x: number; y: number; z: number; pieces?: number; variant?: string } | null = null;
-  /** Chests placed by structures in the chunk being decorated, with their loot tables. */
-  lootSpots: { x: number; y: number; z: number; table: string }[] = [];
+  /**
+   * Block entities the structures in this chunk want: chests with the loot table that fills them,
+   * spawners with the mob they turn. They are made on the main thread, where the tables live.
+   */
+  structureSpots: StructureSpot[] = [];
   /** Structures already worked out, keyed by set and start chunk; every chunk they cover reuses them. */
   private readonly structureCache = new Map<string, StructureInstance>();
 

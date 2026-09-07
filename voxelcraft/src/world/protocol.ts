@@ -15,7 +15,7 @@ export interface SetBlocksMessage { type: 'setBlocks'; edits: Int32Array }
 export interface RemeshMessage { type: 'remeshAll' }
 export type ToWorker = InitMessage | ViewMessage | ChunkSourceMessage | SetBlockMessage | SetBlocksMessage | RemeshMessage;
 
-export interface ChunkMessage { type: 'chunk'; cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; light: Uint8Array; /** Structure chests to fill on first load, as JSON. */ loot?: string }
+export interface ChunkMessage { type: 'chunk'; cx: number; cz: number; blocks: Uint16Array; biomes: Uint8Array; light: Uint8Array; /** Structure chests and spawners to make on first load, as JSON. */ spots?: string }
 export interface MeshMessage { type: 'mesh'; cx: number; sy: number; cz: number; solid: MeshBuffers | null; translucent: MeshBuffers | null }
 export interface UnloadMessage { type: 'unload'; cx: number; cz: number }
 export interface NeedChunkMessage { type: 'needChunk'; keys: [number, number][] }

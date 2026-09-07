@@ -7,7 +7,7 @@ import { SECTION_COUNT, WORLD_MIN_Y } from '../core/constants.ts';
 import { blocks } from '../blocks/registry.ts';
 import { ChunkData } from './chunk.ts';
 import { buildStructureSets } from './gen/structures.ts';
-import { WorldGenerator } from './gen/generator.ts';
+import { WorldGenerator, type StructureSpot } from './gen/generator.ts';
 import { LightEngine, sectionKey } from './light.ts';
 import { ModelBaker } from './models.ts';
 import { SectionMesher } from './mesher.ts';
@@ -59,8 +59,8 @@ function chebyshev(cx: number, cz: number): number {
 // ---------------------------------------------------------------------------------------------
 // Pipeline steps
 // ---------------------------------------------------------------------------------------------
-/** Structure chests waiting to be filled, keyed by the chunk they landed in. */
-const lootSpots = new Map<number, { x: number; y: number; z: number; table: string }[]>();
+/** Structure block entities waiting to be made, keyed by the chunk they landed in. */
+const structureSpots = new Map<number, StructureSpot[]>();
 
 function ensureTerrain(cx: number, cz: number): ChunkData | null {
   const key = packKey(cx, cz);
@@ -172,9 +172,9 @@ function ensureDecorated(cx: number, cz: number): ChunkData | null {
   const c = chunks.get(packKey(cx, cz))!;
   if (c.status === 'terrain') {
     gen.decorate(c, decorateAccess);
-    // a structure only ever writes into the chunk being decorated, so its chests belong to this one;
-    // they are filled on the main thread, where the loot tables live
-    if (gen.lootSpots.length) lootSpots.set(packKey(cx, cz), gen.lootSpots.slice());
+    // a structure only ever writes into the chunk being decorated, so its chests and spawners belong
+    // to this one; they are made on the main thread, where the loot tables and mobs live
+    if (gen.structureSpots.length) structureSpots.set(packKey(cx, cz), gen.structureSpots.slice());
     c.updateHeightmapAll();
     flushPatches();
   }
@@ -199,9 +199,9 @@ function deliver(c: ChunkData): void {
   if (delivered.has(key)) return;
   delivered.add(key);
   c.status = 'ready';
-  const loot = lootSpots.get(key);
-  lootSpots.delete(key);
-  post({ type: 'chunk', cx: c.cx, cz: c.cz, blocks: c.blocks.slice(), biomes: c.biomes.slice(), light: c.light.slice(), ...(loot?.length ? { loot: JSON.stringify(loot) } : {}) });
+  const spots = structureSpots.get(key);
+  structureSpots.delete(key);
+  post({ type: 'chunk', cx: c.cx, cz: c.cz, blocks: c.blocks.slice(), biomes: c.biomes.slice(), light: c.light.slice(), ...(spots?.length ? { spots: JSON.stringify(spots) } : {}) });
 }
 
 function neighboursLit(cx: number, cz: number): boolean {
@@ -308,7 +308,7 @@ function pump(): void {
           meshedSections.delete(sectionKey(c.cx, sy, c.cz));
           dirty.delete(sectionKey(c.cx, sy, c.cz));
         }
-        lootSpots.delete(key);
+        structureSpots.delete(key);
         if (delivered.delete(key)) post({ type: 'unload', cx: c.cx, cz: c.cz });
       }
     }

@@ -404,3 +404,13 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     hashed from the block's position instead of drawn in order, so a corridor comes out the same
     however its chunks are visited. Chests hold the abandoned mineshaft table; vanilla puts that loot
     in a chest minecart on a rail, and until minecarts exist ours stands on the floor.
+
+69. **Spawners are block entities the generator asks for.** A mineshaft's spider corridor puts down a
+    cage, and which mob it turns is part of the structure, not the block, so the channel that already
+    carried chest loot from the worker now carries any block entity a structure wants: a chest with
+    its loot table, a spawner with its mob. Ticking follows `BaseSpawner` — nothing happens unless a
+    player is within sixteen blocks, then four attempts to place the mob in the nine-by-three-by-nine
+    box around the cage, none at all once six of them are already there, and ten to forty seconds
+    until the next batch. Light is ignored, as vanilla ignores it for spawner spawns, but a mob still
+    needs room and a floor. Mining a spawner or an ore now drops experience from vanilla's own
+    ranges, and silk touch takes the block instead.

@@ -19,8 +19,15 @@ function stoneWorld() {
 const overlaps = (a: ShaftBox, b: ShaftBox) =>
   a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0 && a.z0 <= b.z1 && a.z1 >= b.z0;
 
-const fillAll = (pieces: ShaftPiece[], world: ReturnType<typeof stoneWorld>, clip: { x0: number; x1: number; z0: number; z1: number }, loot?: string[]) => {
-  for (const p of pieces) fillShaftPiece(p, 'normal', world.access, clip, (x, y, z, table) => loot?.push(`${table}@${x},${y},${z}`));
+const fillAll = (
+  pieces: ShaftPiece[],
+  world: ReturnType<typeof stoneWorld>,
+  clip: { x0: number; x1: number; z0: number; z1: number },
+  loot?: string[],
+  spawners?: string[],
+) => {
+  for (const p of pieces)
+    fillShaftPiece(p, 'normal', world.access, clip, (x, y, z, table) => loot?.push(`${table}@${x},${y},${z}`), (x, y, z, mob) => spawners?.push(`${mob}@${x},${y},${z}`));
 };
 
 describe('mineshaft layout', () => {
@@ -66,7 +73,8 @@ describe('mineshaft blocks', () => {
   it('props its corridors up and lays rails down the middle of them', () => {
     const world = stoneWorld();
     const loot: string[] = [];
-    fillAll(pieces, world, all, loot);
+    const spawners: string[] = [];
+    fillAll(pieces, world, all, loot, spawners);
     const counts = new Map<string, number>();
     for (const state of world.written.values()) {
       const id = blocks.idOf(state);
@@ -94,6 +102,14 @@ describe('mineshaft blocks', () => {
       const [x, y, z] = spot.split('@')[1].split(',').map(Number);
       expect(blocks.idOf(world.access.get(x, y, z))).toBe('chest');
     }
+    // and a cobwebbed corridor comes with its cave spider spawner
+    expect(spawners.length).toBeGreaterThan(0);
+    for (const spot of spawners) {
+      expect(spot.startsWith('cave_spider@')).toBe(true);
+      const [x, y, z] = spot.split('@')[1].split(',').map(Number);
+      expect(blocks.idOf(world.access.get(x, y, z))).toBe('spawner');
+    }
+    expect(counts.get('spawner')).toBe(spawners.length);
   });
 
   it('digs the same shaft one chunk at a time as it does in one go', () => {

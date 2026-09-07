@@ -17,13 +17,13 @@ import { World, FACE_NORMALS, type RaycastHit } from '../world/world.ts';
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { StructureBundle } from '../world/protocol.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
-import { WorldGenerator } from '../world/gen/generator.ts';
+import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
 import { Player } from '../entities/player.ts';
 import { ItemEntity } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
-import { blockDrops, chestLoot } from '../items/loot.ts';
+import { blockDrops, blockXp, chestLoot } from '../items/loot.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
@@ -34,7 +34,7 @@ import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
-import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity } from '../blocks/blockEntity.ts';
+import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
@@ -815,6 +815,9 @@ export class Game {
       if (canHarvest(state, held)) {
         for (const drop of blockDrops(state, held)) this.dropStack(drop, x + 0.5, y + 0.5, z + 0.5, true);
       }
+      // ores and spawners give experience to whoever mines them, unless silk touch took the block
+      const xp = blockXp(def.id, held);
+      if (xp > 0) this.spawnXp(xp, x + 0.5, y + 0.5, z + 0.5);
       if (held && items.byId.get(held.id)?.durability && def.hardness > 0) p.inventory.damageSelected(1);
       p.exhaustion += 0.005;
     }
@@ -997,6 +1000,10 @@ export class Game {
         this.tickHive(x, y, z, e as HiveEntity);
         return;
       }
+      if (e.type === 'spawner') {
+        this.tickSpawner(x, y, z, e as SpawnerEntity);
+        return;
+      }
       if (e.type !== 'furnace' && e.type !== 'blast_furnace' && e.type !== 'smoker') return;
       const r = tickFurnace(e as FurnaceEntity);
       if (r.changed) this.world.markModifiedAt(x, z);
@@ -1072,23 +1079,34 @@ export class Game {
     if (paths > 8) this.populateVillage(cx, cz, beds);
   }
 
-  /** Fills the chests a structure placed with the vanilla loot table each one carries. */
-  private fillStructureChests(c: { pendingLoot: string | null }): void {
-    if (!c.pendingLoot) return;
-    let spots: { x: number; y: number; z: number; table: string }[] = [];
+  /**
+   * Gives the block entities a structure asked for: chests filled from the vanilla loot table each
+   * one carries, and spawners turning the mob their piece put there.
+   */
+  private applyStructureSpots(c: { pendingSpots: string | null }): void {
+    if (!c.pendingSpots) return;
+    let spots: StructureSpot[] = [];
     try {
-      spots = JSON.parse(c.pendingLoot) as typeof spots;
+      spots = JSON.parse(c.pendingSpots) as StructureSpot[];
     } catch {
       spots = [];
     }
-    c.pendingLoot = null;
+    c.pendingSpots = null;
     for (const spot of spots) {
       const state = this.world.getBlock(spot.x, spot.y, spot.z);
       if (!state) continue;
       const id = blocks.blockOf(state).id;
-      const kind = containerKind(id);
-      if (!kind) continue;
       if (this.world.getBlockEntity(spot.x, spot.y, spot.z)) continue;
+      if (spot.mob) {
+        if (id !== 'spawner') continue;
+        const spawner = createBlockEntity('spawner') as SpawnerEntity | null;
+        if (!spawner) continue;
+        spawner.mob = spot.mob;
+        this.world.setBlockEntity(spot.x, spot.y, spot.z, spawner);
+        this.world.markModifiedAt(spot.x, spot.z);
+        continue;
+      }
+      if (!spot.table || !containerKind(id)) continue;
       const entity = createBlockEntity(id) as ContainerEntity | null;
       if (!entity) continue;
       // vanilla scatters the rolled stacks through the container
@@ -1154,6 +1172,21 @@ export class Game {
         if (i === 0) m.extra.captain = true;
       }
     }
+  }
+
+  /**
+   * Vanilla's `BaseSpawner`: a spawner runs only while a player is within sixteen blocks, then tries
+   * four times to put a mob in the nine-by-three-by-nine box around it, stopping once six of them
+   * are already there, and waits ten to forty seconds before the next batch.
+   */
+  private tickSpawner(x: number, y: number, z: number, e: SpawnerEntity): void {
+    if (!e.mob) return;
+    const p = this.player.pos;
+    if (Math.abs(p.x - x) > 16 || Math.abs(p.y - y) > 16 || Math.abs(p.z - z) > 16) return;
+    if (--e.delay > 0) return;
+    e.delay = 200 + Math.floor(Math.random() * 600);
+    this.world.markModifiedAt(x, z);
+    this.entities.spawnerBurst(x, y, z, e.mob);
   }
 
   /**
@@ -1647,7 +1680,7 @@ export class Game {
       this.entities.spawnAnimalsInChunk(cx, cz);
       this.populateStructures(cx, cz);
     }
-    this.fillStructureChests(c);
+    this.applyStructureSpots(c);
   }
 
   private lineOfSight(a: THREE.Vector3, b: THREE.Vector3): boolean {

@@ -56,6 +56,30 @@ export class EntityManager {
     return m;
   }
 
+  /**
+   * One batch out of a monster spawner, as vanilla's `BaseSpawner` rolls it: four attempts inside a
+   * nine-by-three-by-nine box, each needing room and a floor, and none at all once six of the mob
+   * are already in that box.
+   */
+  spawnerBurst(x: number, y: number, z: number, type: string): void {
+    const h = this.host;
+    const stats = mobStats(type);
+    if (!stats) return;
+    const near = this.mobs.filter((m) => !m.dead && m.def.id === type
+      && Math.abs(m.pos.x - x) <= 4.5 && Math.abs(m.pos.y - y) <= 2 && Math.abs(m.pos.z - z) <= 4.5);
+    if (near.length >= 6) return;
+    for (let i = 0; i < 4; i++) {
+      const px = x + 0.5 + (h.rng() - h.rng()) * 4;
+      const py = y + Math.floor(h.rng() * 3) - 1;
+      const pz = z + 0.5 + (h.rng() - h.rng()) * 4;
+      const floor = h.getBlock(Math.floor(px), py - 1, Math.floor(pz));
+      // a spawner ignores the light level, but its mobs still need somewhere to stand
+      if (!floor || !blocks.stateOpaque[floor]) continue;
+      if (!Mob.fits(h, stats, px, py, pz)) continue;
+      this.spawn(type, px, py, pz, h.rng() * Math.PI * 2);
+    }
+  }
+
   mobsNear(x: number, y: number, z: number, range: number): Mob[] {
     const out: Mob[] = [];
     for (const m of this.mobs) if (!m.dead && Math.abs(m.pos.x - x) <= range && Math.abs(m.pos.y - y) <= range && Math.abs(m.pos.z - z) <= range) out.push(m);

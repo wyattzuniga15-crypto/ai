@@ -255,8 +255,8 @@ describe('igloo basements', () => {
     expect(igloo.name).toBe('igloo');
 
     // the basement's chest is reported for filling, and there is a chest where it says
-    expect(gen.lootSpots).toEqual([{ x: igloo.x + 1, y: igloo.y - 14, z: igloo.z + 4, table: 'chests/igloo_chest' }]);
-    const spot = gen.lootSpots[0];
+    expect(gen.structureSpots).toEqual([{ x: igloo.x + 1, y: igloo.y - 14, z: igloo.z + 4, table: 'chests/igloo_chest' }]);
+    const spot = gen.structureSpots[0];
     expect(blocks.idOf(access.get(spot.x, spot.y, spot.z))).toBe('chest');
 
     // the shaft runs unbroken from the trapdoor in the floor down to the laboratory

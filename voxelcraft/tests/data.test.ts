@@ -9,7 +9,8 @@ import campfire from '../data/recipes/campfire.json';
 import stonecutting from '../data/recipes/stonecutting.json';
 import smithing from '../data/recipes/smithing.json';
 import summary from '../data/summary.json';
-import { blockDrops, chestLoot } from '../src/items/loot.ts';
+import { blockDrops, blockXp, chestLoot } from '../src/items/loot.ts';
+import { createBlockEntity } from '../src/blocks/blockEntity.ts';
 import { breakTicks, canHarvest } from '../src/blocks/mining.ts';
 
 type Ingredient = string | string[];
@@ -147,6 +148,24 @@ describe('loot and mining', () => {
     const books = roll('chests/simple_dungeon').filter((s) => s.id === 'enchanted_book');
     expect(books.every((b) => Object.keys(b.enchantments ?? {}).length === 1)).toBe(true);
     expect(chestLoot('chests/not_a_table', Math.random)).toEqual([]);
+  });
+
+  it('drops experience for ores and spawners, but not under silk touch', () => {
+    const seq = (v: number) => () => v;
+    expect(blockXp('coal_ore', null, seq(0.99))).toBe(2);
+    expect(blockXp('diamond_ore', null, seq(0))).toBe(3);
+    expect(blockXp('spawner', null, seq(0))).toBe(15);
+    expect(blockXp('spawner', null, seq(0.99))).toBe(43);
+    expect(blockXp('deepslate_lapis_ore', null, seq(0.5))).toBe(4);
+    expect(blockXp('diamond_ore', { id: 'diamond_pickaxe', count: 1, enchantments: { silk_touch: 1 } }, seq(0.5))).toBe(0);
+    expect(blockXp('stone', null, seq(0.5))).toBe(0);
+    expect(blockXp('iron_ore', null, seq(0.5))).toBe(0); // vanilla gives none for iron, gold or copper
+  });
+
+  it('gives a spawner its block entity', () => {
+    const e = createBlockEntity('spawner');
+    expect(e).toEqual({ type: 'spawner', mob: '', delay: 20 }); // a placed spawner turns nothing yet
+    expect(createBlockEntity('stone')).toBeNull();
   });
 
   it('computes vanilla break times', () => {

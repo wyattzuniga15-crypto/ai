@@ -114,8 +114,9 @@ function addPiece(w: Walk, x: number, y: number, z: number, dir: number, depth: 
   } else {
     // vanilla shortens a corridor a section at a time until it fits beside what is already there
     const seed = w.rng.int(0x7fffffff);
-    const rails = w.rng.next() < 0.5;
-    const spider = w.rng.next() < 0.1;
+    // vanilla: a third of corridors carry rails, and one in 23 of the rest is a spider corridor
+    const rails = w.rng.int(3) === 0;
+    const spider = !rails && w.rng.int(23) === 0;
     for (let sections = w.rng.int(3) + 2; sections > 0; sections--) {
       const box = corridorBox(x, y, z, dir, sections);
       if (!free(box)) continue;
@@ -311,6 +312,7 @@ export function fillShaftPiece(
   world: BlockAccess,
   clip: ClipBox,
   onLoot?: (x: number, y: number, z: number, table: string) => void,
+  onSpawner?: (x: number, y: number, z: number, mob: string) => void,
 ): void {
   const c: Ctx = { world, clip, seed: piece.seed, palette: palettes[kind] };
   const b = piece.box;
@@ -403,7 +405,10 @@ export function fillShaftPiece(
     if (piece.spider && i === 2) {
       const px = axis === 'x' ? b.x0 + 2 : midA;
       const pz = axis === 'x' ? midA : b.z0 + 2;
-      set(c, px, b.y0, pz, SPAWNER);
+      if (inClip(c, px, pz)) {
+        world.set(px, b.y0, pz, SPAWNER);
+        onSpawner?.(px, b.y0, pz, 'cave_spider');
+      }
     }
   }
   floorUnder(c, { ...b, y0: b.y0 - 1, y1: b.y0 - 1 }, b.y0 - 1);

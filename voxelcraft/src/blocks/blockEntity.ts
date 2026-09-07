@@ -36,7 +36,16 @@ export interface HiveEntity {
   nectar: boolean[];
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | SignEntity | HiveEntity;
+/** Monster spawners: which mob comes out and how long until the next batch. */
+export interface SpawnerEntity {
+  type: 'spawner';
+  /** Mob id the cage spins, or empty for a spawner with nothing set. */
+  mob: string;
+  /** Ticks until the next attempt; vanilla starts at 20 and then waits 200-800. */
+  delay: number;
+}
+
+export type BlockEntity = ContainerEntity | FurnaceEntity | SignEntity | HiveEntity | SpawnerEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -58,6 +67,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign') && !blockId.includes('hanging')) return { type: 'sign', lines: ['', '', '', ''] };
   if (blockId === 'beehive' || blockId === 'bee_nest') return { type: 'beehive', bees: [], nectar: [] };
+  if (blockId === 'spawner') return { type: 'spawner', mob: '', delay: 20 };
   return null;
 }
 
