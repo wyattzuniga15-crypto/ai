@@ -845,7 +845,7 @@ export class WorldGenerator {
           const box = placementBox(piece);
           if (box.x1 < clip.x0 || box.x0 > clip.x1 || box.z1 < clip.z0 || box.z0 > clip.z1) continue;
           const written = new Set<string>();
-          stampStructure(world, piece, written, loot, clip);
+          stampStructure(world, piece, written, loot, clip, entity);
           this.fitStructureToTerrain(world, box, written, piece.placement ?? 'surface', clip);
         }
         if (instance.temple) {
@@ -924,6 +924,7 @@ export class WorldGenerator {
     const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
     const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: set.placement }];
     if (set.name === 'igloo') pieces.push(...this.iglooBasement(set, template, wx, y, wz, rotation, rng, decaySeed));
+    if (set.cluster) pieces.push(...this.ruinCluster(set, wx, wz, rng, decaySeed));
     this.lastStructure = { name: set.name, x: wx, y, z: wz };
     return { pieces };
   }
@@ -945,6 +946,31 @@ export class WorldGenerator {
     const pieces = assembleMineshaft(mix(this.seed, cx, cz, 0x5e17), cx, cz, topY);
     this.lastStructure = { name: set.name, x: cx * 16 + 2, y: topY, z: cz * 16 + 2, pieces: pieces.length, variant: kind };
     return { pieces: [], shaft: { kind, pieces } };
+  }
+
+  /**
+   * Vanilla's `OceanRuinPieces.addClusterRuins`: the ruin a start lands on is surrounded by four to
+   * eight more, scattered about two chunks around it and each sunk to the sea floor under itself.
+   */
+  private ruinCluster(set: StructureSet, wx: number, wz: number, rng: Rng, decaySeed: number): StructurePlacement[] {
+    const out: StructurePlacement[] = [];
+    const spread = set.cluster ?? 24;
+    const wanted = 4 + rng.int(5);
+    // only the small ruins scatter; the big one is the centrepiece
+    const small = set.templates.filter((t) => !t.key.includes('big_'));
+    if (!small.length) return out;
+    for (let i = 0; i < wanted; i++) {
+      const template = small[rng.int(small.length)];
+      const rotation = rng.int(4);
+      const [sx, , sz] = template.size;
+      const [w, d] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+      const x = wx + rng.int(spread * 2 + 1) - spread;
+      const z = wz + rng.int(spread * 2 + 1) - spread;
+      const y = this.structureGroundY(x, z, w, d, 'ocean_floor');
+      if (y === null) continue;
+      out.push({ set, template, x, y, z, rotation, integrity: 1, decaySeed, placement: 'ocean_floor' });
+    }
+    return out;
   }
 
   /**

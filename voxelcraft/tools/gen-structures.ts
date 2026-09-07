@@ -19,12 +19,33 @@ const PUBLIC = 'public';
  * Structures we place: which templates to convert, which structure set spreads them, and which
  * vanilla structure JSON names the biomes they belong in.
  */
+/** Ocean ruin pieces: the warm ones are sandstone, everything else is the cold stone brick set. */
+const RUIN_KINDS = ['brick', 'cracked', 'mossy'];
+const ruinPieces = (warm: boolean): string[] => {
+  const out: string[] = [];
+  for (let i = 1; i <= 8; i++) {
+    if (warm) {
+      out.push(`underwater_ruin/warm_${i}`);
+      if (i >= 4 && i <= 7) out.push(`underwater_ruin/big_warm_${i}`);
+      continue;
+    }
+    for (const kind of RUIN_KINDS) {
+      out.push(`underwater_ruin/${kind}_${i}`);
+      if (i <= 3 || i === 8) out.push(`underwater_ruin/big_${kind}_${i}`);
+    }
+  }
+  return out;
+};
+
 const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor'; structures: string[]; main?: string[] }[] = [
   // the igloo's basement pieces are stamped by the generator under the top, never on their own
   { name: 'igloo', set: 'igloos', pieces: ['igloo/top', 'igloo/middle', 'igloo/bottom'], main: ['igloo_top'], placement: 'surface', structures: ['igloo'] },
   { name: 'shipwreck', set: 'shipwrecks', pieces: [], placement: 'ocean_floor', structures: ['shipwreck', 'shipwreck_beached'] },
   { name: 'ruined_portal', set: 'ruined_portals', pieces: [], placement: 'surface', structures: ['ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_mountain', 'ruined_portal_swamp'] },
   { name: 'pillager_outpost', set: 'pillager_outposts', pieces: ['pillager_outpost/watchtower'], placement: 'surface', structures: ['pillager_outpost'] },
+  // the two ocean ruin sets share one spread, so a start lands in whichever of them the biome allows
+  { name: 'ocean_ruin_warm', set: 'ocean_ruins', pieces: ruinPieces(true), placement: 'ocean_floor', structures: ['ocean_ruin_warm'] },
+  { name: 'ocean_ruin_cold', set: 'ocean_ruins', pieces: ruinPieces(false), placement: 'ocean_floor', structures: ['ocean_ruin_cold'] },
 ];
 
 /** Reads a structure's biome list, following the `#minecraft:has_structure/...` tag it points at. */
@@ -71,7 +92,8 @@ const num = (v: NbtValue): number => Number(v as number);
 
 interface Jigsaw { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 interface LootSpot { pos: [number, number, number]; table: string }
-interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[] }
+interface MobSpot { pos: [number, number, number]; id: string }
+interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[]; mobs?: MobSpot[] }
 
 /**
  * Vanilla marks some chests with a `structure_block` in DATA mode sitting one block above the chest
@@ -85,10 +107,15 @@ const DATA_TABLES: Record<string, string> = {
 };
 
 /** Loot table a DATA marker stands for; plain `chest` means different things per structure. */
-function markerTable(structure: string, meta: string): string | null {
-  if (meta === 'chest') return structure === 'igloo' ? 'chests/igloo_chest' : null;
-  return DATA_TABLES[meta] ?? null;
+function markerTable(structure: string, piece: string, meta: string): string | null {
+  if (meta !== 'chest') return DATA_TABLES[meta] ?? null;
+  if (structure === 'igloo') return 'chests/igloo_chest';
+  if (structure.startsWith('ocean_ruin')) return piece.includes('big_') ? 'chests/underwater_ruin_big' : 'chests/underwater_ruin_small';
+  return null;
 }
+
+/** Mobs a DATA marker stands for: an ocean ruin comes with the drowned that haunt it. */
+const DATA_MOBS: Record<string, string> = { drowned: 'drowned' };
 
 /** Turns a template's palette entry into our `id[prop=value,...]` state string. */
 function stateString(entry: NbtTag): string {
@@ -99,11 +126,12 @@ function stateString(entry: NbtTag): string {
   return parts.length ? `${name}[${parts.join(',')}]` : name;
 }
 
-function convert(file: string, structure: string): Template | null {
+function convert(file: string, structure: string, piece: string): Template | null {
   const root = readNbt(fs.readFileSync(file));
   const size = (root.size as NbtValue[]).map(num) as [number, number, number];
   const jigsaws: Jigsaw[] = [];
   const loot: LootSpot[] = [];
+  const mobs: MobSpot[] = [];
   // some templates carry several palettes (block variants); vanilla picks one, we take the first
   const paletteTag = (root.palette ?? (root.palettes as NbtValue[] | undefined)?.[0]) as NbtTag[] | undefined;
   if (!paletteTag) return null;
@@ -130,11 +158,26 @@ function convert(file: string, structure: string): Template | null {
     }
     // structure voids leave whatever is already there
     if (id.startsWith('structure_void')) continue;
-    // data markers are instructions, not blocks: the chest they fill sits one block below
+    // data markers are instructions, not blocks
     if (id.startsWith('structure_block')) {
       const meta = String((b.nbt as NbtTag | undefined)?.metadata ?? '');
-      const marked = meta ? markerTable(structure, meta) : null;
-      if (marked) loot.push({ pos: [pos[0], pos[1] - 1, pos[2]], table: marked });
+      if (!meta) continue;
+      if (DATA_MOBS[meta]) {
+        mobs.push({ pos: pos as [number, number, number], id: DATA_MOBS[meta] });
+        continue;
+      }
+      const marked = markerTable(structure, piece, meta);
+      if (!marked) continue;
+      // an ocean ruin's marker stands where its chest goes; everywhere else the chest is below it
+      if (structure.startsWith('ocean_ruin')) {
+        const chest = 'chest[facing=north,type=single,waterlogged=false]';
+        let entry = palette.indexOf(chest);
+        if (entry < 0) entry = palette.push(chest) - 1;
+        blocks.push(pos[0], pos[1], pos[2], entry);
+        loot.push({ pos: pos as [number, number, number], table: marked });
+      } else {
+        loot.push({ pos: [pos[0], pos[1] - 1, pos[2]], table: marked });
+      }
       continue;
     }
     // chests and barrels carry the loot table they should be filled from
@@ -143,7 +186,7 @@ function convert(file: string, structure: string): Template | null {
     blocks.push(pos[0], pos[1], pos[2], state);
   }
   return blocks.length || jigsaws.length
-    ? { size, palette, blocks, ...(jigsaws.length ? { jigsaws } : {}), ...(loot.length ? { loot } : {}) }
+    ? { size, palette, blocks, ...(jigsaws.length ? { jigsaws } : {}), ...(loot.length ? { loot } : {}), ...(mobs.length ? { mobs } : {}) }
     : null;
 }
 
@@ -160,7 +203,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -182,7 +225,7 @@ for (const want of WANTED) {
   for (const piece of pieces) {
     const file = path.join(structureDir, `${piece}.nbt`);
     if (!fs.existsSync(file)) continue;
-    const template = convert(file, want.name);
+    const template = convert(file, want.name, piece);
     if (!template) continue;
     bundle[piece.replace('/', '_')] = template;
     files++;
@@ -196,6 +239,8 @@ for (const want of WANTED) {
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
     pieces: written, biomes: biomesFor(mc, want.structures),
     ...(want.main ? { main: want.main.filter((m) => written.includes(m)) } : {}),
+    // vanilla scatters more small ruins round the one it starts with
+    ...(want.name.startsWith('ocean_ruin') ? { cluster: 24 } : {}),
   });
 }
 
@@ -242,7 +287,7 @@ for (const want of JIGSAW) {
       if (!fs.existsSync(file)) continue;
       const key = loc.replace(/\//g, '_');
       if (!pieces.includes(key)) {
-        const template = convert(file, want.name);
+        const template = convert(file, want.name, loc);
         if (template) {
           bundle[key] = template;
           files++;

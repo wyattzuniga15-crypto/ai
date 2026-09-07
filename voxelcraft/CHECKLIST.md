@@ -76,7 +76,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Monster spawners: the block entity remembers its mob, runs only with a player within sixteen blocks, tries four spawns in the box around it and stops at six nearby; ores and spawners drop experience when mined (silk touch takes the block instead)
 - [x] Temples and witch huts: the desert pyramid with its stepped shell, marked floor and treasure room under nine TNT, the jungle temple with its lever puzzle and tripwire dispensers, and the swamp hut on its stilts with a witch and her black cat
 - [x] Strongholds: 128 of them in vanilla's concentric rings, a spiral staircase down into corridors, turns, crossings, prison cells and a library, with the end portal room (twelve frames over lava, the odd eye already set) and its silverfish spawner at the end of a branch; `/locate stronghold` finds the nearest
-- [ ] Structures, next: monuments, mansions, trial chambers, ancient cities, ocean ruins
+- [x] Ocean ruins: the warm sandstone and cold stone brick sets from Mojang's templates, scattered in clusters on the sea floor, with the chests their data markers mark and the drowned that haunt them
+- [ ] Structures, next: monuments, mansions, trial chambers, ancient cities, buried treasure, fossils
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)

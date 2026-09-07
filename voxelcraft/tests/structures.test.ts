@@ -69,8 +69,8 @@ describe('structure templates', () => {
     const { index, templates, pools } = load();
     const sets = buildStructureSets(index, templates, pools);
     expect(sets.map((s) => s.name).sort()).toEqual([
-      'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft', 'pillager_outpost', 'ruined_portal',
-      'shipwreck', 'stronghold', 'swamp_hut', 'village',
+      'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft', 'ocean_ruin_cold', 'ocean_ruin_warm',
+      'pillager_outpost', 'ruined_portal', 'shipwreck', 'stronghold', 'swamp_hut', 'village',
     ]);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
@@ -188,6 +188,47 @@ describe('jigsaw villages', () => {
     expect(jigsawFront('up_north')).toBe('up');
     expect(jigsawFront('east_up')).toBe('east');
     expect(jigsawFront('north_up')).toBe('north');
+  });
+});
+
+describe('ocean ruins', () => {
+  it.runIf(hasTemplates)('scatters warm and cold ruins with their chests and drowned', () => {
+    const { index, templates, pools } = load();
+    const sets = buildStructureSets(index, templates, pools);
+    const warm = sets.find((s) => s.name === 'ocean_ruin_warm')!;
+    const cold = sets.find((s) => s.name === 'ocean_ruin_cold')!;
+    // the two share vanilla's one spread, so a start lands in whichever the biome allows
+    expect(warm.salt).toBe(cold.salt);
+    expect(warm.spacing).toBe(cold.spacing);
+    expect(warm.biomes.every((b) => !cold.biomes.includes(b))).toBe(true);
+    expect(warm.templates.every((t) => t.key.includes('warm'))).toBe(true);
+    expect(cold.templates.some((t) => t.key.includes('mossy'))).toBe(true);
+    // and the cluster reach covers the ruins scattered around the one the start lands on
+    expect(warm.cluster).toBe(24);
+    // the widest ruin is 16 blocks, so three chunks covers the scatter around a start
+    expect(warm.reach).toBe(3);
+
+    // a ruin's chest stands where the data marker was, and its drowned wait in the water
+    const piece = cold.templates.find((t) => t.loot.length && t.mobs.length)!;
+    const world = new Map<string, number>();
+    const loot: string[] = [];
+    const mobs: string[] = [];
+    stampStructure(
+      { get: (x, y, z) => world.get(`${x},${y},${z}`) ?? 0, set: (x, y, z, st) => { world.set(`${x},${y},${z}`, st); } },
+      { set: cold, template: piece, x: 8, y: 30, z: -4, rotation: 2, integrity: 1, decaySeed: 5 },
+      undefined,
+      (x, y, z, table) => loot.push(`${table}@${x},${y},${z}`),
+      undefined,
+      (x, y, z, mob) => mobs.push(`${mob}@${x},${y},${z}`),
+    );
+    expect(loot.length).toBeGreaterThan(0);
+    for (const spot of loot) {
+      expect(spot.split('@')[0]).toMatch(/^chests\/underwater_ruin_(big|small)$/);
+      const [x, y, z] = spot.split('@')[1].split(',').map(Number);
+      expect(blocks.idOf(world.get(`${x},${y},${z}`) ?? 0)).toBe('chest');
+    }
+    expect(mobs.length).toBeGreaterThan(0);
+    expect(mobs.every((m) => m.startsWith('drowned@'))).toBe(true);
   });
 });
 

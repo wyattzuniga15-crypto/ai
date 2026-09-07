@@ -442,3 +442,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     Every stronghold has exactly one, since without it there is no way to the End. Vanilla also
     nudges each ring position toward a stronghold-biased biome; ours takes the ring position as it
     falls.
+
+72. **Ocean ruins come as two sets sharing one spread.** Vanilla's `ocean_ruins` structure set holds
+    a warm structure and a cold one, each with its own biomes and its own templates (sandstone for
+    the warm seas, stone brick weathered three ways for the cold). Rather than teach one set to pick
+    between two template groups, the converter writes two index entries with the same salt and
+    spacing, so both land on the same starts and the biome check decides which of them builds. The
+    ruin a start lands on is surrounded by four to eight more, each sunk to the sea floor under
+    itself, which is vanilla's cluster. Their data markers work differently from an igloo's: the
+    chest goes where the marker stands rather than below it, so the converter puts a chest into the
+    template there, and a `drowned` marker becomes a mob the structure asks the main thread for,
+    through the same channel that carries chest loot and spawners.

@@ -8,7 +8,8 @@ import type { BlockAccess } from './features.ts';
 
 export interface JigsawJson { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 export interface LootSpot { pos: [number, number, number]; table: string }
-export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[] }
+export interface MobSpot { pos: [number, number, number]; id: string }
+export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[]; mobs?: MobSpot[] }
 export interface PoolEntry { location: string; weight: number; projection: string }
 /** One structure of a set: which pool it starts from, how often it is picked, and where it belongs. */
 export interface StructureVariant { start: string; weight: number; biomes: string[] }
@@ -22,6 +23,8 @@ export interface StructureIndexEntry {
   salt: number;
   /** Structures spread one per chunk (mineshafts) roll this chance in every chunk instead. */
   frequency?: number;
+  /** Ocean ruins scatter more of themselves this far around the one they start with. */
+  cluster?: number;
   /** Strongholds are spread in rings round the origin: how many, how far apart, how many per ring. */
   count?: number;
   distance?: number;
@@ -43,6 +46,8 @@ export interface RuntimeTemplate {
   jigsaws: JigsawJson[];
   /** Chests and barrels in the piece, with the vanilla loot table that fills them. */
   loot: LootSpot[];
+  /** Mobs the piece comes with, such as the drowned that haunt an ocean ruin. */
+  mobs: MobSpot[];
   /** Key in the bundle, for pool lookups. */
   key: string;
 }
@@ -81,6 +86,7 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
   blocks: t.blocks,
   jigsaws: t.jigsaws ?? [],
   loot: t.loot ?? [],
+  mobs: t.mobs ?? [],
   states: Int32Array.from(t.palette.map(parseState)),
   // air is a real instruction in a template (it hollows the structure out), unknown blocks are not
   known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
@@ -100,7 +106,7 @@ function structureReach(entry: StructureIndexEntry, templates: RuntimeTemplate[]
   if (!templates.length) return 3;
   let widest = 0;
   for (const t of templates) widest = Math.max(widest, t.size[0], t.size[2]);
-  return Math.ceil((widest + 8) / 16);
+  return Math.ceil((widest + (entry.cluster ?? 0) + 8) / 16);
 }
 
 export function buildStructureSets(
@@ -232,6 +238,7 @@ export function stampStructure(
   written?: Set<string>,
   onLoot?: (x: number, y: number, z: number, table: string) => void,
   clip?: ClipBox,
+  onEntity?: (x: number, y: number, z: number, mob: string) => void,
 ): number {
   const { template, rotation } = p;
   const [sx, , sz] = template.size;
@@ -240,6 +247,10 @@ export function stampStructure(
   for (const spot of template.loot) {
     const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
     if (inside(p.x + rx, p.z + rz)) onLoot?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.table);
+  }
+  for (const spot of template.mobs) {
+    const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
+    if (inside(p.x + rx, p.z + rz)) onEntity?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.id);
   }
   for (let i = 0; i < template.blocks.length; i += 4) {
     const lx = template.blocks[i];
