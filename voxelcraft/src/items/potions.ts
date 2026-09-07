@@ -123,16 +123,19 @@ const CORRUPTS: Record<string, string> = {
 };
 
 const BOTTLES = new Set(['potion', 'splash_potion', 'lingering_potion']);
+/** Everything that holds a potion: the bottles, and the arrows one tipped. */
+const POTION_ITEMS = new Set([...BOTTLES, 'tipped_arrow']);
 
-/** The potion a bottle holds; a bottle with nothing set is water, as vanilla treats it. */
+/** The potion a bottle (or the arrow it tipped) holds; nothing set is water, as vanilla treats it. */
 export const potionOf = (stack: ItemStack | null): string | null =>
-  stack && BOTTLES.has(stack.id) ? stack.potion ?? 'water' : null;
+  stack && POTION_ITEMS.has(stack.id) ? stack.potion ?? 'water' : null;
 
 /**
  * One brewing step: the bottle in the stand, the ingredient above it, and what comes out. Gunpowder
  * and dragon's breath change the bottle rather than the potion; everything else changes the potion.
  */
 export function brew(bottle: ItemStack, ingredient: string): ItemStack | null {
+  if (!BOTTLES.has(bottle.id)) return null; // arrows are tipped at a crafting table, never brewed
   const potion = potionOf(bottle);
   if (potion === null) return null;
   if (ingredient === 'gunpowder') return bottle.id === 'potion' ? { ...bottle, id: 'splash_potion' } : null;
@@ -162,12 +165,15 @@ export function isBrewingIngredient(id: string): boolean {
     || id === 'fermented_spider_eye' || id in FROM_WATER || id in FROM_AWKWARD;
 }
 
-/** How long the effects last in the bottle they are in: splash three quarters, lingering a quarter. */
+/**
+ * How long the effects last in the bottle they are in: splash three quarters, lingering a quarter,
+ * and an eighth on the arrow a potion tips.
+ */
 export function effectsOf(stack: ItemStack): PotionEffect[] {
   const potion = potionOf(stack);
   const def = potion ? potions[potion] : undefined;
   if (!def) return [];
-  const scale = stack.id === 'splash_potion' ? 0.75 : stack.id === 'lingering_potion' ? 0.25 : 1;
+  const scale = stack.id === 'splash_potion' ? 0.75 : stack.id === 'lingering_potion' ? 0.25 : stack.id === 'tipped_arrow' ? 1 / 8 : 1;
   return def.effects.map((e) => ({ ...e, duration: Math.floor(e.duration * scale) }));
 }
 
@@ -181,8 +187,18 @@ export function potionColor(stack: ItemStack): number {
 export function potionDisplayName(stack: ItemStack): string {
   const potion = potionOf(stack) ?? 'water';
   const def = potions[potion] ?? potions.water;
-  const kind = stack.id === 'splash_potion' ? 'Splash Potion' : stack.id === 'lingering_potion' ? 'Lingering Potion' : 'Potion';
-  if (potion === 'water') return stack.id === 'potion' ? 'Water Bottle' : `${kind} of Water`;
+  const kind = stack.id === 'splash_potion' ? 'Splash Potion' : stack.id === 'lingering_potion' ? 'Lingering Potion' : stack.id === 'tipped_arrow' ? 'Arrow' : 'Potion';
+  if (potion === 'water') return stack.id === 'potion' ? 'Water Bottle' : stack.id === 'tipped_arrow' ? 'Tipped Arrow' : `${kind} of Water`;
   if (potion === 'mundane' || potion === 'thick' || potion === 'awkward') return `${def.name} ${kind}`;
   return `${kind} of ${def.name}`;
+}
+
+/**
+ * What an arrow leaves on what it hits. A spectral arrow gives vanilla's ten seconds of Glowing;
+ * a tipped one carries its potion, cut to an eighth by `effectsOf`; a plain arrow gives nothing.
+ */
+export function arrowEffects(stack: ItemStack): { id: string; ticks: number; amplifier?: number }[] {
+  if (stack.id === 'spectral_arrow') return [{ id: 'glowing', ticks: 200 }];
+  if (stack.id !== 'tipped_arrow') return [];
+  return effectsOf(stack).map((e) => ({ id: e.effect, ticks: e.duration, amplifier: e.amplifier }));
 }

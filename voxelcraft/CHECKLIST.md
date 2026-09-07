@@ -100,7 +100,7 @@ coverage counts in `COVERAGE.md`.
 - [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)
 - [x] Brewing stand and potions: vanilla's whole brewing graph (the four bases, every awkward potion, redstone lengthening and glowstone strengthening, fermented spider eye corrupting, gunpowder and dragon's breath changing the bottle), the stand's screen with its fuel, bubbles and 400-tick brew, bottles filled from water, potions drunk for their effects and splash and lingering bottles thrown
 - [x] Enchantments that do something: the protection family and feather falling on vanilla's protection factor, thorns, smite and bane of arthropods, fire aspect, power, punch, flame and infinity on a bow the player can finally draw, mending taking experience before the bar, depth strider, frost walker, soul speed, swift sneak, respiration, aqua affinity, and both curses; plus absorption, health boost and levitation
-- [ ] The status effects that are left: invisibility, blindness, nausea, darkness, glowing, conduit power, dolphin's grace and the 1.21 four (wind charged, weaving, oozing, infested)
+- [x] The status effects that are left: invisibility (mobs lose sight of you), blindness and darkness (a closing radial murk), nausea (the view warping), glowing (a stencil outline seen through walls), conduit power, dolphin's grace, strength, weakness, slow falling and the 1.21 four (wind charged, weaving, oozing, infested); mobs carry effects of their own, `/effect` takes vanilla's selectors, and spectral and tipped arrows leave their effect on what they hit
 
 ## Phase 4 – Nether
 - [ ] Portals, nether biomes, fortress, bastion, netherite, Wither

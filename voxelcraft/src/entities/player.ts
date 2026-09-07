@@ -272,8 +272,11 @@ export class Player {
       this.fallDistance = 0;
     } else if (!this.onGround) {
       if (this.vel.y < 0) this.fallDistance -= this.vel.y;
+      if (this.effects.level('slow_falling') > 0) this.fallDistance = 0; // vanilla cancels the fall outright
     } else this.fallDistance = 0;
-    this.vel.y -= 0.08;
+    // slow falling swaps vanilla's gravity for 0.01 while the player is on the way down
+    const slowFalling = this.effects.level('slow_falling') > 0 && this.vel.y <= 0;
+    this.vel.y -= slowFalling ? 0.01 : 0.08;
     this.vel.y *= 0.98;
     const friction = this.onGround ? 0.6 * 0.91 : 0.91;
     this.vel.x *= friction;

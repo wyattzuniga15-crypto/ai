@@ -25,7 +25,7 @@ import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
 import { blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
 import { bowBaseDamage, bowCharge, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
-import { effectsOf, potionColor } from '../items/potions.ts';
+import { arrowEffects, effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
@@ -309,6 +309,7 @@ export class Game {
       playerBox: () => this.player.aabb(),
       playerLookDir: () => this.player.lookDirection(),
       playerTargetable: () => !this.player.dead && this.player.gamemode === 'survival',
+      playerInvisible: () => this.player.effects.level('invisibility') > 0,
       hurtPlayer: (amount, from, source) => {
         this.hurtByMob(amount, from);
         if (source) this.lastAttacker = source;
@@ -344,7 +345,7 @@ export class Game {
       seed: opts.meta.seed,
       shootArrow: (from, to, v, d, effect) => {
         const arrow = this.entities.shootArrow(from, to, v, d);
-        arrow.effect = effect;
+        arrow.effects = effect ? [effect] : [];
         this.audio.play('bow', { x: from.x, y: from.y, z: from.z });
       },
       explode: (x, y, z, power, source) => this.explodeAt(x, y, z, power, source),
@@ -357,12 +358,14 @@ export class Game {
       getBiome: (x, z) => this.world.getBiome(x, z),
       topBlock: (x, z) => this.world.topBlock(x, z),
       arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
-      arrowHitMob: (box, damage, fire, knockback) => {
+      arrowHitMob: (box, damage, fire, knockback, effects) => {
         const hit = this.entities.mobsIntersecting(box)[0];
         if (!hit) return false;
         // Punch throws the mob further and Flame sets it alight, as vanilla's arrows do
         hit.hurt(damage, this.player.pos, 'player', 0.3 + knockback * 0.5);
         if (fire > 0) hit.fireTicks = Math.max(hit.fireTicks, fire);
+        // a spectral arrow leaves its glow on the mob, a tipped one whatever it was dipped in
+        for (const e of effects) hit.addEffect(e.id, e.ticks, e.amplifier ?? 0);
         return true;
       },
     };
@@ -792,6 +795,7 @@ export class Game {
       this.input.enabled = false;
       this.input.exitLock();
       this.menus.showDeath();
+      this.deathEffects(p.pos.x, p.pos.y, p.pos.z, (id) => p.effects.level(id));
       // drop inventory; anything cursed with vanishing is destroyed instead, as vanilla destroys it
       for (let i = 0; i < 36; i++) {
         const s = p.inventory.slots[i];
@@ -1711,6 +1715,39 @@ export class Game {
     }
   }
 
+  /**
+   * The four effects that go off when whoever carries them dies: a wind burst throws everything
+   * back, weaving leaves cobwebs, oozing leaves slimes, and infestation leaves silverfish.
+   */
+  private deathEffects(x: number, y: number, z: number, level: (id: string) => number): void {
+    if (level('wind_charged') > 0) {
+      this.explodeAt(x, y, z, 0, null);
+      for (const m of this.entities.mobs) {
+        if (m.dead) continue;
+        const d = m.pos.distanceTo(new THREE.Vector3(x, y, z));
+        if (d > 5) continue;
+        const push = (5 - d) * 0.2;
+        m.vel.x += ((m.pos.x - x) / Math.max(0.1, d)) * push;
+        m.vel.y += 0.4;
+        m.vel.z += ((m.pos.z - z) / Math.max(0.1, d)) * push;
+      }
+    }
+    if (level('weaving') > 0) {
+      for (let i = 0; i < 6; i++) {
+        const wx = Math.floor(x) + Math.floor(Math.random() * 3) - 1;
+        const wz = Math.floor(z) + Math.floor(Math.random() * 3) - 1;
+        const wy = Math.floor(y) + (Math.random() < 0.3 ? 1 : 0);
+        if (this.world.getBlock(wx, wy, wz) === 0) this.world.setBlock(wx, wy, wz, blocks.defaultState('cobweb'));
+      }
+    }
+    if (level('oozing') > 0) {
+      for (let i = 0; i < 2; i++) this.entities.spawn('slime_medium', x + (Math.random() - 0.5) * 2, y, z + (Math.random() - 0.5) * 2, Math.random() * Math.PI * 2);
+    }
+    if (level('infested') > 0) {
+      for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++) this.entities.spawn('silverfish', x + (Math.random() - 0.5) * 2, y, z + (Math.random() - 0.5) * 2, Math.random() * Math.PI * 2);
+    }
+  }
+
   /** Whether the player has an arrow to loose, which Infinity and creative both answer for. */
   private canShoot(bow: ItemStack): boolean {
     if (this.player.gamemode === 'creative' || hasInfinity(bow)) return true;
@@ -1730,20 +1767,20 @@ export class Game {
     const dir = p.lookDirection(this.tmpDir);
     const from = eye.clone().addScaledVector(dir, 0.4);
     const to = from.clone().addScaledVector(dir, 16);
+    const slot = p.inventory.slots.findIndex((sl) => sl?.id === 'arrow' || sl?.id === 'spectral_arrow' || sl?.id === 'tipped_arrow');
+    const ammo = slot >= 0 ? p.inventory.slots[slot]! : null;
     const arrow = this.entities.shootArrow(from, to, charge * 3, bowBaseDamage(bow), true);
     arrow.vel.copy(dir).multiplyScalar(charge * 3);
     if (hasFlame(bow)) arrow.fire = 100;
     arrow.knockback = punchKnockback(bow);
+    if (ammo) arrow.effects = arrowEffects(ammo);
     this.audio.play('bow', { pitch: 1 / (Math.random() * 0.4 + 1.2) + charge * 0.5 });
     if (p.gamemode === 'creative') return;
     p.inventory.damageSelected(1);
-    if (!hasInfinity(bow)) {
-      const slot = p.inventory.slots.findIndex((sl) => sl?.id === 'arrow' || sl?.id === 'spectral_arrow' || sl?.id === 'tipped_arrow');
-      if (slot >= 0) {
-        const stack = p.inventory.slots[slot]!;
-        if (--stack.count <= 0) p.inventory.slots[slot] = null;
-        p.inventory.version++;
-      }
+    // Infinity only pays for plain arrows; a spectral or tipped one is still spent
+    if (ammo && (!hasInfinity(bow) || ammo.id !== 'arrow')) {
+      if (--ammo.count <= 0) p.inventory.slots[slot] = null;
+      p.inventory.version++;
     }
   }
 
@@ -2733,6 +2770,14 @@ export class Game {
     // levitation lifts, which is the one effect that moves the player itself
     const levitation = p.effects.level('levitation');
     if (levitation > 0 && !p.flying) p.vel.y = 0.05 * levitation;
+    // conduit power keeps a diver breathing and digging, and dolphin's grace makes them quick
+    const conduit = p.effects.level('conduit_power');
+    if (conduit > 0 && p.inWater) {
+      p.air = Math.min(300, p.air + 4);
+      p.aquaAffinity = true;
+    }
+    const grace = p.effects.level('dolphins_grace');
+    if (grace > 0) p.waterSpeed = Math.max(p.waterSpeed, 1 + grace * 2.5);
     if (p.dead) return;
     p.effects.tick();
     for (const e of p.effects.active.values()) {
@@ -2915,8 +2960,10 @@ export class Game {
     // a dropper only ever drops; a dispenser uses what it can
     if (def.id === 'dispenser') {
       if (stack!.id === 'arrow' || stack!.id === 'spectral_arrow' || stack!.id === 'tipped_arrow') {
+        const effects = arrowEffects(stack!);
         take();
-        this.entities.shootArrow(from, from.clone().add(new THREE.Vector3(dx, dy, dz).multiplyScalar(8)), 1.6, 6, true);
+        const shot = this.entities.shootArrow(from, from.clone().add(new THREE.Vector3(dx, dy, dz).multiplyScalar(8)), 1.6, 6, true);
+        shot.effects = effects;
         this.audio.play('bow', { x, y, z });
         return;
       }
@@ -3270,10 +3317,10 @@ export class Game {
         const d = Math.hypot(m.pos.x - pos.x, m.pos.y + m.height / 2 - pos.y, m.pos.z - pos.z);
         if (d > reach) continue;
         const factor = 1 - d / reach;
-        // mobs feel the instant effects; the lasting ones need status effects they do not carry yet
         for (const e of effects) {
           if (e.effect === 'instant_damage') m.hurt(Math.max(1, Math.round(6 * (e.amplifier + 1) * factor)), this.player.pos, 'player', 0);
           else if (e.effect === 'instant_health') m.health = Math.min(m.maxHealth, m.health + Math.round(4 * (e.amplifier + 1) * factor));
+          else m.addEffect(e.effect, Math.round(e.duration * factor), e.amplifier);
         }
       }
       const p = this.player;
@@ -3418,6 +3465,9 @@ export class Game {
     this.attackTicks = 0;
     // sharpness, smite and bane of arthropods all land here, each against what it is for
     damage += weaponBonus(held ?? null, mob.def.id);
+    // vanilla's attack-damage modifiers: strength adds three a level, weakness takes four
+    damage += 3 * p.effects.level('strength') - 4 * p.effects.level('weakness');
+    damage = Math.max(0, damage);
     damage *= 0.2 + progress * progress * 0.8;
     let knockback = 0.4;
     if (p.sprinting) knockback += 0.5;
@@ -3903,6 +3953,7 @@ export class Game {
 
   private onMobDeath(m: Mob): void {
     const byPlayer = m.lastHurtBy === 'player';
+    this.deathEffects(m.pos.x, m.pos.y, m.pos.z, (id) => m.effectLevel(id));
     const looting = byPlayer ? this.player.heldItem()?.enchantments?.looting ?? 0 : 0;
     for (const d of entityDrops(m.def.loot, byPlayer, looting, m.fireTicks > 0)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     if (m.def.id === 'sheep' && m.extra.sheared !== true && !m.isBaby) for (const d of entityDrops(`sheep/${String(m.extra.color ?? 'white')}`, byPlayer, looting)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
@@ -4308,6 +4359,7 @@ export class Game {
     this.renderer.render();
     const mountJump = this.mount && this.mount.extra.saddle === true && typeof this.mount.extra.jumpAttr === 'number' ? this.jumpCharge : null;
     this.hud.setJumpCharge(mountJump);
+    this.hud.setVision(p.effects.level('blindness'), p.effects.level('darkness'), p.effects.level('nausea'));
     this.hud.update(p, this.debugText(eyeBlock), dt);
     this.hud.setOnFire(p.fireTicks > 0 && p.gamemode === 'survival' && !p.dead, this.tickCount);
     this.input.endFrame();
@@ -4527,18 +4579,32 @@ export class Game {
         break;
       }
       case 'effect': {
-        if (args[0] === 'clear') {
+        // vanilla's grammar, with the selector honoured: @s/@p/@a are the player, @e everything
+        const give = args[0] === 'give';
+        const clearing = args[0] === 'clear' || args[1] === 'clear';
+        const selector = (give || clearing ? args[1] : args[0])?.startsWith('@') ? (give || clearing ? args[1] : args[0]) : '@s';
+        const mobsToo = selector === '@e'; // @e is every entity, the player among them
+        if (clearing) {
           p.effects.clear();
+          if (mobsToo) for (const m of this.entities.mobs) m.effects.clear();
           say('Removed every effect');
           break;
         }
-        const id = (args[0] === 'give' ? args[2] ?? args[1] : args[0])?.replace(/^minecraft:/, '');
-        const rest = args[0] === 'give' ? args.slice(3) : args.slice(1);
-        if (!id) return err('Usage: /effect give @s <effect> [seconds] [amplifier]');
-        const seconds = Number(rest[0] ?? 30);
-        const amp = Number(rest[1] ?? 0);
+        const words = (give ? args.slice(1) : args).filter((a) => !a.startsWith('@'));
+        const id = words[0]?.replace(/^minecraft:/, '');
+        if (!id) return err('Usage: /effect give <target> <effect> [seconds] [amplifier]');
+        const seconds = Number(words[1] ?? 30);
+        const amp = Number(words[2] ?? 0);
+        let n = 1;
+        if (mobsToo) {
+          for (const m of this.entities.mobs) {
+            if (m.dead) continue;
+            m.addEffect(id, seconds * 20, amp);
+            n++;
+          }
+        }
         p.effects.add(id, seconds * 20, amp);
-        say(`Applied effect ${id} to Player`);
+        say(mobsToo ? `Applied effect ${id} to ${n} ${n === 1 ? 'entity' : 'entities'}` : `Applied effect ${id} to Player`);
         break;
       }
       case 'summon': {

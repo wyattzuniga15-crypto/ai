@@ -678,3 +678,25 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     takes experience into damaged gear before it reaches the bar, the boots and helmet enchantments
     change how the player swims, sneaks, walks on soul sand, freezes water, holds their breath and
     mines underwater, and the two curses do what they are named for.
+
+94. **The status effects that were left, and the glow drawn with a stencil.** Mobs never carried
+    effects of their own, so they do now: the same add-keeps-the-stronger rule vanilla uses, poison
+    and wither ticking damage down, regeneration healing, and speed and slowness scaling the walk.
+    Invisibility shortens the range at which a mob notices the player rather than hiding a model that
+    is not drawn in first person; blindness and darkness close a radial murk over the view, and
+    nausea warps the canvas. The four from 1.21 fire on death, as vanilla's do: wind charged bursts,
+    weaving leaves cobwebs, oozing two slimes, infested silverfish. Glowing had no good cheap answer
+    — vanilla renders the entity into its own buffer and runs an edge filter over it, which would
+    mean a second render target and a full-screen pass for something usually off — so it is drawn
+    with the stencil buffer instead: the model is stamped into the stencil at its own size, then
+    drawn again fattened by three quarters of a pixel, painting only where the stamp is missing.
+    That leaves the fringe alone, and since neither pass tests depth the outline shows through
+    blocks the way the effect does. Both passes are marked transparent even though the hull paints
+    solid, because three draws every opaque material before any transparent one and an opaque hull
+    would run before its own stamp. Strength adds three damage a level and weakness takes four,
+    slow falling swaps gravity for vanilla's 0.01 and cancels the fall. `/effect` now honours the
+    selector it is given, `@e` reaching every entity, and spectral and tipped arrows finally differ
+    from plain ones: ten seconds of glowing, or the potion they were tipped with at an eighth of its
+    duration, which is also what a lingering potion crossed with eight arrows now crafts. Three
+    effects are still unreachable, each waiting on content that does not exist yet: raid omen and
+    trial omen on trial chambers, breath of the nautilus on the conduit 1.21.9 gave it to.

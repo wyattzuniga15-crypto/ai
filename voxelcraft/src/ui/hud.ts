@@ -40,6 +40,7 @@ export class Hud {
   private readonly underwater: HTMLElement;
   private readonly lava: HTMLElement;
   private readonly hurt: HTMLElement;
+  private blind: HTMLElement | null = null;
   private readonly fire: HTMLElement;
   private fireFrames = 1;
   private readonly toast: HTMLElement;
@@ -205,6 +206,29 @@ export class Hud {
         this.effects.append(el);
       }
     }
+  }
+
+  /**
+   * Blindness and darkness close the view in; nausea turns it. Vanilla draws all three over the
+   * world, and the darkness one pulses.
+   */
+  setVision(blindness: number, darkness: number, nausea: number): void {
+    if (!this.blind) {
+      this.blind = h('div', { id: 'blind', class: 'hidden' });
+      this.root.append(this.blind);
+    }
+    const dark = Math.max(blindness > 0 ? 0.92 : 0, darkness > 0 ? 0.45 + 0.35 * Math.abs(Math.sin(Date.now() / 900)) : 0);
+    this.blind.classList.toggle('hidden', dark <= 0);
+    if (dark > 0) this.blind.style.background = `radial-gradient(circle at 50% 50%, rgba(0,0,0,${dark * 0.6}) 0%, rgba(0,0,0,${dark}) 45%)`;
+    // nausea wobbles what the player is looking at, the way vanilla warps the screen
+    const canvas = document.getElementById('game-canvas');
+    if (!canvas) return;
+    if (nausea <= 0) {
+      if (canvas.style.transform) canvas.style.transform = '';
+      return;
+    }
+    const warp = Math.sin(Date.now() / 700) * 2.5 * nausea;
+    canvas.style.transform = `rotate(${warp.toFixed(2)}deg) scale(${(1 + Math.abs(warp) / 50).toFixed(3)})`;
   }
 
   setUnderwater(v: boolean): void {

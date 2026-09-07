@@ -74,6 +74,8 @@ export class CraftingMatcher {
         if (res) return { recipe: r, result: res };
       }
     }
+    const tipped = tippedArrows(grid, width, height);
+    if (tipped) return { recipe: { id: 'tipped_arrow', type: 'shaped', result: { item: 'tipped_arrow', count: 8 } }, result: tipped };
     if (this.repairable) {
       const repaired = repairItems(grid);
       if (repaired) return { recipe: { id: 'repair_item', type: 'shapeless', result: { item: repaired.id, count: 1 } }, result: repaired };
@@ -164,6 +166,23 @@ export class CraftingMatcher {
     }
     return null;
   }
+}
+
+/**
+ * Vanilla "tipped arrow" special recipe: a lingering potion in the middle of eight arrows tips them
+ * all, each carrying the potion the bottle held.
+ */
+export function tippedArrows(grid: Slot[], width: number, height: number): ItemStack | null {
+  if (width !== 3 || height !== 3) return null;
+  const middle = grid[4];
+  if (middle?.id !== 'lingering_potion') return null;
+  for (let i = 0; i < 9; i++) {
+    if (i === 4) continue;
+    if (grid[i]?.id !== 'arrow') return null;
+  }
+  const out: ItemStack = { id: 'tipped_arrow', count: 8 };
+  if (middle.potion) out.potion = middle.potion;
+  return out;
 }
 
 /** Vanilla "repair item" special recipe: two damaged copies of a tool combine their durability. */

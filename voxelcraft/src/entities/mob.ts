@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { BlockSource } from './physics.ts';
 import { aabbIntersects, boxesIn, isFluidAt, sweep, type AABB } from './physics.ts';
 import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './boxModel.ts';
+import { GlowOutline } from '../render/glow.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -47,6 +48,8 @@ export interface MobWorld extends BlockSource {
   playerBox(): AABB;
   playerLookDir(): THREE.Vector3;
   playerTargetable(): boolean;
+  /** Whether the player is invisible, which shortens how far a mob can see them. */
+  playerInvisible?(): boolean;
   /** Status effect applied to the player by a mob attack or arrow. */
   addPlayerEffect(id: string, ticks: number, amplifier?: number): void;
   /** Sets the player on fire (burning zombies pass their flames on). */
@@ -192,6 +195,8 @@ export class Mob {
   lastHurtTime = -1000;
   /** Mob-specific state (creeper swelling, sheep wool...). */
   extra: Record<string, number | boolean | string> = {};
+  /** Status effects on the mob: what a splash potion leaves behind. */
+  readonly effects = new Map<string, { ticks: number; amplifier: number }>();
   /** Set while the player rides this mob: goals stop and `control` drives movement. */
   ridden = false;
   /** Steering from the rider: forward/strafe in −1..1, and a jump impulse for the next tick. */
@@ -203,6 +208,8 @@ export class Mob {
   /** Persistent mobs never despawn (named, bred, passive). */
   persistent: boolean;
   private fireMesh: THREE.Mesh | null = null;
+  /** Built the first time the mob glows, then just hidden and shown. */
+  private outline: GlowOutline | null = null;
   private woolMaterials: THREE.MeshBasicMaterial[] | null = null;
   private readonly base: string;
 
@@ -242,6 +249,32 @@ export class Mob {
   }
 
   /** Damage from any source; returns false when invulnerable. */
+  /** Puts an effect on the mob, keeping whichever of the two is stronger, as vanilla does. */
+  addEffect(id: string, ticks: number, amplifier = 0): void {
+    const has = this.effects.get(id);
+    if (has && (has.amplifier > amplifier || (has.amplifier === amplifier && has.ticks > ticks))) return;
+    this.effects.set(id, { ticks, amplifier });
+  }
+
+  effectLevel(id: string): number {
+    const e = this.effects.get(id);
+    return e ? e.amplifier + 1 : 0;
+  }
+
+  /** Runs the effects down, doing the damage and healing they do. */
+  private tickEffects(): void {
+    if (!this.effects.size) return;
+    for (const [id, e] of this.effects) {
+      if (--e.ticks <= 0) {
+        this.effects.delete(id);
+        continue;
+      }
+      if (id === 'poison' && this.age % Math.max(1, 25 >> e.amplifier) === 0 && this.health > 1) this.hurt(1, null, 'other', 0);
+      else if (id === 'wither' && this.age % Math.max(1, 40 >> e.amplifier) === 0) this.hurt(1, null, 'other', 0);
+      else if (id === 'regeneration' && this.age % Math.max(1, 50 >> e.amplifier) === 0) this.health = Math.min(this.maxHealth, this.health + 1);
+    }
+  }
+
   hurt(amount: number, from: THREE.Vector3 | null, by: 'player' | 'other', knockback = 0.4): boolean {
     if (this.dead || this.invulnerable > 0) return false;
     // horse armour soaks damage with vanilla's armour formula (4% per point)
@@ -274,6 +307,7 @@ export class Mob {
     if (this.invulnerable > 0) this.invulnerable--;
     if (this.hurtTime > 0) this.hurtTime--;
     if (this.attackCooldown > 0) this.attackCooldown--;
+    this.tickEffects();
     if (this.dead) {
       if (++this.deathTime >= 20) this.removed = true;
       this.vel.set(0, 0, 0);
@@ -394,7 +428,8 @@ export class Mob {
         dirX = dx / dist;
         dirZ = dz / dist;
         this.yaw = Math.atan2(-dirX, -dirZ);
-        accel = attr * attr * 2.2 * this.moveSpeed * (this.onGround || this.def.flying || (this.def.aquatic && this.inWater) ? 1 : 0.2);
+        const potion = (1 + 0.2 * this.effectLevel('speed')) * (1 - 0.15 * this.effectLevel('slowness'));
+        accel = attr * attr * 2.2 * this.moveSpeed * potion * (this.onGround || this.def.flying || (this.def.aquatic && this.inWater) ? 1 : 0.2);
         if (this.inWater) accel *= 0.5;
       }
     }
@@ -522,6 +557,21 @@ export class Mob {
       this.fireMesh.geometry.dispose();
       this.fireMesh = null;
     }
+    if (this.outline) {
+      this.outline.dispose();
+      this.outline = null;
+    }
+  }
+
+  /** Draws the glowing outline while the effect lasts, and only builds it the first time. */
+  private renderGlow(): void {
+    const glowing = this.effectLevel('glowing') > 0 && !this.removed;
+    if (!glowing) {
+      this.outline?.setVisible(false);
+      return;
+    }
+    if (!this.outline) this.outline = new GlowOutline(this.model);
+    this.outline.setVisible(true);
   }
 
   private renderFire(): void {
@@ -546,6 +596,7 @@ export class Mob {
     const g = this.model.group;
     g.position.copy(this.prev).lerp(this.pos, alpha);
     this.renderFire();
+    this.renderGlow();
     const baby = this.isBaby;
     g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
     const headPart = this.model.parts.get('head');

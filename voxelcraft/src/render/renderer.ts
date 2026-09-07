@@ -11,7 +11,8 @@ export class GameRenderer {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'game-canvas';
     container.appendChild(this.canvas);
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance', alpha: false });
+    // the stencil buffer is off by default in three; the glowing outline stamps its silhouette there
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance', alpha: false, stencil: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;

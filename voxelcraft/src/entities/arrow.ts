@@ -17,8 +17,8 @@ export class Arrow {
   readonly mesh: THREE.Mesh;
   /** True when shot by the player (can hurt mobs, never the player). */
   fromPlayer: boolean;
-  /** Status effect given to the player on hit (stray arrows: slowness). */
-  effect?: { id: string; ticks: number; amplifier?: number };
+  /** Status effects left on what it hits: a stray's slowness, a spectral arrow's glow, a tip's potion. */
+  effects: { id: string; ticks: number; amplifier?: number }[] = [];
   /** Ticks of fire the arrow sets what it hits alight for (Flame). */
   fire = 0;
   /** Extra knockback from Punch. */

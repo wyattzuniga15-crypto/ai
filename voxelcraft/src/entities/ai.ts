@@ -143,8 +143,10 @@ export const targetPlayerGoal = (range: number, requireDark = false): Goal => ({
   canUse: (m, w) => {
     if (m.target) return false;
     if (!w.playerTargetable()) return false;
+    // vanilla shrinks a mob's sight of an invisible player to a fraction of its usual range
+    const seen = range * (w.playerInvisible?.() ? 0.35 : 1);
     const d = m.distanceTo(w.playerPos());
-    if (d > range) return false;
+    if (d > seen) return false;
     if (requireDark) {
       const light = Math.max(w.getBlockLight(Math.floor(m.pos.x), Math.floor(m.pos.y), Math.floor(m.pos.z)), w.getSkyLight(Math.floor(m.pos.x), Math.floor(m.pos.y), Math.floor(m.pos.z)) - w.skyDarken());
       if (light > 11 && m.age - m.lastHurtTime > 100) return false;
