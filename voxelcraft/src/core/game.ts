@@ -42,7 +42,11 @@ import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
-import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { songForDisc, type JukeboxSong } from '../items/jukebox.ts';
+import { loadSoundDefinitions } from '../audio/sounds.ts';
+import { MusicManager } from '../audio/music.ts';
+import { MoodTracker, biomeAmbience, hasMood, type AmbienceWorld } from '../audio/ambience.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { tickBrewing } from '../blocks/brewing.ts';
 import { craftOnce } from '../blocks/crafter.ts';
@@ -144,6 +148,8 @@ const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_m
 
 /** How far above a cart its rider sits, matching vanilla's minecart passenger offset. */
 const RIDE_HEIGHT = 0.06;
+/** How far a record carries, which is the reach vanilla gives a jukebox. */
+const RECORD_REACH = 64;
 
 /** Vanilla's eight moon phases, in the order the sky shows them. */
 const MOON_NAMES = ['full', 'waning gibbous', 'third quarter', 'waning crescent', 'new', 'waxing crescent', 'first quarter', 'waxing gibbous'];
@@ -458,6 +464,10 @@ export class Game {
       this.nextMapId = Math.max(this.nextMapId, map.id + 1);
     }
     this.audio.setVolume(opts.options.volume);
+    this.audio.base = import.meta.env.BASE_URL;
+    // vanilla's own sound event table, if the assets were fetched; without it the game still runs,
+    // it simply has no music or records to stream
+    void loadSoundDefinitions(import.meta.env.BASE_URL);
     const unlock = () => this.audio.unlock();
     this.renderer.canvas.addEventListener('mousedown', unlock);
     window.addEventListener('keydown', unlock);
@@ -1002,6 +1012,7 @@ export class Game {
     this.tickRaid();
     this.tickWither();
     this.tickDragon();
+    this.tickAmbience();
     this.tickWornEnchantments();
     this.tickEffects();
     this.attackTicks++;
@@ -1428,6 +1439,8 @@ export class Game {
       if (held && items.byId.get(held.id)?.durability && def.hardness > 0) p.inventory.damageSelected(1);
       p.exhaustion += 0.005;
     }
+    // a jukebox that is knocked out stops its record before the disc falls out with everything else
+    if (entity?.type === 'jukebox') this.stopRecord(x, y, z);
     // containers spill their contents (ender chests keep theirs with the player)
     if (entity) {
       if ('items' in entity && !keepsContents) for (const s of entity.items) if (s) this.dropStack(s, x + 0.5, y + 0.5, z + 0.5, true);
@@ -1678,6 +1691,10 @@ export class Game {
             if (next !== st) this.world.setBlock(x, y, z, next);
           }
         }
+        return;
+      }
+      if (e.type === 'jukebox') {
+        this.tickJukebox(x, y, z, e as JukeboxEntity);
         return;
       }
       if (e.type === 'hopper') {
@@ -2497,6 +2514,57 @@ export class Game {
     return { x, y: this.world.topBlock(x, z), z };
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Music and ambience
+  // ---------------------------------------------------------------------------------------------
+  private readonly mood = new MoodTracker();
+  private readonly music = new MusicManager({
+    playTrack: (event, onEnded) => this.audio.playTrack(event, { volume: 1, onEnded }),
+    stopTrack: () => this.audio.stopTrack(),
+    random: Math.random,
+  });
+
+  /**
+   * Vanilla's ambience, once a tick: the mood counter that ends in a cave sound, the additions a
+   * nether biome throws in, and the music manager choosing what should be playing. A record takes
+   * the channel over while it spins, which is what silences the music in vanilla too.
+   */
+  private tickAmbience(): void {
+    const p = this.player;
+    const biome = biomes[this.world.getBiome(Math.floor(p.pos.x), Math.floor(p.pos.z))]?.id ?? 'plains';
+    if (hasMood(this.world.dimension)) {
+      const heard = this.mood.tick(this.ambienceWorld(), p.pos.x, p.pos.y + p.eyeHeight, p.pos.z, biome);
+      if (heard) this.audio.playEvent(heard.event, { x: heard.x, y: heard.y, z: heard.z, volume: 0.7 });
+    }
+    const ambience = biomeAmbience(biome);
+    if (ambience?.additions && Math.random() < ambience.additions.chance) this.audio.playEvent(ambience.additions.event, { volume: 0.6 });
+    // a jukebox holds the long channel: the music waits until the record is done
+    if (this.record) return;
+    this.music.tick({
+      credits: this.credits !== null,
+      dimension: this.world.dimension,
+      biome,
+      creative: p.gamemode === 'creative',
+      underwater: this.eyeInWater(),
+      dragonFight: this.dragonBar,
+    });
+  }
+
+  /** Whether the player's own eyes are under water, which is what vanilla's music asks. */
+  private eyeInWater(): boolean {
+    const p = this.player;
+    const state = this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.eyeHeight), Math.floor(p.pos.z));
+    return state !== 0 && blocks.blockOf(state).id === 'water';
+  }
+
+  /** The light the mood counter reads, which is the light the world has already worked out. */
+  private ambienceWorld(): AmbienceWorld {
+    return {
+      getSkyLight: (x, y, z) => this.world.getSkyLight(x, y, z),
+      getBlockLight: (x, y, z) => this.world.getBlockLight(x, y, z),
+    };
+  }
+
   /**
    * The weather: the counters run down, the rain puts fires out and fills cauldrons, snow settles in
    * the cold, and a storm throws lightning about.
@@ -2834,6 +2902,92 @@ export class Game {
    * A composter: what the player is holding goes in, on vanilla's odds, and a ready one hands its
    * bone meal back and starts again.
    */
+  // ---------------------------------------------------------------------------------------------
+  // Jukeboxes
+  // ---------------------------------------------------------------------------------------------
+  /** Where the record that is playing is spinning, so the game knows what to stop and hand back. */
+  private record: { x: number; y: number; z: number; song: JukeboxSong } | null = null;
+
+  /**
+   * Vanilla's jukebox: an empty one takes the disc that is held, and a full one hands it back —
+   * either way the record it was playing stops. Anything that is not a disc is left alone, so a
+   * block held against a jukebox is placed rather than swallowed.
+   */
+  private useJukebox(t: RaycastHit): boolean {
+    let entity = this.world.getBlockEntity(t.x, t.y, t.z) as JukeboxEntity | undefined;
+    if (!entity || entity.type !== 'jukebox') {
+      entity = createBlockEntity('jukebox') as JukeboxEntity;
+      this.world.setBlockEntity(t.x, t.y, t.z, entity);
+    }
+    if (entity.items[0]) {
+      this.ejectRecord(t.x, t.y, t.z);
+      return true;
+    }
+    const held = this.player.heldItem();
+    const song = held ? songForDisc(held.id) : null;
+    if (!held || !song) return false;
+    entity.items[0] = { id: held.id, count: 1 };
+    entity.ticks = 0;
+    if (this.player.gamemode !== 'creative') this.player.inventory.consumeSelected();
+    this.world.setBlock(t.x, t.y, t.z, blocks.stateWith('jukebox', { has_record: 'true' }));
+    this.world.markModifiedAt(t.x, t.z);
+    this.record = { x: t.x, y: t.y, z: t.z, song };
+    // vanilla names the record in the action bar and streams it from the block it is spinning in
+    this.hud.showToast(`Now Playing: ${song.name}`);
+    // the record takes the long channel over, so whatever music was on it stops first
+    this.music.stop();
+    this.audio.playTrack(song.sound);
+    return true;
+  }
+
+  /** Takes the record out and gives it back, which is what emptying or breaking a jukebox does. */
+  private ejectRecord(x: number, y: number, z: number): void {
+    const entity = this.world.getBlockEntity(x, y, z) as JukeboxEntity | undefined;
+    this.stopRecord(x, y, z);
+    if (!entity || entity.type !== 'jukebox') return;
+    const disc = entity.items[0];
+    entity.items[0] = null;
+    entity.ticks = 0;
+    const state = this.world.getBlock(x, y, z);
+    if (state !== 0 && blocks.idOf(state) === 'jukebox') this.world.setBlock(x, y, z, blocks.stateWith('jukebox', { has_record: 'false' }));
+    this.world.markModifiedAt(x, z);
+    // vanilla throws the disc out of the front of the block rather than dropping it inside
+    if (disc) this.dropStack(disc, x + 0.5, y + 1.01, z + 0.5, true);
+  }
+
+  /** Stops the record this jukebox is spinning, if it is the one that can be heard. */
+  private stopRecord(x: number, y: number, z: number): void {
+    if (!this.record || this.record.x !== x || this.record.y !== y || this.record.z !== z) return;
+    this.record = null;
+    this.audio.stopTrack();
+  }
+
+  /**
+   * Runs the record down. Vanilla stops when the track ends, leaving the disc where it is, and
+   * throws a note out of the top of the block once a second while it plays.
+   */
+  private tickJukebox(x: number, y: number, z: number, entity: JukeboxEntity): void {
+    const disc = entity.items[0];
+    const song = disc ? songForDisc(disc.id) : null;
+    if (!song) return;
+    if (entity.ticks++ >= song.seconds * 20) {
+      this.stopRecord(x, y, z);
+      entity.ticks = 0;
+      entity.items[0] = disc;
+      // the disc stays in the slot; vanilla leaves a finished jukebox loaded and quiet
+      const state = this.world.getBlock(x, y, z);
+      if (state !== 0 && blocks.idOf(state) === 'jukebox' && blocks.prop(state, 'has_record') !== 'true') {
+        this.world.setBlock(x, y, z, blocks.stateWith('jukebox', { has_record: 'true' }));
+      }
+      return;
+    }
+    if (!this.record || this.record.x !== x || this.record.y !== y || this.record.z !== z) return;
+    if (entity.ticks % 20 === 0) this.particles.note(x + 0.5, y + 1.2, z + 0.5, Math.floor(Math.random() * 25));
+    // vanilla can be heard about sixty-four blocks from the jukebox; ours fades over the same reach
+    const d = Math.hypot(this.player.pos.x - x - 0.5, this.player.pos.y - y - 0.5, this.player.pos.z - z - 0.5);
+    this.audio.setTrackVolume(Math.max(0, 1 - d / RECORD_REACH));
+  }
+
   private useComposter(t: RaycastHit): boolean {
     const p = this.player;
     const level = composterLevel(t.state);
@@ -3069,6 +3223,7 @@ export class Game {
       this.chests.setOpen(`${t.x},${t.y},${t.z}`);
       return true;
     }
+    if (def.id === 'jukebox') return this.useJukebox(t);
     if (def.id === 'composter') return this.useComposter(t);
     if (def.id.endsWith('cauldron')) return this.useCauldron(t, def.id);
     if (def.id === 'cartography_table') {

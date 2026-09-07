@@ -41,8 +41,11 @@ const VERSION = args.get('version') ?? MC_VERSION;
 const SOURCE = (args.get('source') ?? 'auto') as 'auto' | 'official' | 'mirror';
 const FORCE = args.get('force') === 'true';
 const SKIP_BUILD = args.get('skip-build') === 'true';
+/** Sound files are not in the jar: they come off Mojang's own asset CDN, so they are opt-in. */
+const WITH_SOUNDS = args.get('sounds') === 'true';
 
 const MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
+const RESOURCES_URL = 'https://resources.download.minecraft.net';
 const MIRROR_REPO = 'https://github.com/InventivetalentDev/minecraft-assets';
 const MIRROR_RAW = `https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/${VERSION}`;
 const MCDATA_RAW = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data';
@@ -55,6 +58,7 @@ const JAR_PATHS = [
   'assets/minecraft/items/',
   'assets/minecraft/texts/',
   'assets/minecraft/lang/en_us.json',
+  'assets/minecraft/sounds.json',
   'data/minecraft/recipe/',
   'data/minecraft/loot_table/',
   'data/minecraft/tags/',
@@ -305,9 +309,51 @@ function buildRuntimeBundles(): void {
   log(`public/textures: ${n} files`);
   ensureDir(path.join(PUBLIC, 'lang'));
   fs.copyFileSync(path.join(ASSETS, 'lang', 'en_us.json'), path.join(PUBLIC, 'lang', 'en_us.json'));
+  // vanilla's own sound event definitions: which files an event may play, and at what volume,
+  // pitch and weight. The game reads it to pick a variant the way vanilla picks one.
+  const soundsJson = path.join(jarDir(VERSION), 'assets', 'minecraft', 'sounds.json');
+  if (fs.existsSync(soundsJson)) {
+    fs.copyFileSync(soundsJson, path.join(PUBLIC, 'sounds.json'));
+    log(`public/sounds.json: ${Object.keys(readJson<Record<string, unknown>>(soundsJson)).length} events`);
+  } else log('public/sounds.json: not in this source, skipped');
   // the end poem and the credits, read at runtime by the screen that plays after the dragon
   fs.rmSync(path.join(PUBLIC, 'texts'), { recursive: true, force: true });
   if (fs.existsSync(path.join(ASSETS, 'texts'))) log(`public/texts: ${copyDir(path.join(ASSETS, 'texts'), path.join(PUBLIC, 'texts'))} files`);
+}
+
+/**
+ * The ogg files themselves, which the client jar does not carry: the version's asset index names
+ * every one of them by hash, and the objects come off Mojang's resource CDN. Everything lands under
+ * `public/sounds/`, gitignored like the rest of the fetched assets, and the game plays whatever it
+ * finds there — a run without this step simply leaves the music and the records silent.
+ */
+async function fetchSounds(): Promise<void> {
+  interface Manifest { versions: { id: string; url: string }[] }
+  interface VersionJson { assetIndex: { url: string } }
+  interface Index { objects: Record<string, { hash: string; size: number }> }
+  const manifest = await fetchJson<Manifest>(MANIFEST_URL);
+  const entry = manifest.versions.find((v) => v.id === VERSION);
+  if (!entry) throw new Error(`version ${VERSION} not in Mojang manifest`);
+  const index = await fetchJson<Index>((await fetchJson<VersionJson>(entry.url)).assetIndex.url);
+  const wanted = Object.entries(index.objects).filter(([name]) => name.startsWith('minecraft/sounds/') && name.endsWith('.ogg'));
+  log(`sounds: ${wanted.length} files (${(wanted.reduce((a, [, o]) => a + o.size, 0) / 1048576).toFixed(0)} MB)`);
+  const root = path.join(PUBLIC, 'sounds');
+  let done = 0;
+  const queue = wanted.slice();
+  const workers = Array.from({ length: 16 }, async () => {
+    for (let job = queue.pop(); job; job = queue.pop()) {
+      const [name, obj] = job;
+      const out = path.join(root, name.slice('minecraft/sounds/'.length));
+      if (!FORCE && fs.existsSync(out) && fs.statSync(out).size === obj.size) {
+        done++;
+        continue;
+      }
+      await download(`${RESOURCES_URL}/${obj.hash.slice(0, 2)}/${obj.hash}`, out);
+      if (++done % 250 === 0) log(`sounds: ${done}/${wanted.length}`);
+    }
+  });
+  await Promise.all(workers);
+  log(`public/sounds: ${done} files`);
 }
 
 async function main() {
@@ -316,6 +362,7 @@ async function main() {
   await ensureMinecraftData();
   syncAssets();
   if (!SKIP_BUILD) buildRuntimeBundles();
+  if (WITH_SOUNDS) await fetchSounds();
   log(`done (Minecraft ${VERSION}, source ${source})`);
 }
 

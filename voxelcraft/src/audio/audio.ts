@@ -2,6 +2,8 @@
  * Procedural sound effects on Web Audio. Every sound is synthesized (no recorded samples) and
  * spatialized by distance from the listener.
  */
+import { soundDefs } from './sounds.ts';
+
 export interface PlayOptions {
   x?: number;
   y?: number;
@@ -166,8 +168,16 @@ export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   volume = 1;
+  /** Music and records are mixed on their own slider, the way vanilla splits them out. */
+  musicVolume = 1;
   listener = { x: 0, y: 0, z: 0 };
   private lastPlayed = new Map<string, number>();
+  /** Where the fetched sound files live; empty until the game says. */
+  base = '';
+  /** The one long sound playing: a record, or a music track. Vanilla never overlaps two. */
+  private track: HTMLAudioElement | null = null;
+  private trackName: string | null = null;
+  private trackEnded: (() => void) | null = null;
 
   /** Must be called from a user gesture at least once (browsers block audio otherwise). */
   unlock(): void {
@@ -185,8 +195,11 @@ export class AudioEngine {
   }
 
   setVolume(v: number): void {
+    const was = this.volume;
     this.volume = v;
     if (this.master) this.master.gain.value = v;
+    // a track already playing follows the slider rather than waiting for the next one
+    if (this.track && was > 0) this.track.volume = Math.max(0, Math.min(1, (this.track.volume / was) * v));
   }
 
   play(name: string, opts: PlayOptions = {}): void {
@@ -212,6 +225,74 @@ export class AudioEngine {
     } catch (e) {
       console.warn('sound failed', name, e);
     }
+  }
+
+  /**
+   * Plays one of vanilla's sound events: the file the definitions name if the assets carry it, and
+   * otherwise the synthesized voice registered under the same short name.
+   */
+  playEvent(event: string, opts: PlayOptions = {}, random: () => number = Math.random): void {
+    const variant = soundDefs.pick(event, random);
+    if (!variant) {
+      this.play(event, opts);
+      return;
+    }
+    this.play(event, { ...opts, volume: (opts.volume ?? 1) * variant.volume, pitch: (opts.pitch ?? 1) * variant.pitch });
+  }
+
+  /** What is playing on the long channel, or null. */
+  get playingTrack(): string | null {
+    return this.trackName;
+  }
+
+  /**
+   * Starts a streamed track — a record or a music cue — replacing whatever was on that channel.
+   * A track whose file was never fetched simply never starts, which is what leaves a world with no
+   * sound assets silent rather than broken.
+   */
+  playTrack(event: string, opts: { volume?: number; onEnded?: () => void } = {}, random: () => number = Math.random): boolean {
+    this.stopTrack();
+    const variant = soundDefs.pick(event, random);
+    if (!variant) return false;
+    this.trackName = event;
+    this.trackEnded = opts.onEnded ?? null;
+    try {
+      const el = new Audio(`${this.base}sounds/${variant.name}.ogg`);
+      el.volume = Math.max(0, Math.min(1, (opts.volume ?? 1) * variant.volume * this.musicVolume * this.volume));
+      const finish = () => {
+        if (this.track !== el) return;
+        this.track = null;
+        this.trackName = null;
+        const done = this.trackEnded;
+        this.trackEnded = null;
+        done?.();
+      };
+      el.addEventListener('ended', finish);
+      // a missing file is the normal case when the sound assets were never fetched: the channel
+      // reports the track as over, so whoever asked for it waits and asks again rather than
+      // believing something is playing forever
+      el.addEventListener('error', finish);
+      this.track = el;
+      void el.play().catch(finish);
+    } catch {
+      this.track = null;
+    }
+    return true;
+  }
+
+  /** Rides the long channel's level, which is how a record fades out as you walk away from it. */
+  setTrackVolume(v: number): void {
+    if (this.track) this.track.volume = Math.max(0, Math.min(1, v * this.musicVolume * this.volume));
+  }
+
+  stopTrack(): void {
+    if (this.track) {
+      this.track.pause();
+      this.track.src = '';
+    }
+    this.track = null;
+    this.trackName = null;
+    this.trackEnded = null;
   }
 
   get enabled(): boolean {

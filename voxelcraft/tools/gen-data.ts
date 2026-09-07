@@ -875,6 +875,31 @@ for (const p of trimPatterns) if (!itemNames.has(p.template)) console.warn(`trim
 for (const m of trimMaterials) if (!itemNames.has(m.item)) console.warn(`trim material ${m.id}: no ingredient item ${m.item}`);
 writeJson(path.join(DATA, 'trims.json'), { patterns: trimPatterns, materials: trimMaterials });
 
+
+// ------------------------------------------------------------------------------------------------
+// Jukebox songs
+// ------------------------------------------------------------------------------------------------
+/**
+ * Vanilla's `jukebox_song` registry, which lives in the data pack rather than in minecraft-data:
+ * how long each record runs, and the signal a comparator reads out of the jukebox playing it. The
+ * names come from the language file, so a disc is announced the way vanilla announces it.
+ */
+const JUKEBOX_SONGS: Record<string, [seconds: number, comparator: number]> = {
+  '13': [178, 1], cat: [185, 2], blocks: [345, 3], chirp: [185, 4], far: [174, 5], mall: [197, 6],
+  mellohi: [96, 7], stal: [150, 8], strad: [188, 9], ward: [251, 10], '11': [71, 11], wait: [238, 12],
+  otherside: [195, 14], relic: [218, 14], '5': [178, 15], pigstep: [149, 13], precipice: [299, 13],
+  creator: [176, 12], creator_music_box: [73, 11], lava_chicken: [134, 9], tears: [175, 10],
+};
+const jukebox = Object.entries(JUKEBOX_SONGS).map(([id, [seconds, comparator]]) => ({
+  id,
+  item: `music_disc_${id}`,
+  name: lang[`jukebox_song.minecraft.${id}`] ?? titleCase(id),
+  sound: `music_disc.${id}`,
+  seconds,
+  comparator,
+}));
+writeJson(path.join(DATA, 'jukebox.json'), jukebox);
+
 // ------------------------------------------------------------------------------------------------
 // Summary
 // ------------------------------------------------------------------------------------------------
@@ -897,6 +922,7 @@ const summary = {
   enchantments: enchantments.length,
   effects: effects.length,
   trims: { patterns: trimPatterns.length, materials: trimMaterials.length },
+  jukeboxSongs: jukebox.length,
 };
 writeJson(path.join(DATA, 'summary.json'), summary, true);
 console.log(JSON.stringify(summary, null, 1));

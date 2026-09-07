@@ -16,9 +16,14 @@ npm run build      # static site in dist/ – host it anywhere
 
 `npm run assets` downloads the Minecraft client jar from Mojang's public launcher CDN, or falls back
 to the InventivetalentDev GitHub mirror of the same files, and unpacks what the game needs into
-gitignored folders (`assets/`, `public/atlas`, `public/textures`, `public/texts`, `public/models.json`). Nothing
-Mojang-owned is committed. It also builds the block/item texture atlases. Re-run with
-`-- --force` to refresh, or `-- --source=mirror` to skip the official CDN.
+gitignored folders (`assets/`, `public/atlas`, `public/textures`, `public/texts`, `public/models.json`,
+`public/sounds.json`). Nothing Mojang-owned is committed. It also builds the block/item texture atlases.
+Re-run with `-- --force` to refresh, or `-- --source=mirror` to skip the official CDN.
+
+The sound files are not in the client jar — they come off Mojang's asset CDN — so they are opt-in:
+`npm run assets -- --sounds` walks the version's asset index and fills `public/sounds/` (gitignored
+too). Without it the game still picks the track vanilla would have played, and simply stays quiet;
+the synthesized effects play either way.
 
 `npm run structures` converts Mojang's structure templates from the fetched client into
 `public/structures/` (gitignored, like the textures); without it the world simply generates no

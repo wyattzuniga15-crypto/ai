@@ -1085,3 +1085,53 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      body's back sits at 1.375 blocks and the mushrooms stand from 1.30, so each rides the back
      with its stem in the fur. They are lit by the block atlas rather than by the mob's own light,
      which is the same compromise falling blocks and minecart contents already make.
+
+115. **Audio, and the files that are not here.** Minecraft's sounds are not in the client jar: the
+     jar carries `sounds.json`, which says what each event may play and at what volume, pitch and
+     weight, and the ogg files themselves come off Mojang's own asset CDN through the version's
+     asset index. The fetch does both — `npm run assets` lays `sounds.json` down as
+     `public/sounds.json`, and `npm run assets -- --sounds` walks the asset index for the ogg files
+     into `public/sounds/` — but this repository is public, so both stay gitignored with the rest of
+     the fetched assets.
+
+     That splits the work in two, and the split is deliberate. Everything that decides *what* should
+     be playing is code: the definitions table with vanilla's weights, the music manager, the mood
+     counter, the jukebox. Everything that actually makes a noise is either one of the sixty-one
+     synthesized effects the game already had or a streamed file, and a world whose ogg files were
+     never fetched picks exactly the same track and then stays quiet. Nothing is faked: no generated
+     stand-in music pretends to be a record, because a made-up tune under a disc's name would be
+     less faithful than silence.
+
+     The long channel holds one sound at a time, as vanilla's does, which is why a record silences
+     the music while it spins. A missing file reports itself as a track that has ended rather than
+     one that never started, so the music manager waits its usual twelve to twenty-four thousand
+     ticks and tries again instead of believing something is playing forever.
+
+116. **The music manager and the cave sound.** `situationalMusic` asks vanilla's questions in
+     vanilla's order — credits, then the End (the dragon's own cue while its bar is up), then
+     underwater, then creative outside the Nether, then the biome's own track, then the general game
+     music. The delays are vanilla's: twelve to twenty-four thousand ticks between tracks, six to
+     twenty-four in the End, and a hundred ticks before the first one in a fresh world. Only the
+     End's cues replace a track that is already playing, and doing so trims the wait to half the
+     minimum, which is what makes music start again soon after you arrive.
+
+     The mood is vanilla's counter rather than a timer. Every tick it looks at one random block in a
+     cube eight blocks out; a block the sky and every lamp have both missed pushes the counter up by
+     one part in six thousand, and anything lit drains it by a thousandth. When it fills, the sound
+     plays two blocks from the listener in the direction of that block and the counter resets. The
+     numbers all come from the biome files (`tick_delay` 6000, `block_search_extent` 8, `offset` 2,
+     and `tick_chance` 0.0111 for a biome's additions); the Nether's five biomes swap the cave sound
+     for one of their own and hum a loop besides.
+
+117. **Records.** The `jukebox_song` registry lives in the data pack rather than in minecraft-data,
+     so its twenty-one entries are a table in `tools/gen-data.ts` carrying each song's length and
+     comparator signal, with the names read out of the language file — the disc a jukebox is
+     spinning is announced exactly as vanilla announces it. A disc goes into an empty jukebox and
+     comes back out of a full one; the record runs its own length and then stops, leaving the disc
+     in the slot the way vanilla leaves it; a note comes off the top of the block once a second; and
+     the sound fades over sixty-four blocks, which is the reach vanilla gives a jukebox.
+
+     Two pieces of vanilla's jukebox are not here yet, both for the same reason: comparators in this
+     game are still binary, so nothing reads the signal the table carries, and hoppers only feed
+     block entities the container code knows about. The song data is right either way, and neither
+     is worth widening the redstone or hopper code for in a slice about sound.

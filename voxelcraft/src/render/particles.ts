@@ -6,9 +6,9 @@
 import * as THREE from 'three';
 import type { LoadedAtlas } from './atlas.ts';
 
-export type SpriteName = 'heart' | 'crit' | 'damage' | 'poof' | 'smoke' | 'angry' | 'happy';
+export type SpriteName = 'heart' | 'crit' | 'damage' | 'poof' | 'smoke' | 'angry' | 'happy' | 'note';
 const SPRITE_FILES: Record<SpriteName, string[]> = {
-  heart: ['heart'], crit: ['critical_hit'], damage: ['damage'], angry: ['angry'], happy: ['glint'],
+  heart: ['heart'], crit: ['critical_hit'], damage: ['damage'], angry: ['angry'], happy: ['glint'], note: ['note'],
   poof: ['generic_0', 'generic_1', 'generic_2', 'generic_3', 'generic_4', 'generic_5', 'generic_6', 'generic_7'],
   smoke: ['big_smoke_0', 'big_smoke_1', 'big_smoke_2', 'big_smoke_3', 'big_smoke_4', 'big_smoke_5', 'big_smoke_6', 'big_smoke_7'],
 };
@@ -185,12 +185,24 @@ export class ParticleSystem {
     const first = this.sheetRects.get(files[0]);
     if (!first) return;
     const frames = files.length > 1 ? files.map((f) => this.sheetRects.get(f) ?? first) : undefined;
-    this.push({ x, y, z, px: x, py: y, pz: z, vx, vy, vz, age: 0, life, size, gravity, r: ((color >> 16) & 255) / 255, g: ((color >> 8) & 255) / 255, b: (color & 255) / 255, u: first.u, v: first.v, w: first.w, h: first.h, frames, sheet: 1, physics: name !== 'heart' && name !== 'angry' && name !== 'happy' });
+    this.push({ x, y, z, px: x, py: y, pz: z, vx, vy, vz, age: 0, life, size, gravity, r: ((color >> 16) & 255) / 255, g: ((color >> 8) & 255) / 255, b: (color & 255) / 255, u: first.u, v: first.v, w: first.w, h: first.h, frames, sheet: 1, physics: name !== 'heart' && name !== 'angry' && name !== 'happy' && name !== 'note' });
   }
 
   /** Vanilla-style helpers. */
   hearts(x: number, y: number, z: number, count: number, rng: () => number, w = 1, h = 1): void {
     for (let i = 0; i < count; i++) this.spawnSprite('heart', x + (rng() - 0.5) * w, y + rng() * h, z + (rng() - 0.5) * w, (rng() - 0.5) * 0.02, 0.02 + rng() * 0.04, (rng() - 0.5) * 0.02, 16 + Math.floor(rng() * 8), 0.3 + rng() * 0.15);
+  }
+
+  /**
+   * The note a jukebox or a note block throws up. Vanilla colours it off the note it is playing,
+   * which is the same rainbow the note block's own particle runs through.
+   */
+  note(x: number, y: number, z: number, note: number): void {
+    const f = note / 24;
+    const color = (Math.round(Math.max(0, Math.sin(f * Math.PI * 2 + 0) * 0.65 + 0.35) * 255) << 16)
+      | (Math.round(Math.max(0, Math.sin((f + 1 / 3) * Math.PI * 2) * 0.65 + 0.35) * 255) << 8)
+      | Math.round(Math.max(0, Math.sin((f + 2 / 3) * Math.PI * 2) * 0.65 + 0.35) * 255);
+    this.spawnSprite('note', x, y, z, 0, 0.06, 0, 26, 0.5, 0, color);
   }
 
   poof(x: number, y: number, z: number, count: number, rng: () => number, w = 1, h = 1): void {

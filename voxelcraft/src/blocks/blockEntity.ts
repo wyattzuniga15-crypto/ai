@@ -89,7 +89,16 @@ export interface SpawnerEntity {
   delay: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity;
+/** Jukeboxes: the record inside and how far through it the needle has run. */
+export interface JukeboxEntity {
+  type: 'jukebox';
+  /** The disc item in the slot, which is what the block gives back when it is emptied. */
+  items: Slot[];
+  /** Ticks the record has been playing, so it can stop itself when it reaches the end. */
+  ticks: number;
+}
+
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -117,6 +126,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };
   if (blockId === 'beehive' || blockId === 'bee_nest') return { type: 'beehive', bees: [], nectar: [] };
   if (blockId === 'spawner') return { type: 'spawner', mob: '', delay: 20 };
+  if (blockId === 'jukebox') return { type: 'jukebox', items: [null], ticks: 0 };
   return null;
 }
 
