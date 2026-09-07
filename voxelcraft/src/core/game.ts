@@ -30,7 +30,7 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid } from '../ui/screens/screens.ts';
+import { chestScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
 import { containerKind, createBlockEntity, type ContainerEntity, type FurnaceEntity } from '../blocks/blockEntity.ts';
 import { tickFurnace } from '../blocks/furnace.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
@@ -44,7 +44,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats } from '../entities/mobTypes.ts';
+import { mobStats, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS } from '../entities/mobTypes.ts';
 import type { AABB } from '../entities/physics.ts';
 import { XpOrb, splitXp } from '../entities/xpOrb.ts';
 import { AudioEngine, blockSoundGroup } from '../audio/audio.ts';
@@ -88,6 +88,7 @@ const lightFloor = (gamma: number): number => 0.03 + gamma * 0.1;
 const MOB_DEATH_SOUNDS: Record<string, string> = {
   creeper: 'hurt', spider: 'hurt', cave_spider: 'hurt', husk: 'zombie', drowned: 'zombie', stray: 'skeleton', wither_skeleton: 'skeleton',
   slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', cod: 'splash', salmon: 'splash', witch: 'witch', phantom: 'phantom',
+  horse: 'horse', donkey: 'donkey', mule: 'donkey',
 };
 const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
 
@@ -118,6 +119,10 @@ export class Game {
   private useCooldown = 0;
   private autosaveTimer = 0;
   private lastSaveAt = 0;
+  /** The mob the player is riding, its jump charge and the buck timer for untamed horses. */
+  private mount: Mob | null = null;
+  private jumpCharge = 0;
+  private buckTimer = 0;
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpEye = new THREE.Vector3();
   private readonly crackTiles: number[] = [];
@@ -486,7 +491,9 @@ export class Game {
     this.tickFallingBlocks();
     this.tickEffects();
     this.attackTicks++;
+    this.rideTick();
     this.entities.tick(this.player.dead ? null : this.player.aabb());
+    if (this.mount) this.seatPlayer();
     this.particles.tick();
     for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
       const orb = this.xpOrbs[i];
@@ -1518,6 +1525,144 @@ export class Game {
   }
 
   /** Vanilla animal interactions: breeding food, shears on sheep, buckets on cows. */
+  // ---------------------------------------------------------------------------------------------
+  // Riding
+  // ---------------------------------------------------------------------------------------------
+
+  /** Where a rider sits: vanilla puts the player just above the mount's back. */
+  private seatHeight(m: Mob): number {
+    return m.height * 0.75 + (m.def.animation === 'horse' ? 0.05 : 0);
+  }
+
+  /** Puts the player in the saddle after the mount has moved. */
+  private seatPlayer(): void {
+    const m = this.mount;
+    if (!m) return;
+    const p = this.player;
+    p.pos.set(m.pos.x, m.pos.y + this.seatHeight(m), m.pos.z);
+    p.vel.set(0, 0, 0);
+    p.onGround = m.onGround;
+    p.fallDistance = 0;
+  }
+
+  mountMob(m: Mob): void {
+    this.dismount(false);
+    this.mount = m;
+    m.ridden = true;
+    m.control = { forward: 0, strafe: 0, jump: 0 };
+    this.player.riding = true;
+    this.jumpCharge = 0;
+    // an untamed horse throws the player off after a moment
+    this.buckTimer = m.extra.tamed === true ? 0 : 20 + Math.floor(Math.random() * 40);
+    this.seatPlayer();
+  }
+
+  /** Steps off the mount, placing the player beside it. */
+  dismount(place = true): void {
+    const m = this.mount;
+    if (!m) return;
+    m.ridden = false;
+    m.control = null;
+    this.mount = null;
+    this.jumpCharge = 0;
+    this.player.riding = false;
+    if (place) {
+      const p = this.player;
+      const side = new THREE.Vector3(Math.cos(m.yaw), 0, -Math.sin(m.yaw));
+      for (const d of [1, -1, 0]) {
+        const x = m.pos.x + side.x * (m.width / 2 + 0.6) * d;
+        const z = m.pos.z + side.z * (m.width / 2 + 0.6) * d;
+        if (p.fitsAt(this.world, x, m.pos.y, z)) {
+          p.teleport(x, m.pos.y, z);
+          return;
+        }
+      }
+      p.teleport(m.pos.x, m.pos.y + 0.2, m.pos.z);
+    }
+  }
+
+  /** Rider input: steering, the charged jump and being bucked off an untamed horse. */
+  private rideTick(): void {
+    const m = this.mount;
+    if (!m) return;
+    const p = this.player;
+    if (m.dead || m.removed || p.dead || this.state !== 'playing') {
+      this.dismount();
+      return;
+    }
+    if (this.input.tickPressed('sneak')) {
+      this.dismount();
+      return;
+    }
+    if (this.buckTimer > 0 && --this.buckTimer === 0) {
+      this.buckHorse(m);
+      return;
+    }
+    const saddled = m.extra.saddle === true;
+    const control = m.control ?? (m.control = { forward: 0, strafe: 0, jump: 0 });
+    m.yaw = p.yaw;
+    m.headYaw = p.yaw;
+    m.headPitch = 0;
+    // a saddle is what makes a horse steerable; bareback it just carries the player
+    control.forward = saddled ? (this.input.isDown('forward') ? 1 : 0) - (this.input.isDown('back') ? 1 : 0) : 0;
+    control.strafe = saddled ? (this.input.isDown('left') ? 1 : 0) - (this.input.isDown('right') ? 1 : 0) : 0;
+    const jumpStrength = typeof m.extra.jumpAttr === 'number' ? m.extra.jumpAttr : 0;
+    if (saddled && jumpStrength > 0) {
+      if (this.input.isDown('jump')) {
+        this.jumpCharge = Math.min(1, this.jumpCharge + 0.05); // full power after one second
+      } else if (this.jumpCharge > 0) {
+        if (m.onGround) {
+          control.jump = jumpStrength * this.jumpCharge;
+          this.audio.play('horse_jump', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+        }
+        this.jumpCharge = 0;
+      }
+    } else if (saddled && this.input.isDown('jump') && m.onGround) {
+      control.jump = 0.42;
+    }
+  }
+
+  /** Vanilla taming: being thrown raises the horse's temper until it accepts the player. */
+  private buckHorse(m: Mob): void {
+    const temper = (typeof m.extra.temper === 'number' ? m.extra.temper : 0) + Math.floor(Math.random() * 20) + 5;
+    m.extra.temper = Math.min(100, temper);
+    this.dismount();
+    m.vel.y = 0.4;
+    if (m.extra.temper >= 100) {
+      this.tameHorse(m);
+    } else {
+      for (let i = 0; i < 7; i++) this.particles.spawnSprite('angry', m.pos.x + (Math.random() - 0.5) * m.width, m.pos.y + m.height + Math.random() * 0.5, m.pos.z + (Math.random() - 0.5) * m.width, 0, 0.02, 0, 20, 0.3);
+      this.audio.play('horse_angry', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+    }
+  }
+
+  private tameHorse(m: Mob): void {
+    m.extra.tamed = true;
+    m.extra.temper = 100;
+    m.persistent = true;
+    this.particles.hearts(m.pos.x, m.pos.y + m.height, m.pos.z, 7, Math.random, m.width, 0.5);
+    this.audio.play('horse_ambient', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.2 });
+    this.chat.addLine(`${m.def.name} tamed`, '#aaa');
+  }
+
+  /** The saddle, armour and chest slots a horse carries, created on first use. */
+  private equineSlots(m: Mob): { equip: Slot[]; chest: Slot[] | null } {
+    const store = (m.extra as unknown as { equip?: Slot[]; chestItems?: Slot[] });
+    if (!store.equip) store.equip = [null, null];
+    if (m.extra.chest === true && !store.chestItems) store.chestItems = new Array(15).fill(null);
+    return { equip: store.equip, chest: m.extra.chest === true ? store.chestItems! : null };
+  }
+
+  private openHorseScreen(m: Mob): void {
+    const { equip, chest } = this.equineSlots(m);
+    const sync = () => {
+      m.extra.saddle = equip[0]?.id === 'saddle';
+      m.extra.armor = equip[1]?.id ?? '';
+      if (equip[1]) this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.8 });
+    };
+    this.openScreen(horseScreen(this.player.inventory, m.def.name, equip, chest, m.def.id === 'horse', sync), sync);
+  }
+
   private interactMob(m: MobType): boolean {
     const p = this.player;
     const held = p.heldItem();
@@ -1525,6 +1670,7 @@ export class Game {
     const survival = p.gamemode === 'survival';
     const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
     if (m.def.id === 'wolf' && this.interactWolf(m, held, survival, at)) return true;
+    if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
     if (!held) return false;
     if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {
       m.extra.sheared = true;
@@ -1565,11 +1711,75 @@ export class Game {
     return false;
   }
 
+  /**
+   * Vanilla horse handling: feeding (healing, growth and temper), saddling, chests on donkeys and
+   * mules, the inventory on sneak, and mounting, which tames an untamed horse over several tries.
+   */
+  private interactEquine(m: Mob, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
+    const p = this.player;
+    const tamed = m.extra.tamed === true;
+    const food = held ? HORSE_FOODS[held.id] : undefined;
+    if (food && (m.health < m.maxHealth || m.isBaby || (!tamed && food.temper > 0) || (food.breeds && tamed))) {
+      const hurt = m.health < m.maxHealth;
+      m.health = Math.min(m.maxHealth, m.health + food.heal);
+      if (m.isBaby) {
+        const grow = typeof m.extra.grow === 'number' ? m.extra.grow : 24000;
+        m.extra.grow = Math.max(1, grow - food.grow * 10);
+      }
+      let loved = false;
+      if (!tamed && food.temper > 0) {
+        const temper = Math.min(100, (typeof m.extra.temper === 'number' ? m.extra.temper : 0) + food.temper);
+        m.extra.temper = temper;
+        if (temper >= 100) this.tameHorse(m);
+      } else if (tamed && food.breeds && !m.isBaby) {
+        const love = typeof m.extra.love === 'number' ? m.extra.love : 0;
+        const cooldown = typeof m.extra.cooldown === 'number' ? m.extra.cooldown : 0;
+        if (love <= 0 && cooldown <= 0) {
+          m.extra.love = 600;
+          loved = true;
+        }
+      }
+      if (survival) p.inventory.consumeSelected();
+      if (loved || hurt) this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+      this.audio.play('horse_eat', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (!tamed) {
+      this.mountMob(m);
+      return true;
+    }
+    if (held?.id === 'saddle' && m.extra.saddle !== true) {
+      const { equip } = this.equineSlots(m);
+      equip[0] = { id: 'saddle', count: 1 };
+      m.extra.saddle = true;
+      if (survival) p.inventory.consumeSelected();
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held?.id === 'chest' && CHESTED_EQUINES.includes(m.def.id) && m.extra.chest !== true) {
+      m.extra.chest = true;
+      this.equineSlots(m);
+      if (survival) p.inventory.consumeSelected();
+      this.audio.play('chest', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (p.sneaking) {
+      this.openHorseScreen(m);
+      return true;
+    }
+    this.mountMob(m);
+    return true;
+  }
+
   private onMobDeath(m: Mob): void {
     const byPlayer = m.lastHurtBy === 'player';
     const looting = byPlayer ? this.player.heldItem()?.enchantments?.looting ?? 0 : 0;
     for (const d of entityDrops(m.def.loot, byPlayer, looting, m.fireTicks > 0)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     if (m.def.id === 'sheep' && m.extra.sheared !== true && !m.isBaby) for (const d of entityDrops(`sheep/${String(m.extra.color ?? 'white')}`, byPlayer, looting)) this.dropStack(d, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    // a dying mount drops everything it was carrying
+    const carried = m.extra as unknown as { equip?: (ItemStack | null)[]; chestItems?: (ItemStack | null)[] };
+    for (const st of [...(carried.equip ?? []), ...(carried.chestItems ?? [])]) if (st) this.dropStack(st, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    if (m.extra.chest === true) this.dropStack({ id: 'chest', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     if (byPlayer && m.def.xp > 0) this.spawnXp(m.def.xp, m.pos.x, m.pos.y + 0.5, m.pos.z);
     this.audio.play(MOB_DEATH_SOUNDS[m.def.id] ?? m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
     this.particles.poof(m.pos.x, m.pos.y, m.pos.z, 20, Math.random, m.def.width, m.def.height);
@@ -1788,7 +1998,11 @@ export class Game {
       else if (this.input.wasPressed('command')) this.openChat('/');
       if (this.input.wasPressed('debug')) this.hud.showDebug = !this.hud.showDebug;
       if (this.input.wasPressed('perspective')) this.thirdPerson = (this.thirdPerson + 1) % 3;
-      if (this.input.wasPressed('inventory')) this.openInventory();
+      // vanilla: the inventory key opens the mount's inventory while riding one
+      if (this.input.wasPressed('inventory')) {
+        if (this.mount && EQUINE_TYPES.includes(this.mount.def.id) && this.mount.extra.tamed === true) this.openHorseScreen(this.mount);
+        else this.openInventory();
+      }
     } else if (this.state === 'chat') {
       this.input.consumeMouse();
     } else {
@@ -1845,6 +2059,8 @@ export class Game {
     this.audio.listener = { x: eye.x, y: eye.y, z: eye.z };
     this.world.flush();
     this.renderer.render();
+    const mountJump = this.mount && this.mount.extra.saddle === true && typeof this.mount.extra.jumpAttr === 'number' ? this.jumpCharge : null;
+    this.hud.setJumpCharge(mountJump);
     this.hud.update(p, this.debugText(eyeBlock), dt);
     this.hud.setOnFire(p.fireTicks > 0 && p.gamemode === 'survival' && !p.dead, this.tickCount);
     this.input.endFrame();
@@ -2124,10 +2340,11 @@ export class Game {
     for (const m of this.entities.mobs) {
       if (m.dead) continue;
       if (m.hurtTime === 9) this.audio.play(m.def.disposition === 'passive' ? m.def.id : 'hurt', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.1 });
+      if (m === this.mount && m.onGround && this.tickCount % 12 === 0 && Math.hypot(m.vel.x, m.vel.z) > 0.12) this.audio.play('horse_gallop', { x: m.pos.x, y: m.pos.y, z: m.pos.z, volume: 0.5 });
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }

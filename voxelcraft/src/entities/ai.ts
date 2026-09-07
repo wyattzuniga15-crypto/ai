@@ -1,6 +1,7 @@
 /** AI goals for mobs (vanilla-style goal selector with priorities and exclusive flags). */
 import * as THREE from 'three';
 import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
+import { EQUINE_TYPES, inheritEquine } from './mobTypes.ts';
 import { blocks } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 
@@ -381,7 +382,7 @@ export const breedGoal = (): Goal => {
       partner = null;
       let best = Infinity;
       for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, 8)) {
-        if (o === m || o.def.id !== m.def.id || o.isBaby || !(typeof o.extra.love === 'number' && o.extra.love > 0)) continue;
+        if (o === m || !breedsWith(m.def.id, o.def.id) || o.isBaby || !(typeof o.extra.love === 'number' && o.extra.love > 0)) continue;
         const d = o.distanceTo(m.pos);
         if (d < best) { best = d; partner = o; }
       }
@@ -397,8 +398,9 @@ export const breedGoal = (): Goal => {
         m.moveTimeout = 40;
       }
       if (m.distanceTo(o.pos) < 3) {
-        const baby = w.spawnMob(m.def.id, (m.pos.x + o.pos.x) / 2, Math.max(m.pos.y, o.pos.y), (m.pos.z + o.pos.z) / 2, true);
+        const baby = w.spawnMob(offspringOf(m.def.id, o.def.id), (m.pos.x + o.pos.x) / 2, Math.max(m.pos.y, o.pos.y), (m.pos.z + o.pos.z) / 2, true);
         if (baby && m.def.id === 'sheep') baby.extra.color = w.rng() < 0.5 ? m.extra.color ?? 'white' : o.extra.color ?? 'white';
+        if (baby && EQUINE_TYPES.includes(baby.def.id)) inheritEquine(baby, m, o, w.rng);
         for (const a of [m, o]) {
           a.extra.love = 0;
           a.extra.cooldown = 6000;
@@ -415,6 +417,16 @@ export const breedGoal = (): Goal => {
     },
   };
 };
+
+/** Horses and donkeys interbreed into mules; every other animal only pairs with its own kind. */
+export function breedsWith(a: string, b: string): boolean {
+  if (a === b) return a !== 'mule'; // mules are sterile in vanilla
+  return (a === 'horse' && b === 'donkey') || (a === 'donkey' && b === 'horse');
+}
+
+export function offspringOf(a: string, b: string): string {
+  return a === b ? a : 'mule';
+}
 
 /** Babies keep close to the nearest adult of their kind. */
 export const followParentGoal = (): Goal => {

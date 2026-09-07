@@ -29,8 +29,8 @@ biomes, enchantments, effects, collision shapes) from the fetched sources.
 | --- | --- |
 | Mouse | Look (click the game to capture the mouse) |
 | W A S D | Move |
-| Space | Jump · double-tap in Creative to fly |
-| Shift | Sneak (you will not walk off edges) |
+| Space | Jump · double-tap in Creative to fly · hold to charge a horse's jump |
+| Shift | Sneak (you will not walk off edges) · dismount a horse |
 | Ctrl or double-tap W | Sprint |
 | Left mouse | Mine (hold) · attack mobs |
 | Right mouse | Place / use (hold to eat, doors, buttons, beds at night, buckets, bone meal) |
@@ -38,7 +38,7 @@ biomes, enchantments, effects, collision shapes) from the fetched sources.
 | 1–9, mouse wheel | Select hotbar slot |
 | Q | Drop item (Ctrl+Q whole stack) |
 | F | Swap with off-hand |
-| E | Inventory (2x2 crafting) · right-click a crafting table, furnace or chest to open it |
+| E | Inventory (2x2 crafting) · right-click a crafting table, furnace or chest to open it · the mount's inventory while riding |
 | T | Chat · `/` opens a command |
 | F3 | Debug overlay |
 | F5 | Toggle third person |

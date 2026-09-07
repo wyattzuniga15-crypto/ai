@@ -38,6 +38,8 @@ export interface ScreenDef {
   height: number;
   /** Extra background pieces: [textureX, textureY, w, h, destX, destY]. */
   pieces?: [number, number, number, number, number, number][];
+  /** Sprites drawn over the background from their own files (slot frames vanilla blits at runtime). */
+  sprites?: { texture: string; x: number; y: number; w: number; h: number }[];
   slots: SlotDef[];
   labels?: { text: string; x: number; y: number }[];
   /** Custom overlays drawn each frame (progress bars). */
@@ -86,6 +88,11 @@ export class ContainerScreen {
       }
     } else {
       this.gui.style.background = `${T(def.texture)} 0 0 / ${256 * s}px ${256 * s}px no-repeat`;
+    }
+    for (const sp of def.sprites ?? []) {
+      const el = h('div');
+      el.style.cssText = `position:absolute;left:${sp.x * s}px;top:${sp.y * s}px;width:${sp.w * s}px;height:${sp.h * s}px;background:${T(sp.texture)} 0 0 / 100% 100% no-repeat;image-rendering:pixelated;`;
+      this.gui.append(el);
     }
     for (const l of def.labels ?? []) {
       const el = h('div', { text: l.text });

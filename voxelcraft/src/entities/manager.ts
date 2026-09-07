@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, MOB_SPECS, isSlimeChunk, mobStats, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, EQUINE_TYPES, HORSE_COATS, MOB_SPECS, initEquine, isSlimeChunk, mobStats, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -22,6 +22,9 @@ export interface ManagerHost extends MobWorld {
   topBlock(x: number, z: number): number;
   arrowHitMob?: (box: AABB, damage: number) => boolean;
 }
+
+/** Biomes whose animal groups can be horse or donkey herds (vanilla plains and savannas). */
+const HORSE_BIOMES = new Set(['plains', 'sunflower_plains', 'savanna', 'savanna_plateau', 'windswept_savanna']);
 
 export class EntityManager {
   readonly mobs: Mob[] = [];
@@ -44,6 +47,7 @@ export class EntityManager {
       m.extra.grow = 24000;
     }
     if (type === 'sheep') m.extra.color = randomSheepColor(this.host.rng);
+    if (EQUINE_TYPES.includes(type)) initEquine(m, this.host.rng);
     this.mobs.push(m);
     this.host.scene.add(m.model.group);
     return m;
@@ -192,10 +196,15 @@ export class EntityManager {
     }
     if (biome.surface.top !== 'grass_block' || biome.category === 'mushroom') return;
     const wolfVariant = wolfVariantFor(biome.id);
-    const type = wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    // vanilla plains and savannas spawn herds of horses, and one in five of those is a donkey
+    const equine = HORSE_BIOMES.has(biome.id) && h.rng() < 0.4;
+    const type = equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
+    // horse herds share one coat like vanilla's group spawn
+    const herdCoat = HORSE_COATS[Math.floor(h.rng() * HORSE_COATS.length)];
+    const want = equine ? 2 + Math.floor(h.rng() * 5) : 4;
     let spawned = 0;
-    for (let i = 0; i < 12 && spawned < 4; i++) {
+    for (let i = 0; i < 12 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 7) - 3 + 0.5;
       const pz = z + Math.floor(h.rng() * 7) - 3 + 0.5;
       const top = h.topBlock(Math.floor(px), Math.floor(pz));
@@ -205,6 +214,7 @@ export class EntityManager {
       if (!Mob.fits(h, stats, px, top + 1, pz)) continue;
       const m = this.spawn(type, px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05); // vanilla: 5% of a group spawns as babies
       if (m && type === 'wolf') m.extra.variant = wolfVariant!;
+      if (m && type === 'horse') m.extra.coat = herdCoat;
       spawned++;
     }
   }

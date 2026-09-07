@@ -104,6 +104,17 @@ export class Player {
     this.fallDistance = 0;
   }
 
+  /** True while the player is a passenger on a mob. */
+  riding = false;
+
+  /** Whether the player's box fits at a position (used when stepping off a mount). */
+  fitsAt(world: BlockSource, x: number, y: number, z: number): boolean {
+    const h = PLAYER_WIDTH / 2;
+    const box: AABB = { minX: x - h, minY: y, minZ: z - h, maxX: x + h, maxY: y + PLAYER_HEIGHT, maxZ: z + h };
+    for (const b of boxesIn(world, box)) if (aabbIntersects(box, b)) return false;
+    return true;
+  }
+
   applyMouse(dx: number, dy: number, sensitivity: number): void {
     const s = sensitivity * 0.0022;
     this.yaw -= dx * s;
@@ -117,6 +128,16 @@ export class Player {
   tick(input: Input, world: BlockSource, tickCount: number): void {
     this.prevPos.copy(this.pos);
     if (this.dead) return;
+    if (this.riding) {
+      // the mount owns the movement; the game seats the player after it has moved
+      this.sprinting = false;
+      this.sneaking = false;
+      this.flying = false;
+      this.vel.set(0, 0, 0);
+      this.fallDistance = 0;
+      this.eyeHeight += (PLAYER_EYE_HEIGHT - this.eyeHeight) * 0.5;
+      return;
+    }
     const forward = (input.isDown('forward') ? 1 : 0) - (input.isDown('back') ? 1 : 0);
     const strafe = (input.isDown('left') ? 1 : 0) - (input.isDown('right') ? 1 : 0);
     const jump = input.isDown('jump');

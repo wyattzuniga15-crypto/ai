@@ -30,6 +30,9 @@ export class Hud {
   private readonly hearts: HTMLElement[] = [];
   private readonly foods: HTMLElement[] = [];
   private readonly xpFill: HTMLElement;
+  private readonly jumpFill: HTMLElement;
+  /** Charge of a mount's jump (0-1), or null when not riding a jumping mount. */
+  private jumpCharge: number | null = null;
   private readonly xpLevel: HTMLElement;
   private readonly heldName: HTMLElement;
   private readonly f3: HTMLElement;
@@ -70,6 +73,7 @@ export class Hud {
       food.append(fb);
     }
     this.xpFill = h('div');
+    this.jumpFill = h('div');
     this.xpLevel = h('div', { id: 'xplevel' });
     this.heldName = h('div', { id: 'held-name', class: 'shadow' });
     this.f3 = h('div', { id: 'f3', class: 'hidden' });
@@ -85,6 +89,7 @@ export class Hud {
       h('div', { id: 'crosshair' }),
       h('div', { id: 'status' }, hearts, food),
       h('div', { id: 'xpbar' }, this.xpFill),
+      h('div', { id: 'jumpbar', class: 'hidden' }, this.jumpFill),
       this.xpLevel,
       this.heldName,
       this.hotbar,
@@ -92,6 +97,11 @@ export class Hud {
       this.toast,
     );
     container.append(this.root);
+  }
+
+  /** Shows the mount's jump meter in place of the experience bar; null hides it again. */
+  setJumpCharge(v: number | null): void {
+    this.jumpCharge = v;
   }
 
   /** Vertical strip of fire frames (data URL) drawn across the bottom of the view while burning. */
@@ -155,7 +165,11 @@ export class Hud {
       inner.style.backgroundImage = f >= 2 ? T('food_full') : f >= 1 ? T('food_half') : 'none';
     });
     const xpEl = this.xpFill.parentElement!;
-    xpEl.classList.toggle('hidden', !survival);
+    const jumpEl = this.jumpFill.parentElement!;
+    // vanilla swaps the experience bar for the jump meter while riding a jumping mount
+    jumpEl.classList.toggle('hidden', this.jumpCharge === null);
+    if (this.jumpCharge !== null) this.jumpFill.style.width = `${Math.round(this.jumpCharge * 100)}%`;
+    xpEl.classList.toggle('hidden', !survival || this.jumpCharge !== null);
     this.xpLevel.classList.toggle('hidden', !survival || player.xpLevel === 0);
     this.xpFill.style.width = `${Math.round(xpProgress(player) * 100)}%`;
     this.xpLevel.textContent = String(player.xpLevel);

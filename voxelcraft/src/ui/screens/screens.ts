@@ -221,3 +221,38 @@ export function hopperScreen(inv: Inventory, contents: Slot[], onChange?: () => 
     },
   };
 }
+
+/**
+ * Vanilla horse screen: a saddle slot, an armour slot for horses and, for a chested donkey or mule,
+ * three rows of five chest slots beside the (unrendered) mob preview panel.
+ */
+export function horseScreen(inv: Inventory, title: string, equip: Slot[], chest: Slot[] | null, armored: boolean, onChange?: () => void): ScreenDef {
+  const container: SlotDef[] = [
+    { x: 7, y: 35, group: 'container', icon: 'sprites/container/slot/saddle.png', maxCount: 1, get: () => equip[0], set: (s) => { equip[0] = s; onChange?.(); }, accepts: (s) => s.id === 'saddle' },
+  ];
+  if (armored) container.push({ x: 7, y: 53, group: 'container', icon: 'sprites/container/slot/horse_armor.png', maxCount: 1, get: () => equip[1], set: (s) => { equip[1] = s; onChange?.(); }, accepts: (s) => s.id.endsWith('_horse_armor') });
+  if (chest) {
+    for (let r = 0; r < 3; r++)
+      for (let c = 0; c < 5; c++) {
+        const i = r * 5 + c;
+        container.push({ x: 80 + c * 18, y: 18 + r * 18, group: 'container', get: () => chest[i], set: (s) => { chest[i] = s; onChange?.(); } });
+      }
+  }
+  const player = playerSlots(inv);
+  return {
+    texture: 'container/horse.png', width: 176, height: 166,
+    // vanilla blits the equipment and chest slot frames over the window at runtime
+    sprites: [
+      { texture: 'sprites/container/slot.png', x: 6, y: 34, w: 18, h: 18 },
+      ...(armored ? [{ texture: 'sprites/container/slot.png', x: 6, y: 52, w: 18, h: 18 }] : []),
+      ...(chest ? [{ texture: 'sprites/container/horse/chest_slots.png', x: 79, y: 17, w: 90, h: 54 }] : []),
+    ],
+    slots: [...container, ...player],
+    labels: [{ text: title, x: 8, y: 6 }, { text: 'Inventory', x: 8, y: 72 }],
+    quickMove(from, stack) {
+      if (from.group === 'container') return reversePlayer(player);
+      if (stack.id === 'saddle' || stack.id.endsWith('_horse_armor')) return container;
+      return chest ? container.filter((c) => c.group === 'container' && c.x >= 80) : reversePlayer(player);
+    },
+  };
+}

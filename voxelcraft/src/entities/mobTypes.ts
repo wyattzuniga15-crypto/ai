@@ -1,7 +1,7 @@
 /** Mob definitions: vanilla box models (classic layouts) on the entity textures, stats from data/mobs.json, AI goal lists. */
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
-import type { Goal, MobStats } from './mob.ts';
+import type { Goal, Mob, MobStats } from './mob.ts';
 import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, randomLookGoal, sitGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
@@ -205,6 +205,117 @@ const chickenModel: ModelDef = {
   ],
 };
 
+/**
+ * Vanilla equine model (horse, donkey, mule and their saddle and chest layers), converted from the
+ * shipped box layout with `tools/geo-to-model.ts`. `ears` picks the short horse ears or the long
+ * mule ones; the markings layer is a second skin like the drowned's outer layer.
+ */
+/** Texture layers the equine model is built with; the mob swaps them per variant and equipment. */
+export const HORSE_MARKING_LAYER = 'horse/horse_markings_white.png';
+export const HORSE_ARMOR_LAYER = 'equipment/horse_body/iron.png';
+
+/** Vanilla 1.21 horse armour textures and armour points, one per material. */
+export const HORSE_ARMOR: Record<string, { texture: string; points: number }> = {
+  leather_horse_armor: { texture: 'leather', points: 3 },
+  copper_horse_armor: { texture: 'copper', points: 4 },
+  iron_horse_armor: { texture: 'iron', points: 5 },
+  golden_horse_armor: { texture: 'gold', points: 7 },
+  diamond_horse_armor: { texture: 'diamond', points: 11 },
+  netherite_horse_armor: { texture: 'netherite', points: 12 },
+};
+
+export function horseArmorTexture(item: string): string | null {
+  const a = HORSE_ARMOR[item];
+  return a ? `equipment/horse_body/${a.texture}.png` : null;
+}
+
+export function horseArmorPoints(item: string): number {
+  return HORSE_ARMOR[item]?.points ?? 0;
+}
+
+const equineModel = (texture: string, ears: 'horse' | 'mule', markings: string | null = HORSE_MARKING_LAYER, saddle = 'equipment/horse_saddle/saddle.png', armor = false): ModelDef => {
+  // vanilla groups neck, head, mouth, ears and mane into one "head parts" assembly that tilts as a
+  // unit and carries the look rotation, so they all live in the `head` part here
+  const parts: ModelDef['parts'] = [
+    { name: 'body', pivot: [0, 11, 9], boxes: [{ uv: [0, 32], box: [-5, -8, -20, 10, 10, 22] }] },
+    { name: 'head', pivot: [0, 7, -8], rotation: [0.5236, 0, 0], boxes: [{ uv: [0, 35], box: [-2, -11, -3, 4, 12, 7] }, { uv: [0, 13], box: [-3, -16, -3, 6, 5, 7] }, { uv: [0, 25], box: [-2, -16, -8, 4, 5, 5] }] },
+    { name: 'mane', parent: 'head', pivot: [0, 7, -8], boxes: [{ uv: [56, 36], box: [-1, -16, 4, 2, 16, 2] }] },
+    { name: 'tail', parent: 'body', pivot: [0, 4, 11], rotation: [0.5236, 0, 0], boxes: [{ uv: [42, 36], box: [-1.5, 0, -2, 3, 14, 4] }] },
+    { name: 'left_hind_leg', pivot: [3, 13, 9], boxes: [{ uv: [48, 21], box: [-2, 0, -2, 4, 11, 4], mirror: true }] },
+    { name: 'right_hind_leg', pivot: [-3, 13, 9], boxes: [{ uv: [48, 21], box: [-2, 0, -2, 4, 11, 4] }] },
+    { name: 'left_front_leg', pivot: [3, 13, -9], boxes: [{ uv: [48, 21], box: [-2, 0, -2, 4, 11, 4], mirror: true }] },
+    { name: 'right_front_leg', pivot: [-3, 13, -9], boxes: [{ uv: [48, 21], box: [-2, 0, -2, 4, 11, 4] }] },
+  ];
+  const skin = parts.slice();
+  if (ears === 'horse') {
+    parts.push({ name: 'left_ear', parent: 'head', pivot: [0, 7, -8], rotation: [0, 0, -0.0873], boxes: [{ uv: [19, 16], box: [-0.5, -18, 2.99, 2, 3, 1], mirror: true }] });
+    parts.push({ name: 'right_ear', parent: 'head', pivot: [0, 7, -8], rotation: [0, 0, 0.0873], boxes: [{ uv: [19, 16], box: [-1.5, -18, 2.99, 2, 3, 1] }] });
+  } else {
+    parts.push({ name: 'left_ear', parent: 'head', pivot: [0, 7, -8], rotation: [0, 0, -0.2618], boxes: [{ uv: [0, 12], box: [-3, -22, 2.99, 2, 7, 1], mirror: true }] });
+    parts.push({ name: 'right_ear', parent: 'head', pivot: [0, 7, -8], rotation: [0, 0, 0.2618], boxes: [{ uv: [0, 12], box: [1, -22, 2.99, 2, 7, 1] }] });
+  }
+  // saddle, bridle and reins, shown once a saddle is equipped
+  parts.push(
+    { name: 'saddle', parent: 'body', pivot: [0, 2, 2], texture: saddle, hidden: true, boxes: [{ uv: [26, 0], box: [-5, 1, -5.5, 10, 9, 9], inflate: 0.5 }] },
+    { name: 'head_saddle', parent: 'head', pivot: [0, 7, -8], texture: saddle, hidden: true, boxes: [{ uv: [19, 0], box: [-2, -16, -5, 4, 5, 2], inflate: 0.25 }, { uv: [0, 0], box: [-3, -16, -3, 6, 5, 7], inflate: 0.25 }] },
+    { name: 'left_bit', parent: 'head_saddle', pivot: [0, 7, -8], texture: saddle, hidden: true, boxes: [{ uv: [29, 5], box: [2, -14, -6, 1, 2, 2] }] },
+    { name: 'right_bit', parent: 'head_saddle', pivot: [0, 7, -8], texture: saddle, hidden: true, boxes: [{ uv: [29, 5], box: [-3, -14, -6, 1, 2, 2] }] },
+    { name: 'left_rein', parent: 'head', pivot: [0, 7, -8], texture: saddle, hidden: true, boxes: [{ uv: [32, 2], box: [3.1, -10, -11.5, 0, 3, 16] }] },
+    { name: 'right_rein', parent: 'head', pivot: [0, 7, -8], texture: saddle, hidden: true, boxes: [{ uv: [32, 2], box: [-3.1, -10, -11.5, 0, 3, 16] }] },
+    // chest bags (donkeys and mules carrying a chest)
+    { name: 'left_bag', pivot: [-5, 3, 11], rotation: [0, 1.5708, 0], hidden: true, boxes: [{ uv: [26, 21], box: [-9, 0, 0, 8, 8, 3] }] },
+    { name: 'right_bag', pivot: [5, 3, 11], rotation: [0, -1.5708, 0], hidden: true, boxes: [{ uv: [26, 21], box: [1, 0, 0, 8, 8, 3], mirror: true }] },
+  );
+  // markings layer: only horses carry one, drawn on the coat's own boxes like vanilla's overlay
+  if (markings) {
+    for (const p of skin) {
+      parts.push({ name: `${p.name}_marking`, parent: p.name, pivot: p.pivot, texture: markings, boxes: p.boxes.map((b) => ({ ...b, inflate: (b.inflate ?? 0) + 0.02 })) });
+    }
+  }
+  // horse armour is the same body drawn slightly larger in the armour material's texture
+  if (armor) {
+    for (const p of skin) {
+      parts.push({ name: `${p.name}_armor`, parent: p.name, pivot: p.pivot, hidden: true, texture: HORSE_ARMOR_LAYER, boxes: p.boxes.map((b) => ({ ...b, inflate: (b.inflate ?? 0) + 0.1 })) });
+    }
+  }
+  return { texture, texW: 64, texH: 64, parts };
+};
+
+/** Vanilla horse coats and marking overlays (Variant and Markings). */
+export const HORSE_COATS = ['white', 'creamy', 'chestnut', 'brown', 'black', 'gray', 'darkbrown'];
+export const HORSE_MARKINGS = ['none', 'white', 'whitefield', 'whitedots', 'blackdots'];
+
+export function horseCoatTexture(coat: string): string {
+  return `horse/horse_${HORSE_COATS.includes(coat) ? coat : 'white'}.png`;
+}
+
+export function horseMarkingTexture(marking: string): string | null {
+  return marking && marking !== 'none' ? `horse/horse_markings_${marking}.png` : null;
+}
+
+/**
+ * Vanilla AbstractHorse attribute rolls: health 15–30, movement speed 0.1125–0.3375 and jump
+ * strength 0.4–1.0, each the average of three rolls so extremes are rare.
+ */
+export function horseAttributes(rng: () => number): { health: number; speed: number; jump: number } {
+  return {
+    health: 15 + Math.floor(rng() * 9) + Math.floor(rng() * 9),
+    speed: (0.44999998807907104 + rng() * 0.3 + rng() * 0.3 + rng() * 0.3) * 0.25,
+    jump: 0.4 + rng() * 0.2 + rng() * 0.2 + rng() * 0.2,
+  };
+}
+
+/** Vanilla horse foods: healing, growth, temper and whether they can start breeding. */
+export const HORSE_FOODS: Record<string, { heal: number; grow: number; temper: number; breeds?: boolean }> = {
+  wheat: { heal: 2, grow: 20, temper: 3 },
+  sugar: { heal: 1, grow: 30, temper: 3 },
+  apple: { heal: 3, grow: 60, temper: 3 },
+  hay_block: { heal: 20, grow: 180, temper: 0 },
+  golden_carrot: { heal: 4, grow: 60, temper: 5, breeds: true },
+  golden_apple: { heal: 10, grow: 240, temper: 10, breeds: true },
+  enchanted_golden_apple: { heal: 10, grow: 240, temper: 10, breeds: true },
+};
+
 interface MobSpec {
   model: ModelDef;
   animation: MobStats['animation'];
@@ -235,6 +346,7 @@ export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_F
 /** Meat a wolf eats (heals a hurt tamed wolf, otherwise breeds). */
 export const WOLF_FOODS = ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit', 'rotten_flesh'];
 BREEDING_FOODS.wolf = WOLF_FOODS;
+for (const e of ['horse', 'donkey', 'mule']) BREEDING_FOODS[e] = ['golden_carrot', 'golden_apple', 'enchanted_golden_apple'];
 
 /** Vanilla 1.20.5 wolf variants by spawn biome; null where wolves do not spawn naturally. */
 export function wolfVariantFor(biomeId: string): string | null {
@@ -289,7 +401,66 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
   witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   salmon: { model: salmonModel, animation: 'fish', eyeHeight: 0.26, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
+  // equines: attributes are rolled per animal, so the table values are only the vanilla averages
+  horse: { model: equineModel('horse/horse_white.png', 'horse', HORSE_MARKING_LAYER, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
+  donkey: { model: equineModel('horse/donkey.png', 'mule', null, 'equipment/donkey_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.425, followRange: 16, goals: () => equineGoals() },
+  mule: { model: equineModel('horse/mule.png', 'mule', null, 'equipment/mule_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
 };
+
+/** Equines wander and panic like other animals but never follow the player for food. */
+const equineGoals = (): Goal[] => [floatGoal, panicGoal(1.2), breedGoal(), followParentGoal(), wanderGoal(120, 0.7, 10), lookAtPlayerGoal(6), randomLookGoal];
+
+/**
+ * Rolls a new equine's attributes and coat: vanilla gives every horse its own health, speed and
+ * jump strength, plus one of seven coats and five marking overlays; donkeys and mules have none.
+ */
+export function initEquine(m: Mob, rng: () => number): void {
+  const a = horseAttributes(rng);
+  m.extra.speedAttr = a.speed;
+  m.extra.jumpAttr = a.jump;
+  m.maxHealth = a.health;
+  m.health = a.health;
+  m.extra.maxHealth = a.health;
+  if (m.def.id === 'horse') {
+    m.extra.coat = HORSE_COATS[Math.floor(rng() * HORSE_COATS.length)];
+    m.extra.marking = HORSE_MARKINGS[Math.floor(rng() * HORSE_MARKINGS.length)];
+  }
+}
+
+/**
+ * Vanilla foal attributes: each stat is the average of both parents and one fresh roll, so a foal
+ * can beat its parents but rarely by much. Foals of tamed parents are born tamed.
+ */
+export function inheritEquine(baby: Mob, a: Mob, b: Mob, rng: () => number): void {
+  const fresh = horseAttributes(rng);
+  const stat = (key: 'speedAttr' | 'jumpAttr', roll: number): number => {
+    const av = typeof a.extra[key] === 'number' ? (a.extra[key] as number) : roll;
+    const bv = typeof b.extra[key] === 'number' ? (b.extra[key] as number) : roll;
+    return (av + bv + roll) / 3;
+  };
+  baby.extra.speedAttr = stat('speedAttr', fresh.speed);
+  baby.extra.jumpAttr = stat('jumpAttr', fresh.jump);
+  const health = Math.round((a.maxHealth + b.maxHealth + fresh.health) / 3);
+  baby.maxHealth = health;
+  baby.health = health;
+  baby.extra.maxHealth = health;
+  if (baby.def.id === 'horse') {
+    // vanilla picks each parent's coat or a fresh one at random
+    const parent = rng() < 0.5 ? a : b;
+    baby.extra.coat = typeof parent.extra.coat === 'string' && rng() < 0.9 ? parent.extra.coat : HORSE_COATS[Math.floor(rng() * HORSE_COATS.length)];
+    baby.extra.marking = typeof parent.extra.marking === 'string' && rng() < 0.9 ? parent.extra.marking : HORSE_MARKINGS[Math.floor(rng() * HORSE_MARKINGS.length)];
+  }
+  if (a.extra.tamed === true && b.extra.tamed === true) {
+    baby.extra.tamed = true;
+    baby.extra.temper = 100;
+  }
+  baby.persistent = true;
+}
+
+/** Horse-family mobs the player can ride; donkeys and mules also carry chests. */
+export const EQUINE_TYPES = ['horse', 'donkey', 'mule'];
+export const CHESTED_EQUINES = ['donkey', 'mule'];
+
 
 export function mobStats(id: string): MobStats | null {
   const spec = MOB_SPECS[id];

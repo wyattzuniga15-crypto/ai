@@ -6,6 +6,7 @@ import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './box
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
+import { HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -31,7 +32,7 @@ export interface MobStats {
   flying?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -106,6 +107,13 @@ export interface MobSave {
   item?: { id: string; count: number; damage?: number; enchantments?: Record<string, number>; name?: string };
 }
 
+/**
+ * Ridden mounts map their speed attribute onto vanilla's ground speed. Velocity settles at
+ * `accel × f / (1 − f)` with the 0.546 ground friction below, so this factor turns the 0.1125–0.3375
+ * attribute range into 4.8–14.5 blocks per second, exactly the range vanilla horses cover.
+ */
+const RIDDEN_ACCEL = 1.79;
+
 let nextId = 1;
 
 /** Chunk material and fire tile ids used to draw burning mobs; set once by the game. */
@@ -174,6 +182,10 @@ export class Mob {
   lastHurtTime = -1000;
   /** Mob-specific state (creeper swelling, sheep wool...). */
   extra: Record<string, number | boolean | string> = {};
+  /** Set while the player rides this mob: goals stop and `control` drives movement. */
+  ridden = false;
+  /** Steering from the rider: forward/strafe in −1..1, and a jump impulse for the next tick. */
+  control: { forward: number; strafe: number; jump: number } | null = null;
   readonly goals: Goal[];
   private active: Goal | null = null;
   readonly model: BuiltModel;
@@ -222,6 +234,9 @@ export class Mob {
   /** Damage from any source; returns false when invulnerable. */
   hurt(amount: number, from: THREE.Vector3 | null, by: 'player' | 'other', knockback = 0.4): boolean {
     if (this.dead || this.invulnerable > 0) return false;
+    // horse armour soaks damage with vanilla's armour formula (4% per point)
+    const points = typeof this.extra.armor === 'string' ? horseArmorPoints(this.extra.armor) : 0;
+    if (points > 0) amount *= 1 - Math.min(20, points) / 25;
     this.health -= amount;
     this.invulnerable = 10;
     this.hurtTime = 10;
@@ -273,8 +288,13 @@ export class Mob {
     if (this.def.aquatic && !this.inWater && this.age % 20 === 0) this.hurt(1, null, 'other', 0);
     if (this.dead) return;
     this.ageTick(w);
-    this.selectGoal(w);
-    this.active?.tick(this, w);
+    if (this.ridden) {
+      this.moveTarget = null;
+      this.lookTarget = null;
+    } else {
+      this.selectGoal(w);
+      this.active?.tick(this, w);
+    }
     this.moveTick(w);
     this.animateTick();
   }
@@ -333,11 +353,29 @@ export class Mob {
 
   /** Moves toward `moveTarget` with vanilla-like acceleration, friction, gravity and auto-jump. */
   private moveTick(w: MobWorld): void {
-    const attr = this.def.speed;
+    const attr = typeof this.extra.speedAttr === 'number' ? this.extra.speedAttr : this.def.speed;
     let accel = 0;
     let dirX = 0;
     let dirZ = 0;
-    if (this.moveTarget) {
+    if (this.control) {
+      // steered by a rider: vanilla mounts move at their own speed attribute in the rider's facing
+      const c = this.control;
+      const len = Math.hypot(c.forward, c.strafe);
+      if (len > 0.001) {
+        const sin = Math.sin(this.yaw);
+        const cos = Math.cos(this.yaw);
+        dirX = (-c.strafe * cos - c.forward * sin) / Math.max(1, len);
+        dirZ = (c.strafe * sin - c.forward * cos) / Math.max(1, len);
+        accel = attr * RIDDEN_ACCEL * (this.onGround ? 1 : 0.2);
+        if (this.inWater) accel *= 0.5;
+      }
+      if (c.jump > 0 && this.onGround) {
+        this.vel.y = c.jump;
+        this.onGround = false;
+      }
+      c.jump = 0;
+      this.bodyYaw = this.yaw;
+    } else if (this.moveTarget) {
       const dx = this.moveTarget.x - this.pos.x;
       const dz = this.moveTarget.z - this.pos.z;
       const dist = Math.hypot(dx, dz);
@@ -454,6 +492,18 @@ export class Mob {
     }
   }
   private currentTexture: string | null = null;
+
+  /** Swaps one of the model's skin layers (markings, armour) by the texture it was built with. */
+  setLayerTexture(layer: string, path: string): void {
+    if (this.layerPaths.get(layer) === path) return;
+    this.layerPaths.set(layer, path);
+    const mat = this.model.layers.get(layer);
+    if (mat) {
+      mat.map = entityTexture(this.base, path);
+      mat.needsUpdate = true;
+    }
+  }
+  private readonly layerPaths = new Map<string, string>();
 
   /** Removes render objects that live outside the model group. */
   destroy(): void {
@@ -584,6 +634,39 @@ export class Mob {
         g.rotation.z = this.inWater || this.onGround === false ? 0 : Math.PI / 2; // fish lie on their side on land
         break;
       }
+      case 'horse': {
+        // vanilla equine gait: the diagonal pairs swing together, faster than a walking cow
+        const gallop = Math.min(1, amt * 1.4);
+        set('right_hind_leg', legA * 0.8 * gallop);
+        set('left_hind_leg', legB * 0.8 * gallop);
+        set('right_front_leg', legB * 0.8 * gallop);
+        set('left_front_leg', legA * 0.8 * gallop);
+        const base = this.model.basePose;
+        const tail = parts.get('tail');
+        const tailBase = base.get('tail');
+        if (tail && tailBase) {
+          tail.rotation.x = tailBase.x;
+          tail.rotation.y = Math.cos(swing * 0.6662) * 0.3 * amt; // the tail swishes as it moves
+        }
+        // the head assembly keeps its rest tilt and adds the look angles on top
+        const headBase = base.get('head');
+        if (head && headBase) {
+          head.rotation.x = headBase.x - this.headPitch * 0.6;
+          head.rotation.y = -shortAngle(by, this.headYaw) * 0.6;
+          if (baby) head.scale.setScalar(1.5); // foals keep a slightly oversized head, not a doubled one
+        }
+        const saddled = this.extra.saddle === true;
+        for (const n of ['saddle', 'head_saddle', 'left_bit', 'right_bit', 'left_rein', 'right_rein']) {
+          const p = parts.get(n);
+          if (p) p.visible = saddled;
+        }
+        const chested = this.extra.chest === true;
+        for (const n of ['left_bag', 'right_bag']) {
+          const p = parts.get(n);
+          if (p) p.visible = chested;
+        }
+        break;
+      }
       case 'phantom': {
         const flap = Math.cos((this.age + alpha) * 0.13);
         const lb = parts.get('left_wing_base'), lt = parts.get('left_wing_tip'), rb = parts.get('right_wing_base'), rt = parts.get('right_wing_tip');
@@ -593,6 +676,16 @@ export class Mob {
         if (rt) rt.rotation.z = -(0.1 + flap * 0.3);
         break;
       }
+    }
+    if (this.def.animation === 'horse') {
+      if (typeof this.extra.coat === 'string') this.setTexture(horseCoatTexture(this.extra.coat));
+      const marking = horseMarkingTexture(String(this.extra.marking ?? 'none'));
+      for (const [name, part] of this.model.parts) if (name.endsWith('_marking')) part.visible = marking !== null;
+      if (marking) this.setLayerTexture(HORSE_MARKING_LAYER, marking);
+      const armor = String(this.extra.armor ?? '');
+      const armorTex = horseArmorTexture(armor);
+      for (const [name, part] of this.model.parts) if (name.endsWith('_armor')) part.visible = armorTex !== null;
+      if (armorTex) this.setLayerTexture(HORSE_ARMOR_LAYER, armorTex);
     }
     if (this.def.id === 'wolf') {
       const tamed = this.extra.tamed === true;

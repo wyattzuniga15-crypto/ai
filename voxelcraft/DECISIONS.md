@@ -273,3 +273,19 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     patches all over grassy hills; moving the call after the surface pass (ores only ever replace
     stone and deepslate) restores vanilla's look and costs nothing.
 
+53. **Entity models come from the shipped Bedrock geometry.** Java hardcodes its entity models in
+    code, but Mojang publishes the same box layouts and texture nets as geometry JSON for Bedrock,
+    so `tools/geo-to-model.ts` converts those into our part lists (y flip, feet at 24, boxes rebased
+    onto their pivot). The horse's parts, pivots and UVs are vanilla's to the pixel; the head, neck,
+    mouth, ears and mane are merged into one `head` group the way Java's `head_parts` is, so the
+    look rotation tilts the whole assembly. Saddles, bridles, reins and horse armour are separate
+    texture layers (`entity/equipment/...`), matching 1.21's equipment textures.
+
+54. **Riding is a control channel on the mob, not a second physics body.** A ridden mob keeps its
+    own physics and collision; the game feeds it steering (`forward`, `strafe`, `jump`) each tick and
+    seats the player on its back afterwards. Ridden acceleration is `speed × 1.79`, which with the
+    0.546 ground friction settles at vanilla's 4.8–14.5 blocks per second across the 0.1125–0.3375
+    speed attribute, and a charged jump uses the jump-strength attribute directly (0.4–1.0, so 1.1 to
+    5.3 blocks). The mount is not saved with the player: reloading a world leaves the horse standing
+    where it was, saddle and all.
+

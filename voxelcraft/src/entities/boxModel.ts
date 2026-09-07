@@ -39,6 +39,10 @@ export interface BuiltModel {
   group: THREE.Group;
   parts: Map<string, THREE.Group>;
   materials: THREE.MeshBasicMaterial[];
+  /** Rotation each part is built with, so animations can pose relative to the model's rest pose. */
+  basePose: Map<string, THREE.Euler>;
+  /** Material per texture the model was built with, so skin layers can be swapped by name. */
+  layers: Map<string, THREE.MeshBasicMaterial>;
 }
 
 const textureCache = new Map<string, THREE.Texture>();
@@ -108,10 +112,15 @@ export function boxGeometry(def: BoxDef, texW: number, texH: number): THREE.Buff
 export function buildModel(def: ModelDef, base: string): BuiltModel {
   const group = new THREE.Group();
   const parts = new Map<string, THREE.Group>();
+  const basePose = new Map<string, THREE.Euler>();
   const materials: THREE.MeshBasicMaterial[] = [];
+  const layers = new Map<string, THREE.MeshBasicMaterial>();
   const matFor = (tex: string) => {
+    const existing = layers.get(tex);
+    if (existing) return existing;
     const m = new THREE.MeshBasicMaterial({ map: entityTexture(base, tex), transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
     materials.push(m);
+    layers.set(tex, m);
     return m;
   };
   const mainMat = matFor(def.texture);
@@ -120,6 +129,7 @@ export function buildModel(def: ModelDef, base: string): BuiltModel {
     g.name = p.name;
     g.position.set(-p.pivot[0], -p.pivot[1], p.pivot[2]);
     if (p.rotation) g.rotation.set(-p.rotation[0], -p.rotation[1], p.rotation[2]);
+    basePose.set(p.name, g.rotation.clone());
     const mat = p.texture ? matFor(p.texture) : mainMat;
     for (const b of p.boxes) {
       const mesh = new THREE.Mesh(boxGeometry(b, def.texW, def.texH), mat);
@@ -139,5 +149,5 @@ export function buildModel(def: ModelDef, base: string): BuiltModel {
   group.position.y = 24 / 16;
   const root = new THREE.Group();
   root.add(group);
-  return { group: root, parts, materials };
+  return { group: root, parts, materials, basePose, layers };
 }
