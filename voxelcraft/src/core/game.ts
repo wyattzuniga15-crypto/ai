@@ -35,6 +35,7 @@ import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
 import { Chat } from '../ui/chat.ts';
 import { CreditsScreen } from '../ui/credits.ts';
+import { creativeScreen } from '../ui/screens/creative.ts';
 import { ItemIcons } from '../ui/icons.ts';
 import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
@@ -4805,7 +4806,24 @@ export class Game {
     this.signs.prune(seen);
   }
 
+  /** The tab and scroll the creative menu was left on, so it opens where it was last closed. */
+  private creativeState = { tab: 'building_blocks', scroll: 0, query: '' };
+
   openInventory(): void {
+    // in creative vanilla shows its own tabbed list of everything instead of the survival window
+    if (this.player.gamemode === 'creative') {
+      this.openScreen(creativeScreen(this.player.inventory, this.creativeState, {
+        icons: this.icons,
+        guiScale: this.options.guiScale,
+        openInventory: () => this.openSurvivalInventory(),
+        refresh: () => this.screen?.refresh(),
+      }));
+      return;
+    }
+    this.openSurvivalInventory();
+  }
+
+  private openSurvivalInventory(): void {
     const grid = makeGrid(2, 2);
     const def = inventoryScreen(this.player.inventory, grid);
     let preview: PlayerPreview | null = null;

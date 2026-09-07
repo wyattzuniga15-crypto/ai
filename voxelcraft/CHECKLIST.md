@@ -59,7 +59,7 @@ coverage counts in `COVERAGE.md`.
 - [x] More mobs, sixth slice: villagers and the wandering trader (vanilla four-layer skin with biome type, profession clothes and level badge, job site blocks hand out professions, the full vanilla trade economy in `data/trades.json`, the merchant screen with the offer list, prices that rise with demand, villager experience and the five levels, restocking at the job site, a trader that turns up for a day at a time)
 - [x] More mobs, seventh slice: bees (vanilla model with the four skins, pollination loop between flowers and the hive, bee nests generated on trees by biome chance with three bees each, honey levels that fill as bees come home, shears for honeycomb and bottles for honey, stings that poison and kill the bee, campfire smoke keeping the swarm calm)
 - [x] More mobs, eighth slice: illagers (pillagers with crossbows, vindicators, evokers casting vexes and fang lines, vexes, ravagers, all hunting villagers as well as the player; patrols spawn from the fifth day with a captain whose death leaves Bad Omen)
-- [ ] More mobs, next: nether and end mobs (phases 4 and 5)
+- [x] More mobs, ninth slice: the Nether's and the End's — piglins, brutes, zombified piglins, hoglins, zoglins, striders, blazes, ghasts and magma cubes; the Wither; shulkers, end crystals and the Ender Dragon (all in phases 4 and 5 above)
 - [x] XP orbs as entities (vanilla value split, attraction, pickup sound), levels, death drops
 - [x] Mob sounds (ambient/hurt voices for every type), particles (block crumbs and cracks, crit and damage indicators, death poofs, hearts), fire (burning mobs draw vanilla flame billboards, player fire ticks with the first-person flame overlay, burning zombies ignite), babies (half size, big head, 24000-tick growth, follow adults, 5% of natural groups), breeding with vanilla foods/love/cooldown/XP, chicken eggs, shearing with coloured wool and grazing regrowth, milking
 - [x] Sound effects synthesized on Web Audio: digging/placing by material, footsteps, hurt/death, eating, XP, pickups, explosions, bows, doors, chests, buttons, mob ambient and hurt sounds; master volume option
@@ -117,4 +117,5 @@ coverage counts in `COVERAGE.md`.
 - [x] End, last slice: chorus fruit and purpur — a flower climbing and branching the way vanilla grows one, a stem that comes down when what it stood on goes, the fruit that throws whoever eats it eight blocks in any direction, and the popped fruit that smelts into purpur and end rods
 
 ## Phase 6 – polish
-- [ ] Everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio, creative inventory tabs and search
+- [x] Polish, first slice: the creative menu — vanilla's tabbed list of every item with its scroll bar, its search tab and the survival inventory beside it; and the item models behind the icons, so a compass and a clock draw as themselves
+- [ ] Polish, next: everything still stubbed in `COVERAGE.md`, performance pass (60 fps at 8 chunks on integrated graphics), audio (music, ambient loops, records)

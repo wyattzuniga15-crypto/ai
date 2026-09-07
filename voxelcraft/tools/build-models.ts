@@ -74,6 +74,25 @@ const SYNTHESIZED_MODELS: Record<string, Json> = {
   },
 };
 
+/** The first plain model an items/ definition names, however deep its conditions go. */
+function firstModel(node: unknown): string | null {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = firstModel(child);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!node || typeof node !== 'object') return null;
+  const o = node as Json;
+  if (o.type === 'minecraft:model' && typeof o.model === 'string') return stripNs(o.model);
+  for (const value of Object.values(o)) {
+    const found = firstModel(value);
+    if (found) return found;
+  }
+  return null;
+}
+
 export function buildModels(): { blockstates: number; models: number; bytes: number } {
   const blockstatesDir = path.join(ASSETS, 'blockstates');
   const modelsDir = path.join(ASSETS, 'models');
@@ -92,6 +111,18 @@ export function buildModels(): { blockstates: number; models: number; bytes: num
     }
   }
   for (const [name, model] of Object.entries(SYNTHESIZED_MODELS)) models[name] = model;
+  // Items whose look is chosen at runtime (a compass by its needle, a clock by the sun) carry no
+  // model of their own, only an items/ definition that picks one. The first model such a definition
+  // names is the one to draw them by, which is what the compass in a frame looks like.
+  const itemsDir = path.join(ASSETS, 'items');
+  if (fs.existsSync(itemsDir)) {
+    for (const f of listFiles(itemsDir, '.json')) {
+      const id = f.slice(0, -5);
+      if (models[`item/${id}`]) continue;
+      const first = firstModel(readJson<Json>(path.join(itemsDir, f)));
+      if (first && models[first]) models[`item/${id}`] = { parent: first };
+    }
+  }
   const out = path.join(PUBLIC, 'models.json');
   writeJson(out, { blockstates, models });
   return { blockstates: Object.keys(blockstates).length, models: Object.keys(models).length, bytes: fs.statSync(out).size };

@@ -938,3 +938,21 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      any direction, sixteen tries at somewhere with a floor and room to stand and nothing at all if
      none of them is safe. Smelting the fruit and crafting the popped one into purpur and end rods
      were already in the recipe data and needed nothing new.
+
+107. **The creative menu.** Vanilla keeps the membership of each creative tab in code rather than in
+     any data file, so ours sorts the item list into vanilla's own eleven tabs by what each item is:
+     its behaviour, the block it places, and the family its name puts it in — a coloured block is one
+     of the sixteen dye names in front of one of the coloured families, a redstone block is anything
+     with a redstone behaviour or a door, a natural block is what the world lays down itself, and so
+     on. Inside a tab items keep their registry order, which is close to the order vanilla lists them
+     in because the registry itself was arranged that way. The assignment is therefore ours, not
+     vanilla's exact list; the tabs, the search and the scroll bar behave as vanilla's do. Every slot
+     in the grid is a bottomless source — taking from one leaves it there — and anything dropped back
+     onto the list is thrown away, which is how vanilla's own list behaves.
+
+     Making the menu draw every item turned up a whole class of missing icons. Since 1.21.4 an item
+     whose look is chosen at runtime — a compass by its needle, a clock by the sun — has no model of
+     its own, only an `items/` definition that picks between thirty-odd of them. The asset script now
+     resolves such a definition down to the first model it names, which is what the icon is drawn
+     from. Eleven items are still without one, all of them things vanilla draws with a block entity
+     renderer: decorated pots, the dragon head and the copper golem statues.

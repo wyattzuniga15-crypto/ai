@@ -99,6 +99,23 @@ test('loads a world, breaks and places a block, runs a command', async ({ page }
   await page.waitForFunction(() => window.voxelcraft.game.player.gamemode === 'creative');
   await page.waitForFunction(() => window.voxelcraft.game.state === 'playing');
 
+  // the creative menu: vanilla's tabbed list of everything, which E opens instead in this mode
+  await page.keyboard.press('e');
+  await page.waitForSelector('.gui .creative-tab');
+  await page.waitForFunction(() => window.voxelcraft.game.state === 'gui');
+  expect(await page.locator('.gui .creative-tab').count()).toBeGreaterThan(10);
+  expect(await page.locator('.gui .slot.container img').count()).toBeGreaterThan(40);
+  await page.keyboard.press('e');
+  await page.waitForFunction(() => window.voxelcraft.game.state === 'playing');
+
+  // back to survival for the crafting grid, which is the inventory this mode opens
+  await page.keyboard.press('t');
+  await page.waitForSelector('#chat.open input');
+  await page.keyboard.type('/gamemode survival');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.voxelcraft.game.player.gamemode === 'survival');
+  await page.waitForFunction(() => window.voxelcraft.game.state === 'playing');
+
   // give a log, open the inventory and craft planks in the 2x2 grid
   await page.keyboard.press('t');
   await page.waitForSelector('#chat.open input');
