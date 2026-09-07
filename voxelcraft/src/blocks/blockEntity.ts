@@ -6,6 +6,8 @@ import { items } from '../items/registry.ts';
 export interface ContainerEntity {
   type: 'chest' | 'barrel' | 'shulker_box' | 'hopper' | 'dispenser' | 'dropper' | 'trapped_chest';
   items: Slot[];
+  /** Ticks a hopper waits before it may move another item. */
+  cooldown?: number;
 }
 
 export interface FurnaceEntity {

@@ -562,3 +562,14 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     the treasure pool is kept for open water — the five-by-five of columns around the bobber, water
     below and air above. The catch is thrown to whoever reeled it in, gives one to six experience,
     and costs the rod a point of durability.
+
+83. **A hopper moves one item every eight ticks, the way vanilla counts.** It pushes into whatever it
+    faces before pulling from whatever is above it, and a move sets the cooldown again; a signal
+    holds it still. Side matters where vanilla says it does: a furnace takes its input from above,
+    its fuel from the side and gives up only the finished item through its bottom, and a composter
+    takes compostables in on the same odds a hand would and hands its bone meal down when it is
+    ready. Items resting in the funnel are swept up as well as ones lying on top, since our items
+    fall into the hopper's middle rather than sitting on its rim. Hoppers need a block entity to
+    tick at all, so one is made when a chunk is swept and whenever a hopper is placed — the same
+    sweep that finds chests to draw. A hopper minecart picks up what it rolls over and empties into
+    the container it is running above.

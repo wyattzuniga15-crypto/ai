@@ -45,8 +45,9 @@ import { PrimedTnt } from '../entities/primedTnt.ts';
 import { FishingBobber, bobberMesh } from '../entities/bobber.ts';
 import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type CartKind } from '../entities/minecart.ts';
 import { FACING_OFFSET } from '../world/piston.ts';
+import { containerAt, hopperStates, insertOne, tickHopper, type HopperWorld } from '../world/hopper.ts';
 import { hooksFor, updateRun } from '../world/tripwire.ts';
-import { targetStrength } from '../world/redstone.ts';
+import { isPowered, targetStrength } from '../world/redstone.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
 import { EntityManager, type ManagerHost } from '../entities/manager.ts';
@@ -613,6 +614,7 @@ export class Game {
     if (this.state === 'playing') this.interactionTick();
     for (const e of this.itemEntities) {
       e.tick(this.world);
+      this.hopperPickup(e);
       if (!e.dead && e.pickupDelay === 0 && !p.dead) {
         const d = e.pos.distanceTo(p.pos.clone().add(new THREE.Vector3(0, 0.9, 0)));
         if (d < 1.6) {
@@ -1083,6 +1085,10 @@ export class Game {
         this.tickSpawner(x, y, z, e as SpawnerEntity);
         return;
       }
+      if (e.type === 'hopper') {
+        tickHopper(this.hopperWorld(), x, y, z, e as ContainerEntity, isPowered(this.simulationWorld(), x, y, z));
+        return;
+      }
       if (e.type !== 'furnace' && e.type !== 'blast_furnace' && e.type !== 'smoker') return;
       const r = tickFurnace(e as FurnaceEntity);
       if (r.changed) this.world.markModifiedAt(x, z);
@@ -1091,6 +1097,37 @@ export class Game {
         if (st && blocks.blockOf(st).id === e.type) this.world.setBlock(x, y, z, blocks.withProp(st, 'lit', (e as FurnaceEntity).burnTime > 0 ? 'true' : 'false'));
       }
     });
+  }
+
+  /** The world as a hopper sees it: blocks, the containers in them, and a die to roll. */
+  private hopperWorld(): HopperWorld {
+    return {
+      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
+      setBlock: (x, y, z, state) => this.world.setBlock(x, y, z, state),
+      getBlockEntity: (x, y, z) => this.world.getBlockEntity(x, y, z) ?? null,
+      setBlockEntity: (x, y, z, e) => this.world.setBlockEntity(x, y, z, e),
+      markModified: (x, z) => this.world.markModifiedAt(x, z),
+      random: () => Math.random(),
+    };
+  }
+
+  /** Items lying on a hopper are drawn into it, which is how a collection floor is built. */
+  private hopperPickup(e: ItemEntity): void {
+    if (e.dead || e.pickupDelay > 0) return;
+    const x = Math.floor(e.pos.x);
+    const z = Math.floor(e.pos.z);
+    const base = Math.floor(e.pos.y);
+    // an item resting in the funnel counts as much as one lying on top of it
+    for (const y of [base, base - 1, Math.floor(e.pos.y - 0.1)]) {
+      const at = this.world.getBlock(x, y, z);
+      if (at === 0 || blocks.blockOf(at).id !== 'hopper') continue;
+      const entity = this.world.getBlockEntity(x, y, z) as ContainerEntity | null;
+      if (!entity || entity.type !== 'hopper') continue;
+      while (e.stack.count > 0 && insertOne({ entity, kind: 'hopper' }, e.stack, 'up')) e.stack.count--;
+      if (e.stack.count <= 0) e.dead = true;
+      this.world.markModifiedAt(x, z);
+      return;
+    }
   }
 
   /** Structure sets built from the fetched templates, used by `/locate`. */
@@ -2074,6 +2111,7 @@ export class Game {
         }
       }
       cart.tick(this.world, push);
+      if (cart.kind === 'hopper_minecart') this.tickHopperCart(cart);
       if (cart.fuse === 0) {
         cart.dead = true;
         this.explodeAt(cart.pos.x, cart.pos.y + 0.5, cart.pos.z, 4, null);
@@ -2138,6 +2176,33 @@ export class Game {
     p.vel.set(0, 0, 0);
     p.onGround = true;
     p.fallDistance = 0;
+  }
+
+  /**
+   * A hopper cart sweeps up the items it rolls over and drops them into whatever container it is
+   * running over, which is how vanilla empties a mine onto a chest line.
+   */
+  private tickHopperCart(cart: Minecart): void {
+    const slots = cart.items;
+    if (!slots) return;
+    for (const e of this.itemEntities) {
+      if (e.dead || e.pickupDelay > 0) continue;
+      if (Math.abs(e.pos.x - cart.pos.x) > 0.9 || Math.abs(e.pos.z - cart.pos.z) > 0.9 || Math.abs(e.pos.y - cart.pos.y) > 1) continue;
+      while (e.stack.count > 0 && insertOne({ entity: { type: 'hopper', items: slots }, kind: 'hopper' }, e.stack, 'up')) e.stack.count--;
+      if (e.stack.count <= 0) e.dead = true;
+    }
+    if (this.tickCount % 8 !== 0) return;
+    const x = Math.floor(cart.pos.x);
+    const y = Math.floor(cart.pos.y) - 1;
+    const z = Math.floor(cart.pos.z);
+    const target = containerAt(this.hopperWorld(), x, y, z);
+    if (!target) return;
+    const slot = slots.findIndex((s) => s && s.count > 0);
+    if (slot < 0) return;
+    const stack = slots[slot]!;
+    if (!insertOne(target, stack, 'up')) return;
+    if (--stack.count <= 0) slots[slot] = null;
+    this.world.markModifiedAt(x, z);
   }
 
   /** Puts a cart into the world at an exact position, which is what placing and loading both need. */
@@ -3073,22 +3138,35 @@ export class Game {
   }
 
   /** Keeps sign meshes in step with loaded sign block entities. */
-  /** Sweeps a freshly loaded chunk for chests, since vanilla draws each one itself. */
+  /**
+   * Sweeps a freshly loaded chunk for the blocks the game has to know about itself: chests, which
+   * vanilla draws with a renderer of their own, and hoppers, which need a block entity to tick.
+   */
   private sweepChests(cx: number, cz: number): void {
     const c = this.world.getChunk(cx, cz);
     if (!c) return;
     const { blocks: data } = c;
     for (let i = 0; i < data.length; i++) {
-      if (!chestStates[data[i]]) continue;
-      const x = i & 15;
-      const z = (i >> 4) & 15;
+      const state = data[i];
+      if (!chestStates[state] && !hopperStates[state]) continue;
+      const x = cx * 16 + (i & 15);
+      const z = cz * 16 + ((i >> 4) & 15);
       const y = (i >> 8) + WORLD_MIN_Y;
-      this.chestBlocks.add(`${cx * 16 + x},${y},${cz * 16 + z}`);
+      if (chestStates[state]) this.chestBlocks.add(`${x},${y},${z}`);
+      else this.ensureHopper(x, y, z);
     }
+  }
+
+  /** A hopper only moves items once it has a block entity, so one is made as soon as it appears. */
+  private ensureHopper(x: number, y: number, z: number): void {
+    if (this.world.getBlockEntity(x, y, z)) return;
+    const entity = createBlockEntity('hopper');
+    if (entity) this.world.setBlockEntity(x, y, z, entity);
   }
 
   /** Keeps the chest list right as blocks come and go. */
   private chestChanged(x: number, y: number, z: number, oldState: number, newState: number): void {
+    if (hopperStates[newState]) this.ensureHopper(x, y, z);
     const was = chestStates[oldState] === 1;
     const is = chestStates[newState] === 1;
     if (!was && !is) return;
