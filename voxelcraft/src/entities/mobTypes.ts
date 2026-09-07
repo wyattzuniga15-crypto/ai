@@ -1,8 +1,9 @@
 /** Mob definitions: vanilla box models (classic layouts) on the entity textures, stats from data/mobs.json, AI goal lists. */
 import mobsJson from '../../data/mobs.json';
+import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { BEE_FLOWER_IDS, avoidCatsGoal, blazeGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, blazeGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -576,18 +577,32 @@ const striderModel: ModelDef = {
   ],
 };
 
+/**
+ * The Wither: vanilla's three skulls on a bar of shoulders, with the ribcage and tail hanging under
+ * them. The texture net confirms the heads and the shoulders; the rest is vanilla's own geometry.
+ */
+const witherModel: ModelDef = {
+  texture: 'wither/wither.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'shoulders', pivot: [0, 0, 0], boxes: [{ uv: [0, 16], box: [-10, 3.9, -0.5, 20, 3, 3] }] },
+    { name: 'ribcage', pivot: [0, 0, 0], boxes: [
+      { uv: [0, 22], box: [-2, 6.9, -0.5, 4, 9, 3] },
+      { uv: [0, 22], box: [0, 10.9, -0.5, 3, 2, 3] },
+      { uv: [0, 22], box: [-3, 10.9, -0.5, 3, 2, 3] },
+    ] },
+    { name: 'tail', pivot: [0, 0, 0], boxes: [{ uv: [12, 22], box: [-1, 15.9, -0.5, 2, 6, 2] }] },
+    { name: 'head', pivot: [0, 4, 0], boxes: [{ uv: [0, 0], box: [-4, -4, -4, 8, 8, 8] }] },
+    { name: 'left_head', pivot: [10, 4.4, 0], boxes: [{ uv: [32, 0], box: [-4, -4, -4, 6, 6, 6] }] },
+    { name: 'right_head', pivot: [-10, 4.4, 0], boxes: [{ uv: [32, 0], box: [-2, -4, -4, 6, 6, 6] }] },
+  ],
+};
+
 /** Bee skins: angry and nectar-carrying bees swap texture like vanilla's four variants. */
 export function beeTexture(angry: boolean, nectar: boolean): string {
   return `bee/bee${angry ? '_angry' : ''}${nectar ? '_nectar' : ''}.png`;
 }
 
 /** Flowers a bee will pollinate and breed with (vanilla's `#minecraft:flowers`, small ones). */
-export const BEE_FLOWERS = [
-  'dandelion', 'poppy', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip',
-  'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'wither_rose', 'torchflower', 'sunflower',
-  'lilac', 'rose_bush', 'peony', 'pink_petals', 'flowering_azalea', 'flowering_azalea_leaves', 'cherry_leaves',
-  'open_eyeblossom', 'closed_eyeblossom',
-];
 
 /**
  * Illagers share the villager body with free arms (converted from the shipped geometry). The
@@ -674,7 +689,6 @@ export const WOLF_FOODS = ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop',
 BREEDING_FOODS.wolf = WOLF_FOODS;
 BREEDING_FOODS.cat = ['cod', 'salmon'];
 BREEDING_FOODS.bee = BEE_FLOWERS;
-BEE_FLOWER_IDS.push(...BEE_FLOWERS);
 BREEDING_FOODS.ocelot = ['cod', 'salmon'];
 for (const e of ['horse', 'donkey', 'mule']) BREEDING_FOODS[e] = ['golden_carrot', 'golden_apple', 'enchanted_golden_apple'];
 
@@ -763,6 +777,8 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   ghast: { model: ghastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 64, flying: true, fireproof: true, scale: 4.5, override: { health: 10, damage: 6 }, goals: () => [loseTargetGoal(), targetPlayerGoal(64), ghastGoal()] },
   magma_cube: { model: magmaCubeModel, animation: 'slime', eyeHeight: 0.325, followRange: 16, fireproof: true, scale: 1, override: { width: 0.52, height: 0.52, health: 1, damage: 3, xp: 1 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
   magma_cube_medium: { model: magmaCubeModel, animation: 'slime', eyeHeight: 0.65, followRange: 16, fireproof: true, scale: 2, data: 'magma_cube', loot: 'magma_cube', override: { width: 1.04, height: 1.04, health: 4, damage: 4, xp: 2 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
+  // the Wither: summoned rather than spawned, flying, and armoured once it is half beaten
+  wither: { model: witherModel, animation: 'wither', eyeHeight: 3.1, followRange: 64, flying: true, fireproof: true, scale: 2, goals: () => [witherGoal()] },
   magma_cube_big: { model: magmaCubeModel, animation: 'slime', eyeHeight: 1.3, followRange: 16, fireproof: true, scale: 4, data: 'magma_cube', loot: 'magma_cube', override: { width: 2.08, height: 2.08, health: 16, damage: 6, xp: 4 }, goals: () => [loseTargetGoal(), targetPlayerGoal(16), slimeGoal()] },
 };
 

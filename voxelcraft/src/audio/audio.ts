@@ -136,6 +136,9 @@ const SOUNDS: Record<string, Synth> = {
   hoglin: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 170, 110, 0.35, 0.18, p); burst(c, o, t, 'lowpass', 500, 1.5, 0.02, 0.3, 0.14, p); },
   strider: (c, o, p, t) => { tone(c, o, t, 'triangle', 420, 300, 0.3, 0.12, p); burst(c, o, t, 'bandpass', 1100, 2, 0.02, 0.25, 0.07, p); },
   magma_cube: (c, o, p, t) => { burst(c, o, t, 'lowpass', 600, 1, 0.01, 0.25, 0.18, p); tone(c, o, t, 'sine', 150, 90, 0.2, 0.1, p); },
+  wither_spawn: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 120, 40, 2.2, 0.3, p, 0.2); tone(c, o, t + 0.3, 'square', 200, 60, 1.8, 0.16, p, 0.2); burst(c, o, t, 'lowpass', 400, 1, 0.3, 1.8, 0.2, p); },
+  wither_shoot: (c, o, p, t) => { tone(c, o, t, 'square', 500, 140, 0.3, 0.16, p); burst(c, o, t, 'bandpass', 900, 3, 0.01, 0.3, 0.12, p); },
+  wither: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 90, 55, 1.0, 0.22, p, 0.15); burst(c, o, t, 'lowpass', 350, 1.2, 0.1, 0.9, 0.16, p); },
   elder_guardian_curse: (c, o, p, t) => { tone(c, o, t, 'sine', 160, 60, 1.2, 0.22, p, 0.15); tone(c, o, t + 0.1, 'sawtooth', 90, 40, 1.1, 0.12, p, 0.2); },
   // bees: a wing buzz, an angrier one and the sting; plus filling a bottle at a hive
   bee: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 240, 220, 0.5, 0.06, p); tone(c, o, t, 'square', 120, 110, 0.5, 0.04, p); },

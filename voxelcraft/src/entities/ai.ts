@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, guardianAttackTicks, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
 import { EQUINE_TYPES, inheritEquine } from './mobTypes.ts';
+import { BEE_FLOWERS } from './beeFlowers.ts';
 import { blocks } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 
@@ -674,7 +675,7 @@ export const beeGoal = (): Goal => {
         return;
       }
       if (m.age % 40 === 0 && w.findBlock) {
-        const found = w.findBlock(m.pos.x, m.pos.y, m.pos.z, 12, BEE_FLOWER_IDS);
+        const found = w.findBlock(m.pos.x, m.pos.y, m.pos.z, 12, BEE_FLOWERS);
         if (found) {
           e.flowerX = found.x;
           e.flowerY = found.y;
@@ -695,7 +696,6 @@ export const beeGoal = (): Goal => {
 };
 
 /** Blocks a bee treats as a flower, filled in by the mob table so the goal stays data-driven. */
-export const BEE_FLOWER_IDS: string[] = [];
 
 /** Illagers hunt villagers as well as the player (vanilla's raid target list, minus golems). */
 export const targetVillagerGoal = (): Goal => ({
@@ -1284,5 +1284,72 @@ const isLavaAt = (w: MobWorld, x: number, y: number, z: number) => {
   const s = w.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
   return s !== 0 && blocks.blockOf(s).id === 'lava';
 };
+
+// ---------------------------------------------------------------------------------------------
+// The Wither
+// ---------------------------------------------------------------------------------------------
+/** Vanilla holds the Wither still and invulnerable for this long, then it goes off. */
+export const WITHER_SPAWN_TICKS = 220;
+/** Below half its health vanilla gives it armour and sends it charging. */
+export const witherArmoured = (m: Mob): boolean => m.health <= m.maxHealth / 2;
+
+/**
+ * Vanilla's Wither: it hangs over the fight, keeps its distance and throws skulls, three heads at a
+ * time. While it is being summoned it cannot be hurt and does nothing; when the count runs out it
+ * blows a hole where it was born.
+ */
+export const witherGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const spawning = typeof m.extra.spawning === 'number' ? m.extra.spawning : 0;
+    if (spawning > 0) {
+      // the summoning: it hangs there gathering itself, and nothing can touch it
+      m.extra.spawning = spawning - 1;
+      m.invulnerable = 20;
+      m.moveTarget = null;
+      m.vel.set(0, 0, 0);
+      if (spawning === 1) {
+        w.explode(m.pos.x, m.pos.y + 1, m.pos.z, 7, m);
+        w.playSound('wither_spawn', m.pos.x, m.pos.y, m.pos.z);
+      }
+      return;
+    }
+    if (!targetAlive(m, w) || m.target === null) {
+      if (w.playerTargetable() && m.distanceTo(w.playerPos()) < m.def.followRange) m.target = 'player';
+      return;
+    }
+    const eye = targetEye(m, w);
+    m.lookTarget = eye;
+    const d = m.distanceTo(eye);
+    // vanilla keeps it above and away from what it is fighting, and charges once it is armoured
+    const charging = witherArmoured(m);
+    if (charging && d > 3) {
+      m.moveTarget = eye.clone();
+      m.moveSpeed = 1.4;
+      m.moveTimeout = 40;
+    } else if (d > 16 || d < 6) {
+      // back off when it is crowded, close in when it is far; a zero-length gap would give no
+      // direction at all, so it drifts sideways instead
+      const gap = m.pos.clone().sub(eye);
+      if (gap.lengthSq() < 1e-6) gap.set(1, 0, 0);
+      const away = d < 6 ? gap.setLength(10) : gap.setLength(0);
+      m.moveTarget = eye.clone().add(away).setY(eye.y + 5);
+      m.moveSpeed = 1;
+      m.moveTimeout = 40;
+    } else m.moveTarget = null;
+    if (!w.lineOfSight(m.eyePos(), eye)) return;
+    // three heads, each firing on its own beat, as vanilla staggers them
+    const t = (typeof m.extra.fire === 'number' ? m.extra.fire : 0) + 1;
+    m.extra.fire = t;
+    for (const [head, beat] of [[0, 0], [1, 15], [2, 30]] as [number, number][]) {
+      if (t % 45 !== beat) continue;
+      const from = m.eyePos();
+      from.x += (head - 1) * 1.2;
+      w.shootArrow(from, eye, 0.8, 5, { id: 'wither', ticks: 200 });
+      w.playSound('wither_shoot', m.pos.x, m.pos.y, m.pos.z);
+    }
+  },
+});
 
 export { FLAG_MOVE as _FLAG_MOVE };

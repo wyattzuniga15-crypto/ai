@@ -17,6 +17,7 @@ import { World, FACE_NORMALS, type LoadedChunk, type RaycastHit, type WorldOptio
 import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
+import { WITHER_SPAWN_TICKS, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
@@ -129,7 +130,7 @@ const MOB_DEATH_SOUNDS: Record<string, string> = {
   slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', cod: 'splash', salmon: 'splash', witch: 'witch', phantom: 'phantom',
   horse: 'horse', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat',
 };
-const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
+const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime', magma_cube_big: 'magma_cube_medium', magma_cube_medium: 'magma_cube' };
 
 /** How far above a cart its rider sits, matching vanilla's minecart passenger offset. */
 const RIDE_HEIGHT = 0.06;
@@ -223,6 +224,8 @@ export class Game {
   private drawTicks = 0;
   /** The raid on the village the player walked into, while one is running. */
   private raid: RaidState | null = null;
+  /** True while the Wither's bar is up, so it can be taken down again when it dies. */
+  private witherBar = false;
   private raiders: Mob[] = [];
   /** The sky's mood: whether it is raining and whether it is thundering. */
   readonly weather: WeatherState;
@@ -774,6 +777,7 @@ export class Game {
     if (this.tickCount % 10 === 0) this.tickMap();
     this.tickWeather();
     this.tickRaid();
+    this.tickWither();
     this.tickWornEnchantments();
     this.tickEffects();
     this.attackTicks++;
@@ -1256,7 +1260,46 @@ export class Game {
     }
     if (p.gamemode === 'survival') p.inventory.consumeSelected();
     p.exhaustion += 0.005;
+    // the last skull of the ritual calls the Wither up out of the sand it stands on
+    if (def.id.endsWith('_skull') || def.id.endsWith('_head')) this.trySummonWither(x, y, z);
     return true;
+  }
+
+  /**
+   * Vanilla's wither summon: three wither skeleton skulls over a T of soul sand or soul soil. The
+   * pattern is checked from each skull, so the last one placed is the one that starts it.
+   */
+  private trySummonWither(x: number, y: number, z: number): void {
+    const isSkull = (bx: number, by: number, bz: number) => blocks.blockOf(this.world.getBlock(bx, by, bz)).id === 'wither_skeleton_skull';
+    const isBase = (bx: number, by: number, bz: number) => {
+      const id = blocks.blockOf(this.world.getBlock(bx, by, bz)).id;
+      return id === 'soul_sand' || id === 'soul_soil';
+    };
+    if (!isSkull(x, y, z)) return;
+    for (const [dx, dz] of [[1, 0], [0, 1]] as [number, number][]) {
+      // the middle of the three skulls, wherever this one sits in the row
+      for (const shift of [-1, 0, 1]) {
+        const cx = x + dx * shift;
+        const cz = z + dz * shift;
+        if (!isSkull(cx, y, cz) || !isSkull(cx - dx, y, cz - dz) || !isSkull(cx + dx, y, cz + dz)) continue;
+        if (!isBase(cx, y - 1, cz) || !isBase(cx - dx, y - 1, cz - dz) || !isBase(cx + dx, y - 1, cz + dz) || !isBase(cx, y - 2, cz)) continue;
+        // the ritual is spent: the blocks go, and what they were holding arrives
+        for (const s of [0, -1, 1]) {
+          this.world.setBlock(cx + dx * s, y, cz + dz * s, 0);
+          this.world.setBlock(cx + dx * s, y - 1, cz + dz * s, 0);
+        }
+        this.world.setBlock(cx, y - 2, cz, 0);
+        const wither = this.entities.spawn('wither', cx + 0.5, y - 2, cz + 0.5, this.player.yaw + Math.PI);
+        if (wither) {
+          wither.persistent = true;
+          wither.extra.spawning = WITHER_SPAWN_TICKS;
+          wither.health = wither.maxHealth / 3; // vanilla brings it in at a third and heals it as it rises
+          this.audio.play('wither_spawn', { x: cx, y, z: cz });
+          this.chat.addLine('The Wither has been summoned');
+        }
+        return;
+      }
+    }
   }
 
   private placeBed(def: BlockDef, x: number, y: number, z: number): boolean {
@@ -1955,6 +1998,26 @@ export class Game {
    * illagers arrive until the village has seen them all off, and seeing them off is what earns
    * Hero of the Village.
    */
+  /**
+   * The Wither's bar, and the armour it gains once it is half beaten: vanilla halves the damage
+   * arrows do to it below that, and it stops taking knockback altogether.
+   */
+  private tickWither(): void {
+    const wither = this.entities.mobs.find((m) => m.def.id === 'wither' && !m.dead);
+    if (!wither) {
+      if (this.witherBar) {
+        this.hud.setRaidBar(null, 0);
+        this.witherBar = false;
+      }
+      return;
+    }
+    this.witherBar = true;
+    const summoning = typeof wither.extra.spawning === 'number' && wither.extra.spawning > 0;
+    // vanilla heals it up to full as it gathers itself, then the bar tracks its health
+    if (summoning) wither.health = Math.min(wither.maxHealth, wither.maxHealth / 3 + (wither.maxHealth * 2 / 3) * (1 - (wither.extra.spawning as number) / WITHER_SPAWN_TICKS));
+    this.hud.setRaidBar(summoning ? 'Wither — rising' : witherArmoured(wither) ? 'Wither — armoured' : 'Wither', wither.health / wither.maxHealth);
+  }
+
   private tickRaid(): void {
     if (!this.raid) {
       if (this.tickCount % 40 !== 0) return;
@@ -3623,13 +3686,16 @@ export class Game {
       const attacker = this.entities.mobs.find((m) => !m.dead && m.pos.distanceTo(from) < 1.5);
       attacker?.hurt(thorns, this.player.pos, 'player', 0);
     }
-    // knockback
+    // knockback, less what the armour shrugs off: a tenth for each piece of netherite, as vanilla
+    // gives every netherite piece 0.1 knockback resistance
+    const resist = Math.min(1, p.inventory.armor.reduce((n, a) => n + (a ? items.byId.get(a.id)?.armor?.knockbackResistance ?? 0 : 0), 0));
+    const push = 0.4 * (1 - resist);
     const dx = p.pos.x - from.x;
     const dz = p.pos.z - from.z;
     const len = Math.hypot(dx, dz) || 1;
-    p.vel.x += (dx / len) * 0.4;
-    p.vel.z += (dz / len) * 0.4;
-    p.vel.y = Math.max(p.vel.y, 0.36);
+    p.vel.x += (dx / len) * push;
+    p.vel.z += (dz / len) * push;
+    p.vel.y = Math.max(p.vel.y, 0.36 * (1 - resist));
     p.exhaustion += 0.1;
   }
 
@@ -4147,6 +4213,11 @@ export class Game {
     if (byPlayer && m.extra.captain === true) {
       this.player.effects.add('bad_omen', 120000, 0);
       this.hud.showToast('Bad Omen');
+    }
+    // vanilla drops the Wither's nether star in code rather than from a table, and it always drops
+    if (m.def.id === 'wither') {
+      this.dropStack({ id: 'nether_star', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+      this.chat.addLine('The Wither has been defeated');
     }
     if (byPlayer && m.def.xp > 0) this.spawnXp(m.def.xp, m.pos.x, m.pos.y + 0.5, m.pos.z);
     this.audio.play(MOB_DEATH_SOUNDS[m.def.id] ?? m.def.id, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.7 });
@@ -4856,7 +4927,7 @@ export class Game {
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat', guardian: 'guardian', elder_guardian: 'guardian', blaze: 'blaze', ghast: 'ghast', piglin: 'piglin', piglin_brute: 'piglin', zombified_piglin: 'piglin', hoglin: 'hoglin', zoglin: 'hoglin', strider: 'strider', magma_cube: 'magma_cube', magma_cube_medium: 'magma_cube', magma_cube_big: 'magma_cube' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat', guardian: 'guardian', elder_guardian: 'guardian', blaze: 'blaze', ghast: 'ghast', piglin: 'piglin', piglin_brute: 'piglin', zombified_piglin: 'piglin', hoglin: 'hoglin', zoglin: 'hoglin', strider: 'strider', magma_cube: 'magma_cube', magma_cube_medium: 'magma_cube', magma_cube_big: 'magma_cube', wither: 'wither' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }

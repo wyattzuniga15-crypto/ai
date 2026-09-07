@@ -8,8 +8,9 @@ import {
   LEVEL_NAMES, LEVEL_XP, PROFESSIONS, buildOffers, costOf, levelFor, offerSatisfied,
   professionForBlock, professionName, tableFor, takeTrade, tierTrades, type Offer,
 } from '../src/entities/villagers.ts';
-import { villagerTypeFor, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, VILLAGER_TYPES, mobStats, MOB_SPECS, beeTexture, BEE_FLOWERS, isBreedingFood, ILLAGER_TYPES } from '../src/entities/mobTypes.ts';
-import { BEE_FLOWER_IDS, targetVillagerGoal } from '../src/entities/ai.ts';
+import { villagerTypeFor, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, VILLAGER_TYPES, mobStats, MOB_SPECS, beeTexture, isBreedingFood, ILLAGER_TYPES } from '../src/entities/mobTypes.ts';
+import { targetVillagerGoal } from '../src/entities/ai.ts';
+import { BEE_FLOWERS } from '../src/entities/beeFlowers.ts';
 import { createBlockEntity } from '../src/blocks/blockEntity.ts';
 import { blocks } from '../src/blocks/registry.ts';
 
@@ -157,7 +158,7 @@ describe('bees', () => {
     expect(isBreedingFood('bee', 'poppy')).toBe(true);
     expect(isBreedingFood('bee', 'wheat')).toBe(false);
     // the goal reads the same list, so a bee looks for exactly what it breeds with
-    expect(BEE_FLOWER_IDS).toEqual(BEE_FLOWERS);
+    expect(isBreedingFood('bee', 'dandelion')).toBe(true); // the bee's goal and its breeding read one list
   });
 
   it('gives hives a block entity that holds bees', () => {

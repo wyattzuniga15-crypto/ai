@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -288,6 +288,11 @@ export class Mob {
 
   hurt(amount: number, from: THREE.Vector3 | null, by: 'player' | 'other', knockback = 0.4): boolean {
     if (this.dead || this.invulnerable > 0) return false;
+    // vanilla armours the Wither below half health and never lets it be knocked about
+    if (this.def.id === 'wither') {
+      if (this.health <= this.maxHealth / 2) amount /= 2;
+      knockback = 0;
+    }
     // horse armour soaks damage with vanilla's armour formula (4% per point)
     const points = typeof this.extra.armor === 'string' ? horseArmorPoints(this.extra.armor) : 0;
     if (points > 0) amount *= 1 - Math.min(20, points) / 25;

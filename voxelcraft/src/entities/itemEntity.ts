@@ -7,6 +7,14 @@ import { blocks } from '../blocks/registry.ts';
 
 const textureCache = new Map<string, THREE.Texture>();
 
+/**
+ * The items vanilla marks fire-immune: everything netherite, and the debris it comes out of. They
+ * float in lava rather than burning up, which is what makes a netherite pickaxe worth carrying.
+ */
+export function fireproofItem(id: string): boolean {
+  return id.startsWith('netherite_') || id === 'ancient_debris' || id === 'netherite_upgrade_smithing_template';
+}
+
 export class ItemEntity {
   readonly pos = new THREE.Vector3();
   readonly prev = new THREE.Vector3();
@@ -46,10 +54,14 @@ export class ItemEntity {
     this.age++;
     if (this.pickupDelay > 0) this.pickupDelay--;
     if (this.age > 6000) this.dead = true;
-    const inWater = (() => {
-      const s = world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.1), Math.floor(this.pos.z));
-      return s !== 0 && blocks.blockOf(s).id === 'water';
-    })();
+    const here = world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.1), Math.floor(this.pos.z));
+    const hereId = here === 0 ? 'air' : blocks.blockOf(here).id;
+    const inWater = hereId === 'water';
+    // vanilla burns a dropped item up in lava or fire, and netherite is what survives it
+    if ((hereId === 'lava' || hereId === 'fire' || hereId === 'soul_fire') && !fireproofItem(this.stack.id)) {
+      this.dead = true;
+      return;
+    }
     // a thrown item keeps its speed for a moment, which is what carries a catch back to the angler
     if (this.thrown > 0) {
       this.thrown--;

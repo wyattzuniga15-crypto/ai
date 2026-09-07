@@ -125,8 +125,10 @@ export function hasGroundBelow(world: BlockSource, box: AABB): boolean {
 }
 
 export function isFluidAt(world: BlockSource, x: number, y: number, z: number, id?: string): boolean {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return false;
   const s = world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
   if (s === 0) return false;
   const d = blocks.blockOf(s);
+  if (!d) return false;
   return d.behavior === 'fluid' && (!id || d.id === id);
 }

@@ -801,3 +801,25 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     blaze spawner rooms with the spawner on its platform behind a fence. The plan is ours, as the
     mansion's is; the pieces are vanilla's. Wither skeletons and zombified piglins are put in as it
     is built, and the blaze spawners keep the blazes coming.
+
+99. **Netherite, and the Wither.** Most of netherite was already standing: ancient debris smelts to
+    scrap, four scrap and four gold make an ingot, and the smithing table upgrades gear with it. Two
+    vanilla rules were missing and are now in — a dropped item burns up in lava or fire unless it is
+    netherite (or the debris it comes from), which is the whole reason to carry a netherite pickaxe
+    into the Nether; and each piece of netherite armour gives a tenth of knockback resistance, which
+    is now taken off what a hit shoves the player by.
+
+    The Wither is vanilla's: three wither skeleton skulls over a T of soul sand or soul soil, checked
+    from whichever skull was placed last, and the ritual's blocks are spent when it fires. It rises
+    for two hundred and twenty ticks, untouchable and healing from a third of its health to all of
+    it, and then blows a hole where it was born. After that it keeps its distance, throws a skull
+    from each of its three heads on its own beat — each one leaving ten seconds of Wither — and
+    charges once it is armoured, which vanilla makes it below half health: everything that reaches
+    it is halved, and it is never knocked about. Its bar says which of the three it is doing. Killing
+    it drops the nether star, which vanilla drops in code rather than from a table.
+
+    One bug worth recording: a Wither hovering exactly on top of what it was aiming at made a
+    zero-length vector, `setLength` turned it into NaN, and the NaN position reached `getBlock`,
+    where an out-of-range index quietly returned `undefined` and the first `.behavior` read threw.
+    The goal now keeps a direction to fall back on, and the fluid check refuses a position that is
+    not finite.
