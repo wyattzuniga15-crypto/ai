@@ -846,7 +846,7 @@ export class WorldGenerator {
           const box = placementBox(piece);
           if (box.x1 < clip.x0 || box.x0 > clip.x1 || box.z1 < clip.z0 || box.z0 > clip.z1) continue;
           const written = new Set<string>();
-          stampStructure(world, piece, written, loot, clip, entity);
+          stampStructure(world, piece, { written, clip, onLoot: loot, onEntity: entity, onSpawner: spawner });
           this.fitStructureToTerrain(world, box, written, piece.placement ?? 'surface', clip);
         }
         if (instance.temple) {

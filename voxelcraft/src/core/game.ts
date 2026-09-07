@@ -1120,7 +1120,8 @@ export class Game {
       const id = blocks.blockOf(state).id;
       if (this.world.getBlockEntity(spot.x, spot.y, spot.z)) continue;
       if (spot.mob) {
-        if (id !== 'spawner') continue;
+        // a trial chamber's spawner is a different block, but it turns a mob the same way
+        if (id !== 'spawner' && id !== 'trial_spawner') continue;
         const spawner = createBlockEntity('spawner') as SpawnerEntity | null;
         if (!spawner) continue;
         spawner.mob = spot.mob;

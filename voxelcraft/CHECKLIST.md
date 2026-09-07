@@ -78,7 +78,8 @@ coverage counts in `COVERAGE.md`.
 - [x] Strongholds: 128 of them in vanilla's concentric rings, a spiral staircase down into corridors, turns, crossings, prison cells and a library, with the end portal room (twelve frames over lava, the odd eye already set) and its silverfish spawner at the end of a branch; `/locate stronghold` finds the nearest
 - [x] Ocean ruins: the warm sandstone and cold stone brick sets from Mojang's templates, scattered in clusters on the sea floor, with the chests their data markers mark and the drowned that haunt them
 - [x] Buried treasure (a chest packed in sand under a beach, where a treasure map would point) and ancient cities (vanilla's jigsaw pools stamped at their own depth in the deep dark, with the box hollowed out the way the beardifier hollows it)
-- [ ] Structures, next: monuments, mansions, trial chambers, fossils
+- [x] Trial chambers: vanilla's own pools with the pool aliases that decide a chamber's mobs, its trial spawners turning what their piece is named after, and the up-and-down jigsaw connections villages and chambers both need
+- [ ] Structures, next: monuments, mansions, fossils
 - [ ] Redstone: dust, torch, repeater, comparator, pistons, observers, levers, buttons, plates, note blocks, TNT, daylight sensor, target, rails + minecarts
 - [ ] Farming: every crop, bone meal, breeding, bees, composting, fishing
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)

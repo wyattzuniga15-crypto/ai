@@ -464,3 +464,20 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     rather than a surface one, so a structure with a start height checks the cave biome at that depth
     for where it belongs. Buried treasure is the small cousin: one chest, walked down from the sea
     floor until the block under it is stone or sandstone, then packed in sand so nothing shows.
+
+74. **Jigsaw connections go up and down as well as sideways.** Vanilla's jigsaw blocks can point at
+    the ceiling or the floor, and a third of a trial chamber's connectors do: that is how a chamber
+    hangs its spawners under a room and how a village stacks its decorations. Ours ignored them, so
+    both came out sparse. A vertical connection places the child directly over or under the
+    connector at whatever horizontal turn leaves room, and the overlap rule now lets a small piece
+    (no more than seven blocks across) sit inside a room already placed, which is the part of
+    vanilla's free-space tracking that matters: a spawner belongs inside the chamber it guards, but a
+    room-sized piece still has to find space of its own.
+
+75. **A trial chamber decides its mobs once, through the pool aliases.** Its structure JSON points
+    alias names at real template pools, in groups so a chamber's ranged spawners agree with each
+    other, and the converter carries those aliases across. Assembly rolls them once per chamber and
+    maps every pool lookup through the result. Each spawner piece is named after the mob it holds, so
+    the converter reads that name and reports the trial spawner block with it; the game gives it the
+    same block entity an ordinary spawner gets. Mobs we do not have yet (breeze, bogged, silverfish)
+    keep their spawners, which simply turn nothing until those mobs exist.

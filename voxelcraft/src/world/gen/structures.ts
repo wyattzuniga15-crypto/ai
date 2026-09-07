@@ -9,8 +9,17 @@ import type { BlockAccess } from './features.ts';
 export interface JigsawJson { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 export interface LootSpot { pos: [number, number, number]; table: string }
 export interface MobSpot { pos: [number, number, number]; id: string }
-export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[]; mobs?: MobSpot[] }
+export interface TemplateJson { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: JigsawJson[]; loot?: LootSpot[]; mobs?: MobSpot[]; spawners?: MobSpot[] }
 export interface PoolEntry { location: string; weight: number; projection: string }
+/**
+ * A pool alias: a trial chamber decides once per chamber which mobs its spawners hold, by pointing
+ * an alias name at a real template pool. `random` picks one target for one alias; `random_group`
+ * picks a group of alias/target pairs together, so a chamber's ranged spawners agree with each other.
+ */
+export type PoolAlias =
+  | { type: 'random'; alias: string; targets: { target: string; weight: number }[] }
+  | { type: 'random_group'; groups: { weight: number; entries: { alias: string; target: string }[] }[] };
+
 /** One structure of a set: which pool it starts from, how often it is picked, and where it belongs. */
 export interface StructureVariant { start: string; weight: number; biomes: string[] }
 
@@ -41,6 +50,8 @@ export interface StructureIndexEntry {
   /** Structures built at a fixed depth rather than on the surface: an ancient city sits at y -27. */
   startY?: number;
   startYMax?: number | null;
+  /** Pools chosen once per structure rather than per connector (a chamber's spawner contents). */
+  aliases?: PoolAlias[];
 }
 
 export interface RuntimeTemplate {
@@ -53,6 +64,8 @@ export interface RuntimeTemplate {
   loot: LootSpot[];
   /** Mobs the piece comes with, such as the drowned that haunt an ocean ruin. */
   mobs: MobSpot[];
+  /** Spawners in the piece and the mob each turns (a trial chamber's spawner rooms). */
+  spawners: MobSpot[];
   /** Key in the bundle, for pool lookups. */
   key: string;
 }
@@ -92,6 +105,7 @@ const runtimeTemplate = (key: string, t: TemplateJson): RuntimeTemplate => ({
   jigsaws: t.jigsaws ?? [],
   loot: t.loot ?? [],
   mobs: t.mobs ?? [],
+  spawners: t.spawners ?? [],
   states: Int32Array.from(t.palette.map(parseState)),
   // air is a real instruction in a template (it hollows the structure out), unknown blocks are not
   known: Uint8Array.from(t.palette.map((e) => (e === 'air' || parseState(e) !== 0 ? 1 : 0))),
@@ -238,14 +252,19 @@ export interface ClipBox { x0: number; x1: number; z0: number; z1: number }
  * Writes one placed structure into the world, clipped to the columns the caller asks for.
  * Returns the positions written so the caller can adapt the terrain around them.
  */
-export function stampStructure(
-  world: BlockAccess,
-  p: StructurePlacement,
-  written?: Set<string>,
-  onLoot?: (x: number, y: number, z: number, table: string) => void,
-  clip?: ClipBox,
-  onEntity?: (x: number, y: number, z: number, mob: string) => void,
-): number {
+/** What a stamp reports back: the blocks it wrote, and the block entities and mobs it wants. */
+export interface StampHooks {
+  /** Positions written, so the caller can adapt the terrain around them. */
+  written?: Set<string>;
+  /** Columns the stamp may write in; everything outside is left to the chunk that owns it. */
+  clip?: ClipBox;
+  onLoot?: (x: number, y: number, z: number, table: string) => void;
+  onEntity?: (x: number, y: number, z: number, mob: string) => void;
+  onSpawner?: (x: number, y: number, z: number, mob: string) => void;
+}
+
+export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks: StampHooks = {}): number {
+  const { written, clip, onLoot, onEntity, onSpawner } = hooks;
   const { template, rotation } = p;
   const [sx, , sz] = template.size;
   const inside = (x: number, z: number) => !clip || (x >= clip.x0 && x <= clip.x1 && z >= clip.z0 && z <= clip.z1);
@@ -257,6 +276,10 @@ export function stampStructure(
   for (const spot of template.mobs) {
     const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
     if (inside(p.x + rx, p.z + rz)) onEntity?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.id);
+  }
+  for (const spot of template.spawners) {
+    const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
+    if (inside(p.x + rx, p.z + rz)) onSpawner?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.id);
   }
   for (let i = 0; i < template.blocks.length; i += 4) {
     const lx = template.blocks[i];
@@ -308,6 +331,21 @@ const boxOf = (t: RuntimeTemplate, x: number, y: number, z: number, rotation: nu
 const overlaps = (a: PlacedPiece['box'], b: PlacedPiece['box']): boolean =>
   a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0 && a.z0 <= b.z1 && a.z1 >= b.z0;
 
+const contains = (outer: PlacedPiece['box'], inner: PlacedPiece['box']): boolean =>
+  outer.x0 <= inner.x0 && outer.x1 >= inner.x1 && outer.y0 <= inner.y0 && outer.y1 >= inner.y1 && outer.z0 <= inner.z0 && outer.z1 >= inner.z1;
+
+/**
+ * Whether a candidate may go where it wants. Vanilla tracks the free space inside each piece and
+ * lets a child sit in it, which is how a trial chamber's spawners and decorations end up inside the
+ * room they belong to; anything that merely runs into another piece is rejected.
+ */
+function fits(placed: PlacedPiece[], parent: PlacedPiece, box: PlacedPiece['box']): boolean {
+  // only a small fitting may sit inside a room; a room-sized piece has to find space of its own
+  const small = box.x1 - box.x0 <= 6 && box.z1 - box.z0 <= 6 && box.y1 - box.y0 <= 6;
+  if (small && placed.some((p) => contains(p.box, box))) return true;
+  return !placed.some((p) => p !== parent && overlaps(p.box, box));
+}
+
 /** World position of a jigsaw block once its piece has been rotated and placed. */
 function jigsawWorld(piece: PlacedPiece, j: JigsawJson): { x: number; y: number; z: number; front: number } {
   const [sx, , sz] = piece.template.size;
@@ -316,8 +354,40 @@ function jigsawWorld(piece: PlacedPiece, j: JigsawJson): { x: number; y: number;
   return { x: piece.x + rx, y: piece.y + j.pos[1], z: piece.z + rz, front: front === undefined ? -1 : (front + piece.rotation) & 3 };
 }
 
+/** The pools a structure's aliases stand for this time round, rolled once per structure. */
+export function resolveAliases(set: StructureSet, rng: Rng): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const alias of set.aliases ?? []) {
+    if (alias.type === 'random') {
+      let total = 0;
+      for (const t of alias.targets) total += Math.max(1, t.weight);
+      let r = rng.next() * total;
+      for (const t of alias.targets) {
+        r -= Math.max(1, t.weight);
+        if (r <= 0) {
+          out.set(alias.alias, t.target);
+          break;
+        }
+      }
+      continue;
+    }
+    let total = 0;
+    for (const g of alias.groups) total += Math.max(1, g.weight);
+    let r = rng.next() * total;
+    for (const g of alias.groups) {
+      r -= Math.max(1, g.weight);
+      if (r <= 0) {
+        for (const e of g.entries) out.set(e.alias, e.target);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /** Weighted pick from a template pool, skipping entries whose template we do not have. */
-function pickFromPool(set: StructureSet, pool: string, rng: Rng): RuntimeTemplate | null {
+function pickFromPool(set: StructureSet, poolName: string, rng: Rng, aliases?: Map<string, string>): RuntimeTemplate | null {
+  const pool = aliases?.get(poolName) ?? poolName;
   const entries = (set.pools[pool] ?? []).filter((e) => set.byKey.has(e.location.replace(/\//g, '_')));
   if (!entries.length) return null;
   let total = 0;
@@ -331,13 +401,59 @@ function pickFromPool(set: StructureSet, pool: string, rng: Rng): RuntimeTemplat
 }
 
 /**
+ * Vanilla lets a jigsaw block point up or down as well as sideways, which is how a chamber stacks on
+ * another or a village house takes its roof. The child is placed so its own connector sits directly
+ * over or under this one, at whatever horizontal turn leaves it room.
+ */
+function attachVertical(
+  set: StructureSet,
+  placed: PlacedPiece[],
+  parent: PlacedPiece,
+  j: JigsawJson,
+  from: { x: number; y: number; z: number },
+  rng: Rng,
+  aliases: Map<string, string>,
+  trace?: (msg: string) => void,
+): PlacedPiece | null {
+  const up = jigsawFront(j.orientation) === 'up';
+  const wantFront = up ? 'down' : 'up';
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const template = pickFromPool(set, j.pool, rng, aliases);
+    if (!template) return null;
+    const targets = template.jigsaws.filter((t) => t.name === j.target && jigsawFront(t.orientation) === wantFront);
+    if (!targets.length) {
+      trace?.(`no vertical connector '${j.target}' in ${template.key}`);
+      continue;
+    }
+    const target = targets[rng.int(targets.length)];
+    const rot = rng.int(4);
+    const [tsx, , tsz] = template.size;
+    const [trx, trz] = rotate(target.pos[0], target.pos[2], tsx, tsz, rot);
+    const px = from.x - trx;
+    const py = from.y + (up ? 1 : -1) - target.pos[1];
+    const pz = from.z - trz;
+    const box = boxOf(template, px, py, pz, rot);
+    if (!fits(placed, parent, box)) {
+      trace?.(`overlap stacking ${template.key} on ${parent.template.key}`);
+      continue;
+    }
+    const child: PlacedPiece = { template, x: px, y: py, z: pz, rotation: rot, box };
+    placed.push(child);
+    return child;
+  }
+  return null;
+}
+
+/**
  * Vanilla's jigsaw assembly, simplified: start from a piece of the start pool, then walk its jigsaw
  * blocks outward, attaching a piece from each connector's target pool so the two jigsaws meet face
  * to face. Pieces that would overlap something already placed are skipped, and the chain stops at
  * the structure's depth (six for villages).
  */
 export function assembleJigsaw(set: StructureSet, startPool: string, x: number, y: number, z: number, rng: Rng, trace?: (msg: string) => void): PlacedPiece[] {
-  const start = pickFromPool(set, startPool, rng);
+  // which pools this structure's aliases stand for is decided once, before anything is placed
+  const aliases = resolveAliases(set, rng);
+  const start = pickFromPool(set, startPool, rng, aliases);
   if (!start) return [];
   const rotation = rng.int(4);
   const placed: PlacedPiece[] = [{ template: start, x, y, z, rotation, box: boxOf(start, x, y, z, rotation) }];
@@ -356,17 +472,22 @@ export function assembleJigsaw(set: StructureSet, startPool: string, x: number, 
       }
       for (const j of connectors) {
         const from = jigsawWorld(piece, j);
-        if (from.front < 0) continue; // vertical connectors (iron golem spawns) are ignored
+        if (from.front < 0) {
+          // a connector pointing up or down stacks the next piece straight above or below this one
+          const child = attachVertical(set, placed, piece, j, from, rng, aliases, trace);
+          if (child) next.push({ piece: child, depth: depth + 1 });
+          continue;
+        }
         const [dx, , dz] = DIR_VECTORS[from.front];
         if (Math.abs(from.x + dx - x) > maxDistance || Math.abs(from.z + dz - z) > maxDistance) continue;
-        const candidates = (set.pools[j.pool] ?? []).length;
+        const candidates = (set.pools[aliases.get(j.pool) ?? j.pool] ?? []).length;
         if (!candidates) {
           trace?.(`no pool ${j.pool}`);
           continue;
         }
         // a few tries to find a piece that fits without overlapping what is already there
         for (let attempt = 0; attempt < 6; attempt++) {
-          const template = pickFromPool(set, j.pool, rng);
+          const template = pickFromPool(set, j.pool, rng, aliases);
           if (!template) {
             trace?.(`empty pool ${j.pool}`);
             break;
@@ -389,7 +510,7 @@ export function assembleJigsaw(set: StructureSet, startPool: string, x: number, 
           const box = boxOf(template, px, py, pz, rot);
           // vanilla checks a candidate against the space its parent leaves free, so a house may
           // share the edge of the street piece it hangs off, but not run into anything else
-          if (placed.some((p) => p !== piece && overlaps(p.box, box))) {
+          if (!fits(placed, piece, box)) {
             trace?.(`overlap placing ${template.key} from ${piece.template.key}`);
             continue;
           }

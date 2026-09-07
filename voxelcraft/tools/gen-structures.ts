@@ -93,7 +93,7 @@ const num = (v: NbtValue): number => Number(v as number);
 interface Jigsaw { pos: [number, number, number]; orientation: string; name: string; target: string; pool: string; final: string }
 interface LootSpot { pos: [number, number, number]; table: string }
 interface MobSpot { pos: [number, number, number]; id: string }
-interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[]; mobs?: MobSpot[] }
+interface Template { size: [number, number, number]; palette: string[]; blocks: number[]; jigsaws?: Jigsaw[]; loot?: LootSpot[]; mobs?: MobSpot[]; spawners?: MobSpot[] }
 
 /**
  * Vanilla marks some chests with a `structure_block` in DATA mode sitting one block above the chest
@@ -185,8 +185,23 @@ function convert(file: string, structure: string, piece: string): Template | nul
     if (table) loot.push({ pos: pos as [number, number, number], table: String(table).replace('minecraft:', '') });
     blocks.push(pos[0], pos[1], pos[2], state);
   }
+  // a trial chamber's spawner piece is named after the mob it turns, and holds one trial spawner
+  const spawners: MobSpot[] = [];
+  const spawnerMob = /spawner\/(?:[a-z_]+)\/([a-z_]+)$/.exec(piece)?.[1];
+  if (spawnerMob) {
+    for (let i = 0; i < blocks.length; i += 4) {
+      if (!palette[blocks[i + 3]].startsWith('trial_spawner')) continue;
+      spawners.push({ pos: [blocks[i], blocks[i + 1], blocks[i + 2]], id: spawnerMob });
+    }
+  }
   return blocks.length || jigsaws.length
-    ? { size, palette, blocks, ...(jigsaws.length ? { jigsaws } : {}), ...(loot.length ? { loot } : {}), ...(mobs.length ? { mobs } : {}) }
+    ? {
+      size, palette, blocks,
+      ...(jigsaws.length ? { jigsaws } : {}),
+      ...(loot.length ? { loot } : {}),
+      ...(mobs.length ? { mobs } : {}),
+      ...(spawners.length ? { spawners } : {}),
+    }
     : null;
 }
 
@@ -194,7 +209,35 @@ function convert(file: string, structure: string, piece: string): Template | nul
 const JIGSAW: { name: string; set: string }[] = [
   { name: 'village', set: 'villages' },
   { name: 'ancient_city', set: 'ancient_cities' },
+  { name: 'trial_chambers', set: 'trial_chambers' },
 ];
+
+/**
+ * Pool aliases: a trial chamber decides once per chamber which mobs its spawners hold, by pointing
+ * an alias name (`spawner/contents/melee`) at a real pool (`spawner/melee/husk`).
+ */
+type PoolAlias =
+  | { type: 'random'; alias: string; targets: { target: string; weight: number }[] }
+  | { type: 'random_group'; groups: { weight: number; entries: { alias: string; target: string }[] }[] };
+
+function readAliases(def: { pool_aliases?: Record<string, unknown>[] }): PoolAlias[] {
+  const out: PoolAlias[] = [];
+  const strip = (v: string) => v.replace('minecraft:', '');
+  for (const raw of def.pool_aliases ?? []) {
+    const kind = String(raw.type).replace('minecraft:', '');
+    if (kind === 'random') {
+      const targets = (raw.targets as { data: string; weight: number }[]).map((t) => ({ target: strip(t.data), weight: t.weight ?? 1 }));
+      out.push({ type: 'random', alias: strip(String(raw.alias)), targets });
+    } else if (kind === 'random_group') {
+      const groups = (raw.groups as { weight: number; data: { alias: string; target: string }[] }[]).map((g) => ({
+        weight: g.weight ?? 1,
+        entries: g.data.map((d) => ({ alias: strip(d.alias), target: strip(d.target) })),
+      }));
+      out.push({ type: 'random_group', groups });
+    }
+  }
+  return out;
+}
 
 const mc = versionDir();
 const structureDir = path.join(mc, 'data', 'minecraft', 'structure');
@@ -204,7 +247,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; aliases?: PoolAlias[]; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -260,6 +303,7 @@ for (const want of JIGSAW) {
   const queue: string[] = [];
   let depth = 6;
   let maxDistance = 80;
+  const aliases: PoolAlias[] = [];
   let startY: number | null = null;
   let startYMax: number | null = null;
   for (const entry of set.structures) {
@@ -272,6 +316,7 @@ for (const want of JIGSAW) {
       max_distance_from_center?: number;
       project_start_to_heightmap?: string;
       start_height?: { absolute?: number; min_inclusive?: { absolute: number }; max_inclusive?: { absolute: number } };
+      pool_aliases?: Record<string, unknown>[];
     };
     const start = def.start_pool.replace('minecraft:', '');
     const own = biomesFor(mc, [name]);
@@ -279,6 +324,12 @@ for (const want of JIGSAW) {
     queue.push(start);
     for (const b of own) biomes.add(b);
     depth = Math.max(depth, def.size ?? 6);
+    for (const alias of readAliases(def)) {
+      aliases.push(alias);
+      // the pools an alias can point at are only reachable through it, so queue them by hand
+      if (alias.type === 'random') for (const t of alias.targets) queue.push(t.target);
+      else for (const g of alias.groups) for (const e of g.entries) queue.push(e.target);
+    }
     maxDistance = Math.max(maxDistance, def.max_distance_from_center ?? 80);
     // a structure built underground says where it starts; one projected to a heightmap follows the ground
     const h = def.project_start_to_heightmap ? undefined : def.start_height;
@@ -325,6 +376,7 @@ for (const want of JIGSAW) {
     spacing: set.placement.spacing, separation: set.placement.separation, salt: set.placement.salt,
     pieces, biomes: [...biomes].sort(), variants, maxDepth: depth, maxDistance,
     ...(startY !== null ? { startY, startYMax } : {}),
+    ...(aliases.length ? { aliases } : {}),
   });
 }
 

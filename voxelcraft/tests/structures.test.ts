@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import { blocks } from '../src/blocks/registry.ts';
-import { assembleJigsaw, buildStructureSets, jigsawFront, parseState, pickVariant, rotate, rotateState, stampStructure, structureStart, type PoolEntry, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
+import { assembleJigsaw, buildStructureSets, jigsawFront, parseState, pickVariant, resolveAliases, rotate, rotateState, stampStructure, structureStart, type PoolEntry, type StructureIndexEntry, type TemplateJson } from '../src/world/gen/structures.ts';
 import { Rng } from '../src/core/rng.ts';
 import { WorldGenerator } from '../src/world/gen/generator.ts';
 import { ChunkData } from '../src/world/chunk.ts';
@@ -71,7 +71,7 @@ describe('structure templates', () => {
     expect(sets.map((s) => s.name).sort()).toEqual([
       'ancient_city', 'buried_treasure', 'desert_pyramid', 'igloo', 'jungle_temple', 'mineshaft',
       'ocean_ruin_cold', 'ocean_ruin_warm', 'pillager_outpost', 'ruined_portal', 'shipwreck',
-      'stronghold', 'swamp_hut', 'village',
+      'stronghold', 'swamp_hut', 'trial_chambers', 'village',
     ]);
     const igloo = sets.find((s) => s.name === 'igloo')!;
     expect(igloo.biomes).toEqual(['snowy_plains', 'snowy_slopes', 'snowy_taiga']);
@@ -86,7 +86,7 @@ describe('structure templates', () => {
     const written = new Set<string>();
     const placed = stampStructure(access, {
       set: igloo, template: igloo.mainTemplates[0], x: 100, y: 64, z: -50, rotation: 1, integrity: 1, decaySeed: 1,
-    }, written);
+    }, { written });
     expect(placed).toBeGreaterThan(80);
     const ids = new Set([...world.values()].filter(Boolean).map((s) => blocks.idOf(s)));
     expect(ids.has('snow_block')).toBe(true);
@@ -127,7 +127,8 @@ describe('structure templates', () => {
             && template.blocks[n] === spot.pos[0] && template.blocks[n + 1] === spot.pos[1] && template.blocks[n + 2] === spot.pos[2]);
           expect(i, `${template.key} ${spot.table}`).toBeGreaterThanOrEqual(0);
           const id = blocks.idOf(template.states[template.blocks[i + 3]]);
-          expect(id, `${template.key} ${spot.table}`).toMatch(/chest|barrel/);
+          // a trial chamber fills pots and dispensers as well as chests, so any container counts
+          expect(id, `${template.key} ${spot.table}`).toMatch(/chest|barrel|decorated_pot|dispenser/);
         }
     // and the loot reported by a stamp comes back rotated with the piece
     const reported: string[] = [];
@@ -135,8 +136,7 @@ describe('structure templates', () => {
     stampStructure(
       { get: (x, y, z) => world.get(`${x},${y},${z}`) ?? 0, set: (x, y, z, st) => { world.set(`${x},${y},${z}`, st); } },
       { set: shipwreck, template: withMast, x: 0, y: 40, z: 0, rotation: 1, integrity: 1, decaySeed: 1 },
-      undefined,
-      (x, y, z, table) => reported.push(`${table}@${x},${y},${z}`),
+      { onLoot: (x, y, z, table) => reported.push(`${table}@${x},${y},${z}`) },
     );
     expect(reported.length).toBe(3);
     for (const line of reported) {
@@ -192,6 +192,52 @@ describe('jigsaw villages', () => {
   });
 });
 
+describe('trial chambers', () => {
+  it.runIf(hasTemplates)('picks its spawner mobs through the pool aliases, once per chamber', () => {
+    const { index, templates, pools } = load();
+    const chambers = buildStructureSets(index, templates, pools).find((s) => s.name === 'trial_chambers')!;
+    expect(chambers.startY).toBe(-40);
+    expect(chambers.startYMax).toBe(-20);
+    expect(chambers.aliases?.length).toBe(3);
+    // an alias stands for a real pool, and the group ones keep a chamber's ranged spawners in step
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 20; seed++) {
+      const map = resolveAliases(chambers, new Rng(seed));
+      expect(map.size).toBe(4);
+      for (const [alias, target] of map) {
+        expect(alias.startsWith('trial_chambers/spawner/contents/')).toBe(true);
+        expect(chambers.pools[target]).toBeDefined();
+        seen.add(`${alias.split('/').pop()}=${target.split('/').pop()}`);
+      }
+      expect(map.get('trial_chambers/spawner/contents/ranged')?.split('/').pop())
+        .toBe(map.get('trial_chambers/spawner/contents/slow_ranged')?.split('/').pop());
+    }
+    expect([...seen].filter((s) => s.startsWith('melee=')).length).toBeGreaterThan(1); // the mobs vary
+
+    // the spawner pieces say which mob their trial spawner turns
+    const withSpawner = chambers.templates.filter((t) => t.spawners.length);
+    expect(withSpawner.length).toBeGreaterThan(10);
+    for (const t of withSpawner) {
+      expect(t.key).toContain('spawner');
+      for (const spot of t.spawners) {
+        const i = t.blocks.findIndex((_, n) => n % 4 === 0 && t.blocks[n] === spot.pos[0] && t.blocks[n + 1] === spot.pos[1] && t.blocks[n + 2] === spot.pos[2]);
+        expect(blocks.idOf(t.states[t.blocks[i + 3]])).toBe('trial_spawner');
+      }
+    }
+
+    // and a chamber assembles with its spawners in it, which needs the up-and-down connectors
+    let spawners = 0;
+    let biggest = 0;
+    for (let seed = 0; seed < 8; seed++) {
+      const pieces = assembleJigsaw(chambers, chambers.variants![0].start, 0, -30, 0, new Rng(seed * 977 + 13));
+      spawners += pieces.filter((p) => p.template.spawners.length).length;
+      biggest = Math.max(biggest, pieces.length);
+    }
+    expect(spawners).toBeGreaterThan(0);
+    expect(biggest).toBeGreaterThan(30);
+  });
+});
+
 describe('ancient cities', () => {
   it.runIf(hasTemplates)('is a jigsaw structure built at a fixed depth in the deep dark', () => {
     const { index, templates, pools } = load();
@@ -242,10 +288,10 @@ describe('ocean ruins', () => {
     stampStructure(
       { get: (x, y, z) => world.get(`${x},${y},${z}`) ?? 0, set: (x, y, z, st) => { world.set(`${x},${y},${z}`, st); } },
       { set: cold, template: piece, x: 8, y: 30, z: -4, rotation: 2, integrity: 1, decaySeed: 5 },
-      undefined,
-      (x, y, z, table) => loot.push(`${table}@${x},${y},${z}`),
-      undefined,
-      (x, y, z, mob) => mobs.push(`${mob}@${x},${y},${z}`),
+      {
+        onLoot: (x, y, z, table) => loot.push(`${table}@${x},${y},${z}`),
+        onEntity: (x, y, z, mob) => mobs.push(`${mob}@${x},${y},${z}`),
+      },
     );
     expect(loot.length).toBeGreaterThan(0);
     for (const spot of loot) {
@@ -262,7 +308,7 @@ describe('clipped stamping', () => {
   const stampInto = (world: Map<string, number>, p: Parameters<typeof stampStructure>[1], clip?: { x0: number; x1: number; z0: number; z1: number }) =>
     stampStructure(
       { get: (x, y, z) => world.get(`${x},${y},${z}`) ?? 0, set: (x, y, z, st) => { world.set(`${x},${y},${z}`, st); } },
-      p, undefined, undefined, clip,
+      p, { clip },
     );
 
   it.runIf(hasTemplates)('writes the same world one chunk at a time as it does in one go', () => {
