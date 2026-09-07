@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -141,6 +141,55 @@ const dolphinModel: ModelDef = {
     { name: 'back_fin', parent: 'body', pivot: [0, 17, 2], rotation: [0.5236, 0, 0], boxes: [{ uv: [29, 0], box: [-0.5, -4.25, -1, 1, 5, 4] }] },
     { name: 'left_fin', parent: 'body', pivot: [3, 23, -1], rotation: [0, 0.4363, -0.3491], boxes: [{ uv: [40, 0], box: [0, -1, -1.5, 8, 1, 4] }] },
     { name: 'right_fin', parent: 'body', pivot: [-3, 23, -1], rotation: [0, -0.4363, 0.3491], boxes: [{ uv: [40, 6], box: [-8, -1, -1.5, 8, 1, 4] }] },
+  ],
+};
+
+
+/**
+ * The turtle, converted from Mojang's geometry with its flippers renamed to the legs our quadruped
+ * animation swings. Vanilla's model carries an egg belly that only a turtle carrying one shows.
+ */
+const turtleModel: ModelDef = {
+  texture: 'turtle/big_sea_turtle.png', texW: 128, texH: 64,
+  parts: [
+    // vanilla lays the shell flat with a quarter turn, and hangs nothing off it: the head and the
+    // four flippers are parts of their own, the way its quadruped model keeps them
+    { name: 'body', pivot: [0, 11, -10], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [6, 37], box: [-9.5, 3, -10, 19, 20, 6] }, { uv: [30, 1], box: [-5.5, 3, -13, 11, 18, 3] }] },
+    { name: 'eggbelly', pivot: [0, 11, -10], rotation: [HALF_PI, 0, 0], hidden: true, boxes: [{ uv: [70, 33], box: [-4.5, 3, -14, 9, 18, 1] }] },
+    { name: 'head', pivot: [0, 19, -10], boxes: [{ uv: [2, 0], box: [-3, -1, -3, 6, 5, 6] }] },
+    { name: 'right_hind_leg', pivot: [-3.5, 22, 11], boxes: [{ uv: [0, 23], box: [-2, 0, 0, 4, 1, 10] }] },
+    { name: 'left_hind_leg', pivot: [3.5, 22, 11], boxes: [{ uv: [0, 12], box: [-2, 0, 0, 4, 1, 10] }] },
+    { name: 'right_front_leg', pivot: [-5, 21, -4], boxes: [{ uv: [26, 30], box: [-13, 0, -2, 13, 1, 5] }] },
+    { name: 'left_front_leg', pivot: [5, 21, -4], boxes: [{ uv: [26, 24], box: [0, 0, -2, 13, 1, 5] }] },
+  ],
+};
+
+/** The fox, whose sleeping head is a second skin vanilla swaps in when it curls up. */
+const foxModel = (texture = 'fox/fox.png'): ModelDef => ({
+  texture, texW: 64, texH: 32,
+  parts: [
+    { name: 'body', pivot: [0, 16, 0], boxes: [{ uv: [30, 15], box: [-3, -3, -3, 6, 11, 6] }] },
+    { name: 'head', parent: 'body', pivot: [0, 16, -3], boxes: [{ uv: [0, 0], box: [-4, -2, -6, 8, 6, 6] }, { uv: [0, 0], box: [-4, -4, -5, 2, 2, 1] }, { uv: [22, 0], box: [2, -4, -5, 2, 2, 1] }, { uv: [0, 24], box: [-2, 2, -9, 4, 2, 3] }] },
+    { name: 'right_hind_leg', parent: 'body', pivot: [-3, 18, 6], boxes: [{ uv: [14, 24], box: [-0.005, 0, -1, 2, 6, 2] }] },
+    { name: 'left_hind_leg', parent: 'body', pivot: [1, 18, 6], boxes: [{ uv: [22, 24], box: [0.005, 0, -1, 2, 6, 2] }] },
+    { name: 'right_front_leg', parent: 'body', pivot: [-3, 18, -1], boxes: [{ uv: [14, 24], box: [-0.005, 0, -1, 2, 6, 2] }] },
+    { name: 'left_front_leg', parent: 'body', pivot: [1, 18, -1], boxes: [{ uv: [22, 24], box: [0.005, 0, -1, 2, 6, 2] }] },
+    { name: 'tail', parent: 'body', pivot: [0, 16, 7], boxes: [{ uv: [28, 0], box: [-2, 1, -2.25, 4, 9, 5] }] },
+  ],
+});
+
+/** The goat, horns and all. */
+const goatModel: ModelDef = {
+  texture: 'goat/goat.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'body', pivot: [0, 24, 0], boxes: [{ uv: [1, 1], box: [-4, -17, -7, 9, 11, 16] }, { uv: [0, 28], box: [-5, -18, -8, 11, 14, 11] }] },
+    { name: 'head', pivot: [0.5, 7, -8], boxes: [{ uv: [34, 46], box: [-2.5, -5, -8, 5, 7, 10] }, { uv: [2, 61], box: [2.5, -4, -2, 3, 2, 1], mirror: true }, { uv: [2, 61], box: [-5.5, -4, -2, 3, 2, 1] }, { uv: [23, 52], box: [0, 4, -6, 0, 7, 5] }] },
+    { name: 'right_horn', parent: 'head', pivot: [1, 6, -8], boxes: [{ uv: [12, 55], box: [-2.99, -8, -2, 2, 7, 2] }] },
+    { name: 'left_horn', parent: 'head', pivot: [1, 6, -8], boxes: [{ uv: [12, 55], box: [-0.01, -8, -2, 2, 7, 2] }] },
+    { name: 'left_hind_leg', pivot: [1, 14, 4], boxes: [{ uv: [36, 29], box: [0, 4, 0, 3, 6, 3] }] },
+    { name: 'right_hind_leg', pivot: [-3, 14, 4], boxes: [{ uv: [49, 29], box: [0, 4, 0, 3, 6, 3] }] },
+    { name: 'right_front_leg', pivot: [-3, 14, -6], boxes: [{ uv: [49, 2], box: [0, 0, 0, 3, 10, 3] }] },
+    { name: 'left_front_leg', pivot: [1, 14, -6], boxes: [{ uv: [35, 2], box: [0, 0, 0, 3, 10, 3] }] },
   ],
 };
 
@@ -814,9 +863,19 @@ interface MobSpec {
 
 const passiveGoals = (panicSpeed = 1.25, extra: Goal[] = []) => [floatGoal, panicGoal(panicSpeed), breedGoal(), followParentGoal(), ...extra, wanderGoal(120, 1, 10), lookAtPlayerGoal(6), randomLookGoal];
 
+/** Turtles crawl on land and swim well, and go home to the sand they hatched on to lay. */
+const turtleGoals = (): Goal[] => [floatGoal, panicGoal(1.2), breedGoal(), turtleLayGoal(), followParentGoal(), wanderGoal(160, 0.5, 8), lookAtPlayerGoal(6), randomLookGoal];
+
+/** Foxes sleep out the day, keep away from players, and hunt nothing here yet. */
+const foxGoals = (): Goal[] => [floatGoal, foxSleepGoal(), panicGoal(1.6), avoidPlayerGoal(12), breedGoal(), followParentGoal(), wanderGoal(120, 1, 10), lookAtPlayerGoal(6), randomLookGoal];
+
+/** Goats wander the peaks and lower their heads at whatever has stood too close for too long. */
+const goatGoals = (): Goal[] => [floatGoal, panicGoal(1.4), goatRamGoal(), breedGoal(), followParentGoal(), wanderGoal(120, 1, 10), lookAtPlayerGoal(6), randomLookGoal];
+
 /** Vanilla breeding items per animal. */
 export const BREEDING_FOODS: Record<string, string[]> = {
   cow: ['wheat'], mooshroom: ['wheat'], sheep: ['wheat'], pig: ['carrot', 'potato', 'beetroot'],
+  turtle: ['seagrass'], goat: ['wheat'], fox: ['sweet_berries', 'glow_berries'],
   chicken: ['wheat_seeds', 'melon_seeds', 'pumpkin_seeds', 'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'],
 };
 export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_FOODS[mob]?.includes(item) ?? false;
@@ -887,6 +946,11 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   squid: { model: squidModel(), animation: 'squid', eyeHeight: 0.4, followRange: 16, aquatic: true, goals: () => [squidGoal()] },
   glow_squid: { model: squidModel('squid/glow_squid.png'), animation: 'squid', eyeHeight: 0.4, followRange: 16, aquatic: true, goals: () => [squidGoal()] },
   dolphin: { model: dolphinModel, animation: 'fish', eyeHeight: 0.3, followRange: 16, aquatic: true, goals: () => [dolphinGoal(), loseTargetGoal(), meleeAttackGoal()] },
+  // the beach, the taiga and the mountains: a turtle that lays its eggs where it hatched, a fox that
+  // sleeps out the day, and a goat that rams whatever stands still long enough
+  turtle: { model: turtleModel, animation: 'quadruped', eyeHeight: 0.25, followRange: 16, goals: () => turtleGoals() },
+  fox: { model: foxModel(), animation: 'quadruped', eyeHeight: 0.55, followRange: 16, goals: () => foxGoals() },
+  goat: { model: goatModel, animation: 'quadruped', eyeHeight: 1.2, followRange: 16, goals: () => goatGoals() },
   // vanilla phantom attack damage is 6
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
   witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },

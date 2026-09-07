@@ -1219,3 +1219,22 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      Grace. Spawning is vanilla's too: bats in the dark below sea level in the ambient group,
      glow squid in sunless water below thirty, and squid and dolphins with the fish when an ocean
      chunk rolls its animals, dolphins only where the water is not frozen.
+
+121. **Turtles, foxes and goats.** Three more from Mojang's geometry, each with the one behaviour
+     that makes it itself.
+
+     A turtle remembers the sand it came from. Breeding a pair does not produce a calf on the spot
+     the way every other animal does: one of them carries an egg, walks back to the beach it
+     remembers, and lays a clutch of one to four there — and only on sand, which is why a turtle
+     bred inland never lays. Its shell needed vanilla's own quarter turn: Bedrock's geometry stands
+     the shell on edge, and Java's `TurtleModel` lays it flat with an xRot of a quarter turn on the
+     body and the egg belly, with the head and the four flippers as parts of their own rather than
+     children of the shell.
+
+     A fox sleeps out the day, curled on its side with the skin vanilla gives a sleeping one, and
+     wakes for a hurt or for anybody within eight blocks; awake, it keeps away from players rather
+     than coming to them. A goat waits out a six-hundred-tick cooldown, then lowers its head at
+     whatever has stood four to eight blocks off and charges, and the blow throws rather than hurts.
+
+     Spawning follows vanilla's lists: turtles on beaches, foxes in the taigas and groves (white in
+     the snowy ones), goats on the peaks, the snowy slopes and the meadows.

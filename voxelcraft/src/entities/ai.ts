@@ -406,7 +406,10 @@ export const breedGoal = (): Goal => {
         m.moveTimeout = 40;
       }
       if (m.distanceTo(o.pos) < 3) {
-        const baby = w.spawnMob(offspringOf(m.def.id, o.def.id), (m.pos.x + o.pos.x) / 2, Math.max(m.pos.y, o.pos.y), (m.pos.z + o.pos.z) / 2, true);
+        // vanilla's turtles carry an egg home to the beach instead of having a calf on the spot
+        const eggs = m.def.id === 'turtle';
+        const baby = eggs ? null : w.spawnMob(offspringOf(m.def.id, o.def.id), (m.pos.x + o.pos.x) / 2, Math.max(m.pos.y, o.pos.y), (m.pos.z + o.pos.z) / 2, true);
+        if (eggs) m.extra.hasEgg = true;
         if (baby && m.def.id === 'sheep') baby.extra.color = w.rng() < 0.5 ? m.extra.color ?? 'white' : o.extra.color ?? 'white';
         if (baby && EQUINE_TYPES.includes(baby.def.id)) inheritEquine(baby, m, o, w.rng);
         for (const a of [m, o]) {
@@ -1052,6 +1055,118 @@ export const dolphinGoal = (): Goal => ({
       m.moveTimeout = 60;
       break;
     }
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// Turtles, foxes and goats
+// ---------------------------------------------------------------------------------------------
+/**
+ * Vanilla's turtle: a bred one carries an egg back to the sand it hatched on and lays a clutch
+ * there. `home` is the beach it remembers, which the game sets when it spawns or hatches.
+ */
+export const turtleLayGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m) => m.extra.hasEgg === true,
+  tick: (m, w) => {
+    const home = m.extra.home as unknown as { x: number; z: number } | undefined;
+    if (!home) {
+      m.extra.hasEgg = false;
+      return;
+    }
+    const at = new THREE.Vector3(home.x + 0.5, m.pos.y, home.z + 0.5);
+    if (m.pos.distanceTo(at) > 1.5) {
+      m.moveTarget = at;
+      m.moveSpeed = 0.7;
+      m.moveTimeout = 120;
+      return;
+    }
+    // it digs where it stands, so long as it is standing on sand
+    const bx = Math.floor(m.pos.x);
+    const bz = Math.floor(m.pos.z);
+    const by = Math.floor(m.pos.y);
+    const below = blocks.blockOf(w.getBlock(bx, by - 1, bz)).id;
+    if (below !== 'sand' && below !== 'red_sand') return;
+    if (w.getBlock(bx, by, bz) !== 0) return;
+    // vanilla lays one to four eggs in the one block
+    w.setBlock(bx, by, bz, blocks.stateWith('turtle_egg', { eggs: String(1 + Math.floor(w.rng() * 4)), hatch: '0' }));
+    w.playSound('dig_gravel', bx + 0.5, by, bz + 0.5, 0.9);
+    m.extra.hasEgg = false;
+    m.moveTarget = null;
+  },
+});
+
+/** Vanilla's fox: it curls up and sleeps through the day unless something wakes it. */
+export const foxSleepGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    const disturbed = m.age - m.lastHurtTime < 100 || m.distanceTo(p) < 8;
+    // vanilla sleeps a fox by day, out in the light, and wakes it for anything at all
+    const sleepy = w.isDay() && w.getSkyLight(Math.floor(m.pos.x), Math.floor(m.pos.y), Math.floor(m.pos.z)) > 8;
+    const asleep = sleepy && !disturbed && m.onGround;
+    if (asleep === (m.extra.sleeping === true)) return;
+    m.extra.sleeping = asleep;
+    if (asleep) {
+      m.moveTarget = null;
+      m.lookTarget = null;
+      m.vel.x = 0;
+      m.vel.z = 0;
+    }
+  },
+});
+
+/** Keeps a mob out of the player's way, which is how a fox behaves around one. */
+export const avoidPlayerGoal = (range = 12, speed = 1.5): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => m.extra.sleeping !== true && m.distanceTo(w.playerPos()) < range,
+  tick: (m, w) => {
+    const p = w.playerPos();
+    const away = m.pos.clone().sub(p);
+    away.y = 0;
+    if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
+    away.normalize().multiplyScalar(range);
+    m.moveTarget = m.pos.clone().add(away);
+    m.moveSpeed = speed;
+    m.moveTimeout = 40;
+  },
+});
+
+/** How long a goat lines up a charge, and how far off it starts one, as vanilla times it. */
+export const GOAT_RAM_COOLDOWN = 600;
+
+/**
+ * Vanilla's goat ram: it waits out a long cooldown, lowers its head at whatever is four to seven
+ * blocks off, then charges, knocking back whatever it reaches.
+ */
+export const goatRamGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => {
+    const cooldown = typeof m.extra.ramCooldown === 'number' ? m.extra.ramCooldown : 0;
+    if (cooldown > 0) {
+      m.extra.ramCooldown = cooldown - 1;
+      return false;
+    }
+    if (m.isBaby || !w.playerTargetable()) return false;
+    const d = m.distanceTo(w.playerPos());
+    return d > 4 && d < 8;
+  },
+  tick: (m, w) => {
+    const p = w.playerPos();
+    m.lookTarget = p.clone();
+    m.moveTarget = p.clone();
+    m.moveSpeed = 2;
+    m.moveTimeout = 40;
+    m.extra.ramming = true;
+    if (m.distanceTo(p) > 1.6 || m.attackCooldown > 0) return;
+    // vanilla's ram throws the player rather than hurting them much
+    w.hurtPlayer(m.def.damage, m.pos, m);
+    m.attackCooldown = 20;
+    m.extra.ramCooldown = GOAT_RAM_COOLDOWN;
+    m.extra.ramming = false;
+    m.moveTarget = null;
+    w.playSound('goat', m.pos.x, m.pos.y, m.pos.z);
   },
 });
 

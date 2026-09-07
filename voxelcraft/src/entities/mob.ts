@@ -1065,6 +1065,28 @@ export class Mob {
       this.setTexture(this.extra.variant === 'brown' ? 'cow/brown_mooshroom.png' : 'cow/red_mooshroom.png');
       if (this.decoration) this.decoration.visible = !baby;
     }
+    if (this.def.id === 'fox') {
+      // vanilla curls a sleeping fox onto its side and gives it a skin with its eyes shut
+      const snow = this.extra.variant === 'snow';
+      const asleep = this.extra.sleeping === true;
+      this.setTexture(`fox/${snow ? 'snow_fox' : 'fox'}${asleep ? '_sleep' : ''}.png`);
+      if (asleep) {
+        g.rotation.z = Math.PI / 2;
+        set('right_hind_leg', 0);
+        set('left_hind_leg', 0);
+        set('right_front_leg', 0);
+        set('left_front_leg', 0);
+      }
+    }
+    if (this.def.id === 'goat') {
+      // a charging goat drops its head, which is what a ram looks like coming at you
+      const head = parts.get('head');
+      if (head) head.rotation.x = this.extra.ramming === true ? 0.6 : head.rotation.x;
+    }
+    if (this.def.id === 'turtle') {
+      const belly = parts.get('eggbelly');
+      if (belly) belly.visible = this.extra.hasEgg === true;
+    }
     if (this.def.id === 'cat') {
       this.setTexture(catTexture(String(this.extra.variant ?? 'tabby')));
       const collar = parts.get('collar');

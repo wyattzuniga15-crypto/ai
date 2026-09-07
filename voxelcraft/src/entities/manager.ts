@@ -42,6 +42,16 @@ const MOOSHROOM_MUSHROOMS: [number, number, number, number][] = [
 /** Biomes whose animal groups can be horse or donkey herds (vanilla plains and savannas). */
 const HORSE_BIOMES = new Set(['plains', 'sunflower_plains', 'savanna', 'savanna_plateau', 'windswept_savanna']);
 
+/** Where vanilla puts foxes, and which of them wear the white coat. */
+const FOX_BIOMES = new Set(['taiga', 'old_growth_pine_taiga', 'old_growth_spruce_taiga', 'snowy_taiga', 'grove']);
+const SNOW_FOX_BIOMES = new Set(['snowy_taiga', 'grove']);
+
+/** Vanilla's goat biomes: the peaks and the slopes under them. */
+const GOAT_BIOMES = new Set(['frozen_peaks', 'jagged_peaks', 'stony_peaks', 'snowy_slopes', 'windswept_hills', 'meadow']);
+
+/** Beaches warm enough for turtles, which vanilla keeps to the plain and the stony ones. */
+const TURTLE_BIOMES = new Set(['beach']);
+
 export class EntityManager {
   readonly mobs: Mob[] = [];
   readonly arrows: Arrow[] = [];
@@ -259,16 +269,23 @@ export class EntityManager {
       return;
     }
     if (biome.surface.top !== 'grass_block') return;
+    // vanilla's beaches carry turtles instead of the usual herd
+    if (TURTLE_BIOMES.has(biome.id)) {
+      this.spawnTurtles(x, z);
+      return;
+    }
     const wolfVariant = wolfVariantFor(biome.id);
+    const fox = FOX_BIOMES.has(biome.id) && h.rng() < 0.5;
+    const goat = GOAT_BIOMES.has(biome.id) && h.rng() < 0.5;
     // vanilla spawns ocelots only in the jungles, in pairs
     const ocelot = biome.category === 'jungle' && h.rng() < 0.25;
     // vanilla plains and savannas spawn herds of horses, and one in five of those is a donkey
     const equine = HORSE_BIOMES.has(biome.id) && h.rng() < 0.4;
-    const type = ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    const type = fox ? 'fox' : goat ? 'goat' : ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
     // horse herds share one coat like vanilla's group spawn
     const herdCoat = HORSE_COATS[Math.floor(h.rng() * HORSE_COATS.length)];
-    const want = ocelot ? 2 : equine ? 2 + Math.floor(h.rng() * 5) : 4;
+    const want = ocelot ? 2 : fox ? 2 + Math.floor(h.rng() * 3) : goat ? 2 + Math.floor(h.rng() * 2) : equine ? 2 + Math.floor(h.rng() * 5) : 4;
     let spawned = 0;
     for (let i = 0; i < 12 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 7) - 3 + 0.5;
@@ -281,6 +298,27 @@ export class EntityManager {
       const m = this.spawn(type, px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05); // vanilla: 5% of a group spawns as babies
       if (m && type === 'wolf') m.extra.variant = wolfVariant!;
       if (m && type === 'horse') m.extra.coat = herdCoat;
+      if (m && type === 'fox' && SNOW_FOX_BIOMES.has(biome.id)) m.extra.variant = 'snow';
+      spawned++;
+    }
+  }
+
+  /** Turtles on the sand, each remembering the beach it came from so it can lay there. */
+  private spawnTurtles(x: number, z: number): void {
+    const h = this.host;
+    const stats = mobStats('turtle')!;
+    const want = 2 + Math.floor(h.rng() * 4);
+    let spawned = 0;
+    for (let i = 0; i < 16 && spawned < want; i++) {
+      const px = x + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const pz = z + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const top = h.topBlock(Math.floor(px), Math.floor(pz));
+      const ground = h.getBlock(Math.floor(px), top, Math.floor(pz));
+      if (ground === 0 || blocks.blockOf(ground).id !== 'sand') continue;
+      if (!Mob.fits(h, stats, px, top + 1, pz)) continue;
+      const m = this.spawn('turtle', px, top + 1, pz, h.rng() * Math.PI * 2, h.rng() < 0.05);
+      // it remembers this beach, which is where it will come back to lay
+      if (m) m.extra.home = { x: Math.floor(px), z: Math.floor(pz) } as never;
       spawned++;
     }
   }
