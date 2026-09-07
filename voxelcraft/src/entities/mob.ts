@@ -6,7 +6,7 @@ import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './box
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, catTexture, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -52,6 +52,8 @@ export interface MobWorld extends BlockSource {
   /** Sets the player on fire (burning zombies pass their flames on). */
   ignitePlayer(ticks: number): void;
   playerHasEffect(id: string): boolean;
+  /** Item id the player is holding, for goals that follow food (vanilla TemptGoal). */
+  playerHolding(): string | null;
   playerHealth(): number;
   /** Witch splash potion: applies `effect` to the player within four blocks of where it lands. */
   throwPotion(from: THREE.Vector3, to: THREE.Vector3, effect: ArrowEffect, color: number): void;
@@ -687,6 +689,18 @@ export class Mob {
       for (const [name, part] of this.model.parts) if (name.endsWith('_armor')) part.visible = armorTex !== null;
       if (armorTex) this.setLayerTexture(HORSE_ARMOR_LAYER, armorTex);
     }
+    if (this.def.id === 'cat') {
+      this.setTexture(catTexture(String(this.extra.variant ?? 'tabby')));
+      const collar = parts.get('collar');
+      if (collar) collar.visible = this.extra.tamed === true;
+      if (this.extra.tamed === true && this.extra.sitting === true) {
+        // vanilla sitting cat: hind legs folded forward, front legs upright, tail curled
+        set('right_hind_leg', 1.4);
+        set('left_hind_leg', 1.4);
+        set('right_front_leg', -0.2);
+        set('left_front_leg', -0.2);
+      }
+    }
     if (this.def.id === 'wolf') {
       const tamed = this.extra.tamed === true;
       const angry = this.target !== null && !tamed;
@@ -711,11 +725,11 @@ export class Mob {
     // brightness and hurt flash; sheep wool is tinted with the dye colour
     const bright = light;
     const flash = this.hurtTime > 0 || this.dead;
-    if (!this.woolMaterials && (this.def.id === 'sheep' || this.def.id === 'wolf')) {
-      const layer = entityTexture(this.base, this.def.id === 'sheep' ? 'sheep/sheep_wool.png' : 'wolf/wolf_collar.png');
+    if (!this.woolMaterials && (this.def.id === 'sheep' || this.def.id === 'wolf' || this.def.id === 'cat')) {
+      const layer = entityTexture(this.base, this.def.id === 'sheep' ? 'sheep/sheep_wool.png' : this.def.id === 'cat' ? CAT_COLLAR_LAYER : 'wolf/wolf_collar.png');
       this.woolMaterials = this.model.materials.filter((m) => m.map === layer);
     }
-    const dye = this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : this.def.id === 'wolf' ? DYE_COLORS[String(this.extra.collar ?? 'red')] ?? 0xff0000 : 0xffffff;
+    const dye = this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : this.def.id === 'wolf' || this.def.id === 'cat' ? DYE_COLORS[String(this.extra.collar ?? 'red')] ?? 0xff0000 : 0xffffff;
     for (const m of this.model.materials) {
       const tinted = this.woolMaterials?.includes(m);
       const tr = tinted ? ((dye >> 16) & 255) / 255 : 1, tg = tinted ? ((dye >> 8) & 255) / 255 : 1, tb = tinted ? (dye & 255) / 255 : 1;

@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { bowAttackGoal, breedGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, randomLookGoal, sitGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, bowAttackGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -316,6 +316,38 @@ export const HORSE_FOODS: Record<string, { heal: number; grow: number; temper: n
   enchanted_golden_apple: { heal: 10, grow: 240, temper: 10, breeds: true },
 };
 
+/**
+ * Vanilla cat and ocelot model (converted from the shipped geometry): the body and tail carry the
+ * rest rotations Java bakes into `OcelotModel`, and cats add a dyeable collar layer.
+ */
+const catModel = (texture: string, collar = false): ModelDef => {
+  const parts: ModelDef['parts'] = [
+    { name: 'body', pivot: [0, 17, 1], rotation: [HALF_PI, 0, 0], boxes: [{ uv: [20, 0], box: [-2, -8, -3, 4, 16, 6] }] },
+    { name: 'head', pivot: [0, 15, -9], boxes: [{ uv: [0, 0], box: [-2.5, -2, -3, 5, 4, 5] }, { uv: [0, 24], box: [-1.5, 0, -4, 3, 2, 2] }, { uv: [0, 10], box: [-2, -3, 0, 1, 1, 2] }, { uv: [6, 10], box: [1, -3, 0, 1, 1, 2] }] },
+    { name: 'tail', pivot: [0, 15, 8], rotation: [0.9, 0, 0], boxes: [{ uv: [0, 15], box: [-0.5, 0, 0, 1, 8, 1] }] },
+    { name: 'tail_tip', pivot: [0, 20, 14], rotation: [0.9, 0, 0], boxes: [{ uv: [4, 15], box: [-0.5, 0, 0, 1, 8, 1] }] },
+    { name: 'left_hind_leg', pivot: [1.1, 18, 7], boxes: [{ uv: [8, 13], box: [-1, 0, -1, 2, 6, 2] }] },
+    { name: 'right_hind_leg', pivot: [-1.1, 18, 7], boxes: [{ uv: [8, 13], box: [-1, 0, -1, 2, 6, 2] }] },
+    { name: 'left_front_leg', pivot: [1.2, 14, -4], boxes: [{ uv: [40, 0], box: [-1, -0.2, -1, 2, 10, 2] }] },
+    { name: 'right_front_leg', pivot: [-1.2, 14, -4], boxes: [{ uv: [40, 0], box: [-1, -0.2, -1, 2, 10, 2] }] },
+  ];
+  if (collar) parts.push({ name: 'collar', parent: 'head', pivot: [0, 15, -9], texture: CAT_COLLAR_LAYER, hidden: true, boxes: [{ uv: [0, 0], box: [-2.5, -2, -3, 5, 4, 5], inflate: 0.05 }] });
+  return { texture, texW: 64, texH: 32, parts };
+};
+
+/** Collar layer texture for tamed cats. */
+export const CAT_COLLAR_LAYER = 'cat/cat_collar.png';
+
+/** Vanilla cat variants; witch huts spawn only the all-black one. */
+export const CAT_VARIANTS = ['tabby', 'black', 'red', 'siamese', 'british_shorthair', 'calico', 'persian', 'ragdoll', 'white', 'jellie'];
+
+export function catTexture(variant: string): string {
+  return `cat/${CAT_VARIANTS.includes(variant) || variant === 'all_black' ? variant : 'tabby'}.png`;
+}
+
+/** Raw fish tames a cat and wins an ocelot's trust (vanilla `Cat`/`Ocelot` temptation items). */
+export const CAT_FOODS = ['cod', 'salmon'];
+
 interface MobSpec {
   model: ModelDef;
   animation: MobStats['animation'];
@@ -346,6 +378,8 @@ export const isBreedingFood = (mob: string, item: string): boolean => BREEDING_F
 /** Meat a wolf eats (heals a hurt tamed wolf, otherwise breeds). */
 export const WOLF_FOODS = ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit', 'rotten_flesh'];
 BREEDING_FOODS.wolf = WOLF_FOODS;
+BREEDING_FOODS.cat = ['cod', 'salmon'];
+BREEDING_FOODS.ocelot = ['cod', 'salmon'];
 for (const e of ['horse', 'donkey', 'mule']) BREEDING_FOODS[e] = ['golden_carrot', 'golden_apple', 'enchanted_golden_apple'];
 
 /** Vanilla 1.20.5 wolf variants by spawn biome; null where wolves do not spawn naturally. */
@@ -375,7 +409,7 @@ export function randomSheepColor(rng: () => number): string {
 export const MOB_SPECS: Record<string, MobSpec> = {
   zombie: { model: biped('zombie/zombie.png', 64), animation: 'biped', eyeHeight: 1.74, followRange: 35, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(35), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   skeleton: { model: biped('skeleton/skeleton.png', 32, true), animation: 'biped', eyeHeight: 1.74, followRange: 16, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), bowAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
-  creeper: { model: creeperModel, animation: 'creeper', eyeHeight: 1.445, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), creeperGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
+  creeper: { model: creeperModel, animation: 'creeper', eyeHeight: 1.445, followRange: 16, goals: () => [floatGoal, avoidCatsGoal(), loseTargetGoal(), targetPlayerGoal(16), creeperGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   spider: { model: spiderModel(), animation: 'spider', eyeHeight: 0.65, followRange: 16, climbs: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16, true), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   // hunger for 7 s on hit (vanilla scales with difficulty; normal)
   husk: { model: biped('zombie/husk.png', 64), animation: 'biped', eyeHeight: 1.74, followRange: 35, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(35), meleeAttackGoal(0, (_m, w) => w.addPlayerEffect('hunger', 140)), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
@@ -401,6 +435,9 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   phantom: { model: phantomModel, animation: 'phantom', eyeHeight: 0.33, followRange: 64, flying: true, burnsInSun: true, override: { damage: 6 }, goals: () => [phantomGoal()] },
   witch: { model: witchModel, animation: 'biped', eyeHeight: 1.62, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), witchGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   salmon: { model: salmonModel, animation: 'fish', eyeHeight: 0.26, followRange: 8, aquatic: true, goals: () => [swimGoal(), panicGoal(2)] },
+  // cats and ocelots share the vanilla model; ocelots only ever grow to trust the player
+  cat: { model: catModel('cat/tabby.png', true), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, sitGoal(), catAvoidGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), followOwnerGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
+  ocelot: { model: catModel('cat/ocelot.png'), animation: 'quadruped', eyeHeight: 0.35, followRange: 16, override: { height: 0.7, width: 0.6 }, goals: () => [floatGoal, ocelotFleeGoal(), temptGoal(CAT_FOODS, 10), breedGoal(), followParentGoal(), wanderGoal(120, 0.8, 10), lookAtPlayerGoal(8), randomLookGoal] },
   // equines: attributes are rolled per animal, so the table values are only the vanilla averages
   horse: { model: equineModel('horse/horse_white.png', 'horse', HORSE_MARKING_LAYER, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   donkey: { model: equineModel('horse/donkey.png', 'mule', null, 'equipment/donkey_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.425, followRange: 16, goals: () => equineGoals() },

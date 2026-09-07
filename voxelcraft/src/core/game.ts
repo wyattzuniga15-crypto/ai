@@ -44,7 +44,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS } from '../entities/mobTypes.ts';
 import type { AABB } from '../entities/physics.ts';
 import { XpOrb, splitXp } from '../entities/xpOrb.ts';
 import { AudioEngine, blockSoundGroup } from '../audio/audio.ts';
@@ -88,7 +88,7 @@ const lightFloor = (gamma: number): number => 0.03 + gamma * 0.1;
 const MOB_DEATH_SOUNDS: Record<string, string> = {
   creeper: 'hurt', spider: 'hurt', cave_spider: 'hurt', husk: 'zombie', drowned: 'zombie', stray: 'skeleton', wither_skeleton: 'skeleton',
   slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', cod: 'splash', salmon: 'splash', witch: 'witch', phantom: 'phantom',
-  horse: 'horse', donkey: 'donkey', mule: 'donkey',
+  horse: 'horse', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat',
 };
 const SLIME_SPLIT: Record<string, string> = { slime_big: 'slime_medium', slime_medium: 'slime' };
 
@@ -233,6 +233,7 @@ export class Game {
         if (this.player.gamemode === 'survival') this.player.effects.add(id, ticks, amplifier);
       },
       playSound: (name, x, y, z, pitch = 1) => this.audio.play(name, { x, y, z, pitch }),
+      playerHolding: () => this.player.heldItem()?.id ?? null,
       playerHasEffect: (id) => !!this.player.effects.get(id),
       playerHealth: () => this.player.health,
       throwPotion: (from, to, effect, color) => this.throwPotion(from, to, effect, color),
@@ -1524,6 +1525,55 @@ export class Game {
     return true;
   }
 
+  /**
+   * Cats and ocelots: raw fish tames a cat one time in three and slowly wins an ocelot's trust
+   * (vanilla stopped letting ocelots be tamed in 1.14). Tamed cats sit, and dye recolours the collar.
+   */
+  private interactCat(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
+    const ocelot = m.def.id === 'ocelot';
+    const tamed = m.extra.tamed === true;
+    const fish = held && CAT_FOODS.includes(held.id);
+    if (!tamed && fish) {
+      if (survival) this.player.inventory.consumeSelected();
+      if (ocelot) {
+        const trust = (typeof m.extra.trust === 'number' ? m.extra.trust : 0) + 1;
+        m.extra.trust = trust;
+        if (trust >= 2 && Math.random() < 1 / 3) {
+          m.extra.trusting = true;
+          m.persistent = true;
+          this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+          this.chat.addLine('The ocelot trusts you', '#aaa');
+        } else this.particles.poof(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+      } else if (Math.random() < 1 / 3) {
+        m.extra.tamed = true;
+        m.extra.sitting = true;
+        m.extra.collar = 'red';
+        m.persistent = true;
+        this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+        this.audio.play('cat', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.3 });
+      } else this.particles.poof(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+      return true;
+    }
+    if (!tamed) return false;
+    const dye = held && held.id.endsWith('_dye') ? held.id.slice(0, -4) : null;
+    if (dye && DYE_COLORS[dye] !== undefined && m.extra.collar !== dye) {
+      m.extra.collar = dye;
+      if (survival) this.player.inventory.consumeSelected();
+      return true;
+    }
+    if (fish && m.health < m.maxHealth) {
+      m.health = Math.min(m.maxHealth, m.health + (items.byId.get(held!.id)?.food?.nutrition ?? 2));
+      if (survival) this.player.inventory.consumeSelected();
+      this.audio.play('eat', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (fish) return false; // full health: fall through to breeding
+    m.extra.sitting = m.extra.sitting !== true;
+    m.moveTarget = null;
+    this.audio.play('cat', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.3 });
+    return true;
+  }
+
   /** Vanilla animal interactions: breeding food, shears on sheep, buckets on cows. */
   // ---------------------------------------------------------------------------------------------
   // Riding
@@ -1671,6 +1721,7 @@ export class Game {
     const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
     if (m.def.id === 'wolf' && this.interactWolf(m, held, survival, at)) return true;
     if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
+    if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
     if (!held) return false;
     if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {
       m.extra.sheared = true;
@@ -2344,7 +2395,7 @@ export class Game {
       const swell = Number(m.extra.swell ?? 0);
       if (m.def.id === 'creeper' && swell === 1) this.audio.play('creeper_hiss', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
       if (Math.random() < 1 / 200 && m.distanceTo(p.pos) < 16) {
-        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey' };
+        const ambient: Record<string, string> = { zombie: 'zombie', husk: 'zombie', drowned: 'zombie', skeleton: 'skeleton', stray: 'skeleton', wither_skeleton: 'skeleton', spider: 'spider', cave_spider: 'spider', cow: 'cow', pig: 'pig', sheep: 'sheep', chicken: 'chicken', slime: 'slime', slime_medium: 'slime', slime_big: 'slime', enderman: 'enderman', wolf: 'wolf', witch: 'witch', phantom: 'phantom', horse: 'horse_ambient', donkey: 'donkey', mule: 'donkey', cat: 'cat', ocelot: 'cat' };
         const snd = ambient[m.def.id];
         if (snd) this.audio.play(snd, { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.9 + Math.random() * 0.2 });
       }

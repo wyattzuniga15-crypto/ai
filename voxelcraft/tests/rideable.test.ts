@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import type { MobWorld } from '../src/entities/mob.ts';
 import { Rng } from '../src/core/rng.ts';
 import { Mob } from '../src/entities/mob.ts';
 import {
   CHESTED_EQUINES, EQUINE_TYPES, HORSE_ARMOR, HORSE_COATS, HORSE_FOODS, HORSE_MARKINGS,
   horseArmorPoints, horseArmorTexture, horseAttributes, horseCoatTexture, horseMarkingTexture,
-  initEquine, inheritEquine, mobStats, MOB_SPECS,
+  initEquine, inheritEquine, mobStats, MOB_SPECS, CAT_FOODS, CAT_VARIANTS, catTexture,
 } from '../src/entities/mobTypes.ts';
-import { breedsWith, offspringOf } from '../src/entities/ai.ts';
+import { breedsWith, catAvoidGoal, offspringOf, temptGoal } from '../src/entities/ai.ts';
 import { horseScreen } from '../src/ui/screens/screens.ts';
 import { Inventory } from '../src/items/inventory.ts';
 
@@ -147,5 +149,54 @@ describe('horses, donkeys and mules', () => {
     expect(dslots).toHaveLength(16); // saddle plus 15 chest slots, no armour
     expect(dslots.slice(1).every((s) => s.x >= 80 && s.y >= 18)).toBe(true);
     expect(donkey.sprites!.some((s) => s.texture.endsWith('chest_slots.png'))).toBe(true);
+  });
+});
+
+describe('cats and ocelots', () => {
+  it('registers both with the vanilla model and a collar only on cats', () => {
+    for (const id of ['cat', 'ocelot']) {
+      const stats = mobStats(id);
+      expect(stats, id).not.toBeNull();
+      expect(stats!.height).toBeCloseTo(0.7, 3);
+      const names = MOB_SPECS[id].model.parts.map((p) => p.name);
+      expect(names).toContain('tail');
+      expect(names).toContain('tail_tip');
+      expect(names.includes('collar')).toBe(id === 'cat');
+    }
+  });
+
+  it('maps cat variants onto vanilla textures', () => {
+    expect(CAT_VARIANTS).toHaveLength(10);
+    for (const v of CAT_VARIANTS) expect(catTexture(v)).toBe(`cat/${v}.png`);
+    expect(catTexture('all_black')).toBe('cat/all_black.png'); // the witch hut cat
+    expect(catTexture('nonsense')).toBe('cat/tabby.png');
+    expect(CAT_FOODS).toEqual(['cod', 'salmon']);
+  });
+
+  it('tempts and flees only while the rules allow it', () => {
+    const world = {
+      playerPos: () => new THREE.Vector3(0, 64, 0),
+      playerEye: () => new THREE.Vector3(0, 65.6, 0),
+      playerTargetable: () => true,
+      playerHolding: () => held,
+      rng: () => 0.5,
+      getBlock: () => 0,
+    } as unknown as MobWorld;
+    let held: string | null = 'cod';
+    const cat = makeMob('cat');
+    cat.pos = new THREE.Vector3(3, 64, 0);
+    cat.distanceTo = (v: THREE.Vector3) => cat.pos.distanceTo(v);
+    const tempt = temptGoal(CAT_FOODS, 10);
+    const flee = catAvoidGoal();
+    expect(tempt.canUse(cat, world)).toBe(true);
+    expect(flee.canUse(cat, world)).toBe(false); // a fed hand is not a threat
+    held = null;
+    expect(tempt.canUse(cat, world)).toBe(false);
+    expect(flee.canUse(cat, world)).toBe(true);
+    cat.extra.tamed = true;
+    expect(flee.canUse(cat, world)).toBe(false); // a tamed cat stays put
+    held = 'cod';
+    cat.extra.sitting = true;
+    expect(tempt.canUse(cat, world)).toBe(false); // a sitting cat ignores food
   });
 });

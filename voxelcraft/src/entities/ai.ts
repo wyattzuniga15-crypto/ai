@@ -505,6 +505,99 @@ export const sitGoal = (): Goal => ({
   },
 });
 
+/**
+ * Vanilla TemptGoal: the animal walks toward a player holding one of `items` and stops just short.
+ * Cats and ocelots creep in slowly, which is how the player gets close enough to feed them.
+ */
+export const temptGoal = (items: string[], range = 10, speed = 0.6): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => {
+    if (m.extra.sitting === true) return false;
+    const held = w.playerHolding();
+    return !!held && items.includes(held) && m.distanceTo(w.playerPos()) < range && w.playerTargetable();
+  },
+  tick: (m, w) => {
+    const p = w.playerPos();
+    m.lookTarget = w.playerEye();
+    if (m.distanceTo(p) < 2.5) {
+      m.moveTarget = null;
+      return;
+    }
+    if (m.age % 10 === 0) {
+      m.moveTarget = p.clone();
+      m.moveSpeed = speed;
+      m.moveTimeout = 40;
+    }
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.lookTarget = null;
+    m.moveSpeed = 1;
+  },
+});
+
+/** Runs from a point, used by skittish animals (vanilla AvoidEntityGoal). */
+function fleeFrom(m: Mob, w: MobWorld, from: THREE.Vector3, speed: number): void {
+  const dx = m.pos.x - from.x;
+  const dz = m.pos.z - from.z;
+  const len = Math.hypot(dx, dz) || 1;
+  const x = m.pos.x + (dx / len) * 8;
+  const z = m.pos.z + (dz / len) * 8;
+  const y = groundAt(w, x, Math.floor(m.pos.y), z);
+  if (y !== null) {
+    m.moveTarget = new THREE.Vector3(x, y, z);
+    m.moveSpeed = speed;
+    m.moveTimeout = 60;
+  }
+}
+
+/**
+ * Ocelots keep their distance: vanilla has them flee any player within ten blocks until they have
+ * been fed enough fish to trust one, and a trusting ocelot still refuses to be tamed.
+ */
+export const ocelotFleeGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => m.extra.trusting !== true && w.playerTargetable() && m.distanceTo(w.playerPos()) < 10 && w.playerHolding() === null,
+  canContinue: (m, w) => m.extra.trusting !== true && m.distanceTo(w.playerPos()) < 12 && !!m.moveTarget,
+  start: (m, w) => fleeFrom(m, w, w.playerPos(), 1.3),
+  tick: (m, w) => {
+    if (!m.moveTarget && m.age % 10 === 0) fleeFrom(m, w, w.playerPos(), 1.3);
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.moveSpeed = 1;
+  },
+});
+
+/** Untamed cats keep their distance too, but only until they are tamed. */
+export const catAvoidGoal = (): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => m.extra.tamed !== true && w.playerTargetable() && m.distanceTo(w.playerPos()) < 8 && w.playerHolding() === null,
+  canContinue: (m, w) => m.extra.tamed !== true && m.distanceTo(w.playerPos()) < 10 && !!m.moveTarget,
+  start: (m, w) => fleeFrom(m, w, w.playerPos(), 1.2),
+  tick: (m, w) => {
+    if (!m.moveTarget && m.age % 10 === 0) fleeFrom(m, w, w.playerPos(), 1.2);
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.moveSpeed = 1;
+  },
+});
+
+/** Creepers and phantoms keep away from cats and ocelots (vanilla avoid goals). */
+export const avoidCatsGoal = (range = 6): Goal => ({
+  flags: FLAG_MOVE,
+  canUse: (m, w) => w.mobsNear(m.pos.x, m.pos.y, m.pos.z, range).some((o) => o.def.id === 'cat' || o.def.id === 'ocelot'),
+  tick: (m, w) => {
+    const cat = w.mobsNear(m.pos.x, m.pos.y, m.pos.z, range).find((o) => o.def.id === 'cat' || o.def.id === 'ocelot');
+    if (cat && m.age % 10 === 0) fleeFrom(m, w, cat.pos, 1.2);
+  },
+  stop: (m) => {
+    m.moveTarget = null;
+    m.moveSpeed = 1;
+  },
+});
+
 /** Wild wolves fight back as a pack; tamed wolves fight whatever hurts or is hit by their owner. */
 export const wolfDefendGoal = (): Goal => ({
   flags: 0,
@@ -608,7 +701,9 @@ export const phantomGoal = (): Goal => ({
     let angle = typeof e.angle === 'number' ? e.angle : (e.angle = w.rng() * Math.PI * 2);
     let mode = typeof e.mode === 'string' ? e.mode : (e.mode = 'circle');
     let timer = typeof e.timer === 'number' ? e.timer : (e.timer = 60 + Math.floor(w.rng() * 140));
-    const canAttack = w.playerTargetable() && m.fireTicks === 0;
+    // vanilla: a cat within sixteen blocks of the player keeps phantoms from swooping
+    const catGuard = w.mobsNear(p.x, p.y, p.z, 16).some((o) => o.def.id === 'cat' || o.def.id === 'ocelot');
+    const canAttack = w.playerTargetable() && m.fireTicks === 0 && !catGuard;
     if (mode === 'swoop' && (!canAttack || timer <= 0)) mode = 'circle';
     if (mode === 'circle') {
       angle += 0.06;

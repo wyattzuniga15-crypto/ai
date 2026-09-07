@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, EQUINE_TYPES, HORSE_COATS, MOB_SPECS, initEquine, isSlimeChunk, mobStats, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, MOB_SPECS, initEquine, isSlimeChunk, mobStats, phantomSpawnChance, pickHostile, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -47,6 +47,7 @@ export class EntityManager {
       m.extra.grow = 24000;
     }
     if (type === 'sheep') m.extra.color = randomSheepColor(this.host.rng);
+    if (type === 'cat') m.extra.variant = CAT_VARIANTS[Math.floor(this.host.rng() * CAT_VARIANTS.length)];
     if (EQUINE_TYPES.includes(type)) initEquine(m, this.host.rng);
     this.mobs.push(m);
     this.host.scene.add(m.model.group);
@@ -196,13 +197,15 @@ export class EntityManager {
     }
     if (biome.surface.top !== 'grass_block' || biome.category === 'mushroom') return;
     const wolfVariant = wolfVariantFor(biome.id);
+    // vanilla spawns ocelots only in the jungles, in pairs
+    const ocelot = biome.category === 'jungle' && h.rng() < 0.25;
     // vanilla plains and savannas spawn herds of horses, and one in five of those is a donkey
     const equine = HORSE_BIOMES.has(biome.id) && h.rng() < 0.4;
-    const type = equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
+    const type = ocelot ? 'ocelot' : equine ? (h.rng() < 0.2 ? 'donkey' : 'horse') : wolfVariant && h.rng() < 1 / 6 ? 'wolf' : ANIMAL_TYPES[Math.floor(h.rng() * ANIMAL_TYPES.length)];
     const stats = mobStats(type)!;
     // horse herds share one coat like vanilla's group spawn
     const herdCoat = HORSE_COATS[Math.floor(h.rng() * HORSE_COATS.length)];
-    const want = equine ? 2 + Math.floor(h.rng() * 5) : 4;
+    const want = ocelot ? 2 : equine ? 2 + Math.floor(h.rng() * 5) : 4;
     let spawned = 0;
     for (let i = 0; i < 12 && spawned < want; i++) {
       const px = x + Math.floor(h.rng() * 7) - 3 + 0.5;

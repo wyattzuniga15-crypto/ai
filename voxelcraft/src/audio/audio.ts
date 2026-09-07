@@ -114,6 +114,8 @@ const SOUNDS: Record<string, Synth> = {
   horse_gallop: (c, o, p, t) => { [0, 0.07, 0.16, 0.22].forEach((d) => burst(c, o, t + d, 'lowpass', 260, 1, 0.004, 0.09, 0.16, p)); },
   donkey: (c, o, p, t) => { [0, 0.18].forEach((d, i) => { tone(c, o, t + d, 'square', i ? 240 : 520, i ? 140 : 300, 0.28, 0.16, p); }); },
   saddle: (c, o, p, t) => { burst(c, o, t, 'bandpass', 1200, 1.5, 0.01, 0.2, 0.15, p); tone(c, o, t, 'sine', 220, 160, 0.15, 0.08, p); },
+  // a short two-tone meow
+  cat: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 700, 900, 0.12, 0.12, p); tone(c, o, t + 0.1, 'sawtooth', 900, 600, 0.2, 0.12, p); },
   wolf: (c, o, p, t) => { tone(c, o, t, 'square', 420, 300, 0.12, 0.25, p); burst(c, o, t, 'bandpass', 900, 1.5, 0.005, 0.1, 0.3, p); },
   wolf_growl: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 110, 90, 0.6, 0.2, p); burst(c, o, t, 'lowpass', 400, 1, 0.05, 0.5, 0.15, p); },
   shear: (c, o, p, t) => { burst(c, o, t, 'highpass', 3500, 1.5, 0.002, 0.12, 0.4, p); burst(c, o, t + 0.08, 'highpass', 3000, 1.5, 0.002, 0.1, 0.3, p); },

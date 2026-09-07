@@ -289,3 +289,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     5.3 blocks). The mount is not saved with the player: reloading a world leaves the horse standing
     where it was, saddle and all.
 
+55. **Cats are in, but they still wait on villages.** Ocelots spawn in pairs in the jungles like
+    vanilla, and can be tempted with raw fish until they trust the player, never tamed, as of 1.14.
+    Cats keep every behaviour (fish tames one time in three, sitting, collars, following the owner,
+    scaring creepers and phantoms), but vanilla only spawns them in villages and witch huts, so
+    until those structures exist they arrive through breeding or `/summon` rather than by wandering
+    the world. Making them spawn anywhere else would be less faithful, not more.
+
