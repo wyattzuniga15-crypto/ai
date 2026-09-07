@@ -1135,3 +1135,31 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      game are still binary, so nothing reads the signal the table carries, and hoppers only feed
      block entities the container code knows about. The song data is right either way, and neither
      is worth widening the redstone or hopper code for in a slice about sound.
+
+118. **The comparator that reads.** Comparators were a switch: on at fifteen or off. Vanilla's puts
+     out a level, and half of what comparators are for is measuring something. Both halves are here
+     now.
+
+     `analogOutput` is vanilla's `getAnalogOutputSignal` for every block in this game that has one.
+     A container is weighed the way `getRedstoneSignalFromContainer` weighs it — each stack counts
+     for the fraction of its own stack limit it fills, the fractions are averaged over every slot,
+     and anything at all in there is worth at least one, so a single stack in a chest reads 1 and a
+     full one reads 15. A crafter is counted rather than weighed, a slot that is filled or switched
+     off worth one apiece. A jukebox is worth the signal its record carries, out of the table the
+     data generator writes. Composters, cauldrons, cakes, beehives, respawn anchors, lecterns and an
+     end portal frame with an eye in it all hand over the level their own state already holds.
+
+     The comparator itself follows vanilla's reading: the input is what the block behind sends this
+     way (dust counts whichever way it is pointing), replaced by the analog level if that block has
+     one, and looked for one block further when a solid block is in the way. Its sides are fussy in
+     vanilla's own way — only dust, a block of redstone, or another diode pointing in, so a torch
+     beside a comparator is ignored. Compare mode passes the input through unless a side beats it;
+     subtract takes the side off. The level is worked out where it is read rather than stored in the
+     block, which is what vanilla's block entity is for; a depth guard cuts a chain of comparators
+     reading each other, which vanilla's stored value cuts for free.
+
+     Nothing in this game calls out of a container when its contents move, so the last piece is a
+     poll: every second tick the level each block entity would hand a comparator is worked out and
+     compared with what it was, and anything that has changed wakes the blocks around it the way
+     vanilla's `updateNeighbourForOutputSignal` does. Two ticks is the delay vanilla's comparator
+     runs on anyway.

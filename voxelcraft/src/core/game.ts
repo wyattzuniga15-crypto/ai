@@ -62,7 +62,7 @@ import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type Cart
 import { FACING_OFFSET } from '../world/piston.ts';
 import { containerAt, hopperStates, insertOne, tickHopper, type HopperWorld } from '../world/hopper.ts';
 import { hooksFor, updateRun } from '../world/tripwire.ts';
-import { isPowered, targetStrength } from '../world/redstone.ts';
+import { analogOutput, isPowered, targetStrength } from '../world/redstone.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
 import { EntityManager, type ManagerHost } from '../entities/manager.ts';
@@ -322,6 +322,7 @@ export class Game {
       rng,
       getBlock: (x, y, z) => this.world.getBlock(x, y, z),
       setBlock: (x, y, z, state) => { this.world.setBlock(x, y, z, state); },
+      getBlockEntity: (x, y, z) => this.world.getBlockEntity(x, y, z),
       breakBlock: (x, y, z) => this.breakBlock(x, y, z, true),
       schedule: (x, y, z, delay) => this.simulation.schedule(x, y, z, delay, this.tickCount),
       getLight: (x, y, z) => this.world.getLight(x, y, z, this.skyDarken()),
@@ -1665,7 +1666,33 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   // Block entities, chests and GUI screens
   // ---------------------------------------------------------------------------------------------
+  /** What each block entity was last worth to a comparator, so a change can wake the ones near it. */
+  private readonly analogSignals = new Map<string, number>();
+
+  /**
+   * Vanilla wakes a comparator whenever what it is reading changes. Nothing here calls out of a
+   * container when its contents move, so the level each one would hand a comparator is worked out
+   * every couple of ticks — which is how long vanilla's comparator takes anyway — and the blocks
+   * around anything that has changed are woken.
+   */
+  private tickAnalogSignals(): void {
+    const w = this.simulationWorld();
+    const seen = new Set<string>();
+    this.world.forEachBlockEntity((x, y, z) => {
+      const level = analogOutput(w, x, y, z);
+      if (level === null) return;
+      const key = `${x},${y},${z}`;
+      seen.add(key);
+      if (this.analogSignals.get(key) === level) return;
+      this.analogSignals.set(key, level);
+      this.simulation.pokeNeighbors(x, y, z);
+    });
+    // forget the ones that are gone, so a rebuilt block starts from nothing again
+    if (this.analogSignals.size > seen.size) for (const key of [...this.analogSignals.keys()]) if (!seen.has(key)) this.analogSignals.delete(key);
+  }
+
   private tickBlockEntities(): void {
+    if (this.tickCount % 2 === 0) this.tickAnalogSignals();
     this.world.forEachBlockEntity((x, y, z, e) => {
       if (e.type === 'beehive') {
         this.tickHive(x, y, z, e as HiveEntity);

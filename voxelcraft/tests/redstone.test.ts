@@ -4,6 +4,8 @@ import { Rng } from '../src/core/rng.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { emitted, isPowered, powerAt, wireConnection } from '../src/world/redstone.ts';
 import type { BlockWorld } from '../src/blocks/behaviors.ts';
+import { createBlockEntity } from '../src/blocks/blockEntity.ts';
+import { analogOutput, comparatorOutput, containerSignal } from '../src/world/redstone.ts';
 
 /**
  * A slab of stone with the simulation running over it, so the tests drive redstone through the same
@@ -57,6 +59,22 @@ class Bench implements BlockWorld {
 
   prop(x: number, y: number, z: number, name: string): string | undefined {
     return blocks.prop(this.getBlock(x, y, z), name);
+  }
+
+  readonly entities = new Map<string, import('../src/blocks/blockEntity.ts').BlockEntity>();
+
+  getBlockEntity(x: number, y: number, z: number) {
+    return this.entities.get(`${x},${y},${z}`);
+  }
+
+  /** Puts a container down with something in it, which is what a comparator is there to measure. */
+  placeContainer(x: number, y: number, z: number, id: string, items: (import('../src/items/inventory.ts').Slot)[]): void {
+    this.place(x, y, z, id);
+    const entity = createBlockEntity(id)!;
+    if ('items' in entity) for (let i = 0; i < items.length; i++) entity.items[i] = items[i];
+    this.entities.set(`${x},${y},${z}`, entity);
+    this.sim.pokeNeighbors(x, y, z);
+    this.run();
   }
 
   breakBlock(x: number, y: number, z: number): void {
@@ -188,22 +206,94 @@ describe('redstone power', () => {
     expect(w.power(17, 64, 0)).toBe(11);
   });
 
-  it('compares and subtracts with a comparator', () => {
+  it('compares and subtracts with a comparator, keeping the level', () => {
     const w = new Bench();
-    // rear signal of twelve, side signal of nine
+    // a block of redstone into four blocks of dust leaves twelve reaching the comparator
     for (let x = 0; x < 4; x++) w.place(x, 64, 0, 'redstone_wire');
     w.place(-1, 64, 0, 'redstone_block');
     w.place(4, 64, 0, 'comparator', { facing: 'east', mode: 'compare', powered: 'false' });
-    w.place(5, 64, 0, 'redstone_wire');
+    for (let x = 5; x <= 6; x++) w.place(x, 64, 0, 'redstone_wire');
     w.run();
     expect(w.prop(4, 64, 0, 'powered')).toBe('true');
-    expect(w.power(5, 64, 0)).toBe(15); // vanilla keeps the level; ours passes the signal on at full
+    // vanilla passes the level through rather than turning it back up to fifteen
+    expect(w.power(3, 64, 0)).toBe(12);
+    expect(w.power(5, 64, 0)).toBe(12);
+    expect(w.power(6, 64, 0)).toBe(11);
 
-    // with a stronger signal on the side, compare mode shuts off
-    w.place(4, 64, -1, 'redstone_wire');
-    w.place(4, 64, -2, 'redstone_block');
+    // a weaker signal on the side changes nothing in compare mode
+    w.place(4, 64, -6, 'redstone_block');
+    for (let z = -5; z <= -1; z++) w.place(4, 64, z, 'redstone_wire');
+    w.run();
+    expect(w.power(4, 64, -1)).toBe(11);
+    expect(w.power(5, 64, 0)).toBe(12);
+
+    // subtract mode takes the side off the back
+    w.place(4, 64, 0, 'comparator', { facing: 'east', mode: 'subtract', powered: 'true' });
+    w.run();
+    expect(w.power(5, 64, 0)).toBe(1);
+    expect(w.prop(4, 64, 0, 'powered')).toBe('true');
+
+    // and a stronger side shuts compare mode off altogether
+    w.place(4, 64, 0, 'comparator', { facing: 'east', mode: 'compare', powered: 'true' });
+    w.place(4, 64, -1, 'redstone_block');
     w.run();
     expect(w.prop(4, 64, 0, 'powered')).toBe('false');
+    expect(w.power(5, 64, 0)).toBe(0);
+  });
+
+  it('measures what a container holds, the way vanilla weighs it', () => {
+    // vanilla: each stack counts for the fraction of its own limit it fills, averaged over the slots
+    expect(containerSignal(new Array(27).fill(null))).toBe(0);
+    expect(containerSignal([{ id: 'stone', count: 1 }, ...new Array(26).fill(null)])).toBe(1);
+    expect(containerSignal(new Array(27).fill({ id: 'stone', count: 64 }))).toBe(15);
+    expect(containerSignal(new Array(27).fill({ id: 'stone', count: 32 }))).toBe(8);
+    // an unstackable item fills its slot on its own
+    expect(containerSignal([{ id: 'diamond_sword', count: 1 }, ...new Array(4).fill(null)])).toBe(3);
+  });
+
+  it('reads a chest, a jukebox and the blocks that carry a level of their own', () => {
+    const w = new Bench();
+    w.placeContainer(0, 64, 0, 'chest', [{ id: 'stone', count: 64 }]);
+    expect(analogOutput(w, 0, 64, 0)).toBe(1);
+    w.placeContainer(1, 64, 0, 'chest', new Array(27).fill({ id: 'stone', count: 64 }));
+    expect(analogOutput(w, 1, 64, 0)).toBe(15);
+    w.placeContainer(2, 64, 0, 'jukebox', [{ id: 'music_disc_pigstep', count: 1 }]);
+    expect(analogOutput(w, 2, 64, 0)).toBe(13);
+    w.place(3, 64, 0, 'composter', { level: '5' });
+    expect(analogOutput(w, 3, 64, 0)).toBe(5);
+    w.place(4, 64, 0, 'water_cauldron', { level: '2' });
+    expect(analogOutput(w, 4, 64, 0)).toBe(2);
+    w.place(5, 64, 0, 'cake', { bites: '3' });
+    expect(analogOutput(w, 5, 64, 0)).toBe(8);
+    w.place(6, 64, 0, 'end_portal_frame', { eye: 'true', facing: 'north' });
+    expect(analogOutput(w, 6, 64, 0)).toBe(15);
+    w.place(7, 64, 0, 'stone');
+    expect(analogOutput(w, 7, 64, 0)).toBeNull();
+    // a crafter counts its slots instead of weighing them, filled or switched off alike
+    w.placeContainer(8, 64, 0, 'crafter', [{ id: 'stone', count: 1 }, null, { id: 'stone', count: 64 }]);
+    const crafter = w.getBlockEntity(8, 64, 0)!;
+    expect(analogOutput(w, 8, 64, 0)).toBe(2);
+    if (crafter.type === 'crafter') crafter.disabled[4] = true;
+    expect(analogOutput(w, 8, 64, 0)).toBe(3);
+  });
+
+  it('drives dust off a chest through a comparator', () => {
+    const w = new Bench();
+    w.place(0, 64, 0, 'comparator', { facing: 'east', mode: 'compare', powered: 'false' });
+    for (let x = 1; x < 5; x++) w.place(x, 64, 0, 'redstone_wire');
+    w.placeContainer(-1, 64, 0, 'chest', new Array(27).fill({ id: 'stone', count: 32 }));
+    expect(comparatorOutput(w, 0, 64, 0, w.getBlock(0, 64, 0))).toBe(8);
+    expect(w.prop(0, 64, 0, 'powered')).toBe('true');
+    expect(w.power(1, 64, 0)).toBe(8);
+    expect(w.power(4, 64, 0)).toBe(5);
+
+    // emptying it drops the signal, once the poke that a container change sends has gone round
+    const entity = w.getBlockEntity(-1, 64, 0)!;
+    if ('items' in entity) entity.items.fill(null);
+    w.sim.pokeNeighbors(-1, 64, 0);
+    w.run();
+    expect(w.prop(0, 64, 0, 'powered')).toBe('false');
+    expect(w.power(1, 64, 0)).toBe(0);
   });
 
   it('opens a door and lights a fuse', () => {

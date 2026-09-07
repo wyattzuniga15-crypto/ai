@@ -7,13 +7,15 @@ import type { Rng } from '../core/rng.ts';
 import { LAVA_DELAY, WATER_DELAY, tickFluid, type FluidWorld } from '../world/fluids.ts';
 import { placeTree, type BlockAccess } from '../world/gen/features.ts';
 import { SEA_LEVEL } from '../core/constants.ts';
-import { emitted, isPowered, powerAt, updateWireNetwork, wireState } from '../world/redstone.ts';
+import { comparatorOutput, emitted, isPowered, powerAt, updateWireNetwork, wireState } from '../world/redstone.ts';
 import { updateAround } from '../world/tripwire.ts';
 import { extend, retract, FACING_OFFSET } from '../world/piston.ts';
 import { railPowered, railShape } from '../world/rails.ts';
 import { composterLevel, composterState } from './composter.ts';
 
 export interface BlockWorld extends FluidWorld {
+  /** What a container at a position holds, which is what a comparator reads out of it. */
+  getBlockEntity?(x: number, y: number, z: number): import('./blockEntity.ts').BlockEntity | null | undefined;
   /** Light level at a position (max of sky and block light). */
   getLight(x: number, y: number, z: number): number;
   getSkyLight(x: number, y: number, z: number): number;
@@ -291,18 +293,8 @@ function redstoneTick(ctx: BlockContext): void {
     return;
   }
   if (id === 'comparator') {
-    const facing = blocks.prop(state, 'facing') ?? 'north';
-    const back = OPPOSITE[facing];
-    const rear = powerAt(w, x + back[0], y, z + back[2]);
-    // the two sides feed the comparison; the stronger of them is what the rear is measured against
-    const sides = facing === 'north' || facing === 'south' ? ['west', 'east'] : ['north', 'south'];
-    let side = 0;
-    for (const dir of sides) {
-      const [dx, , dz] = OPPOSITE[dir];
-      side = Math.max(side, powerAt(w, x - dx, y, z - dz));
-    }
-    const out = blocks.prop(state, 'mode') === 'subtract' ? Math.max(0, rear - side) : rear >= side ? rear : 0;
-    const powered = out > 0;
+    // the level itself is worked out wherever it is read; the block only shows whether it is lit
+    const powered = comparatorOutput(w, x, y, z, state) > 0;
     if (powered !== (blocks.prop(state, 'powered') === 'true')) w.setBlock(x, y, z, blocks.withProp(state, 'powered', powered ? 'true' : 'false'));
     return;
   }

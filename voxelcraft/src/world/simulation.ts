@@ -120,6 +120,20 @@ export class Simulation {
     this.heap.push({ time: now + Math.max(1, delay), seq: this.seq++, x, y, z });
   }
 
+  /**
+   * Wakes the blocks around a position without anything there having changed, which is vanilla's
+   * `updateNeighbourForOutputSignal`: what a container calls when what it holds changes, so the
+   * comparator reading it notices.
+   */
+  pokeNeighbors(x: number, y: number, z: number): void {
+    for (const [dx, dy, dz] of NEIGHBORS) this.neighborQueue.push(x + dx, y + dy, z + dz, x, y, z);
+    for (const [dx, dy, dz] of NEIGHBORS)
+      for (const [ex, ey, ez] of NEIGHBORS) {
+        if (dx + ex === 0 && dy + ey === 0 && dz + ez === 0) continue;
+        this.neighborQueue.push(x + dx + ex, y + dy + ey, z + dz + ez, x + dx, y + dy, z + dz);
+      }
+  }
+
   /** Called for every block change; fires placement hooks and queues neighbour updates. */
   onBlockChanged(x: number, y: number, z: number, oldState: number, newState: number): void {
     void oldState;
