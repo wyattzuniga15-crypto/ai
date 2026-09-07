@@ -88,12 +88,12 @@ coverage counts in `COVERAGE.md`.
 - [x] Farming: hoes tilling vanilla's soils, farmland trampled by a fall, every crop growing (wheat, carrots, potatoes, beetroot, melon and pumpkin stems with their fruit, sweet berries, cocoa on its jungle log, the torchflower and pitcher crops turning into their flowers), bone meal on all of them and on kelp, cave vines, sea pickles, seagrass and moss, composters with vanilla's list and odds, and fishing (a bobber that floats and dips, vanilla's wait shortened by Lure, the fishing tables with luck of the sea and open water for treasure, experience and rod wear)
 - [x] Hoppers: one item every eight ticks, out into whatever they face and in from whatever sits above, items lying in the funnel swept up, furnaces fed by side (input above, fuel from the side, the finished item out of the bottom), composters fed and emptied, held still by a signal, and hopper minecarts sweeping a track into the chests under it
 - [x] Beds, banners, shulker boxes, skulls and the conduit drawn as block entities (vanilla's own geometry and transforms, the bed drawn once from its head end, wall banners hung a block lower, dyed banners and coloured boxes) — like chests, their block models are empty
-- [ ] Hanging signs (their own model and text), cauldrons, bee hives feeding crops nearby
+- [x] Hanging signs (vanilla's board, bar and chains on the hanging-sign textures, hung under a block or off a wall, with text on both faces) and cauldrons (filled and emptied by buckets, a third at a time by bottles, washing dyed and named things clean, lava burning and water dousing whoever stands in one)
+- [ ] Loom, cartography table, beacon, lectern, crafter
 - [x] Enchanting table (bookshelf power, vanilla option costs, weighted enchantment selection, lapis and level costs), anvil (repair, combine, rename, prior-work penalty, 40-level cap), grindstone (disenchant with XP refund, combine)
 - [x] Stonecutter (recipe list with selection and scrollbar, one-at-a-time and shift-click crafting)
 - [x] Smithing table (netherite upgrade, armor trims with vanilla pattern/material tooltips)
 - [x] Brewing stand and potions: vanilla's whole brewing graph (the four bases, every awkward potion, redstone lengthening and glowstone strengthening, fermented spider eye corrupting, gunpowder and dragon's breath changing the bottle), the stand's screen with its fuel, bubbles and 400-tick brew, bottles filled from water, potions drunk for their effects and splash and lingering bottles thrown
-- [ ] Loom, cartography table, beacon, lectern, crafter
 - [ ] Weather, moon phases affecting spawns, raids
 - [ ] Every enchantment and status effect
 

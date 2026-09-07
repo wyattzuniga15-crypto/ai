@@ -596,3 +596,12 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
     wall skull halfway up; the conduit floats in the middle and turns on the spot. Finding them uses
     the sweep that already finds chests, and the colour of a dyed banner is a material tint on the
     cloth, exactly as the icons do it.
+
+86. **Hanging signs and cauldrons.** A hanging sign is vanilla's own model — a ten-pixel board, the
+    bar it hangs from and its chains, straight when the sign is attached to the block above and
+    angled when it swings from a bar — drawn at full size rather than the two thirds a standing sign
+    uses, with text on both faces. Placing one under a block hangs it; placing one on a side gives
+    the wall variant. A cauldron is filled and emptied a bucket at a time and a third at a time by
+    bottles, washes the dye and the name off what is dipped in it, burns whoever stands in a lava
+    one and puts out whoever stands in a water one, taking a level for it. Rain filling a cauldron
+    waits for weather.

@@ -72,7 +72,7 @@ import { DYE_COLORS } from '../ui/specialIcons.ts';
 import { countBookshelves } from '../items/enchanting.ts';
 import { attachRecipeBook, recipeBookButton } from '../ui/screens/recipeBook.ts';
 import { PlayerPreview } from '../ui/playerPreview.ts';
-import { SignRenderer, isSignBlock } from '../blocks/signs.ts';
+import { SignRenderer, isHangingSign, isSignBlock } from '../blocks/signs.ts';
 import { ChestRenderer, chestModel, chestStates, isChestBlock } from '../blocks/chests.ts';
 import { BlockEntityRenderer, drawnStates } from '../blocks/blockEntityRender.ts';
 import { compost, composterLevel, composterState } from '../blocks/composter.ts';
@@ -664,10 +664,25 @@ export class Game {
       if (!fireRes) this.damage(4, true);
       p.fireTicks = Math.max(p.fireTicks, 300);
     }
-    const feetId = blocks.idOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y), Math.floor(p.pos.z)));
+    const feet = this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y), Math.floor(p.pos.z));
+    const feetId = blocks.idOf(feet);
     if (feetId === 'fire' || feetId === 'soul_fire') {
       p.fireTicks = Math.max(p.fireTicks, 160);
       if (this.tickCount % 20 === 0 && !fireRes) this.damage(1, true);
+    }
+    // standing in a cauldron: lava burns, and water puts a burning player out and takes a level
+    if (feetId === 'lava_cauldron') {
+      // vanilla's `lavaHurt`, which the damage cooldown holds to four damage every half second
+      if (!fireRes) this.damage(4);
+      p.fireTicks = Math.max(p.fireTicks, 300);
+    } else if (feetId === 'water_cauldron' && p.fireTicks > 0) {
+      p.fireTicks = 0;
+      const level = Number(blocks.prop(feet, 'level') ?? '1');
+      const x = Math.floor(p.pos.x);
+      const y = Math.floor(p.pos.y);
+      const z = Math.floor(p.pos.z);
+      this.world.setBlock(x, y, z, level > 1 ? blocks.stateWith('water_cauldron', { level: String(level - 1) }) : blocks.defaultState('cauldron'));
+      this.audio.play('splash', { x: x + 0.5, y: y + 0.5, z: z + 0.5, volume: 0.5 });
     }
     if (p.inWater) p.fireTicks = 0;
     if (p.fireTicks > 0) {
@@ -1048,6 +1063,17 @@ export class Game {
     if (id === 'ladder') {
       if (t.face < 2) return null;
       return blocks.stateWith(def, { facing: faceName, waterlogged: 'false' });
+    }
+    if (isHangingSign(id)) {
+      // a hanging sign goes under a block or on the side of one, never on top
+      if (t.face === 1) return null;
+      if (t.face >= 2) {
+        const wall = id.replace(/_hanging_sign$/, '_wall_hanging_sign');
+        if (blocks.has(wall)) return blocks.stateWith(wall, { facing: faceName, waterlogged: 'false' });
+      }
+      const yaw = ((-p.yaw / (Math.PI * 2)) * 16 + 8) % 16;
+      const rotation = String(Math.round(((yaw % 16) + 16) % 16) % 16);
+      return blocks.stateWith(id, { attached: 'true', rotation, waterlogged: 'false' });
     }
     if (isSignBlock(id) && !id.endsWith('_wall_sign')) {
       if (t.face === 0) return null;
@@ -1525,6 +1551,76 @@ export class Game {
   }
 
   /**
+   * A cauldron: buckets fill and empty it, bottles take and give a third of it, and dyed leather
+   * and patterned banners are washed clean in the water, each taking a level with them.
+   */
+  private useCauldron(t: RaycastHit, id: string): boolean {
+    const p = this.player;
+    const held = p.heldItem();
+    if (!held) return false;
+    const at = { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 };
+    const level = Number(blocks.prop(t.state, 'level') ?? '0');
+    const set = (block: string, props?: Record<string, string>): void => {
+      this.world.setBlock(t.x, t.y, t.z, props ? blocks.stateWith(block, props) : blocks.defaultState(block));
+    };
+    const swap = (give: string): void => {
+      if (p.gamemode === 'creative') return;
+      p.inventory.consumeSelected();
+      if (p.inventory.add({ id: give, count: 1 }) > 0) this.dropStack({ id: give, count: 1 }, p.pos.x, p.pos.y + 1, p.pos.z, true);
+    };
+    // filling from a bucket, whatever the cauldron held before
+    const fill: Record<string, string> = { water_bucket: 'water_cauldron', lava_bucket: 'lava_cauldron', powder_snow_bucket: 'powder_snow_cauldron' };
+    if (fill[held.id]) {
+      if (fill[held.id] === 'water_cauldron' || fill[held.id] === 'powder_snow_cauldron') set(fill[held.id], { level: '3' });
+      else set(fill[held.id]);
+      swap('bucket');
+      this.audio.play('splash', { ...at, volume: 0.6 });
+      return true;
+    }
+    // emptying a full one back into a bucket
+    if (held.id === 'bucket') {
+      if (id === 'water_cauldron' && level === 3) {
+        set('cauldron');
+        swap('water_bucket');
+      } else if (id === 'lava_cauldron') {
+        set('cauldron');
+        swap('lava_bucket');
+      } else if (id === 'powder_snow_cauldron' && level === 3) {
+        set('cauldron');
+        swap('powder_snow_bucket');
+      } else return false;
+      this.audio.play('splash', { ...at, volume: 0.6 });
+      return true;
+    }
+    // a glass bottle takes a third of the water, a water bottle pours one back in
+    if (held.id === 'glass_bottle' && id === 'water_cauldron') {
+      set(level > 1 ? 'water_cauldron' : 'cauldron', level > 1 ? { level: String(level - 1) } : undefined);
+      swap('potion');
+      const taken = p.inventory.slots.find((slot) => slot?.id === 'potion' && !slot.potion);
+      if (taken) taken.potion = 'water';
+      this.audio.play('splash', { ...at, volume: 0.4 });
+      return true;
+    }
+    if (held.id === 'potion' && held.potion === 'water' && (id === 'cauldron' || (id === 'water_cauldron' && level < 3))) {
+      set('water_cauldron', { level: String(Math.min(3, level + 1)) });
+      swap('glass_bottle');
+      this.audio.play('splash', { ...at, volume: 0.4 });
+      return true;
+    }
+    // washing: dyed leather and patterned banners come clean, and each washing costs a level
+    if (id === 'water_cauldron' && level > 0) {
+      const washable = held.id.startsWith('leather_') || held.id.endsWith('_banner') || held.id.endsWith('shulker_box');
+      if (!washable || (!held.name && !held.trim && !held.contents)) return false;
+      const cleaned = { ...held, name: undefined, trim: undefined };
+      p.inventory.slots[p.inventory.selected] = cleaned;
+      set(level > 1 ? 'water_cauldron' : 'cauldron', level > 1 ? { level: String(level - 1) } : undefined);
+      this.audio.play('splash', { ...at, volume: 0.5 });
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * A composter: what the player is holding goes in, on vanilla's odds, and a ready one hands its
    * bone meal back and starts again.
    */
@@ -1760,6 +1856,7 @@ export class Game {
       return true;
     }
     if (def.id === 'composter') return this.useComposter(t);
+    if (def.id.endsWith('cauldron')) return this.useCauldron(t, def.id);
     if (def.id === 'brewing_stand') {
       let entity = this.world.getBlockEntity(t.x, t.y, t.z) as BrewingEntity | undefined;
       if (!entity || entity.type !== 'brewing_stand') {

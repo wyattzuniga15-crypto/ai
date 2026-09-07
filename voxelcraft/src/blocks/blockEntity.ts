@@ -79,7 +79,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId === 'brewing_stand') return { type: 'brewing_stand', items: [null, null, null, null, null], brewTime: 0, fuel: 0 };
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
-  if (blockId.endsWith('_sign') && !blockId.includes('hanging')) return { type: 'sign', lines: ['', '', '', ''] };
+  if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };
   if (blockId === 'beehive' || blockId === 'bee_nest') return { type: 'beehive', bees: [], nectar: [] };
   if (blockId === 'spawner') return { type: 'spawner', mob: '', delay: 20 };
   return null;

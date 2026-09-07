@@ -1,7 +1,7 @@
 /** Sign block entities and their in-world text/board rendering. */
 import * as THREE from 'three';
 import { blocks } from './registry.ts';
-import { buildModel, type BuiltModel } from '../entities/boxModel.ts';
+import { buildModel, type BuiltModel, type PartDef } from '../entities/boxModel.ts';
 
 import type { SignEntity } from './blockEntity.ts';
 export type { SignEntity };
@@ -9,11 +9,16 @@ export type { SignEntity };
 export const SIGN_WOODS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped', 'pale_oak'];
 
 export function isSignBlock(id: string): boolean {
-  return id.endsWith('_sign') && !id.includes('hanging');
+  return id.endsWith('_sign');
+}
+
+/** Hanging signs are drawn from their own model, on their own textures. */
+export function isHangingSign(id: string): boolean {
+  return id.endsWith('_hanging_sign');
 }
 
 export function signWood(id: string): string {
-  return id.replace(/_wall_sign$|_sign$/, '');
+  return id.replace(/_wall_hanging_sign$|_hanging_sign$|_wall_sign$|_sign$/, '');
 }
 
 export function createSignEntity(): SignEntity {
@@ -36,7 +41,8 @@ export class SignRenderer {
     let m = this.meshes.get(key);
     if (m && m.lines === lines) return;
     if (m) this.remove(x, y, z);
-    const built = buildModel({
+    const hanging = isHangingSign(def.id);
+    const built = hanging ? this.buildHanging(wood, def.id.endsWith('_wall_hanging_sign'), blocks.prop(state, 'attached') === 'true') : buildModel({
       texture: `signs/${wood}.png`,
       texW: 64,
       texH: 32,
@@ -53,6 +59,30 @@ export class SignRenderer {
     group.add(built.group);
     const text = this.makeText(entity.lines, entity.color ?? 'black');
     const px = (2 / 3) / 16; // one model pixel in blocks
+    if (hanging) {
+      // vanilla hangs the board under the block, turned by its sixteenth or by the wall it is on
+      // vanilla draws a hanging sign at full size, its board filling the lower ten pixels of the block
+      built.group.scale.setScalar(1);
+      const wallHung = def.id.endsWith('_wall_hanging_sign');
+      const facing = blocks.prop(state, 'facing') ?? 'north';
+      const yaw = wallHung
+        ? ({ north: 0, south: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 }[facing] ?? 0)
+        : Math.PI - (Number(blocks.prop(state, 'rotation') ?? '0') * Math.PI) / 8;
+      group.position.set(x + 0.5, y + 0.625, z + 0.5);
+      group.rotation.y = yaw;
+      // the text sits on the middle of the board, a pixel proud of each face
+      text.position.set(0, -0.3125, -0.07);
+      text.rotation.y = Math.PI;
+      text.scale.setScalar(0.6);
+      group.add(text);
+      const back = this.makeText(entity.backLines ?? ['', '', '', ''], entity.color ?? 'black');
+      back.position.set(0, -0.3125, 0.07);
+      back.scale.setScalar(0.6);
+      group.add(back);
+      this.scene.add(group);
+      this.meshes.set(key, { group, text, lines, built });
+      return;
+    }
     if (wall) {
       const facing = blocks.prop(state, 'facing') ?? 'north';
       const dir: Record<string, [number, number, number]> = { north: [0, 0, -1], south: [0, 0, 1], west: [-1, 0, 0], east: [1, 0, 0] };
@@ -78,6 +108,24 @@ export class SignRenderer {
     }
     this.scene.add(group);
     this.meshes.set(key, { group, text, lines, built });
+  }
+
+  /** Vanilla's hanging sign: the board, the bar it hangs from and its chains. */
+  private buildHanging(wood: string, onWall: boolean, attached: boolean): BuiltModel {
+    const parts: PartDef[] = [
+      { name: 'board', pivot: [0, 0, 0], boxes: [{ uv: [0, 12], box: [-7, 0, -1, 14, 10, 2] }] },
+    ];
+    // a wall sign hangs from its bar; a ceiling one hangs on chains, straight when it is attached
+    if (onWall) {
+      parts.push({ name: 'plank', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-8, -6, -2, 16, 2, 4] }] });
+    } else if (attached) {
+      parts.push({ name: 'chains', pivot: [0, 0, 0], boxes: [{ uv: [14, 6], box: [-3, -6, 0, 6, 6, 0] }] });
+    } else {
+      parts.push({ name: 'plank', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-8, -6, -2, 16, 2, 4] }] });
+      parts.push({ name: 'chainL', pivot: [0, 0, 0], rotation: [0, Math.PI / 4, 0], boxes: [{ uv: [0, 6], box: [-6, -6, 0, 3, 6, 0] }] });
+      parts.push({ name: 'chainR', pivot: [0, 0, 0], rotation: [0, -Math.PI / 4, 0], boxes: [{ uv: [6, 6], box: [3, -6, 0, 3, 6, 0] }] });
+    }
+    return buildModel({ texture: `signs/hanging/${wood}.png`, texW: 64, texH: 32, parts }, this.base);
   }
 
   private makeText(lines: string[], color: string): THREE.Mesh {
