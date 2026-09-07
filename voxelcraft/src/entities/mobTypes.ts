@@ -2,7 +2,7 @@
 import mobsJson from '../../data/mobs.json';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { BEE_FLOWER_IDS, avoidCatsGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { BEE_FLOWER_IDS, avoidCatsGoal, elderCurseGoal, guardianGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -431,6 +431,59 @@ const beeModel: ModelDef = {
   ],
 };
 
+/**
+ * Vanilla guardian model. The body is the 12x12x16 core with a side plate each way and a plate top
+ * and bottom, which is why the core's own side, top and bottom faces are transparent but for a
+ * two-pixel border. Twelve spikes ring it — four on top, four at the corners of its middle, four
+ * underneath — and the tail is three shrinking segments ending in a fin.
+ */
+const GUARDIAN_SPIKES: { pivot: [number, number, number]; rotation: [number, number, number] }[] = [
+  // top ring, one to a face, tilted out and up
+  { pivot: [0, 8, -8], rotation: [-Math.PI / 4, 0, 0] },
+  { pivot: [0, 8, 8], rotation: [Math.PI / 4, 0, 0] },
+  { pivot: [-8, 8, 0], rotation: [0, 0, Math.PI / 4] },
+  { pivot: [8, 8, 0], rotation: [0, 0, -Math.PI / 4] },
+  // middle ring, out at the four corners
+  { pivot: [-8, 16, -8], rotation: [Math.PI / 2, Math.PI / 4, 0] },
+  { pivot: [8, 16, -8], rotation: [Math.PI / 2, -Math.PI / 4, 0] },
+  { pivot: [8, 16, 8], rotation: [Math.PI / 2, Math.PI * 1.25, 0] },
+  { pivot: [-8, 16, 8], rotation: [Math.PI / 2, Math.PI * 0.75, 0] },
+  // bottom ring, one to a face, tilted out and down
+  { pivot: [0, 24, -8], rotation: [Math.PI / 4, 0, 0] },
+  { pivot: [0, 24, 8], rotation: [-Math.PI / 4, 0, 0] },
+  { pivot: [-8, 24, 0], rotation: [0, 0, -Math.PI / 4] },
+  { pivot: [8, 24, 0], rotation: [0, 0, Math.PI / 4] },
+];
+
+function guardianModel(texture: string): ModelDef {
+  return {
+    texture, texW: 64, texH: 64,
+    parts: [
+      { name: 'body', pivot: [0, 0, 0], boxes: [
+        { uv: [0, 0], box: [-6, 10, -8, 12, 12, 16] },
+        { uv: [0, 28], box: [-8, 10, -6, 2, 12, 12] },
+        { uv: [0, 28], box: [6, 10, -6, 2, 12, 12], mirror: true },
+        { uv: [16, 40], box: [-6, 8, -6, 12, 2, 12] },
+        { uv: [16, 40], box: [-6, 22, -6, 12, 2, 12] },
+      ] },
+      // the eye slides over the front of the body to watch what the guardian is aiming at
+      { name: 'eye', pivot: [0, 0, 0], boxes: [{ uv: [8, 0], box: [-1, 15, -8.1, 2, 2, 1] }] },
+      ...GUARDIAN_SPIKES.map((sp, i) => ({
+        name: `spike${i}`,
+        pivot: sp.pivot,
+        rotation: sp.rotation,
+        boxes: [{ uv: [0, 0] as [number, number], box: [-1, -4.5, -1, 2, 9, 2] as [number, number, number, number, number, number] }],
+      })),
+      { name: 'tail0', pivot: [0, 0, 0], boxes: [{ uv: [40, 0], box: [-2, 14, 7, 4, 4, 8] }] },
+      { name: 'tail1', parent: 'tail0', pivot: [0, 0, 15], boxes: [{ uv: [0, 54], box: [-1.5, 14.5, 0, 3, 3, 7] }] },
+      { name: 'tail2', parent: 'tail1', pivot: [0, 0, 22], boxes: [
+        { uv: [41, 32], box: [-1, 15, 0, 2, 2, 6] },
+        { uv: [25, 19], box: [-0.5, 11, 4, 1, 9, 9] },
+      ] },
+    ],
+  };
+}
+
 /** Bee skins: angry and nectar-carrying bees swap texture like vanilla's four variants. */
 export function beeTexture(angry: boolean, nectar: boolean): string {
   return `bee/bee${angry ? '_angry' : ''}${nectar ? '_nectar' : ''}.png`;
@@ -602,6 +655,9 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   horse: { model: equineModel('horse/horse_white.png', 'horse', HORSE_MARKING_LAYER, 'equipment/horse_saddle/saddle.png', true), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
   donkey: { model: equineModel('horse/donkey.png', 'mule', null, 'equipment/donkey_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.425, followRange: 16, goals: () => equineGoals() },
   mule: { model: equineModel('horse/mule.png', 'mule', null, 'equipment/mule_saddle/saddle.png'), animation: 'horse', eyeHeight: 1.52, followRange: 16, goals: () => equineGoals() },
+  // guardians live in the water and shoot rather than bite; the elder is the same mob at 2.35 scale
+  guardian: { model: guardianModel('guardian.png'), animation: 'guardian', eyeHeight: 0.425, followRange: 16, aquatic: true, goals: () => [loseTargetGoal(), targetPlayerGoal(16), guardianGoal()] },
+  elder_guardian: { model: guardianModel('guardian_elder.png'), animation: 'guardian', eyeHeight: 1, followRange: 16, aquatic: true, scale: 2.35, goals: () => [elderCurseGoal(), loseTargetGoal(), targetPlayerGoal(16), guardianGoal()] },
 };
 
 /** Villagers wander, watch the player, flee monsters and look for a job site block. */

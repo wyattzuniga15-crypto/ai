@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { BlockSource } from './physics.ts';
 import { aabbIntersects, boxesIn, isFluidAt, sweep, type AABB } from './physics.ts';
 import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './boxModel.ts';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GlowOutline } from '../render/glow.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
@@ -33,7 +34,7 @@ export interface MobStats {
   flying?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -130,6 +131,9 @@ const RIDDEN_ACCEL = 1.79;
 let nextId = 1;
 
 /** Chunk material and fire tile ids used to draw burning mobs; set once by the game. */
+/** How long a guardian charges its beam before it lands: vanilla's attack duration. */
+export const guardianAttackTicks = (elder: boolean): number => (elder ? 60 : 80);
+
 export const mobFireAssets: { material: THREE.Material | null; tiles: [number, number]; viewYaw: number } = { material: null, tiles: [0, 0], viewYaw: 0 };
 
 /** Camera-facing fire quads stacked over an entity's height (vanilla EntityRenderDispatcher.renderFlame). */
@@ -208,6 +212,7 @@ export class Mob {
   /** Persistent mobs never despawn (named, bred, passive). */
   persistent: boolean;
   private fireMesh: THREE.Mesh | null = null;
+  private beamMesh: THREE.Mesh | null = null;
   /** Built the first time the mob glows, then just hidden and shown. */
   private outline: GlowOutline | null = null;
   private woolMaterials: THREE.MeshBasicMaterial[] | null = null;
@@ -561,6 +566,55 @@ export class Mob {
       this.outline.dispose();
       this.outline = null;
     }
+    if (this.beamMesh) {
+      this.beamMesh.parent?.remove(this.beamMesh);
+      this.beamMesh.geometry.dispose();
+      this.beamMesh = null;
+    }
+  }
+
+  /**
+   * The guardian's beam: vanilla draws a long quad from the eye to what it is aiming at, its
+   * texture scrolling along, thin while the charge builds and snapping wide just before it lands.
+   */
+  private renderBeam(): void {
+    const charging = typeof this.extra.beam === 'number' ? this.extra.beam : 0;
+    if (!charging || this.dead) {
+      if (this.beamMesh) this.beamMesh.visible = false;
+      return;
+    }
+    const target = new THREE.Vector3(Number(this.extra.beamX), Number(this.extra.beamY), Number(this.extra.beamZ));
+    if (!Number.isFinite(target.x)) return;
+    if (!this.beamMesh) {
+      // two quads crossed down the beam's axis, so it reads as a beam from any side rather than
+      // vanishing edge-on the way a single billboard would
+      const a = new THREE.PlaneGeometry(1, 1);
+      const b = new THREE.PlaneGeometry(1, 1);
+      b.rotateY(Math.PI / 2);
+      const geo = mergeGeometries([a, b]);
+      geo.translate(0, 0.5, 0); // grows from the eye toward the target
+      const tex = entityTexture(this.base, 'guardian_beam.png');
+      tex.wrapT = THREE.RepeatWrapping;
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+      this.beamMesh = new THREE.Mesh(geo, mat);
+      this.beamMesh.frustumCulled = false;
+      this.model.group.parent?.add(this.beamMesh);
+    }
+    const eye = this.eyePos();
+    const full = guardianAttackTicks(this.def.id === 'elder_guardian');
+    const progress = charging / full;
+    const length = eye.distanceTo(target);
+    this.beamMesh.visible = true;
+    this.beamMesh.position.copy(eye);
+    // point the quad down the beam, and roll it to face the camera as vanilla's billboard does
+    this.beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), target.clone().sub(eye).normalize());
+    this.beamMesh.scale.set(progress > 0.9 ? 0.35 : 0.05 + progress * 0.1, length, 1);
+    const mat = this.beamMesh.material as THREE.MeshBasicMaterial;
+    if (mat.map) {
+      mat.map.repeat.set(1, Math.max(1, length));
+      mat.map.offset.y = -(this.age % 20) / 20;
+    }
+    mat.opacity = progress > 0.9 ? 1 : 0.6;
   }
 
   /** Draws the glowing outline while the effect lasts, and only builds it the first time. */
@@ -597,6 +651,7 @@ export class Mob {
     g.position.copy(this.prev).lerp(this.pos, alpha);
     this.renderFire();
     this.renderGlow();
+    if (this.def.animation === 'guardian') this.renderBeam();
     const baby = this.isBaby;
     g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
     const headPart = this.model.parts.get('head');
@@ -779,6 +834,30 @@ export class Mob {
           if (leg) leg.rotation.x = flying ? -0.6 : 0;
         }
         this.setTexture(beeTexture(this.target !== null, this.extra.nectar === true));
+        break;
+      }
+      case 'guardian': {
+        // the tail waves as the guardian swims, the spikes come out while the beam charges, and
+        // the eye slides across the front of the body to watch what it is aiming at
+        const swim = this.inWater ? 1 : 0;
+        const wave = Math.sin((this.age + alpha) * 0.15) * (0.15 + amt * 0.5) * swim;
+        const t0 = parts.get('tail0'), t1 = parts.get('tail1'), t2 = parts.get('tail2');
+        if (t0) t0.rotation.y = wave;
+        if (t1) t1.rotation.y = wave * 1.4;
+        if (t2) t2.rotation.y = wave * 1.8;
+        const charge = typeof this.extra.beam === 'number' ? Math.min(1, this.extra.beam / 20) : 0;
+        // vanilla flares the spikes as the beam charges; they keep their ring and only reach further
+        for (const [name, part] of parts) if (name.startsWith('spike')) part.scale.set(1, 1 + charge * 0.6, 1);
+        const eye = parts.get('eye');
+        if (eye && this.lookTarget) {
+          const dx = this.lookTarget.x - this.pos.x;
+          const dz = this.lookTarget.z - this.pos.z;
+          const local = Math.atan2(-dx, -dz) - by;
+          eye.position.x = Math.max(-0.28, Math.min(0.28, Math.sin(local) * 0.35));
+          eye.position.y = Math.max(-0.2, Math.min(0.2, (this.lookTarget.y - (this.pos.y + this.def.eyeHeight)) * 0.06));
+        } else if (eye) {
+          eye.position.set(0, 0, 0);
+        }
         break;
       }
       case 'phantom': {

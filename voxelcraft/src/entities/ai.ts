@@ -1,6 +1,6 @@
 /** AI goals for mobs (vanilla-style goal selector with priorities and exclusive flags). */
 import * as THREE from 'three';
-import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
+import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, guardianAttackTicks, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
 import { EQUINE_TYPES, inheritEquine } from './mobTypes.ts';
 import { blocks } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
@@ -1068,6 +1068,92 @@ export const witchGoal = (): Goal => ({
     m.moveTarget = null;
     m.lookTarget = null;
     m.target = null;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// Guardians
+// ---------------------------------------------------------------------------------------------
+/**
+ * Vanilla's guardian: it holds still while the beam charges, and the beam only lands if the
+ * guardian keeps sight of what it is aiming at for the whole charge. Out of water it flops, and
+ * with nothing to shoot it drifts around the monument the way a fish does.
+ */
+export const guardianGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: () => true,
+  tick: (m, w) => {
+    const elder = m.def.id === 'elder_guardian';
+    const charging = typeof m.extra.beam === 'number' ? m.extra.beam : 0;
+    const hasTarget = m.target !== null && targetAlive(m, w) && m.inWater;
+    if (!hasTarget) {
+      if (charging) stopBeam(m);
+      swimAbout(m, w);
+      return;
+    }
+    const eye = targetEye(m, w);
+    const from = m.eyePos();
+    if (!w.lineOfSight(from, eye) || m.distanceTo(eye) > m.def.followRange) {
+      if (charging) stopBeam(m);
+      swimAbout(m, w);
+      return;
+    }
+    // the beam is aimed, so the guardian stops where it is and its spikes come out
+    m.lookTarget = eye;
+    m.moveTarget = null;
+    const ticks = charging + 1;
+    if (charging === 0) w.playSound('guardian_attack', m.pos.x, m.pos.y, m.pos.z);
+    m.extra.beam = ticks;
+    m.extra.beamX = eye.x;
+    m.extra.beamY = eye.y;
+    m.extra.beamZ = eye.z;
+    if (ticks < guardianAttackTicks(elder)) return;
+    // the charge is full: the beam lands for the guardian's own attack damage
+    if (m.target === 'player') w.hurtPlayer(m.def.damage, m.pos, m);
+    else (m.target as Mob).hurt(m.def.damage, m.pos, 'other', 0);
+    w.playSound('guardian_hurt', m.pos.x, m.pos.y, m.pos.z, 1.4);
+    stopBeam(m);
+    m.target = null;
+  },
+});
+
+function stopBeam(m: Mob): void {
+  delete m.extra.beam;
+  delete m.extra.beamX;
+  delete m.extra.beamY;
+  delete m.extra.beamZ;
+}
+
+/** Guardians drift through the water they live in, and flap uselessly on land. */
+function swimAbout(m: Mob, w: MobWorld): void {
+  if (!m.inWater) {
+    m.moveTarget = null;
+    return;
+  }
+  if (m.moveTarget && w.rng() > 0.02) return;
+  for (let i = 0; i < 8; i++) {
+    const x = m.pos.x + (w.rng() * 2 - 1) * 8;
+    const y = m.pos.y + (w.rng() * 2 - 1) * 4;
+    const z = m.pos.z + (w.rng() * 2 - 1) * 8;
+    if (!isWaterAt(w, x, y, z)) continue;
+    m.moveTarget = new THREE.Vector3(x, y, z);
+    m.moveSpeed = 1;
+    m.moveTimeout = 80;
+    break;
+  }
+}
+
+/**
+ * The elder guardian's curse: every sixty seconds every player within fifty blocks is given five
+ * minutes of Mining Fatigue III, as vanilla does on its own 1200-tick beat.
+ */
+export const elderCurseGoal = (): Goal => ({
+  flags: 0,
+  canUse: (m) => m.age > 0 && m.age % 1200 === 0,
+  tick: (m, w) => {
+    if (m.distanceTo(w.playerPos()) > 50) return;
+    w.addPlayerEffect('mining_fatigue', 6000, 2);
+    w.playSound('elder_guardian_curse', m.pos.x, m.pos.y, m.pos.z);
   },
 });
 

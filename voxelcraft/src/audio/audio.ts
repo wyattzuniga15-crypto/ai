@@ -122,6 +122,11 @@ const SOUNDS: Record<string, Synth> = {
   evoker_fangs: (c, o, p, t) => { burst(c, o, t, 'lowpass', 900, 1, 0.005, 0.2, 0.25, p); tone(c, o, t, 'square', 260, 90, 0.25, 0.16, p); },
   vex: (c, o, p, t) => { tone(c, o, t, 'square', 900, 1100, 0.15, 0.09, p); tone(c, o, t + 0.08, 'square', 1100, 800, 0.15, 0.07, p); },
   ravager: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 130, 70, 0.6, 0.2, p); burst(c, o, t, 'lowpass', 300, 1.2, 0.03, 0.5, 0.2, p); },
+  // guardians: a wet groan under water, a rising whine as the beam charges, a snap when it lands
+  guardian: (c, o, p, t) => { tone(c, o, t, 'sine', 220, 130, 0.5, 0.16, p); burst(c, o, t, 'bandpass', 600, 3, 0.05, 0.45, 0.12, p); },
+  guardian_attack: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 260, 700, 0.7, 0.12, p, 0.2); burst(c, o, t, 'bandpass', 1200, 6, 0.2, 0.5, 0.08, p); },
+  guardian_hurt: (c, o, p, t) => { tone(c, o, t, 'square', 900, 200, 0.2, 0.18, p); burst(c, o, t, 'highpass', 2000, 1, 0.005, 0.2, 0.2, p); },
+  elder_guardian_curse: (c, o, p, t) => { tone(c, o, t, 'sine', 160, 60, 1.2, 0.22, p, 0.15); tone(c, o, t + 0.1, 'sawtooth', 90, 40, 1.1, 0.12, p, 0.2); },
   // bees: a wing buzz, an angrier one and the sting; plus filling a bottle at a hive
   bee: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 240, 220, 0.5, 0.06, p); tone(c, o, t, 'square', 120, 110, 0.5, 0.04, p); },
   bee_angry: (c, o, p, t) => { tone(c, o, t, 'sawtooth', 330, 300, 0.6, 0.09, p); tone(c, o, t, 'square', 165, 150, 0.6, 0.05, p); },
