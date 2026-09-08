@@ -65,6 +65,13 @@ export const STRIDER_SADDLE_LAYER = 'equipment/strider_saddle/saddle.png';
 export const WOLF_ARMOR_POINTS = 11;
 export const WOLF_ARMOR_DURABILITY = 64;
 export const WOLF_ARMOR_REPAIR = 'armadillo_scute';
+/**
+ * Bartering: a piglin takes a gold ingot and turns it over for the eight seconds Mojang's own
+ * behaviour file gives it before handing something back.
+ */
+export const BARTER_ITEM = 'gold_ingot';
+export const BARTER_TICKS = 8 * 20;
+
 /** The animals a saddle alone makes rideable, and the stick that steers each one. */
 export const SADDLE_ANIMALS: Record<string, string> = { pig: 'carrot_on_a_stick', strider: 'warped_fungus_on_a_stick' };
 /**

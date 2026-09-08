@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { blocks } from '../src/blocks/registry.ts';
 import { biomeById } from '../src/world/biomes.ts';
 import { Mob, type MobWorld } from '../src/entities/mob.ts';
-import { mobStats, pickNether } from '../src/entities/mobTypes.ts';
+import { BARTER_ITEM, BARTER_TICKS, mobStats, pickNether } from '../src/entities/mobTypes.ts';
+import { barterLoot } from '../src/items/loot.ts';
 import { blazeGoal, ghastGoal, piglinAngerGoal, striderGoal } from '../src/entities/ai.ts';
 
 const makeMob = (type: string, at = new THREE.Vector3(0, 64, 0)): Mob => {
@@ -154,3 +155,48 @@ describe('striders', () => {
     expect(m.extra.cold).toBe(true);
   });
 });
+
+describe('bartering', () => {
+  it('takes the gold ingot vanilla asks for, for the eight seconds it admires it', () => {
+    expect(BARTER_ITEM).toBe('gold_ingot');
+    expect(BARTER_TICKS).toBe(160);
+  });
+
+  it('always hands something back, and only things off the bartering table', () => {
+    // an enchanted book, not a plain one: `enchant_randomly` upgrades it on the way out
+    const allowed = new Set(['enchanted_book', 'iron_boots', 'potion', 'splash_potion', 'fire_charge', 'ender_pearl',
+      'string', 'quartz', 'obsidian', 'crying_obsidian', 'soul_sand', 'nether_brick', 'spectral_arrow',
+      'gravel', 'blackstone', 'leather', 'iron_nugget', 'dried_ghast']);
+    let rolls = 0;
+    for (let i = 0; i < 400; i++) {
+      const seed = i;
+      const got = barterLoot(mulberry(seed));
+      expect(got.length).toBeGreaterThan(0);
+      for (const s of got) {
+        expect(allowed.has(s.id)).toBe(true);
+        expect(s.count).toBeGreaterThan(0);
+        rolls++;
+      }
+    }
+    expect(rolls).toBe(400); // one pool roll, so exactly one thing comes back each time
+  });
+
+  it('gives the common junk far more often than the treasure', () => {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < 4000; i++) for (const s of barterLoot(mulberry(i + 9000))) counts.set(s.id, (counts.get(s.id) ?? 0) + 1);
+    // gravel is weight 40, an ender pearl weight 10: the junk has to come up several times as often
+    expect(counts.get('gravel') ?? 0).toBeGreaterThan(counts.get('ender_pearl') ?? 0);
+    expect(counts.get('iron_boots') ?? 0).toBeGreaterThan(0);
+  });
+});
+
+/** A small deterministic generator, so the rolls above are the same on every run. */
+function mulberry(seed: number): () => number {
+  let a = seed + 0x6d2b79f5;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}

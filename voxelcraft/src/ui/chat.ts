@@ -47,10 +47,16 @@ export class Chat {
     this.root.classList.add('open');
     this.input.value = initial;
     this.historyPos = -1;
-    setTimeout(() => {
-      this.input.focus();
-      this.input.setSelectionRange(initial.length, initial.length);
-    }, 0);
+    // focus straight away, so the very next key typed lands in the box rather than the world, and
+    // again a tick later because letting go of the pointer lock can pull focus back to the canvas
+    this.focusInput(initial.length);
+    setTimeout(() => this.focusInput(initial.length), 0);
+  }
+
+  private focusInput(caret: number): void {
+    if (!this.open) return;
+    this.input.focus();
+    this.input.setSelectionRange(caret, caret);
   }
 
   close(): void {

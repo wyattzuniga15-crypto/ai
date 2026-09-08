@@ -303,13 +303,16 @@ export class Player {
       this.exhaustion += this.sprinting ? 0.2 : 0.05;
     }
     const wasOnGround = this.onGround;
+    const yBefore = this.pos.y;
     this.move(world, this.onGround ? 0.6 : 0);
+    // the drop is measured off the ground actually covered, and the tick that lands still fell:
+    // counting the velocity instead threw away that last part and left every fall a block short
+    const dropped = Math.max(0, yBefore - this.pos.y);
     if (this.onGround && !wasOnGround) {
-      // landing
-      this.landed = this.fallDistance;
+      this.landed = this.fallDistance + dropped;
       this.fallDistance = 0;
     } else if (!this.onGround) {
-      if (this.vel.y < 0) this.fallDistance -= this.vel.y;
+      this.fallDistance += dropped;
       if (this.effects.level('slow_falling') > 0) this.fallDistance = 0; // vanilla cancels the fall outright
     } else this.fallDistance = 0;
     // slow falling swaps vanilla's gravity for 0.01 while the player is on the way down

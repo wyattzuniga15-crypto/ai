@@ -390,6 +390,13 @@ export function hasLootTable(blockId: string): boolean {
  * What comes up on the line. Vanilla rolls `gameplay/fishing`, whose three pools are weighted by
  * luck: luck of the sea makes treasure likelier and junk rarer, and treasure needs open water.
  */
+/** What a piglin hands back for a piece of gold: vanilla's `gameplay/piglin_bartering` table. */
+export function barterLoot(random: () => number = Math.random): ItemStack[] {
+  const table = gameplayTables.piglin_bartering;
+  if (!table) return [];
+  return evalTable(table, { tool: null, random });
+}
+
 export function fishingLoot(luck = 0, openWater = true, random: () => number = Math.random): ItemStack[] {
   const table = gameplayTables.fishing;
   if (!table) return [];

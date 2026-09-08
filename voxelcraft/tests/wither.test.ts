@@ -126,3 +126,20 @@ describe('netherite', () => {
     expect(items.byId.get('diamond_chestplate')?.armor?.knockbackResistance).toBe(0);
   });
 });
+
+describe('taking a hit', () => {
+  it('never leaves a mob below empty, however hard the blow', () => {
+    // a boss bar reads health over max, so an overkill going negative would draw a bar past empty
+    const m = makeWither(40);
+    m.hurt(1000, null, 'player', 0);
+    expect(m.health).toBe(0);
+    expect(m.dead).toBe(true);
+  });
+
+  it('still counts an ordinary hit in full', () => {
+    const m = makeWither(300);
+    m.hurt(25, null, 'player', 0);
+    expect(m.health).toBe(275);
+    expect(m.dead).toBe(false);
+  });
+});

@@ -15,6 +15,13 @@ declare global {
   interface Window { voxelcraft: Voxel }
 }
 
+/** Opens the chat box and waits for it to hold the keyboard, so the typing below cannot go astray. */
+async function openChat(page: Page): Promise<void> {
+  await page.keyboard.press('t');
+  await page.waitForSelector('#chat.open input');
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#chat input'));
+}
+
 async function startWorld(page: Page, seed: string) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -92,8 +99,7 @@ test('loads a world, breaks and places a block, runs a command', async ({ page }
   await page.screenshot({ path: 'test-results/placed.png' });
 
   // chat command
-  await page.keyboard.press('t');
-  await page.waitForSelector('#chat.open input');
+  await openChat(page);
   await page.keyboard.type('/gamemode creative');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.voxelcraft.game.player.gamemode === 'creative');
@@ -109,21 +115,18 @@ test('loads a world, breaks and places a block, runs a command', async ({ page }
   await page.waitForFunction(() => window.voxelcraft.game.state === 'playing');
 
   // back to survival for the crafting grid, which is the inventory this mode opens
-  await page.keyboard.press('t');
-  await page.waitForSelector('#chat.open input');
+  await openChat(page);
   await page.keyboard.type('/gamemode survival');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.voxelcraft.game.player.gamemode === 'survival');
   await page.waitForFunction(() => window.voxelcraft.game.state === 'playing');
 
   // give a log, open the inventory and craft planks in the 2x2 grid
-  await page.keyboard.press('t');
-  await page.waitForSelector('#chat.open input');
+  await openChat(page);
   await page.keyboard.type('/clear');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.voxelcraft.game.state === 'playing');
-  await page.keyboard.press('t');
-  await page.waitForSelector('#chat.open input');
+  await openChat(page);
   await page.keyboard.type('/give oak_log 1');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.voxelcraft.game.player.inventory.slots[0]?.id === 'oak_log');

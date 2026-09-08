@@ -1755,3 +1755,41 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      totem is spent, the player is left on a single point of health with every effect cleared away,
      and Mojang's own three go on: Regeneration II for nine hundred ticks, Fire Resistance for eight
      hundred and Absorption II for a hundred.
+
+148. **What a playthrough turned up.** Playing the game end to end — the first tree through to the
+     dragon, and then a sweep of everything else — was worth four fixes, three of them things no
+     unit test had ever asked about.
+
+     *Falling.* Two bugs stacked on each other and cancelled about half of the answer. The drop was
+     measured off the velocity at the moment of landing rather than the ground actually covered, so
+     the tick that lands — the one that falls furthest — was thrown away, leaving every fall about a
+     block short; and the damage rounded the remainder down where vanilla rounds it up. A ten block
+     fall took five hearts instead of seven. Both are now Mojang's: the fall is the sum of the
+     displacement of every tick spent in the air, the landing tick included, and the damage is
+     `ceil(fall - 3)`. The ladder from a vanilla world — three blocks free, four for one heart, ten
+     for seven, twenty for seventeen — comes out exactly.
+
+     *Bartering.* `data/loot/gameplay.json` has carried vanilla's `piglin_bartering` table since the
+     loot tables went in, and nothing read it: a gold ingot offered to a piglin did nothing at all.
+     It now runs Mojang's own behaviour, out of the Bedrock `piglin.json`: the piglin takes the
+     ingot, admires it for the eight seconds `minecraft:admire_item` gives, and hands back one roll
+     of the table — gravel and blackstone and soul sand most of the time, a fire-resistance potion,
+     an ender pearl or soul-speed boots when the roll is kind. Babies do not trade, and a piglin
+     already admiring one ingot will not take another.
+
+     *Health below empty.* An overkill left a mob on negative health for the ticks of its death
+     animation, because the blow was subtracted without a floor. Vanilla's `setHealth` clamps, and a
+     boss bar drawn from health over max would have gone past empty on the dragon and the Wither, so
+     it clamps here too.
+
+     *The chat box and the keyboard.* Opening chat put the box on screen straight away but waited a
+     turn of the event loop to give it the keyboard, so anything typed in that gap went to the world
+     instead — a stray `e` opening the inventory rather than a letter landing in the box. It was
+     only ever wide enough for a robot to hit — a person's next keystroke is a hundred times too
+     late — but the end-to-end test typed into it fast enough to walk in, and hung there.
+     The box now takes focus the moment it opens, and again after the pointer lock lets go, since
+     losing the lock can hand focus back to the canvas.
+
+     Four doc comments in `game.ts` had also come adrift of the methods they describe — an old
+     refactor moved the code and left the comments where they were, so the spawner's notes sat over
+     the dried ghast and the horse's over the piglin. They are back on their own methods.

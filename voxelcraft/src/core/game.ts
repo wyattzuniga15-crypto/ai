@@ -49,7 +49,7 @@ import { THROW_SPEED } from '../entities/arrow.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
-import { archaeologyLoot, blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
+import { archaeologyLoot, barterLoot, blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
 import { bowBaseDamage, bowCharge, crossbowChargeTicks, hasChanneling, hasMultishot, impalingBonus, loyaltyLevel, maceDamage, piercingCount, riptideLevel, sweepingRatio, windBurstLift, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
 import { arrowEffects, effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
@@ -98,7 +98,7 @@ import { EntityManager, rayBox, type ManagerHost } from '../entities/manager.ts'
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, armorSlotOf, SADDLE_ANIMALS, STEER_BOOST, STEER_BOOST_MULTIPLIER, WOLF_ARMOR_POINTS, WOLF_ARMOR_REPAIR, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, armorSlotOf, BARTER_ITEM, BARTER_TICKS, SADDLE_ANIMALS, STEER_BOOST, STEER_BOOST_MULTIPLIER, WOLF_ARMOR_POINTS, WOLF_ARMOR_REPAIR, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -1110,6 +1110,7 @@ export class Game {
     this.tickCuring();
     this.tickCopperGolems();
     this.tickLeads();
+    this.tickBartering();
     this.tickBrushing();
     this.tickShriekers();
     this.tickAmbience();
@@ -1207,9 +1208,9 @@ export class Game {
       this.damage(Math.floor(p.kinetic));
       p.kinetic = 0;
     }
-    // fall damage
+    // fall damage: vanilla rounds the drop up, so landing a hair under a whole block still counts
     if (p.landed > 0) {
-      const dmg = Math.floor(p.landed - 3);
+      const dmg = Math.ceil(p.landed - 3);
       p.landed = 0;
       if (dmg > 0 && !p.inWater) this.damage(dmg);
     }
@@ -2165,11 +2166,6 @@ export class Game {
   }
 
   /**
-   * Vanilla's `BaseSpawner`: a spawner runs only while a player is within sixteen blocks, then tries
-   * four times to put a mob in the nine-by-three-by-nine box around it, stopping once six of them
-   * are already there, and waits ten to forty seconds before the next batch.
-   */
-  /**
    * A dried ghast soaking. Standing in water it climbs a hydration step every five minutes, and a
    * step past the last one it splits open and a ghastling comes out; on dry land it dries back down
    * at the same rate. The block only counts while a player is near enough for its chunk to be up.
@@ -2199,6 +2195,11 @@ export class Game {
     this.audio.play('fizz', { x, y, z, pitch: 0.8 + step.hydration * 0.15, volume: 0.4 });
   }
 
+  /**
+   * Vanilla's `BaseSpawner`: a spawner runs only while a player is within sixteen blocks, then tries
+   * four times to put a mob in the nine-by-three-by-nine box around it, stopping once six of them
+   * are already there, and waits ten to forty seconds before the next batch.
+   */
   private tickSpawner(x: number, y: number, z: number, e: SpawnerEntity): void {
     if (!e.mob) return;
     const p = this.player.pos;
@@ -2815,11 +2816,6 @@ export class Game {
   }
 
   /**
-   * Raids. A player carrying Bad Omen who walks into a village brings one down on it: waves of
-   * illagers arrive until the village has seen them all off, and seeing them off is what earns
-   * Hero of the Village.
-   */
-  /**
    * The Wither's bar, and the armour it gains once it is half beaten: vanilla halves the damage
    * arrows do to it below that, and it stops taking knockback altogether.
    */
@@ -2871,6 +2867,11 @@ export class Game {
     this.hud.setBossBar(shielded ? 'Ender Dragon — healing' : 'Ender Dragon', dragon.health / dragon.maxHealth, 'pink');
   }
 
+  /**
+   * Raids. A player carrying Bad Omen who walks into a village brings one down on it: waves of
+   * illagers arrive until the village has seen them all off, and seeing them off is what earns
+   * Hero of the Village.
+   */
   private tickRaid(): void {
     if (!this.raid) {
       if (this.tickCount % 40 !== 0) return;
@@ -6145,6 +6146,7 @@ export class Game {
     if (NAUTILUS_TYPES.includes(m.def.id) && this.interactNautilus(m, held, survival, at)) return true;
     if (m.def.id === 'happy_ghast' && this.interactHappyGhast(m, held, survival, at)) return true;
     if (SADDLE_ANIMALS[m.def.id] && this.interactSaddled(m, held, survival)) return true;
+    if (m.def.id === 'piglin' && this.interactPiglin(m, held, survival)) return true;
     if (m.def.id === 'armor_stand') return this.interactArmorStand(m, held, survival);
     if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
     if (m.def.id === 'villager' || m.def.id === 'wandering_trader') {
@@ -6357,13 +6359,32 @@ export class Game {
   }
 
   /**
-   * Vanilla horse handling: feeding (healing, growth and temper), saddling, chests on donkeys and
-   * mules, the inventory on sneak, and mounting, which tames an untamed horse over several tries.
+   * Bartering. A grown piglin takes a gold ingot from the hand, turns it over for the eight seconds
+   * Mojang's own behaviour file gives it, and throws something back off vanilla's barter table.
    */
-  /**
-   * The nautilus. A pufferfish tames it one try in three; after that it takes a saddle and one of
-   * the five body armours through the same screen a horse uses, and any fish heals or breeds it.
-   */
+  private interactPiglin(m: MobType, held: ItemStack | null, survival: boolean): boolean {
+    if (m.isBaby || held?.id !== BARTER_ITEM) return false;
+    if (typeof m.extra.admiring === 'number' && m.extra.admiring > 0) return false;
+    m.extra.admiring = BARTER_TICKS;
+    if (survival) this.player.inventory.consumeSelected();
+    this.particles.spawnSprite('happy', m.pos.x, m.pos.y + m.height, m.pos.z, 0, 0.03, 0, 20, 0.3);
+    this.audio.play('click', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.3 });
+    return true;
+  }
+
+  /** Counts the admiring down and throws the trade back when it runs out. */
+  private tickBartering(): void {
+    for (const m of this.entities.mobs) {
+      if (m.dead || m.def.id !== 'piglin') continue;
+      const left = typeof m.extra.admiring === 'number' ? m.extra.admiring : 0;
+      if (left <= 0) continue;
+      m.extra.admiring = left - 1;
+      if (left - 1 > 0) continue;
+      for (const drop of barterLoot()) this.dropStack(drop, m.pos.x, m.pos.y + 1, m.pos.z, true);
+      this.audio.play('pop', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.1 });
+    }
+  }
+
   /**
    * A pig or a strider: a saddle goes on a grown one, and from then on it can be ridden. Shears do
    * not take it off again — vanilla only gives the saddle back when the animal dies.
@@ -6424,6 +6445,10 @@ export class Game {
     return false;
   }
 
+  /**
+   * The nautilus. A pufferfish tames it one try in three; after that it takes a saddle and one of
+   * the five body armours through the same screen a horse uses, and any fish heals or breeds it.
+   */
   private interactNautilus(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
     const p = this.player;
     const tamed = m.extra.tamed === true;
@@ -6501,6 +6526,10 @@ export class Game {
     this.openScreen(nautilusScreen(this.player.inventory, m.def.name, equip, sync), sync);
   }
 
+  /**
+   * Vanilla horse handling: feeding (healing, growth and temper), saddling, chests on donkeys and
+   * mules, the inventory on sneak, and mounting, which tames an untamed horse over several tries.
+   */
   private interactEquine(m: Mob, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
     const p = this.player;
     const tamed = m.extra.tamed === true;
@@ -6718,7 +6747,6 @@ export class Game {
     });
   }
 
-  /** Keeps sign meshes in step with loaded sign block entities. */
   /**
    * Sweeps a freshly loaded chunk for the blocks the game has to know about itself: chests, which
    * vanilla draws with a renderer of their own, and hoppers, which need a block entity to tick.
@@ -6821,6 +6849,7 @@ export class Game {
     this.beams.prune(lit);
   }
 
+  /** Keeps sign meshes in step with loaded sign block entities. */
   private syncSigns(): void {
     const seen = new Set<string>();
     this.world.forEachBlockEntity((x, y, z, e) => {

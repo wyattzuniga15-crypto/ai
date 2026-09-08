@@ -363,7 +363,8 @@ export class Mob {
       if (worn >= WOLF_ARMOR_DURABILITY) delete this.extra.wolfArmor;
       else this.extra.wolfArmor = worn;
     }
-    this.health -= amount;
+    // vanilla clamps health at nothing, so an overkill never shows a bar below empty
+    this.health = Math.max(0, this.health - amount);
     this.invulnerable = 10;
     this.hurtTime = 10;
     this.lastHurtBy = by;
