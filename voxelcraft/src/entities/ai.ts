@@ -1349,6 +1349,91 @@ export const snifferDigGoal = (): Goal => ({
 });
 
 // ---------------------------------------------------------------------------------------------
+// Nautiluses
+// ---------------------------------------------------------------------------------------------
+/** What tempts and tames a wild nautilus, and what a tamed one will eat. */
+export const NAUTILUS_TAME_FOODS = ['pufferfish', 'pufferfish_bucket'];
+export const NAUTILUS_FOODS = [...NAUTILUS_TAME_FOODS, 'cod', 'salmon', 'tropical_fish', 'cooked_cod', 'cooked_salmon', 'cod_bucket', 'salmon_bucket', 'tropical_fish_bucket'];
+
+/** What a fish is worth to a hurt nautilus, from Mojang's healable list. */
+export const NAUTILUS_HEALING: Record<string, number> = {
+  pufferfish: 2, tropical_fish: 2, pufferfish_bucket: 2, tropical_fish_bucket: 2,
+  cod: 4, salmon: 4, cod_bucket: 4, salmon_bucket: 4, cooked_cod: 10, cooked_salmon: 12,
+};
+
+/** One try in three tames it, the same odds Mojang gives. */
+export const NAUTILUS_TAME_CHANCE = 1 / 3;
+
+/** How far it looks for a pufferfish, how far it will chase one, and how long its temper lasts. */
+export const NAUTILUS_HUNT_RANGE = 25;
+export const NAUTILUS_CHARGE_RANGE = 16;
+export const NAUTILUS_ANGRY_TICKS = 20 * 20;
+export const NAUTILUS_CHARGE_COOLDOWN = 4 * 20;
+export const NAUTILUS_CHARGE_KNOCKBACK = 2;
+
+/**
+ * Vanilla's nautilus hunts pufferfish and nothing else. It picks one out at twenty-five blocks with
+ * even odds, stays angry for twenty seconds, and charges rather than biting: a run at the fish
+ * every four seconds that knocks whatever it hits aside.
+ */
+export const nautilusChargeGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK | FLAG_TARGET,
+  canUse: (m, w) => {
+    if (m.target && m.target !== 'player' && !m.target.dead) return true;
+    if (m.extra.tamed === true || m.ridden || w.rng() > 0.5 || m.age % 20 !== 0) return false;
+    let best: Mob | null = null;
+    let bestD = NAUTILUS_HUNT_RANGE;
+    for (const o of w.mobsNear(m.pos.x, m.pos.y, m.pos.z, NAUTILUS_HUNT_RANGE)) {
+      if (o === m || o.dead || o.def.id !== 'pufferfish') continue;
+      const d = m.distanceTo(o.pos);
+      if (d < bestD && w.lineOfSight(m.eyePos(), o.eyePos())) { bestD = d; best = o; }
+    }
+    if (!best) return false;
+    m.target = best;
+    m.extra.angry = NAUTILUS_ANGRY_TICKS;
+    return true;
+  },
+  canContinue: (m) => !!m.target && m.target !== 'player' && !m.target.dead && (typeof m.extra.angry === 'number' ? m.extra.angry : 0) > 0,
+  tick: (m, w) => {
+    const target = m.target;
+    if (!target || target === 'player') return;
+    m.extra.angry = Math.max(0, (typeof m.extra.angry === 'number' ? m.extra.angry : 0) - 1);
+    m.lookTarget = target.pos.clone();
+    const d = m.distanceTo(target.pos);
+    const cooldown = typeof m.extra.charge === 'number' ? m.extra.charge : 0;
+    if (cooldown > 0) {
+      m.extra.charge = cooldown - 1;
+    } else if (d < NAUTILUS_CHARGE_RANGE) {
+      // the charge overshoots its mark, so it swims past rather than stopping on the fish
+      const over = target.pos.clone().sub(m.pos).normalize().multiplyScalar(1.5);
+      m.moveTarget = target.pos.clone().add(over);
+      m.moveSpeed = 1.2;
+      m.moveTimeout = 60;
+      m.extra.charge = NAUTILUS_CHARGE_COOLDOWN;
+    }
+    if (d < (m.width + target.width) / 2 + 0.5) {
+      target.hurt(m.def.damage, m.pos, 'other', NAUTILUS_CHARGE_KNOCKBACK);
+      m.target = null;
+      m.extra.angry = 0;
+    }
+  },
+  stop: (m) => { m.target = null; },
+});
+
+/** A nautilus's day: swimming about, running from trouble, hunting pufferfish and raising young. */
+export const nautilusGoals = (): Goal[] => [
+  // Mojang's priorities: panic first, then the hunt, then a hand holding fish, and swimming last
+  panicGoal(1.6),
+  nautilusChargeGoal(),
+  temptGoal(NAUTILUS_FOODS, 10, 2),
+  breedGoal(),
+  followParentGoal(),
+  swimGoal(),
+  lookAtPlayerGoal(8),
+  randomLookGoal,
+];
+
+// ---------------------------------------------------------------------------------------------
 // The copper golem
 // ---------------------------------------------------------------------------------------------
 /** The chests a copper golem takes from: the eight copper ones, waxed or not. */

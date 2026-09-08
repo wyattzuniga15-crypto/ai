@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, CAT_VARIANTS, COPPER_GOLEM_FLOWER, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, PARROT_COLORS, axolotlColor, frogVariantFor, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, CAT_VARIANTS, COPPER_GOLEM_FLOWER, NAUTILUS_COLD_WEIGHT, NAUTILUS_MAX_Y, NAUTILUS_MIN_Y, NAUTILUS_WEIGHT, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, PARROT_COLORS, axolotlColor, frogVariantFor, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -93,6 +93,8 @@ export class EntityManager {
     if (type === 'llama') m.extra.coat = LLAMA_COATS[Math.floor(this.host.rng() * LLAMA_COATS.length)];
     if (type === 'axolotl') m.extra.color = axolotlColor(this.host.rng);
     if (type === 'parrot') m.extra.color = PARROT_COLORS[Math.floor(this.host.rng() * PARROT_COLORS.length)];
+    // a zombie nautilus is as likely as not to have grown coral on its shell
+    if (type === 'zombie_nautilus') m.extra.variant = this.host.rng() < 0.5 ? 'coral' : 'plain';
     if (EQUINE_TYPES.includes(type)) initEquine(m, this.host.rng);
     this.mobs.push(m);
     this.host.scene.add(m.model.group);
@@ -277,6 +279,11 @@ export class EntityManager {
       if (roll < 0.4) this.spawnFishSchool(x, z, biome.category === 'river' || cold ? 'salmon' : 'cod');
       else if (roll < 0.8 || cold || biome.category === 'river') this.spawnFishSchool(x, z, 'squid');
       else this.spawnFishSchool(x, z, 'dolphin');
+      // a nautilus comes on its own, deep down, and is rarer in the cold shallows
+      if (biome.category === 'ocean') {
+        const shallowCold = cold && !biome.id.includes('deep');
+        if (h.rng() < (shallowCold ? NAUTILUS_COLD_WEIGHT : NAUTILUS_WEIGHT) / 100) this.spawnNautilus(x, z);
+      }
       return;
     }
     // mushroom fields are the one biome that spawns nothing but mooshrooms, on their mycelium
@@ -446,6 +453,23 @@ export class EntityManager {
       if (!Mob.fits(h, stats, px, py, pz)) continue;
       this.spawn(type, px, py + 0.2, pz, h.rng() * Math.PI * 2);
       spawned++;
+    }
+  }
+
+  /** Mojang's spawn rules: one nautilus at a time, under water, between thirty-eight and fifty-eight. */
+  private spawnNautilus(x: number, z: number): void {
+    const h = this.host;
+    const stats = mobStats('nautilus')!;
+    for (let i = 0; i < 12; i++) {
+      const px = x + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const pz = z + Math.floor(h.rng() * 9) - 4 + 0.5;
+      const py = NAUTILUS_MIN_Y + Math.floor(h.rng() * (NAUTILUS_MAX_Y - NAUTILUS_MIN_Y + 1));
+      if (py >= h.topBlock(Math.floor(px), Math.floor(pz))) continue;
+      const at = h.getBlock(Math.floor(px), py, Math.floor(pz));
+      if (at === 0 || blocks.blockOf(at).id !== 'water') continue;
+      if (!Mob.fits(h, stats, px, py, pz)) continue;
+      this.spawn('nautilus', px, py + 0.2, pz, h.rng() * Math.PI * 2, h.rng() < 0.05);
+      return;
     }
   }
 

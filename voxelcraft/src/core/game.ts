@@ -18,7 +18,7 @@ import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
 import { END_PLATFORM, END_SURFACE, GATEWAY_REACH, GATEWAY_SLOTS, GATEWAY_Y, endGatewayShrine, endPodium, gatewaySlot } from '../world/gen/end.ts';
-import { DRAGON_HEIGHT, HAUL_STACK, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
+import { DRAGON_HEIGHT, HAUL_STACK, NAUTILUS_HEALING, NAUTILUS_TAME_CHANCE, NAUTILUS_TAME_FOODS, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
@@ -41,7 +41,7 @@ import type { Menus } from '../ui/menus.ts';
 import { biomes } from '../world/biomes.ts';
 import { MC_VERSION } from './constants.ts';
 import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
-import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen } from '../ui/screens/screens.ts';
+import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen, nautilusScreen } from '../ui/screens/screens.ts';
 import { craftingMatcher } from '../items/crafting.ts';
 import { Firework, fireworkLifetime } from '../entities/firework.ts';
 import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
@@ -72,7 +72,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HORSE_FOODS, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HORSE_FOODS, NAUTILUS_SEAT, NAUTILUS_TYPES, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -1165,7 +1165,9 @@ export class Game {
     eye.y += p.eyeHeight;
     const eyeState = this.world.getBlock(Math.floor(eye.x), Math.floor(eye.y), Math.floor(eye.z));
     const submerged = eyeState !== 0 && blocks.blockOf(eyeState).id === 'water';
-    if (submerged && !p.effects.get('water_breathing')) {
+    // a saddled nautilus breathes for whoever is riding it, which is vanilla's breath of the nautilus
+    const nautilusBreath = !!this.mount && this.mount.def.animation === 'nautilus' && this.mount.extra.saddle === true && this.mount.inWater;
+    if (submerged && !p.effects.get('water_breathing') && !nautilusBreath) {
       // respiration gives a chance to keep the breath, which is how vanilla stretches it out
       if (p.extraBreath <= 0 || Math.random() < 300 / (p.extraBreath + 300)) p.air--;
       if (p.air <= -20) {
@@ -4799,6 +4801,8 @@ export class Game {
 
   /** Where a rider sits: vanilla puts the player just above the mount's back. */
   private seatHeight(m: Mob): number {
+    // Mojang seats a nautilus rider just under a block up, on the top of the shell
+    if (m.def.animation === 'nautilus') return NAUTILUS_SEAT;
     return m.height * 0.75 + (m.def.animation === 'horse' ? 0.05 : 0);
   }
 
@@ -4817,7 +4821,7 @@ export class Game {
     this.dismount(false);
     this.mount = m;
     m.ridden = true;
-    m.control = { forward: 0, strafe: 0, jump: 0 };
+    m.control = { forward: 0, strafe: 0, jump: 0, lift: 0 };
     this.player.riding = true;
     this.jumpCharge = 0;
     // an untamed horse throws the player off after a moment
@@ -4867,13 +4871,16 @@ export class Game {
       return;
     }
     const saddled = m.extra.saddle === true;
-    const control = m.control ?? (m.control = { forward: 0, strafe: 0, jump: 0 });
+    const control = m.control ?? (m.control = { forward: 0, strafe: 0, jump: 0, lift: 0 });
     m.yaw = p.yaw;
     m.headYaw = p.yaw;
     m.headPitch = 0;
     // a saddle is what makes a horse steerable; bareback it just carries the player
     control.forward = saddled ? (this.input.isDown('forward') ? 1 : 0) - (this.input.isDown('back') ? 1 : 0) : 0;
     control.strafe = saddled ? (this.input.isDown('left') ? 1 : 0) - (this.input.isDown('right') ? 1 : 0) : 0;
+    // a nautilus swims where its rider looks: the pitch is the climb, and there is nothing to jump
+    control.lift = saddled && m.def.aquatic ? Math.sin(p.pitch) * control.forward : 0;
+    if (m.def.aquatic) return;
     const jumpStrength = typeof m.extra.jumpAttr === 'number' ? m.extra.jumpAttr : 0;
     if (saddled && jumpStrength > 0) {
       if (this.input.isDown('jump')) {
@@ -5135,6 +5142,7 @@ export class Game {
     const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
     if (m.def.id === 'wolf' && this.interactWolf(m, held, survival, at)) return true;
     if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
+    if (NAUTILUS_TYPES.includes(m.def.id) && this.interactNautilus(m, held, survival, at)) return true;
     if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
     if (m.def.id === 'villager' || m.def.id === 'wandering_trader') {
       if (m.isBaby) return false;
@@ -5348,6 +5356,87 @@ export class Game {
    * Vanilla horse handling: feeding (healing, growth and temper), saddling, chests on donkeys and
    * mules, the inventory on sneak, and mounting, which tames an untamed horse over several tries.
    */
+  /**
+   * The nautilus. A pufferfish tames it one try in three; after that it takes a saddle and one of
+   * the five body armours through the same screen a horse uses, and any fish heals or breeds it.
+   */
+  private interactNautilus(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
+    const p = this.player;
+    const tamed = m.extra.tamed === true;
+    const heal = held ? NAUTILUS_HEALING[held.id] : undefined;
+    if (held && !tamed && NAUTILUS_TAME_FOODS.includes(held.id)) {
+      if (survival) p.inventory.consumeSelected();
+      if (Math.random() < NAUTILUS_TAME_CHANCE) {
+        m.extra.tamed = true;
+        m.persistent = true;
+        this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+        this.chat.addLine(`${m.def.name} tamed`, '#aaa');
+      } else {
+        for (let i = 0; i < 7; i++) this.particles.spawnSprite('smoke', m.pos.x + (Math.random() - 0.5) * m.width, at.y, m.pos.z + (Math.random() - 0.5) * m.width, 0, 0.02, 0, 20, 0.2);
+      }
+      this.audio.play('splash', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.3 });
+      return true;
+    }
+    if (heal !== undefined && (m.health < m.maxHealth || m.isBaby || (tamed && !m.isBaby))) {
+      const hurt = m.health < m.maxHealth;
+      m.health = Math.min(m.maxHealth, m.health + heal);
+      if (m.isBaby) {
+        const grow = typeof m.extra.grow === 'number' ? m.extra.grow : 24000;
+        m.extra.grow = Math.max(1, grow - heal * 200);
+      }
+      let loved = false;
+      if (tamed && !m.isBaby && m.def.id === 'nautilus') {
+        const love = typeof m.extra.love === 'number' ? m.extra.love : 0;
+        const cooldown = typeof m.extra.cooldown === 'number' ? m.extra.cooldown : 0;
+        if (love <= 0 && cooldown <= 0) {
+          m.extra.love = 600;
+          loved = true;
+        }
+      }
+      if (survival) p.inventory.consumeSelected();
+      if (loved || hurt) this.particles.hearts(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
+      this.audio.play('eat', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (!tamed || m.isBaby) return true; // an untamed one will not be ridden, and a baby never is
+    if (held?.id === 'saddle' && m.extra.saddle !== true) {
+      this.nautilusSlots(m).equip[0] = { id: 'saddle', count: 1 };
+      m.extra.saddle = true;
+      if (survival) p.inventory.consumeSelected();
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held && nautilusArmorTexture(held.id) && m.extra.armor !== held.id) {
+      this.nautilusSlots(m).equip[1] = { id: held.id, count: 1 };
+      m.extra.armor = held.id;
+      if (survival) p.inventory.consumeSelected();
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.8 });
+      return true;
+    }
+    if (p.sneaking) {
+      this.openNautilusScreen(m);
+      return true;
+    }
+    this.mountMob(m);
+    return true;
+  }
+
+  /** The saddle and armour slots a tamed nautilus carries, created on first use. */
+  private nautilusSlots(m: MobType): { equip: Slot[] } {
+    const store = (m.extra as unknown as { equip?: Slot[] });
+    if (!store.equip) store.equip = [null, null];
+    return { equip: store.equip };
+  }
+
+  private openNautilusScreen(m: MobType): void {
+    const { equip } = this.nautilusSlots(m);
+    const sync = () => {
+      m.extra.saddle = equip[0]?.id === 'saddle';
+      m.extra.armor = equip[1]?.id ?? '';
+    };
+    this.openScreen(nautilusScreen(this.player.inventory, m.def.name, equip, sync), sync);
+  }
+
   private interactEquine(m: Mob, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
     const p = this.player;
     const tamed = m.extra.tamed === true;

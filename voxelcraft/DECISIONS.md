@@ -1420,3 +1420,46 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      twenty-five degrees, running, and the star), and the age picks the texture off the same net.
      They stand on the floor of their block at full scale with the rod poking above it, the way the
      golem's own model overshoots its hitbox.
+
+133. **The nautiluses.** The last two entity types with stats, and the most complicated animals in
+     the game: Mojang's geometry gives them a shell in front with the body and a three-part mouth
+     trailing behind, which is how the animal actually swims — backwards, on a jet. The mouth works
+     open and shut as it goes, and the shell rolls with it.
+
+     Everything about them came out of Mojang's own behaviour pack rather than being guessed at.
+     They spawn one at a time in ocean biomes between y 38 and 58, at weight 25 in warm and deep
+     water and 10 in the cold shallows (read here as a quarter and a tenth of the ocean roll). A
+     pufferfish tames one, one try in three; after that any fish heals it, at Mojang's own worth
+     per fish (a cooked salmon twelve, a raw cod four, a pufferfish two). Wild, it hunts pufferfish
+     and nothing else: it picks one out at twenty-five blocks with even odds, stays angry for
+     twenty seconds, and charges instead of biting — a run every four seconds that overshoots by a
+     block and a half and knocks what it hits aside.
+
+     The goal order mattered more than it usually does. Our runner gives an earlier goal first call
+     on the movement slot, and `swimGoal` is always willing in water, so with the swimming first
+     the charge never ran at all — the nautilus drifted about while a pufferfish sat next to it.
+     Reordering to Mojang's priorities (panic, charge, tempt, breed, follow, swim) fixed it.
+
+     `data/mobs.json` gives both nautiluses nought attack damage, which is what the wiki's table
+     says; Mojang's behaviour pack gives them three. The charge is aimed at pufferfish rather than
+     players, which is probably why the table leaves it out, so the three is used here and the
+     override says so.
+
+     Two gaps worth naming. Vanilla has a separate baby model and a 64×64 baby texture; ours is the
+     adult at half size like every other baby here, minus the double-size head vanilla gives babies
+     — a nautilus's head part is its whole shell. And the zombie nautilus has no spawn rules file in
+     Mojang's pack at all, so it has no natural spawn here either: it comes from its spawn egg, and
+     half of them grow coral on the shell.
+
+134. **Riding a nautilus.** Saddled and tamed, it carries a rider, and that needed two things the
+     game did not have. Steering in three dimensions: the rider's pitch became a lift on the mount's
+     control, so a nautilus swims wherever whoever is on it is looking. And a speed that suits
+     water: the ridden acceleration the horses use is 1.79 times the mob's speed attribute, which on
+     a nautilus (0.7 in the data, a fish's number) settled at twelve blocks a tick — it shot out of
+     the sea. Mojang gives a ridden nautilus 0.055 underwater, which against vanilla's water drag of
+     0.8 settles at about a quarter of a block a tick; ours drags at 0.9, so the push is halved to
+     0.0275 to land in the same place. It swims at about four blocks a second now.
+
+     While it is saddled and in the water it breathes for its rider — vanilla's breath of the
+     nautilus — so the air bar holds while you ride. Its saddle and the five body armours go on
+     through vanilla's own nautilus screen, and the armour soaks damage on the horse ladder.

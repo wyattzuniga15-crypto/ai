@@ -241,6 +241,29 @@ export function hopperScreen(inv: Inventory, contents: Slot[], onChange?: () => 
  * Vanilla horse screen: a saddle slot, an armour slot for horses and, for a chested donkey or mule,
  * three rows of five chest slots beside the (unrendered) mob preview panel.
  */
+/** The nautilus's screen: vanilla's own window, with a saddle slot and one for its body armour. */
+export function nautilusScreen(inv: Inventory, title: string, equip: Slot[], onChange?: () => void): ScreenDef {
+  const container: SlotDef[] = [
+    { x: 7, y: 35, group: 'container', icon: 'sprites/container/slot/saddle.png', maxCount: 1, get: () => equip[0], set: (s) => { equip[0] = s; onChange?.(); }, accepts: (s) => s.id === 'saddle' },
+    { x: 7, y: 53, group: 'container', icon: 'sprites/container/slot/nautilus_armor.png', maxCount: 1, get: () => equip[1], set: (s) => { equip[1] = s; onChange?.(); }, accepts: (s) => s.id.endsWith('_nautilus_armor') },
+  ];
+  const player = playerSlots(inv);
+  return {
+    texture: 'container/nautilus.png', width: 176, height: 166,
+    sprites: [
+      { texture: 'sprites/container/slot.png', x: 6, y: 34, w: 18, h: 18 },
+      { texture: 'sprites/container/slot.png', x: 6, y: 52, w: 18, h: 18 },
+    ],
+    slots: [...container, ...player],
+    labels: [{ text: title, x: 8, y: 6 }, { text: 'Inventory', x: 8, y: 72 }],
+    quickMove(from, stack) {
+      if (from.group === 'container') return reversePlayer(player);
+      if (stack.id === 'saddle' || stack.id.endsWith('_nautilus_armor')) return container;
+      return reversePlayer(player);
+    },
+  };
+}
+
 export function horseScreen(inv: Inventory, title: string, equip: Slot[], chest: Slot[] | null, armored: boolean, onChange?: () => void): ScreenDef {
   const container: SlotDef[] = [
     { x: 7, y: 35, group: 'container', icon: 'sprites/container/slot/saddle.png', maxCount: 1, get: () => equip[0], set: (s) => { equip[0] = s; onChange?.(); }, accepts: (s) => s.id === 'saddle' },

@@ -7,6 +7,7 @@ import type { PoolEntry, StructureIndexEntry, TemplateJson } from './world/gen/s
 import type { StructureBundle } from './world/protocol.ts';
 import { Game } from './core/game.ts';
 import { parseSeed } from './core/rng.ts';
+import { biomes } from './world/biomes.ts';
 import { blocks } from './blocks/registry.ts';
 import { items } from './items/registry.ts';
 
@@ -97,7 +98,7 @@ async function main() {
     menus.hide();
     menus.showLoading('Building terrain...', 0);
     game = new Game({ container: app, assets: a, save, meta, options, menus });
-    (window as unknown as { voxelcraft: unknown }).voxelcraft = { game, blocks, items };
+    (window as unknown as { voxelcraft: unknown }).voxelcraft = { game, blocks, items, biomes };
     await game.start((text, p) => menus.showLoading(text, p));
     menus.hideLoading();
   }

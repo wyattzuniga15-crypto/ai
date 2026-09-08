@@ -8,7 +8,7 @@ import { GlowOutline } from '../render/glow.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { COPPER_GOLEM_SKINS, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { COPPER_GOLEM_SKINS, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -38,7 +38,7 @@ export interface MobStats {
   walksOnLava?: boolean;
   model: ModelDef;
   /** Which model parts swing as limbs, arms and the head. */
-  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'rabbit' | 'silverfish' | 'breeze' | 'warden' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
+  animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'nautilus' | 'rabbit' | 'silverfish' | 'breeze' | 'warden' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
 }
@@ -149,6 +149,12 @@ export interface MobSave {
  * attribute range into 4.8–14.5 blocks per second, exactly the range vanilla horses cover.
  */
 const RIDDEN_ACCEL = 1.79;
+/**
+ * A swimming mount pushes far less hard than a galloping one. Mojang gives a ridden nautilus 0.055
+ * underwater, which against vanilla's water drag of 0.8 settles at about a quarter of a block a
+ * tick; ours drags at 0.9, so the push is halved to land in the same place.
+ */
+const RIDDEN_SWIM_ACCEL = 0.0275;
 
 let nextId = 1;
 
@@ -233,7 +239,7 @@ export class Mob {
   /** Set while the player rides this mob: goals stop and `control` drives movement. */
   ridden = false;
   /** Steering from the rider: forward/strafe in −1..1, and a jump impulse for the next tick. */
-  control: { forward: number; strafe: number; jump: number } | null = null;
+  control: { forward: number; strafe: number; jump: number; lift: number } | null = null;
   readonly goals: Goal[];
   private active: Goal | null = null;
   readonly model: BuiltModel;
@@ -371,7 +377,8 @@ export class Mob {
     }
     this.inWater = isFluidAt(w, this.pos.x, this.pos.y + 0.2, this.pos.z, 'water');
     // sunlight
-    if (this.def.burnsInSun && w.isDay() && !this.inWater && w.getSkyLight(Math.floor(this.pos.x), Math.floor(this.pos.y + this.def.eyeHeight), Math.floor(this.pos.z)) >= 15 && w.rng() < 0.8) this.fireTicks = Math.max(this.fireTicks, 160);
+    // a zombie nautilus in body armour is shaded from the sun, which is what Mojang's slot means
+    if (this.def.burnsInSun && !(this.def.animation === 'nautilus' && typeof this.extra.armor === 'string' && this.extra.armor !== '') && w.isDay() && !this.inWater && w.getSkyLight(Math.floor(this.pos.x), Math.floor(this.pos.y + this.def.eyeHeight), Math.floor(this.pos.z)) >= 15 && w.rng() < 0.8) this.fireTicks = Math.max(this.fireTicks, 160);
     if (this.def.fireproof) this.fireTicks = 0; // the Nether's own take no harm from either
     if (this.fireTicks > 0) {
       this.fireTicks--;
@@ -468,6 +475,11 @@ export class Mob {
         dirZ = (c.strafe * sin - c.forward * cos) / Math.max(1, len);
         accel = attr * RIDDEN_ACCEL * (this.onGround ? 1 : 0.2);
         if (this.inWater) accel *= 0.5;
+      }
+      // an underwater mount goes wherever its rider looks, which is how vanilla steers one
+      if (this.def.aquatic && this.inWater) {
+        accel = RIDDEN_SWIM_ACCEL;
+        this.vel.y += c.lift * accel * (len > 0.001 ? 1 : 0);
       }
       if (c.jump > 0 && this.onGround) {
         this.vel.y = c.jump;
@@ -741,7 +753,8 @@ export class Mob {
     const baby = this.isBaby;
     g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
     const headPart = this.model.parts.get('head');
-    if (headPart) headPart.scale.setScalar(baby ? 2 : 1); // vanilla babies keep a full-size head
+    // vanilla babies keep a full-size head, but a nautilus's head part is its whole shell
+    if (headPart) headPart.scale.setScalar(baby && this.def.animation !== 'nautilus' ? 2 : 1);
     if (this.def.id === 'sheep') {
       const sheared = this.extra.sheared === true;
       for (const [name, part] of this.model.parts) if (name.startsWith('wool')) part.visible = !sheared;
@@ -858,6 +871,18 @@ export class Mob {
           const t = parts.get(`tentacle${i}`);
           if (t) t.rotation.x = 0.35 + swim * 0.5;
         }
+        break;
+      }
+      case 'nautilus': {
+        // it jets along by working its mouth: the two halves open and shut, and the shell rolls
+        const beat = Math.sin((this.age + alpha) * 0.15);
+        const open = (0.35 + beat * 0.35) * (0.4 + amt);
+        const top = parts.get('mouth_top'), bottom = parts.get('mouth_bottom');
+        if (top) top.rotation.x = -open;
+        if (bottom) bottom.rotation.x = open;
+        const body = parts.get('body');
+        if (body) body.rotation.x = beat * 0.08;
+        g.rotation.z = Math.sin((this.age + alpha) * 0.05) * 0.06;
         break;
       }
       case 'warden': {
@@ -1177,6 +1202,18 @@ export class Mob {
       const skin = COPPER_GOLEM_SKINS[age];
       this.setTexture(`copper_golem/${skin}.png`);
       this.setLayerTexture('copper_golem/copper_golem_eyes.png', `copper_golem/${skin}_eyes.png`);
+    }
+    if (this.def.animation === 'nautilus') {
+      // the saddle and armour sit on the shell, and a zombie nautilus may have grown coral on it
+      const saddle = this.extra.saddle === true;
+      const armor = typeof this.extra.armor === 'string' ? nautilusArmorTexture(this.extra.armor) : null;
+      const coral = this.extra.variant === 'coral';
+      for (const [name, part] of parts) {
+        if (name === 'saddle') part.visible = saddle;
+        else if (name === 'armor') part.visible = !!armor;
+        else if (name.endsWith('_coral_0') || name.endsWith('_coral_1')) part.visible = coral;
+      }
+      if (armor) this.setLayerTexture(NAUTILUS_ARMOR_LAYER, armor);
     }
     if (this.def.id === 'happy_ghast') this.setTexture('ghast/happy_ghast.png');
     if (this.def.id === 'camel_husk') this.setTexture('camel/camel_husk.png');

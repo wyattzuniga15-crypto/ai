@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, transportItemsGoal, takeFlowerGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, pufferPuffGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, transportItemsGoal, takeFlowerGoal, nautilusGoals, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, pufferPuffGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -291,6 +291,68 @@ const ironGolemModel: ModelDef = {
     { name: 'left_leg', parent: 'body', pivot: [5, 11, 0], boxes: [{ uv: [60, 0], box: [-3.5, -3, -3, 6, 16, 5] }] },
   ],
 };
+
+/** Where Mojang seats a nautilus's rider, and how deeply they breathe while they are there. */
+export const NAUTILUS_SEAT = 0.925;
+
+/** The two nautiluses, which are tamed, saddled and ridden the same way. */
+export const NAUTILUS_TYPES = ['nautilus', 'zombie_nautilus'];
+
+/** Mojang's nautilus spawn rules: how deep it swims and how its weight falls off in cold water. */
+export const NAUTILUS_MIN_Y = 38;
+export const NAUTILUS_MAX_Y = 58;
+export const NAUTILUS_WEIGHT = 25;
+export const NAUTILUS_COLD_WEIGHT = 10;
+
+/** The nautilus's saddle and body armour, drawn over the shell as vanilla's equipment layers. */
+export const NAUTILUS_SADDLE_LAYER = 'equipment/nautilus_saddle/saddle.png';
+export const NAUTILUS_ARMOR_LAYER = 'equipment/nautilus_body/iron.png';
+
+/** The five nautilus armours, in the order their protection climbs. */
+export const NAUTILUS_ARMORS = ['copper', 'iron', 'golden', 'diamond', 'netherite'];
+
+/** Armour points each one is worth, following vanilla's horse armour ladder. */
+export const NAUTILUS_ARMOR_POINTS: Record<string, number> = { copper: 3, iron: 5, golden: 7, diamond: 11, netherite: 12 };
+
+/** Texture for a nautilus armour item id, or null when it is not one. */
+export function nautilusArmorTexture(id: string): string | null {
+  const name = id.replace('_nautilus_armor', '').replace('golden', 'gold');
+  return NAUTILUS_ARMORS.includes(id.replace('_nautilus_armor', '')) ? `equipment/nautilus_body/${name}.png` : null;
+}
+
+const NAUTILUS_SHELL = [
+  { uv: [0, 0], box: [-7, -10, -7, 14, 10, 16] },
+  { uv: [0, 26], box: [-7, 0, -7, 14, 8, 20] },
+  { uv: [48, 26], box: [-7, 0, 6, 14, 8, 0] },
+] as ModelDef['parts'][number]['boxes'];
+
+/** One flat coral frond on a zombie nautilus's shell: two planes crossed at forty-five degrees. */
+const coral = (name: string, pivot: [number, number, number], boxes: ModelDef['parts'][number]['boxes'], angles: [number, number]): ModelDef['parts'] =>
+  boxes.map((box, i) => ({ name: `${name}_${i}`, parent: 'head', pivot, hidden: true, rotation: [0, angles[i], 0] as [number, number, number], boxes: [box] }));
+
+/**
+ * The nautilus, from Mojang's own geometry: a shell in front with the body and its three-part mouth
+ * trailing behind, which is the way the animal swims. The saddle and armour ride the shell.
+ */
+const nautilusModel = (texture: string, corals = false): ModelDef => ({
+  texture, texW: 128, texH: 128,
+  parts: [
+    { name: 'nautilus', pivot: [0, 29, -6], boxes: [] },
+    { name: 'head', parent: 'nautilus', pivot: [0, 16, -1], boxes: NAUTILUS_SHELL },
+    { name: 'body', parent: 'nautilus', pivot: [0, 20.5, 6.3], boxes: [{ uv: [0, 54], box: [-5, -4.51, -3, 10, 8, 14] }, { uv: [0, 76], box: [-5, -4.51, 7, 10, 8, 0] }] },
+    { name: 'mouth_top', parent: 'body', pivot: [0, 17.99, 13.3], boxes: [{ uv: [54, 54], box: [-5, -2, 0, 10, 4, 4], inflate: -0.002 }] },
+    { name: 'inner_mouth', parent: 'body', pivot: [0, 19.99, 13.8], boxes: [{ uv: [54, 70], box: [-3, -2, -0.5, 6, 4, 4] }] },
+    { name: 'mouth_bottom', parent: 'body', pivot: [0, 21.99, 13.3], boxes: [{ uv: [54, 62], box: [-5, -1.98, 0, 10, 4, 4], inflate: -0.002 }] },
+    // Mojang's own layers are the shell again; ours are nested so they do not fight each other
+    { name: 'armor', parent: 'head', pivot: [0, 16, -1], texture: NAUTILUS_ARMOR_LAYER, hidden: true, boxes: NAUTILUS_SHELL.map((b) => ({ ...b, inflate: 0.1 })) },
+    { name: 'saddle', parent: 'head', pivot: [0, 16, -1], texture: NAUTILUS_SADDLE_LAYER, hidden: true, boxes: [{ uv: [0, 0], box: [-7, -10, -7, 14, 10, 16], inflate: 0.25 }] },
+    ...(corals ? [
+      ...coral('yellow_coral', [8, 9.5, 2], [{ uv: [0, 85], box: [-4.5, -3.5, 0, 6, 8, 0] }, { uv: [0, 85], box: [-4.5, -3.5, 2, 6, 8, 0] }], [-Math.PI / 4, Math.PI / 4]),
+      ...coral('blue_coral', [-6, 20.5, -3.5], [{ uv: [0, 102], box: [-3.5, -5.5, 0, 5, 10, 0] }, { uv: [0, 102], box: [-3.5, -5.5, -2, 5, 10, 0] }], [Math.PI / 4, -Math.PI / 4]),
+      ...coral('red_coral', [8, 20.5, -9], [{ uv: [0, 112], box: [-4.5, -5.5, 0, 6, 10, 0] }, { uv: [0, 112], box: [-3, -6.5, 1.5, 4, 10, 0] }], [-Math.PI / 4, (47.5 * Math.PI) / 180]),
+    ] : []),
+  ],
+});
 
 /**
  * How long the copper golem holds each age, in ticks, drawn fresh every time: Mojang's own looping
@@ -680,7 +742,7 @@ export function horseArmorTexture(item: string): string | null {
 }
 
 export function horseArmorPoints(item: string): number {
-  return HORSE_ARMOR[item]?.points ?? 0;
+  return HORSE_ARMOR[item]?.points ?? NAUTILUS_ARMOR_POINTS[item.replace('_nautilus_armor', '')] ?? 0;
 }
 
 const equineModel = (texture: string, ears: 'horse' | 'mule', markings: string | null = HORSE_MARKING_LAYER, saddle = 'equipment/horse_saddle/saddle.png', armor = false): ModelDef => {
@@ -1403,6 +1465,10 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   sniffer: { model: snifferModel, animation: 'quadruped', eyeHeight: 1.5, followRange: 16, goals: () => [floatGoal, snifferDigGoal(), breedGoal(), followParentGoal(), wanderGoal(200, 0.5, 8), lookAtPlayerGoal(8), randomLookGoal] },
   allay: { model: allayModel, animation: 'chicken', eyeHeight: 0.45, followRange: 32, flying: true, flapping: true, goals: () => [allayFollowGoal(), wanderGoal(80, 1, 8), lookAtPlayerGoal(8), randomLookGoal] },
   // the two that are built rather than born: a village's guardian and the player's own snowman
+  // the nautilus swims with its shell in front; the zombie one carries the coral variant's fronds
+  nautilus: { model: nautilusModel('nautilus/nautilus.png'), animation: 'nautilus', eyeHeight: 0.7, followRange: 25, aquatic: true, override: { damage: 3 }, goals: () => nautilusGoals() },
+  zombie_nautilus: { model: nautilusModel('nautilus/zombie_nautilus.png', true), animation: 'nautilus', eyeHeight: 0.7, followRange: 25, aquatic: true, burnsInSun: true, override: { damage: 3 }, goals: () => nautilusGoals() },
+
   // the copper golem's texture is chosen by how far it has oxidised, so the spec carries the newest
   copper_golem: { model: copperGolemModel, animation: 'biped', eyeHeight: 0.84, followRange: 16, goals: () => [floatGoal, panicGoal(1.5), transportItemsGoal(), takeFlowerGoal(), wanderGoal(120, 1, 3), lookAtPlayerGoal(6), randomLookGoal] },
   iron_golem: { model: ironGolemModel, animation: 'biped', eyeHeight: 2.4, followRange: 32, goals: () => golemGoals() },
