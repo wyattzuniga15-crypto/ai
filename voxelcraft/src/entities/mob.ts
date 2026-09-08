@@ -8,7 +8,7 @@ import { GlowOutline } from '../render/glow.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { COPPER_GOLEM_SKINS, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -70,6 +70,10 @@ export interface MobWorld extends BlockSource {
   findBlock?(x: number, y: number, z: number, range: number, ids: string[]): { x: number; y: number; z: number; block: string } | null;
   /** A bee carrying nectar reached its hive: stores it and returns whether the bee went inside. */
   enterHive?(m: Mob, x: number, y: number, z: number): boolean;
+  /** Nearest container of one of `ids`, by the block-entity index (a copper golem's chests). */
+  findContainer?(x: number, y: number, z: number, hRange: number, vRange: number, ids: string[]): { x: number; y: number; z: number; block: string } | null;
+  /** Copper golem at a chest: takes a stack out of it, or puts the one it carries in. */
+  haulItems?(m: Mob, x: number, y: number, z: number, take: boolean): boolean;
   /** Nearest job site block a villager can claim, optionally restricted to one profession. */
   findJobSite?(x: number, y: number, z: number, range: number, profession: string | null): { x: number; y: number; z: number; block: string } | null;
   /** Called when a villager reaches its job site: takes the profession or restocks. */
@@ -99,6 +103,16 @@ export interface MobWorld extends BlockSource {
 }
 
 export interface ArrowEffect { id: string; ticks: number; amplifier?: number }
+
+/** Mobs that hold an item stack keep it beside the rest of `extra`, which saves and loads with it. */
+export function carriedStore(m: Mob): { carrying?: ItemStack } {
+  return m.extra as unknown as { carrying?: ItemStack };
+}
+
+/** The stack a mob is carrying in its hand, if any (a copper golem hauling to a chest). */
+export function carriedBy(m: Mob): ItemStack | null {
+  return carriedStore(m).carrying ?? null;
+}
 
 export interface Goal {
   /** Whether the goal wants to run this tick. */
@@ -232,6 +246,8 @@ export class Mob {
   private outline: GlowOutline | null = null;
   private woolMaterials: THREE.MeshBasicMaterial[] | null = null;
   private decoration: THREE.Object3D | null = null;
+  /** Extra decorations kept by name, for mobs that wear more than one thing at a time. */
+  private readonly extras = new Map<string, THREE.Object3D>();
   private readonly base: string;
 
   constructor(readonly def: MobStats, goals: Goal[], base: string, x: number, y: number, z: number) {
@@ -577,9 +593,15 @@ export class Mob {
    * Extra geometry hung off the model in world units, which is how a mooshroom wears its mushrooms:
    * the game builds it, since only the game can bake a block model, and the mob carries it about.
    */
-  setDecoration(obj: THREE.Object3D | null, part?: string): void {
-    if (this.decoration) this.decoration.parent?.remove(this.decoration);
-    this.decoration = obj;
+  setDecoration(obj: THREE.Object3D | null, part?: string, key?: string): void {
+    const old = key ? this.extras.get(key) : this.decoration;
+    if (old) old.parent?.remove(old);
+    if (key) {
+      if (obj) this.extras.set(key, obj);
+      else this.extras.delete(key);
+    } else {
+      this.decoration = obj;
+    }
     // a decoration hung off a part rides that part: a snow golem's pumpkin turns with its head
     if (obj) (part ? this.model.parts.get(part) ?? this.model.group : this.model.group).add(obj);
   }
@@ -613,6 +635,10 @@ export class Mob {
     if (this.decoration) {
       this.decoration.parent?.remove(this.decoration);
       this.decoration = null;
+    }
+    for (const [key, obj] of this.extras) {
+      obj.parent?.remove(obj);
+      this.extras.delete(key);
     }
     if (this.fireMesh) {
       this.fireMesh.parent?.remove(this.fireMesh);
@@ -1144,6 +1170,13 @@ export class Mob {
         else if (name === 'puffed_large') part.visible = puff >= 2;
         else part.visible = puff === 0;
       }
+    }
+    if (this.def.id === 'copper_golem') {
+      // the four ages are one net in four colours, and the eye layer follows the skin
+      const age = Math.min(3, Math.max(0, typeof this.extra.oxidation === 'number' ? this.extra.oxidation : 0));
+      const skin = COPPER_GOLEM_SKINS[age];
+      this.setTexture(`copper_golem/${skin}.png`);
+      this.setLayerTexture('copper_golem/copper_golem_eyes.png', `copper_golem/${skin}_eyes.png`);
     }
     if (this.def.id === 'happy_ghast') this.setTexture('ghast/happy_ghast.png');
     if (this.def.id === 'camel_husk') this.setTexture('camel/camel_husk.png');

@@ -15,6 +15,19 @@ export function fireproofItem(id: string): boolean {
   return id.startsWith('netherite_') || id === 'ancient_debris' || id === 'netherite_upgrade_smithing_template';
 }
 
+/** The icon texture for a dropped stack, shared with anything else that draws one (a golem's hand). */
+export function itemTexture(iconUrl: string): THREE.Texture {
+  let tex = textureCache.get(iconUrl);
+  if (!tex) {
+    tex = new THREE.TextureLoader().load(iconUrl);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    textureCache.set(iconUrl, tex);
+  }
+  return tex;
+}
+
 export class ItemEntity {
   readonly pos = new THREE.Vector3();
   readonly prev = new THREE.Vector3();
@@ -32,14 +45,7 @@ export class ItemEntity {
   constructor(readonly stack: ItemStack, x: number, y: number, z: number, iconUrl: string, isBlock: boolean) {
     this.pos.set(x, y, z);
     this.prev.copy(this.pos);
-    let tex = textureCache.get(iconUrl);
-    if (!tex) {
-      tex = new THREE.TextureLoader().load(iconUrl);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      textureCache.set(iconUrl, tex);
-    }
+    const tex = itemTexture(iconUrl);
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.1, depthWrite: true });
     this.sprite = new THREE.Sprite(mat);
     const s = isBlock ? 0.35 : 0.3;

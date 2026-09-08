@@ -12,6 +12,7 @@ import { updateAround } from '../world/tripwire.ts';
 import { extend, retract, FACING_OFFSET } from '../world/piston.ts';
 import { railPowered, railShape } from '../world/rails.ts';
 import { composterLevel, composterState } from './composter.ts';
+import { weatherTick, weathers } from './copper.ts';
 
 export interface BlockWorld extends FluidWorld {
   /** What a container at a position holds, which is what a comparator reads out of it. */
@@ -901,8 +902,24 @@ function growTree(ctx: BlockContext): void {
   if (!placeTree(access, ctx.w.rng, type, ctx.x, ctx.y, ctx.z)) ctx.w.setBlock(ctx.x, ctx.y, ctx.z, ctx.state);
 }
 
+/** Copper weathers on top of whatever else a block does, so the two behaviours are merged. */
+const weathering = new Map<string, Behavior>();
+
 export function behaviorFor(def: BlockDef): Behavior | undefined {
-  return byId[def.id] ?? behaviors[def.behavior];
+  const base = byId[def.id] ?? behaviors[def.behavior];
+  if (!weathers(def.id)) return base;
+  let merged = weathering.get(def.id);
+  if (!merged) {
+    merged = {
+      ...base,
+      randomTick: (ctx) => {
+        base?.randomTick?.(ctx);
+        weatherTick(ctx);
+      },
+    };
+    weathering.set(def.id, merged);
+  }
+  return merged;
 }
 
 export function hasRandomTick(def: BlockDef): boolean {

@@ -1,6 +1,6 @@
 /** AI goals for mobs (vanilla-style goal selector with priorities and exclusive flags). */
 import * as THREE from 'three';
-import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, SHULKER_OPEN_TICKS, guardianAttackTicks, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
+import { FLAG_LOOK, FLAG_MOVE, FLAG_TARGET, Mob, carriedBy, SHULKER_OPEN_TICKS, guardianAttackTicks, type ArrowEffect, type Goal, type MobWorld } from './mob.ts';
 import { EQUINE_TYPES, inheritEquine } from './mobTypes.ts';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -1347,6 +1347,102 @@ export const snifferDigGoal = (): Goal => ({
     w.playSound('dig_grass', m.pos.x, m.pos.y, m.pos.z, 0.8);
   },
 });
+
+// ---------------------------------------------------------------------------------------------
+// The copper golem
+// ---------------------------------------------------------------------------------------------
+/** The chests a copper golem takes from: the eight copper ones, waxed or not. */
+export const COPPER_GOLEM_SOURCES = [
+  'copper_chest', 'exposed_copper_chest', 'weathered_copper_chest', 'oxidized_copper_chest',
+  'waxed_copper_chest', 'waxed_exposed_copper_chest', 'waxed_weathered_copper_chest', 'waxed_oxidized_copper_chest',
+];
+
+/** And the chests it puts them into. */
+export const COPPER_GOLEM_DESTINATIONS = ['chest', 'trapped_chest'];
+
+/** How far it looks for a chest, across and up (Mojang's transport_items search_distance). */
+export const HAUL_SEARCH = [32, 8];
+
+/** Mojang's initial and idle cooldowns, in seconds, between one delivery and looking for the next. */
+export const HAUL_INITIAL_COOLDOWN = 3 * 20;
+export const HAUL_IDLE_COOLDOWN = 7 * 20;
+
+/** The largest number of items it will carry in one trip. */
+export const HAUL_STACK = 16;
+
+/** How close it has to get before it can reach into a chest. */
+const HAUL_REACH = 1.8;
+
+/**
+ * Vanilla's transport_items: the copper golem empties copper chests into ordinary ones, a stack of
+ * sixteen at a time, walking to the nearest it can find and taking a breather between trips.
+ */
+export const transportItemsGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => {
+    if (typeof m.extra.haulCooldown === 'number' && m.extra.haulCooldown > 0) {
+      m.extra.haulCooldown = (m.extra.haulCooldown as number) - 1;
+      return false;
+    }
+    return !!w.findContainer && !!chestFor(m, w);
+  },
+  canContinue: (m, w) => !!chestFor(m, w),
+  tick: (m, w) => {
+    const to = chestFor(m, w);
+    if (!to) return;
+    const at = new THREE.Vector3(to.x + 0.5, to.y, to.z + 0.5);
+    m.lookTarget = at.clone().setY(to.y + 0.5);
+    if (m.distanceTo(at) > HAUL_REACH) {
+      m.moveTarget = at;
+      m.moveSpeed = 1;
+      m.moveTimeout = 200;
+      return;
+    }
+    m.moveTarget = null;
+    const took = w.haulItems?.(m, to.x, to.y, to.z, !carriedBy(m)) ?? false;
+    // a full trip earns the long breather; a chest that had nothing to give, the short one
+    m.extra.haulCooldown = took ? HAUL_IDLE_COOLDOWN : HAUL_INITIAL_COOLDOWN;
+  },
+});
+
+/** How far a copper golem will go for a flower. */
+export const FLOWER_SEARCH = 8;
+
+/**
+ * Vanilla's take_flower: by day a copper golem with nothing on its head walks to the nearest flower
+ * and picks it, and wears it until something shears it off.
+ */
+export const takeFlowerGoal = (): Goal => ({
+  flags: FLAG_MOVE | FLAG_LOOK,
+  canUse: (m, w) => m.extra.flower !== true && w.isDay() && !!flowerFor(m, w),
+  canContinue: (m, w) => m.extra.flower !== true && !!flowerFor(m, w),
+  tick: (m, w) => {
+    const at = flowerFor(m, w);
+    if (!at) return;
+    const to = new THREE.Vector3(at.x + 0.5, at.y, at.z + 0.5);
+    m.lookTarget = to.clone();
+    if (m.distanceTo(to) > 1.2) {
+      m.moveTarget = to;
+      m.moveSpeed = 1;
+      m.moveTimeout = 200;
+      return;
+    }
+    m.moveTarget = null;
+    w.setBlock(at.x, at.y, at.z, 0);
+    m.extra.flower = true;
+    w.emitParticles('happy', to.x, to.y + 0.5, to.z, 5, 0.5, 0.5);
+  },
+});
+
+function flowerFor(m: Mob, w: MobWorld): { x: number; y: number; z: number } | null {
+  return w.findBlock?.(m.pos.x, m.pos.y, m.pos.z, FLOWER_SEARCH, BEE_FLOWERS) ?? null;
+}
+
+/** The chest the golem wants next: one to take from with empty hands, one to fill with full ones. */
+function chestFor(m: Mob, w: MobWorld): { x: number; y: number; z: number; block: string } | null {
+  const ids = carriedBy(m) ? COPPER_GOLEM_DESTINATIONS : COPPER_GOLEM_SOURCES;
+  return w.findContainer?.(m.pos.x, m.pos.y, m.pos.z, HAUL_SEARCH[0], HAUL_SEARCH[1], ids) ?? null;
+}
 
 /** Vanilla's allay: it keeps close to whoever gave it something and darts about at their side. */
 export const allayFollowGoal = (range = 32): Goal => ({

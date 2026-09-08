@@ -3,7 +3,7 @@ import mobsJson from '../../data/mobs.json';
 import { BEE_FLOWERS } from './beeFlowers.ts';
 import type { ModelDef } from './boxModel.ts';
 import type { Goal, Mob, MobStats } from './mob.ts';
-import { avoidCatsGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, pufferPuffGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
+import { avoidCatsGoal, transportItemsGoal, takeFlowerGoal, batGoal, squidGoal, dolphinGoal, turtleLayGoal, foxSleepGoal, avoidPlayerGoal, goatRamGoal, pandaLieGoal, bearDefendGoal, llamaSpitGoal, targetMonsterGoal, snowGolemGoal, axolotlPlayDeadGoal, parrotDanceGoal, camelSitGoal, armadilloRollGoal, snifferDigGoal, allayFollowGoal, breezeGoal, creakingStalkGoal, wardenGoal, pufferPuffGoal, blazeGoal, dragonGoal, shulkerGoal, witherGoal, elderCurseGoal, ghastGoal, guardianGoal, piglinAngerGoal, striderGoal, avoidMonstersGoal, beeGoal, evokerGoal, targetVillagerGoal, vexGoal, bowAttackGoal, jobSiteGoal, breedGoal, catAvoidGoal, creeperGoal, eatGrassGoal, endermanGoal, floatGoal, followOwnerGoal, followParentGoal, lookAtPlayerGoal, loseTargetGoal, meleeAttackGoal, panicGoal, phantomGoal, ocelotFleeGoal, randomLookGoal, sitGoal, temptGoal, slimeGoal, swimGoal, targetPlayerGoal, wanderGoal, witchGoal, wolfDefendGoal, wolfHuntGoal } from './ai.ts';
 import type { BiomeDef } from '../world/biomes.ts';
 
 interface MobJson {
@@ -289,6 +289,44 @@ const ironGolemModel: ModelDef = {
     { name: 'left_arm', parent: 'body', pivot: [0, -7, 0], boxes: [{ uv: [60, 58], box: [9, -2.5, -3, 4, 30, 6] }] },
     { name: 'right_leg', parent: 'body', pivot: [-4, 11, 0], boxes: [{ uv: [37, 0], box: [-3.5, -3, -3, 6, 16, 5] }] },
     { name: 'left_leg', parent: 'body', pivot: [5, 11, 0], boxes: [{ uv: [60, 0], box: [-3.5, -3, -3, 6, 16, 5] }] },
+  ],
+};
+
+/**
+ * How long the copper golem holds each age, in ticks, drawn fresh every time: Mojang's own looping
+ * timer of twenty-one to twenty-three minutes.
+ */
+export const COPPER_GOLEM_OXIDATION = [25200, 27600];
+
+/** Where the picked poppy stands on the golem's head, and how tall it is, in model units. */
+export const COPPER_GOLEM_FLOWER = [12, 11];
+
+/** The texture each age wears, and the eye layer over it. */
+export const COPPER_GOLEM_SKINS = ['copper_golem', 'exposed_copper_golem', 'weathered_copper_golem', 'oxidized_copper_golem'];
+
+/**
+ * The copper golem, from Mojang's own geometry. The four ages share one net, so oxidising is a
+ * texture swap; the eyes are a second layer over the head, the way vanilla lights them up.
+ */
+const copperGolemModel: ModelDef = {
+  texture: 'copper_golem/copper_golem.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'root', pivot: [0, 24, 0], boxes: [] },
+    { name: 'body', parent: 'root', pivot: [0, 19, 0], boxes: [{ uv: [0, 15], box: [-4, -6, -3, 8, 6, 6] }] },
+    // the head carries the beak in front and the lightning rod that stands up out of it
+    { name: 'head', parent: 'body', pivot: [0, 13, 0], boxes: [
+      { uv: [0, 0], box: [-4, -5, -5, 8, 5, 10] },
+      { uv: [56, 0], box: [-1, -2, -6, 2, 3, 2] },
+      { uv: [37, 8], box: [-1, -9, -1, 2, 4, 2], inflate: -0.01 },
+      { uv: [37, 0], box: [-2, -13, -2, 4, 4, 4], inflate: -0.01 },
+    ] },
+    { name: 'eyes', parent: 'head', pivot: [0, 13, 0], texture: 'copper_golem/copper_golem_eyes.png', boxes: [{ uv: [0, 0], box: [-4, -5, -5, 8, 5, 10], inflate: 0.02 }] },
+    { name: 'right_arm', parent: 'body', pivot: [-4, 13, 0], boxes: [{ uv: [36, 16], box: [-3, -1, -2, 3, 10, 4] }] },
+    { name: 'right_item', parent: 'right_arm', pivot: [-5, 20.4, -1], boxes: [] },
+    { name: 'left_arm', parent: 'body', pivot: [4, 13, 0], boxes: [{ uv: [50, 16], box: [0, -1, -2, 3, 10, 4] }] },
+    // the legs overlap by a fifth of a pixel where they meet, which is how Mojang authored them
+    { name: 'right_leg', parent: 'root', pivot: [-2, 19, 0], boxes: [{ uv: [0, 27], box: [-1.9, 0, -1.99, 4, 5, 4] }] },
+    { name: 'left_leg', parent: 'root', pivot: [2, 19, 0], boxes: [{ uv: [16, 27], box: [-2.1, 0, -2, 4, 5, 4] }] },
   ],
 };
 
@@ -1365,6 +1403,8 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   sniffer: { model: snifferModel, animation: 'quadruped', eyeHeight: 1.5, followRange: 16, goals: () => [floatGoal, snifferDigGoal(), breedGoal(), followParentGoal(), wanderGoal(200, 0.5, 8), lookAtPlayerGoal(8), randomLookGoal] },
   allay: { model: allayModel, animation: 'chicken', eyeHeight: 0.45, followRange: 32, flying: true, flapping: true, goals: () => [allayFollowGoal(), wanderGoal(80, 1, 8), lookAtPlayerGoal(8), randomLookGoal] },
   // the two that are built rather than born: a village's guardian and the player's own snowman
+  // the copper golem's texture is chosen by how far it has oxidised, so the spec carries the newest
+  copper_golem: { model: copperGolemModel, animation: 'biped', eyeHeight: 0.84, followRange: 16, goals: () => [floatGoal, panicGoal(1.5), transportItemsGoal(), takeFlowerGoal(), wanderGoal(120, 1, 3), lookAtPlayerGoal(6), randomLookGoal] },
   iron_golem: { model: ironGolemModel, animation: 'biped', eyeHeight: 2.4, followRange: 32, goals: () => golemGoals() },
   snow_golem: { model: snowGolemModel, animation: 'biped', eyeHeight: 1.7, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), snowGolemGoal(), wanderGoal(120, 0.9, 10), lookAtPlayerGoal(8), randomLookGoal] },
   zombie_villager: { model: villagerModel('zombie_villager/zombie_villager.png'), animation: 'biped', eyeHeight: 1.74, followRange: 35, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(35), meleeAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },

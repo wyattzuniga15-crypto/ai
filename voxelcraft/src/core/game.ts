@@ -18,12 +18,12 @@ import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
 import { END_PLATFORM, END_SURFACE, GATEWAY_REACH, GATEWAY_SLOTS, GATEWAY_Y, endGatewayShrine, endPodium, gatewaySlot } from '../world/gen/end.ts';
-import { DRAGON_HEIGHT, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
+import { DRAGON_HEIGHT, HAUL_STACK, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
 import { FREEZE_TICKS, Player } from '../entities/player.ts';
-import { ItemEntity } from '../entities/itemEntity.ts';
+import { ItemEntity, itemTexture } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
@@ -56,6 +56,7 @@ import { beaconRange, beamColors, pyramidLevels, seesSky } from '../blocks/beaco
 import { cloneStack, type Slot } from '../items/inventory.ts';
 import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
+import { copperAge, copperBase, isWaxedCopper, retainingState, scrapeCopper, waxCopper } from '../blocks/copper.ts';
 import { BlockMeshFactory } from '../render/blockMesh.ts';
 import { FallingBlockEntity } from '../entities/fallingBlock.ts';
 import { PrimedTnt } from '../entities/primedTnt.ts';
@@ -71,7 +72,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, EQUINE_TYPES, HORSE_FOODS, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HORSE_FOODS, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -81,7 +82,7 @@ import { anvilScreen, enchantingScreen, grindstoneScreen, stateOf, type EnchantH
 import { smithingScreen, stonecutterScreen } from '../ui/screens/workstations.ts';
 import { ParticleSystem } from '../render/particles.ts';
 import { tintColor } from '../world/mesher.ts';
-import { mobFireAssets, type Mob as MobType } from '../entities/mob.ts';
+import { carriedBy, carriedStore, mobFireAssets, type Mob as MobType } from '../entities/mob.ts';
 import { WOLF_FOODS, isBreedingFood } from '../entities/mobTypes.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import { countBookshelves } from '../items/enchanting.ts';
@@ -376,6 +377,8 @@ export class Game {
       playerHolding: () => this.player.heldItem()?.id ?? null,
       findJobSite: (x, y, z, range, profession) => this.findJobSite(x, y, z, range, profession),
       findBlock: (x, y, z, range, ids) => this.findBlockNear(x, y, z, range, ids),
+      findContainer: (x, y, z, h, v, ids) => this.findContainerNear(x, y, z, h, v, ids),
+      haulItems: (m, x, y, z, take) => this.haulItems(m, x, y, z, take),
       enterHive: (m, x, y, z) => this.beeEntersHive(m, x, y, z),
       claimJobSite: (m, block) => this.claimJobSite(m, block),
       playerHasEffect: (id) => !!this.player.effects.get(id),
@@ -1020,6 +1023,7 @@ export class Game {
     this.tickDragon();
     this.tickFireworks();
     this.tickCuring();
+    this.tickCopperGolems();
     this.tickShriekers();
     this.tickAmbience();
     this.tickWornEnchantments();
@@ -1612,6 +1616,22 @@ export class Game {
       this.audio.play('dig_gravel', { x: x + 0.5, y, z: z + 0.5, pitch: 1.4 });
       return;
     }
+    // the copper golem: a single copper block, at whatever age (and wax) that block wears
+    const under = idAt(x, y - 1, z);
+    const copperAgeOf = copperAge(under);
+    if (copperAgeOf >= 0 && copperBase(under) === 'copper_block') {
+      clear([[x, y, z], [x, y - 1, z]]);
+      const golem = this.entities.spawn('copper_golem', x + 0.5, y - 1, z + 0.5, this.player.yaw + Math.PI);
+      if (golem) {
+        golem.persistent = true;
+        golem.extra.oxidation = copperAgeOf;
+        golem.extra.waxed = isWaxedCopper(under);
+        golem.extra.oxidizeIn = this.oxidationDelay();
+      }
+      this.particles.poof(x + 0.5, y - 0.5, z + 0.5, 20, Math.random, 0.8, 1.2);
+      this.audio.play('anvil', { x: x + 0.5, y, z: z + 0.5, pitch: 1.2 });
+      return;
+    }
     // the iron golem: a T of four iron blocks, whichever way round the arms lie
     if (idAt(x, y - 1, z) !== 'iron_block' || idAt(x, y - 2, z) !== 'iron_block') return;
     for (const [dx, dz] of [[1, 0], [0, 1]] as [number, number][]) {
@@ -2155,6 +2175,48 @@ export class Game {
     const to = bobber.mesh.position;
     line.geometry.setFromPoints([from, to]);
     line.geometry.computeBoundingSphere();
+  }
+
+  /**
+   * Vanilla's axe, in its own order: it strips a log first, then scrapes an age of oxidation off
+   * copper, and only then takes the wax off a waxed block.
+   */
+  private useAxeOn(t: RaycastHit): boolean {
+    const id = blocks.blockOf(t.state).id;
+    const stripped = `stripped_${id}`;
+    if (blocks.has(stripped)) {
+      this.world.setBlock(t.x, t.y, t.z, retainingState(t.state, stripped));
+      this.audio.play('dig_wood', { x: t.x, y: t.y, z: t.z, pitch: 0.9 });
+      if (this.player.gamemode === 'survival') this.player.inventory.damageSelected(1);
+      return true;
+    }
+    const scraped = scrapeCopper(id);
+    if (scraped === null) return false;
+    // an oxidized statue is a golem that seized up: scraping it is what brings the golem back
+    if (id === 'oxidized_copper_golem_statue' && this.wakeStatue(t)) return true;
+    this.world.setBlock(t.x, t.y, t.z, retainingState(t.state, scraped));
+    this.copperSparkle(t, isWaxedCopper(id));
+    this.audio.play('dig_stone', { x: t.x, y: t.y, z: t.z, pitch: 1.5 });
+    if (this.player.gamemode === 'survival') this.player.inventory.damageSelected(1);
+    return true;
+  }
+
+  /** Honeycomb on copper: the block stops weathering where it stands. */
+  private waxBlock(t: RaycastHit): boolean {
+    const waxed = waxCopper(blocks.blockOf(t.state).id);
+    if (waxed === null) return false;
+    this.world.setBlock(t.x, t.y, t.z, retainingState(t.state, waxed));
+    this.copperSparkle(t, true);
+    this.audio.play('click', { x: t.x, y: t.y, z: t.z, pitch: 0.7 });
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    return true;
+  }
+
+  /** The glint vanilla throws off a block as the wax goes on or comes off. */
+  private copperSparkle(t: RaycastHit, wax: boolean): void {
+    for (let i = 0; i < (wax ? 7 : 12); i++) {
+      this.particles.spawnSprite('happy', t.x + Math.random(), t.y + Math.random(), t.z + Math.random(), 0, 0.01, 0, 16, 0.15);
+    }
   }
 
   /** A hoe on soil: vanilla's tillables, each turning into what it turns into. */
@@ -3671,6 +3733,8 @@ export class Game {
       this.tryOpenEndPortal(t.x, t.y, t.z);
       return;
     }
+    if (def.behavior === 'axe' && t && this.useAxeOn(t)) return;
+    if (held.id === 'honeycomb' && t && this.waxBlock(t)) return;
     if (def.behavior === 'hoe' && t && this.tillSoil(t)) return;
     if (held.id === 'bone_meal' && t) {
       if (applyBoneMeal(this.simulationWorld(), t.x, t.y, t.z, t.state)) {
@@ -4867,6 +4931,202 @@ export class Game {
     this.openScreen(horseScreen(this.player.inventory, m.def.name, equip, chest, m.def.id === 'horse', sync), sync);
   }
 
+  /**
+   * The copper golem's own weathering. Mojang runs a looping timer of twenty-one to twenty-three
+   * minutes; each time it runs down the golem takes on another age, and the fourth one is the end
+   * of it: the golem sets a statue down where it stands and is gone.
+   */
+  private tickCopperGolems(): void {
+    for (const m of this.entities.mobs) {
+      if (m.dead || m.def.id !== 'copper_golem') continue;
+      this.carryHeldItem(m);
+      this.wearFlower(m);
+      if (m.extra.waxed === true) continue;
+      const left = (typeof m.extra.oxidizeIn === 'number' ? m.extra.oxidizeIn : this.oxidationDelay()) - 1;
+      if (left > 0) {
+        m.extra.oxidizeIn = left;
+        continue;
+      }
+      m.extra.oxidizeIn = this.oxidationDelay();
+      const age = (typeof m.extra.oxidation === 'number' ? m.extra.oxidation : 0) + 1;
+      m.extra.oxidation = age;
+      if (age < 3) continue;
+      this.petrify(m);
+    }
+  }
+
+  /** A fresh draw from Mojang's oxidation timer. */
+  private oxidationDelay(): number {
+    return COPPER_GOLEM_OXIDATION[0] + Math.floor(Math.random() * (COPPER_GOLEM_OXIDATION[1] - COPPER_GOLEM_OXIDATION[0] + 1));
+  }
+
+  /** The golem seizes up: a statue takes its place, facing the way it was, and it drops what it held. */
+  private petrify(m: MobType): void {
+    const x = Math.floor(m.pos.x), y = Math.floor(m.pos.y), z = Math.floor(m.pos.z);
+    const existing = this.world.getBlock(x, y, z);
+    if (existing !== 0 && !isReplaceable(blocks.blockOf(existing))) return; // nowhere to stand: try again next tick
+    const carrying = carriedBy(m);
+    if (carrying) this.dropStack(carrying, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    if (m.extra.flower === true) this.dropStack({ id: 'poppy', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    // vanilla rounds the golem's heading to the nearest quarter and stands the statue that way
+    const facing = ['north', 'west', 'south', 'east'][Math.round(m.yaw / (Math.PI / 2)) & 3];
+    this.world.setBlock(x, y, z, blocks.stateWith('oxidized_copper_golem_statue', { copper_golem_pose: 'standing', facing, waterlogged: 'false' }));
+    this.entities.remove(m);
+    this.particles.poof(m.pos.x, m.pos.y + 0.5, m.pos.z, 16, Math.random, 0.6, 0.8);
+    this.audio.play('anvil', { x, y, z, pitch: 0.6 });
+  }
+
+  /** Scraping an oxidized statue wakes the golem inside it, one age of oxidation lighter. */
+  private wakeStatue(t: RaycastHit): boolean {
+    const facing = blocks.prop(t.state, 'facing') ?? 'north';
+    const yaw = { north: 0, west: Math.PI / 2, south: Math.PI, east: -Math.PI / 2 }[facing] ?? 0;
+    this.world.setBlock(t.x, t.y, t.z, 0);
+    const golem = this.entities.spawn('copper_golem', t.x + 0.5, t.y, t.z + 0.5, yaw);
+    if (!golem) {
+      this.world.setBlock(t.x, t.y, t.z, t.state);
+      return false;
+    }
+    golem.persistent = true;
+    golem.extra.oxidation = 2; // the scrape took it back to weathered
+    golem.extra.oxidizeIn = this.oxidationDelay();
+    this.copperSparkle(t, false);
+    this.particles.poof(t.x + 0.5, t.y + 0.5, t.z + 0.5, 12, Math.random, 0.6, 0.8);
+    this.audio.play('anvil', { x: t.x, y: t.y, z: t.z, pitch: 1.3 });
+    if (this.player.gamemode === 'survival') this.player.inventory.damageSelected(1);
+    return true;
+  }
+
+  /** Puts the poppy on the golem's head once it has picked one, and takes it off when sheared. */
+  private wearFlower(m: MobType): void {
+    const wearing = m.extra.flower === true;
+    if (m.extra.flowerShown === wearing) return;
+    m.extra.flowerShown = wearing;
+    if (wearing) this.entities.dressCopperGolem(m);
+    else m.setDecoration(null, undefined, 'flower');
+  }
+
+  /** Hangs whatever the golem is carrying off its right hand, and takes it away again. */
+  private carryHeldItem(m: MobType): void {
+    const stack = carriedBy(m);
+    const shown = m.extra.carryingShown;
+    const key = stack ? `${stack.id}x${stack.count}` : '';
+    if (shown === key) return;
+    m.extra.carryingShown = key;
+    if (!stack) {
+      m.setDecoration(null, undefined, 'carrying');
+      return;
+    }
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: itemTexture(this.icons.forStack(stack)), transparent: true, alphaTest: 0.1 }));
+    // the hand is a model part, so the sprite has to be scaled back up out of the model's 1/16
+    sprite.scale.setScalar(16 * 0.4);
+    m.setDecoration(sprite, 'right_item', 'carrying');
+  }
+
+  /**
+   * Nearest container of one of `ids`. Chests are block entities, and there are far fewer of those
+   * about than blocks, so this walks the index rather than scanning the world.
+   */
+  private findContainerNear(x: number, y: number, z: number, hRange: number, vRange: number, ids: string[]): { x: number; y: number; z: number; block: string } | null {
+    const want = new Set(ids);
+    let best: { x: number; y: number; z: number; block: string } | null = null;
+    let bestDist = Infinity;
+    this.world.forEachBlockEntity((bx, by, bz) => {
+      if (Math.abs(bx + 0.5 - x) > hRange || Math.abs(bz + 0.5 - z) > hRange || Math.abs(by + 0.5 - y) > vRange) return;
+      const id = blocks.blockOf(this.world.getBlock(bx, by, bz)).id;
+      if (!want.has(id)) return;
+      const d = (bx + 0.5 - x) ** 2 + (by + 0.5 - y) ** 2 + (bz + 0.5 - z) ** 2;
+      if (d >= bestDist) return;
+      bestDist = d;
+      best = { x: bx, y: by, z: bz, block: id };
+    });
+    return best;
+  }
+
+  /**
+   * The golem's hands at a chest. Taking splits at most a stack of sixteen off the first slot with
+   * anything in it; placing looks for a slot already holding the same item before an empty one.
+   */
+  private haulItems(m: MobType, x: number, y: number, z: number, take: boolean): boolean {
+    const entity = this.world.getBlockEntity(x, y, z);
+    const slots = entity && 'items' in entity ? entity.items : null;
+    if (!slots) return false;
+    if (take) {
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        if (!slot) continue;
+        const count = Math.min(slot.count, HAUL_STACK);
+        carriedStore(m).carrying = { ...cloneStack(slot), count };
+        if (count >= slot.count) slots[i] = null;
+        else slot.count -= count;
+        this.world.markModifiedAt(x, z);
+        this.audio.play('chest', { x, y, z, pitch: 1.3 });
+        return true;
+      }
+      return false;
+    }
+    const stack = carriedBy(m);
+    if (!stack) return false;
+    const max = items.byId.get(stack.id)?.stack ?? 64;
+    for (const matching of [true, false]) {
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        if (matching) {
+          if (!slot || slot.id !== stack.id || slot.count >= max) continue;
+          const moved = Math.min(stack.count, max - slot.count);
+          slot.count += moved;
+          stack.count -= moved;
+        } else {
+          if (slot) continue;
+          slots[i] = cloneStack(stack);
+          stack.count = 0;
+        }
+        if (stack.count <= 0) delete carriedStore(m).carrying;
+        this.world.markModifiedAt(x, z);
+        this.audio.play('chest', { x, y, z, pitch: 0.9 });
+        return true;
+      }
+    }
+    return false; // nowhere to put it: vanilla's "can't place item"
+  }
+
+  /**
+   * The copper golem takes the same three tools its blocks do: honeycomb waxes it where it stands,
+   * an axe takes the wax back off or scrapes an age away, and shears take its flower.
+   */
+  private interactCopperGolem(m: MobType, held: ItemStack, survival: boolean): boolean {
+    const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
+    const sparkle = () => {
+      for (let i = 0; i < 8; i++) this.particles.spawnSprite('happy', m.pos.x + (Math.random() - 0.5) * 0.6, m.pos.y + Math.random() * m.height, m.pos.z + (Math.random() - 0.5) * 0.6, 0, 0.02, 0, 18, 0.15);
+    };
+    if (held.id === 'honeycomb' && m.extra.waxed !== true) {
+      m.extra.waxed = true;
+      if (survival) this.player.inventory.consumeSelected();
+      sparkle();
+      this.audio.play('click', { ...at, pitch: 0.7 });
+      return true;
+    }
+    const axe = items.byId.get(held.id)?.behavior === 'axe';
+    const age = typeof m.extra.oxidation === 'number' ? m.extra.oxidation : 0;
+    if (axe && (m.extra.waxed === true || age > 0)) {
+      // wax comes off first, exactly as it does on a block
+      if (m.extra.waxed === true) m.extra.waxed = false;
+      else m.extra.oxidation = age - 1;
+      m.extra.oxidizeIn = this.oxidationDelay();
+      if (survival) this.player.inventory.damageSelected(1);
+      sparkle();
+      this.audio.play('dig_stone', { ...at, pitch: 1.5 });
+      return true;
+    }
+    if (held.id === 'shears' && m.extra.flower === true) {
+      m.extra.flower = false;
+      this.dropStack({ id: 'poppy', count: 1 }, m.pos.x, at.y, m.pos.z, true);
+      if (survival) this.player.inventory.damageSelected(1);
+      this.audio.play('shear', { ...at });
+      return true;
+    }
+    return false;
+  }
+
   private interactMob(m: MobType): boolean {
     const p = this.player;
     const held = p.heldItem();
@@ -4881,6 +5141,7 @@ export class Game {
       this.openTradeScreen(m);
       return true;
     }
+    if (m.def.id === 'copper_golem' && held && this.interactCopperGolem(m, held, survival)) return true;
     if (!held) return false;
     if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {
       m.extra.sheared = true;

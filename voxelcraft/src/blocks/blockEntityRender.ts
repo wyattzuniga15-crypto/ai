@@ -9,6 +9,7 @@ import { blocks } from './registry.ts';
 import { buildModel, type ModelDef } from '../entities/boxModel.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { BannerLayer } from '../items/banners.ts';
+import { statueModel } from './copperStatue.ts';
 
 /** Yaw for a model built facing north, which is the way the box-model net puts a front on -z. */
 const FACING_YAW: Record<string, number> = { north: 0, south: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 };
@@ -147,6 +148,12 @@ export function placedModel(state: number, layers: BannerLayer[] = []): PlacedMo
     return { model, yaw, offset, scale: 1 };
   }
 
+  if (id.endsWith('copper_golem_statue')) {
+    const model = statueModel(id, blocks.prop(state, 'copper_golem_pose') ?? 'standing');
+    // the statue stands on the floor of its block and, like the golem, wears its rod above it
+    return model ? { model, yaw: FACING_YAW[facing] ?? 0, offset: [0, 0, 0], scale: 1 } : null;
+  }
+
   if (id === 'conduit') {
     return {
       model: { texture: 'conduit/base.png', texW: 32, texH: 16, parts: [{ name: 'shell', pivot: [0, 16, 0], boxes: [{ uv: [0, 0], box: [-3, -3, -3, 6, 6, 6] }] }] },
@@ -164,7 +171,8 @@ export const drawnStates: Uint8Array = (() => {
   for (const def of blocks.defs) {
     const drawn = colorOf(def.id, 'bed') !== null || colorOf(def.id, 'shulker_box') !== null
       || colorOf(def.id, 'banner') !== null || colorOf(def.id, 'wall_banner') !== null
-      || def.id.endsWith('_head') || def.id.endsWith('_skull') || def.id === 'conduit';
+      || def.id.endsWith('_head') || def.id.endsWith('_skull') || def.id === 'conduit'
+      || def.id.endsWith('copper_golem_statue');
     if (!drawn) continue;
     for (let s = def.min; s <= def.max; s++) table[s] = 1;
   }

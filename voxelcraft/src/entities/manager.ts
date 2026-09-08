@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Mob, type MobSave, type MobWorld } from './mob.ts';
 import { Arrow } from './arrow.ts';
-import { ANIMAL_TYPES, CAT_VARIANTS, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, PARROT_COLORS, axolotlColor, frogVariantFor, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
+import { ANIMAL_TYPES, CAT_VARIANTS, COPPER_GOLEM_FLOWER, EQUINE_TYPES, HORSE_COATS, LLAMA_COATS, MOB_SPECS, PARROT_COLORS, axolotlColor, frogVariantFor, initEquine, isSlimeChunk, mobStats, pandaGene, phantomSpawnChance, pickHostile, rabbitVariantFor, randomSheepColor, wolfVariantFor } from './mobTypes.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { chunkKey } from '../world/chunk.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -391,6 +391,23 @@ export class EntityManager {
     mesh.position.set(-0.5, -0.5, -0.5);
     pivot.add(mesh);
     m.setDecoration(pivot, 'head');
+  }
+
+  /**
+   * The poppy a copper golem picks. Vanilla ships no texture for it, so it is the flower's own
+   * block model standing on the golem's head, cut down to the eleven pixels Mojang's geometry gives
+   * it (from twenty-three to thirty-four pixels up, right on top of the lightning rod).
+   */
+  dressCopperGolem(m: Mob): void {
+    const make = this.host.blockMesh;
+    if (!make) return;
+    const pivot = new THREE.Group();
+    pivot.position.set(0, COPPER_GOLEM_FLOWER[0], 0);
+    pivot.scale.setScalar(COPPER_GOLEM_FLOWER[1]);
+    const mesh = make(blocks.defaultState('poppy'));
+    mesh.position.set(-0.5, 0, -0.5);
+    pivot.add(mesh);
+    m.setDecoration(pivot, 'head', 'flower');
   }
 
   /** Hangs the three mushrooms a grown mooshroom carries off its model, in the colour it wears. */

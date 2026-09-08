@@ -1360,3 +1360,63 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      That leaves three of the eighty-nine entity types with stats unimplemented — the copper golem
      and the two nautiluses, all from 1.21.9 — and sixty-six entity types that are not mobs at all:
      projectiles, boats, minecarts and the display entities.
+
+130. **Weathering copper.** None of it was implemented: copper blocks never aged, an axe did
+     nothing to them and honeycomb did nothing either. The fifteen families are read off the block
+     registry rather than listed by hand — anything with an `exposed_x`, a `weathered_x`, an
+     `oxidized_x` and the four `waxed_` copies weathers, which is exactly the fifteen 1.21 ships
+     (the block, cut copper with its slab and stairs, chiseled, the grate, bulb, door, trapdoor,
+     bars, chain, lantern, chest, the lightning rod and the golem statue). Only the `copper` family
+     names its youngest age differently (`copper_block`), which is the one special case in the
+     table.
+
+     The tick is vanilla's `ChangeOverTimeBlock.changeOverTime` in full, because the neighbour rules
+     are what make a copper build weather in patches rather than uniformly: every copper block
+     within four by Manhattan distance is counted, a single younger one anywhere in that ball stops
+     the change dead, and otherwise the chance is `((older + 1) / (older + same + 1))²` times
+     `WeatheringCopper`'s own `0.05688889`. Waxed blocks are not weathering blocks in vanilla, so
+     they neither hold a neighbour back nor push it on. The state properties come across unchanged,
+     so a stair keeps its facing, half, shape and waterlogging as it ages.
+
+     The axe takes vanilla's order — strip a log, then scrape one age, then take the wax off — which
+     matters because it decides what an axe does to *waxed exposed copper*: the wax, not the age.
+     Log stripping came along with it since it is the same method in vanilla and the `stripped_x`
+     ids make it a one-line lookup. `behaviorFor` now merges the weathering random tick onto
+     whatever the block already did, so a copper door still opens.
+
+131. **The copper golem.** Built like the other two golems, from a carved pumpkin placed on a
+     single copper block — and it inherits that block's age and wax, so a golem raised on weathered
+     copper starts weathered and one raised on waxed copper never ages at all. The model is
+     Mojang's `geometry.copper_golem`: a wide flat head with a beak in front and a lightning rod
+     standing on top, on a body between two stubby legs, twenty-four pixels tall in all against a
+     hitbox that stops at the head. The eyes are a second layer over the head, and both the skin
+     and the eye layer follow the age.
+
+     Oxidation is Mojang's own looping timer, `[25200, 27600]` ticks — twenty-one to twenty-three
+     minutes an age, so about an hour from new copper to a statue. Reaching the fourth age is the
+     end of it: the golem sets an `oxidized_copper_golem_statue` down where it stands, turned to
+     the nearest quarter of its heading, drops whatever it was carrying and is gone. Honeycomb
+     waxes it and stops the timer; an axe takes the wax off first and only then scrapes an age
+     away, exactly as it does on a block; shears take its flower.
+
+     The chest run is `behavior.transport_items` from Mojang's behaviour pack: it takes from the
+     eight copper chests and fills ordinary and trapped ones, sixteen items a trip, preferring a
+     slot that already holds the same item over an empty one, with three seconds between failed
+     trips and seven between deliveries. It searches thirty-two blocks across and eight up, walking
+     the block-entity index rather than scanning the world, and carries the stack in its right hand
+     where Mojang's `rightItem` bone is.
+
+     Two things had to be decided rather than read. Vanilla ships no `copper_golem_flower` texture
+     in the Java assets (Bedrock has one; Java does not), so the poppy the golem picks by day is
+     the flower's own block model stood on its head, cut down to the eleven pixels Mojang's flower
+     geometry occupies. And nothing in the data says how a statue comes back to life, so it takes
+     the same axe every other copper block does: scraping the oxidized statue — the one a golem
+     seized up into — wakes the golem back up a stage lighter, at weathered.
+
+132. **Drawing the copper golem statue.** Vanilla ships an empty block model for all eight statue
+     blocks and draws them in code, so until now they were placeable and invisible — which stopped
+     mattering the moment golems started turning into them. All four of Mojang's poses are
+     converted the same way the mob's geometry is (standing, sitting with its arms back
+     twenty-five degrees, running, and the star), and the age picks the texture off the same net.
+     They stand on the floor of their block at full scale with the rod poking above it, the way the
+     golem's own model overshoots its hitbox.
