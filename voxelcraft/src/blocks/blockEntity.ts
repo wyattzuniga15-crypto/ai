@@ -117,7 +117,15 @@ export interface JukeboxEntity {
   ticks: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity | BrushableEntity | DriedGhastEntity;
+export interface CampfireEntity {
+  type: 'campfire';
+  /** The four things vanilla lets a campfire hold at once, one to a corner. */
+  items: Slot[];
+  /** Ticks each of them still has to cook. */
+  times: number[];
+}
+
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity | BrushableEntity | DriedGhastEntity | CampfireEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -148,6 +156,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId === 'spawner') return { type: 'spawner', mob: '', delay: 20 };
   if (blockId === 'dried_ghast') return { type: 'dried_ghast', soak: 0, wet: false };
   if (blockId === 'jukebox') return { type: 'jukebox', items: [null], ticks: 0 };
+  if (blockId === 'campfire' || blockId === 'soul_campfire') return { type: 'campfire', items: [null, null, null, null], times: [0, 0, 0, 0] };
   return null;
 }
 

@@ -23,6 +23,8 @@ export interface BlockWorld extends FluidWorld {
   /** Make the block fall as an entity. */
   startFalling(x: number, y: number, z: number, state: number): void;
   isDay(): boolean;
+  /** The world clock, in ticks, which is what the sun's angle is worked out from. */
+  timeOfDay?(): number;
   /** Whether rain is falling, which is what puts a fire out. */
   isRaining(): boolean;
   rng: Rng;
@@ -323,12 +325,50 @@ function redstoneTick(ctx: BlockContext): void {
   }
   if (id === 'daylight_detector') {
     const inverted = blocks.prop(state, 'inverted') === 'true';
-    const sky = w.getSkyLight(x, y + 1, z);
-    // vanilla scales the sky light by the time of day; ours reads the light the sky is giving now
-    const power = Math.max(0, Math.min(15, inverted ? 15 - sky : sky));
+    const power = daylightSignal(w.getSkyLight(x, y + 1, z), w.timeOfDay?.() ?? 6000, w.isRaining(), inverted);
     if (power !== Number(blocks.prop(state, 'power') ?? '0')) w.setBlock(x, y, z, blocks.withProp(state, 'power', String(power)));
     w.schedule(x, y, z, 20);
   }
+}
+
+/**
+ * What a daylight sensor reads. Vanilla takes the sky light the block can see, subtracts how far
+ * the sky itself has darkened, and then leans the rest on the sun's own angle — which is what makes
+ * the reading climb to fifteen at noon and fall away to nothing overnight rather than sitting at
+ * full strength the whole time.
+ */
+export function daylightSignal(skyLight: number, dayTime: number, raining: boolean, inverted: boolean): number {
+  let signal = skyLight - skyDarken(dayTime, raining);
+  if (signal > 0) {
+    let angle = sunAngle(dayTime);
+    const wrap = angle < Math.PI ? 0 : Math.PI * 2;
+    angle += (wrap - angle) * 0.2;
+    signal = Math.round(signal * Math.cos(angle));
+  }
+  signal = Math.max(0, Math.min(15, signal));
+  return inverted ? 15 - signal : signal;
+}
+
+/**
+ * Vanilla's own `getSkyDarken`, worked out here rather than taken off the renderer so the reading
+ * is the sky's and not the picture's: none at noon, eleven at midnight, and rain takes its share.
+ */
+function skyDarken(dayTime: number, raining: boolean): number {
+  const rain = raining ? 1 - 5 / 16 : 1;
+  const bright = 0.5 + 2 * Math.max(-0.25, Math.min(0.25, Math.cos(timeOfDayFraction(dayTime) * Math.PI * 2)));
+  return Math.floor((1 - bright * rain) * 11);
+}
+
+/** Vanilla's `getSunAngle`: the day eased so dawn and dusk take their time. */
+function sunAngle(dayTime: number): number {
+  return timeOfDayFraction(dayTime) * Math.PI * 2;
+}
+
+/** How far through its own day the sun is, 0 to 1, eased the way vanilla eases it. */
+function timeOfDayFraction(dayTime: number): number {
+  const frac = (((dayTime / 24000) - 0.25) % 1 + 1) % 1;
+  const eased = 0.5 - Math.cos(frac * Math.PI) / 2;
+  return (frac * 2 + eased) / 3;
 }
 
 function growCrop(ctx: BlockContext, maxAge: number): void {

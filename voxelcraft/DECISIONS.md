@@ -1793,3 +1793,55 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      Four doc comments in `game.ts` had also come adrift of the methods they describe — an old
      refactor moved the code and left the comments where they were, so the spawner's notes sat over
      the dried ghast and the horse's over the piglin. They are back on their own methods.
+
+149. **A second pass, on everything the playthrough never touched.** The first run played the game
+     end to end. This one went at the parts a story never reaches — the ways the world hurts you,
+     the machinery, and what happens to a mob left to itself — and turned up nine more.
+
+     *Lava on the wrong clock.* Lava took four off every tick rather than four a hit through the
+     hurt cooldown, so a fall into it killed a full-health player in a quarter of a second and
+     climbing out again was never on the table. It is Mojang's four every ten ticks now — the same
+     cooldown the lava cauldron a few lines below it was already using. The void was the same story,
+     and started four blocks under the world instead of vanilla's sixty-four.
+
+     *Blocks that never bit.* A cactus, a magma block and a sweet berry bush all stood there doing
+     nothing, and so did a block pushed into your head. All four hurt now on vanilla's own terms:
+     the cactus and the bush off the box the player occupies, the magma block only under feet on the
+     ground that are not sneaking and not in frost walker's boots, and suffocation once a full block
+     is where the head is.
+
+     *Armour against the world.* Armour points were only ever counted against a mob's blow. Every
+     other kind of damage went round them, so a full set of netherite was worth nothing in a fire.
+     Vanilla's `bypasses_armor` tag is the rule: a drop, a lungful of water, an empty stomach, a
+     wall, the cold and the void go straight through, and everything else — fire, lava, a magma
+     block, a cactus, an explosion — is what armour is for. A set of iron now halves a burn and
+     wears a point for each hit taken.
+
+     *Starving on the wrong difficulty.* Hunger stopped at five hearts, which is Easy. Everything
+     else in the game is played on Normal, where it takes you to half a heart.
+
+     *The observer was pointing the wrong way.* It watched the block it faced and put its signal out
+     of the same side, which makes it useless: the pulse went into the block that caused it. Mojang's
+     own model settles which face is which — `observer_front` sits on the `facing` side — so the
+     signal belongs on the back. It comes out of the back now.
+
+     *The daylight sensor never went dark.* It read the sky light where it stood, which is fifteen
+     at midnight as much as at noon, so the reading sat at full strength around the clock and an
+     inverted one never switched anything on. It now runs vanilla's own two steps — the sky's own
+     darkening, then the sun's angle — worked out from the world clock rather than off the renderer:
+     fifteen at noon, nothing at midnight, and less in the rain.
+
+     *Campfires cooked nothing.* The recipes were in the data and the block was in the world, and
+     putting food on it did nothing at all. A lit campfire now takes four things at once, each on
+     Mojang's own thirty seconds, and pops the cooked result off when it is done.
+
+     *Mobs that could not fall or drown.* A cow could be dropped from any height and land unhurt,
+     and held under water for as long as you liked. Both now work the way they do for a player: a
+     heart for every block past the third with the drop rounded up, and fifteen seconds of breath
+     before two a second — with the fliers, the slimes and the fish let off, as vanilla lets them off.
+
+     One thing that looked like a bug was not: a roof built through the debug harness left the floor
+     under it at full sky light. The relight happens in the chunk worker, and a test that ticks the
+     game in a tight loop never yields long enough for the worker's answer to come back. Given a
+     moment, the light is right.
+

@@ -6,7 +6,18 @@
 import type { ItemStack, Slot } from './inventory.ts';
 
 /** The kinds of damage protection tells apart. */
-export type DamageSource = 'generic' | 'fall' | 'fire' | 'explosion' | 'projectile' | 'magic' | 'void';
+export type DamageSource =
+  | 'generic' | 'fall' | 'fire' | 'explosion' | 'projectile' | 'magic' | 'void'
+  | 'drown' | 'starve' | 'wall' | 'freeze';
+
+/**
+ * The sources vanilla's `bypasses_armor` tag lets straight through: nothing you wear helps
+ * against a long drop, a lungful of water, an empty stomach, a block in the head or the cold.
+ */
+const BYPASSES_ARMOR = new Set<DamageSource>(['fall', 'magic', 'void', 'drown', 'starve', 'wall', 'freeze']);
+
+/** Whether the points on a chestplate count for anything against this source. */
+export const armorApplies = (source: DamageSource): boolean => !BYPASSES_ARMOR.has(source);
 
 const level = (stack: Slot, id: string): number => stack?.enchantments?.[id] ?? 0;
 

@@ -3,7 +3,7 @@ import { blocks } from '../src/blocks/registry.ts';
 import { Rng } from '../src/core/rng.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { emitted, isPowered, powerAt, wireConnection } from '../src/world/redstone.ts';
-import type { BlockWorld } from '../src/blocks/behaviors.ts';
+import { daylightSignal, type BlockWorld } from '../src/blocks/behaviors.ts';
 import { createBlockEntity } from '../src/blocks/blockEntity.ts';
 import { analogOutput, comparatorOutput, containerSignal } from '../src/world/redstone.ts';
 
@@ -436,5 +436,57 @@ describe('dispensers', () => {
     expect(w.prop(0, 64, 0, 'triggered')).toBe('false');
     w.place(-1, 64, 0, 'redstone_block');
     expect(w.dispensed.length).toBe(2);
+  });
+});
+
+describe('the observer', () => {
+  it('powers the block behind it, not the one it is watching', () => {
+    const w = new Bench();
+    // an observer facing east watches the block to its east; the signal comes out of its west side
+    const state = blocks.stateWith('observer', { facing: 'east', powered: 'true' });
+    w.map.set('0,64,0', state);
+    // `emitted` is asked for the direction the signal would travel out of the block
+    expect(emitted(w, 0, 64, 0, 'west')).toBe(15);
+    expect(emitted(w, 0, 64, 0, 'east')).toBe(0);
+    expect(emitted(w, 0, 64, 0, 'north')).toBe(0);
+  });
+
+  it('says nothing at all while it is unpowered', () => {
+    const w = new Bench();
+    w.map.set('0,64,0', blocks.stateWith('observer', { facing: 'east', powered: 'false' }));
+    expect(emitted(w, 0, 64, 0, 'west')).toBe(0);
+  });
+
+  it('pulses when the block it watches changes, and lights what is behind it', () => {
+    const w = new Bench();
+    w.place(0, 64, 0, 'observer', { facing: 'east', powered: 'false' });
+    w.place(-1, 64, 0, 'redstone_lamp');
+    let lit = false;
+    w.setBlock(1, 64, 0, blocks.defaultState('stone'));
+    for (let i = 0; i < 6 && !lit; i++) {
+      w.run(1);
+      lit = w.prop(-1, 64, 0, 'lit') === 'true';
+    }
+    expect(lit).toBe(true);
+  });
+});
+
+describe('the daylight sensor', () => {
+  it('reads full strength at noon and nothing at midnight', () => {
+    expect(daylightSignal(15, 6000, false, false)).toBe(15);
+    expect(daylightSignal(15, 18000, false, false)).toBe(0);
+  });
+
+  it('turns the reading over when it is inverted, which is what runs a lamp at night', () => {
+    expect(daylightSignal(15, 6000, false, true)).toBe(0);
+    expect(daylightSignal(15, 18000, false, true)).toBe(15);
+  });
+
+  it('reads lower under rain, as vanilla darkens the sky for it', () => {
+    expect(daylightSignal(15, 6000, true, false)).toBeLessThan(daylightSignal(15, 6000, false, false));
+  });
+
+  it('reads nothing where no sky reaches, whatever the hour', () => {
+    expect(daylightSignal(0, 6000, false, false)).toBe(0);
   });
 });

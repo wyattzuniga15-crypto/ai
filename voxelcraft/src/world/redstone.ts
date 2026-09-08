@@ -214,7 +214,9 @@ export function emitted(w: PowerWorld, x: number, y: number, z: number, dir: str
       return comparatorOutput(w, x, y, z, state);
     }
     case 'observer':
-      return isOn(state, 'powered') && prop(state, 'facing') === dir ? 15 : 0;
+      // the eye watches the block it faces and the signal comes out of the back, so an
+      // observer powers the side opposite the one it is watching
+      return isOn(state, 'powered') && prop(state, 'facing') === OPPOSITE[dir] ? 15 : 0;
     case 'daylight_detector':
     case 'target':
       return strongOnly ? 0 : Number(prop(state, 'power') ?? '0');

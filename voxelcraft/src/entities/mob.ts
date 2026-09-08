@@ -151,6 +151,8 @@ export interface MobSave {
  * `accel × f / (1 − f)` with the 0.546 ground friction below, so this factor turns the 0.1125–0.3375
  * attribute range into 4.8–14.5 blocks per second, exactly the range vanilla horses cover.
  */
+/** Breath a mob holds, which vanilla gives every living thing alike. */
+const MOB_AIR = 300;
 const RIDDEN_ACCEL = 1.79;
 /**
  * A swimming mount pushes far less hard than a galloping one. Mojang gives a ridden nautilus 0.055
@@ -216,6 +218,10 @@ export class Mob {
   headPitch = 0;
   prevBodyYaw = 0;
   onGround = false;
+  /** Breath left, counted down the way vanilla counts a player's. */
+  air = MOB_AIR;
+  /** Blocks fallen since the mob last stood on something. */
+  fallDistance = 0;
   inWater = false;
   horizontalCollision = false;
   health: number;
@@ -384,6 +390,50 @@ export class Mob {
     return true;
   }
 
+  /**
+   * Breathing. Anything that is not a fish and not already drowned holds its breath for vanilla's
+   * fifteen seconds with its head under water, and then takes two a second until it lets go.
+   */
+  private breatheTick(w: MobWorld): void {
+    if (this.def.aquatic || this.breathesWater()) {
+      this.air = MOB_AIR;
+      return;
+    }
+    const head = isFluidAt(w, this.pos.x, this.pos.y + this.def.eyeHeight, this.pos.z, 'water');
+    if (!head) {
+      this.air = Math.min(MOB_AIR, this.air + 4);
+      return;
+    }
+    if (--this.air <= -20) {
+      this.air = 0;
+      this.hurt(2, null, 'other', 0);
+    }
+  }
+
+  /** The ones vanilla lets breathe under water: the drowned, the guardians and the undead golems. */
+  private breathesWater(): boolean {
+    const id = this.def.id;
+    return id === 'drowned' || id === 'guardian' || id === 'elder_guardian' || id === 'iron_golem' || id === 'zombie' || id === 'husk' || id === 'skeleton_horse' || id === 'zombie_horse';
+  }
+
+  /**
+   * Falling. Vanilla charges a mob the same as a player — a heart for every block past the third,
+   * the drop rounded up — and lets the things that fly or bounce off.
+   */
+  private fallTick(before: number, wasOnGround: boolean): void {
+    if (this.def.flying || this.def.flapping || this.def.animation === 'slime' || this.inWater) {
+      this.fallDistance = 0;
+      return;
+    }
+    const dropped = Math.max(0, before - this.pos.y);
+    if (this.onGround && !wasOnGround) {
+      const damage = Math.ceil(this.fallDistance + dropped - 3);
+      this.fallDistance = 0;
+      if (damage > 0) this.hurt(damage, null, 'other', 0);
+    } else if (!this.onGround) this.fallDistance += dropped;
+    else this.fallDistance = 0;
+  }
+
   tick(w: MobWorld): void {
     this.prev.copy(this.pos);
     this.prevBodyYaw = this.bodyYaw;
@@ -419,6 +469,8 @@ export class Mob {
       if (this.dead) return;
     }
     if (this.def.aquatic && !this.inWater && this.age % 20 === 0) this.hurt(1, null, 'other', 0);
+    if (this.dead) return;
+    this.breatheTick(w);
     if (this.dead) return;
     this.ageTick(w);
     if (this.ridden) {
@@ -566,9 +618,12 @@ export class Mob {
     }
     const box = this.aabb();
     const before = { x: this.pos.x, z: this.pos.z };
+    const yBefore = this.pos.y;
+    const wasOnGround = this.onGround;
     const r = sweep(w, box, this.vel.x, this.vel.y, this.vel.z, 0);
     this.pos.set((box.minX + box.maxX) / 2, box.minY, (box.minZ + box.maxZ) / 2);
     this.onGround = r.onGround === 1 || (r.hitY && this.vel.y < 0);
+    this.fallTick(yBefore, wasOnGround);
     this.horizontalCollision = r.hitX || r.hitZ;
     if (r.hitY) this.vel.y = 0;
     if (r.hitX) this.vel.x = 0;

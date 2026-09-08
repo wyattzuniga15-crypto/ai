@@ -50,9 +50,10 @@ import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
 import { archaeologyLoot, barterLoot, blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
-import { bowBaseDamage, bowCharge, crossbowChargeTicks, hasChanneling, hasMultishot, impalingBonus, loyaltyLevel, maceDamage, piercingCount, riptideLevel, sweepingRatio, windBurstLift, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
+import { bowBaseDamage, bowCharge, crossbowChargeTicks, hasChanneling, hasMultishot, impalingBonus, loyaltyLevel, maceDamage, piercingCount, riptideLevel, sweepingRatio, windBurstLift, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, armorApplies, type DamageSource } from '../items/enchantEffects.ts';
 import { arrowEffects, effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
+import { findCookingRecipe } from '../items/smelting.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
 import { Chat } from '../ui/chat.ts';
@@ -66,7 +67,7 @@ import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen, nautilusScreen } from '../ui/screens/screens.ts';
 import { craftingMatcher } from '../items/crafting.ts';
 import { Firework, fireworkLifetime } from '../entities/firework.ts';
-import { containerKind, createBlockEntity, type BeaconEntity, type BrushableEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type DriedGhastEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { containerKind, createBlockEntity, type BeaconEntity, type CampfireEntity, type BrushableEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type DriedGhastEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { hydrationOf, hydrationTick, inWater, withHydration } from '../blocks/driedGhast.ts';
 import { songForDisc, type JukeboxSong } from '../items/jukebox.ts';
 import { loadSoundDefinitions } from '../audio/sounds.ts';
@@ -370,6 +371,7 @@ export class Game {
       getSkyLight: (x, y, z) => this.world.getSkyLight(x, y, z),
       startFalling: (x, y, z, state) => this.startFalling(x, y, z, state),
       isDay: () => this.isDay(),
+      timeOfDay: () => this.time,
       isRaining: () => this.weather.raining,
       message: (text) => this.chat.addLine(text, '#fa5'),
       sleep: (x, y, z) => this.sleepInBed(x, y, z),
@@ -1215,22 +1217,25 @@ export class Game {
       if (dmg > 0 && !p.inWater) this.damage(dmg);
     }
     // freezing: vanilla starts hurting once the cold has had a hundred and forty ticks to bite
-    if (p.frozenTicks >= FREEZE_TICKS && this.tickCount % 40 === 0) this.damage(1, true, 'generic');
+    if (p.frozenTicks >= FREEZE_TICKS && this.tickCount % 40 === 0) this.damage(1, true, 'freeze');
     const fireRes = !!p.effects.get('fire_resistance');
     if (p.inLava) {
-      if (!fireRes) this.damage(4, true);
+      // vanilla's lava is four a hit through the hurt cooldown, which is what leaves time to climb
+      // out of it; taking it every tick instead killed a full-health player in a quarter of a second
+      if (!fireRes) this.hurtByWorld(4, 'fire');
       p.fireTicks = Math.max(p.fireTicks, 300);
     }
+    this.contactHazards(fireRes);
     const feet = this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y), Math.floor(p.pos.z));
     const feetId = blocks.idOf(feet);
     if (feetId === 'fire' || feetId === 'soul_fire') {
       p.fireTicks = Math.max(p.fireTicks, 160);
-      if (this.tickCount % 20 === 0 && !fireRes) this.damage(1, true);
+      if (this.tickCount % 20 === 0 && !fireRes) this.hurtByWorld(1, 'fire', true);
     }
     // standing in a cauldron: lava burns, and water puts a burning player out and takes a level
     if (feetId === 'lava_cauldron') {
       // vanilla's `lavaHurt`, which the damage cooldown holds to four damage every half second
-      if (!fireRes) this.damage(4);
+      if (!fireRes) this.hurtByWorld(4, 'fire');
       p.fireTicks = Math.max(p.fireTicks, 300);
     } else if (feetId === 'water_cauldron' && p.fireTicks > 0) {
       p.fireTicks = 0;
@@ -1244,10 +1249,10 @@ export class Game {
     if (p.inWater) p.fireTicks = 0;
     if (p.fireTicks > 0) {
       p.fireTicks--;
-      if (p.fireTicks % 20 === 0 && !fireRes) this.damage(1, true);
+      if (p.fireTicks % 20 === 0 && !fireRes) this.hurtByWorld(1, 'fire', true);
     }
-    // void
-    if (p.pos.y < WORLD_MIN_Y - 4) this.damage(4, true);
+    // the void, which vanilla only starts sixty-four blocks under the bottom of the world
+    if (p.pos.y < WORLD_MIN_Y - 64) this.damage(4, false, 'void');
     // drowning
     const eye = p.pos.clone();
     eye.y += p.eyeHeight;
@@ -1260,7 +1265,7 @@ export class Game {
       if (p.extraBreath <= 0 || Math.random() < 300 / (p.extraBreath + 300)) p.air--;
       if (p.air <= -20) {
         p.air = 0;
-        this.damage(2, true);
+        this.damage(2, true, 'drown');
       }
     } else p.air = Math.min(300, p.air + 4);
     // hunger and regeneration
@@ -1273,7 +1278,44 @@ export class Game {
       p.health = Math.min(p.maxHealth, p.health + 1);
       p.exhaustion += 6;
     }
-    if (p.food <= 0 && this.tickCount % 80 === 0 && p.health > 10) this.damage(1, true);
+    if (p.food <= 0 && this.tickCount % 80 === 0 && p.health > 1) this.damage(1, true, 'starve');
+  }
+
+  /**
+   * The blocks that hurt on contact. Vanilla runs each of these off the box the player occupies
+   * rather than off the block they stand in, and holds them all to the hurt cooldown: a prick from
+   * a cactus, the burn off the top of a magma block, the scratch of a berry bush walked through,
+   * and the block pressed into your head.
+   */
+  private contactHazards(fireRes: boolean): void {
+    const p = this.player;
+    // vanilla shrinks the box a little before asking what it touches, so brushing past is safe
+    const box = p.aabb();
+    const x0 = Math.floor(box.minX + 0.001);
+    const x1 = Math.floor(box.maxX - 0.001);
+    const z0 = Math.floor(box.minZ + 0.001);
+    const z1 = Math.floor(box.maxZ - 0.001);
+    const y0 = Math.floor(box.minY + 0.001);
+    const y1 = Math.floor(box.maxY - 0.001);
+    const moving = Math.abs(p.pos.x - p.prevPos.x) > 0.003 || Math.abs(p.pos.z - p.prevPos.z) > 0.003;
+    let cactus = false;
+    let berries = false;
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+      const id = blocks.idOf(this.world.getBlock(x, y, z));
+      if (id === 'cactus') cactus = true;
+      else if (id === 'sweet_berry_bush') berries = true;
+    }
+    if (cactus) this.hurtByWorld(1, 'generic');
+    else if (berries && moving) this.hurtByWorld(1, 'generic');
+    // the magma block only burns the feet standing on it, and vanilla lets a sneak off
+    if (!fireRes && p.onGround && !p.sneaking && frostWalkerLevel(p.inventory.armor[0]) <= 0) {
+      const below = blocks.idOf(this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y - 0.1), Math.floor(p.pos.z)));
+      if (below === 'magma_block') this.hurtByWorld(1, 'fire');
+    }
+    // suffocation: a full block where the head is, which no armour helps against
+    const eyeY = Math.floor(p.pos.y + p.eyeHeight);
+    const inWall = blocks.blockOf(this.world.getBlock(Math.floor(p.pos.x), eyeY, Math.floor(p.pos.z)));
+    if (inWall && inWall.solid && !inWall.transparent && inWall.behavior !== 'air') this.damage(1, false, 'wall');
   }
 
   damage(amount: number, ignoreCooldown = false, source: DamageSource = 'generic'): void {
@@ -1884,6 +1926,25 @@ export class Game {
     if (this.analogSignals.size > seen.size) for (const key of [...this.analogSignals.keys()]) if (!seen.has(key)) this.analogSignals.delete(key);
   }
 
+  /**
+   * A campfire cooks the four things laid on it, each on its own clock, and pops the result off
+   * when it is done — vanilla's own thirty seconds a piece, and only while the fire is lit.
+   */
+  private tickCampfire(x: number, y: number, z: number, e: CampfireEntity): void {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0 || blocks.prop(state, 'lit') !== 'true') return;
+    for (let i = 0; i < e.items.length; i++) {
+      const stack = e.items[i];
+      if (!stack || e.times[i] <= 0) continue;
+      if (--e.times[i] > 0) continue;
+      const recipe = findCookingRecipe('campfire', stack);
+      e.items[i] = null;
+      if (recipe) this.dropStack({ id: recipe.result.item, count: recipe.result.count }, x + 0.5, y + 1, z + 0.5, true);
+      this.audio.play('fizz', { x: x + 0.5, y: y + 0.5, z: z + 0.5, volume: 0.4 });
+      this.world.markModifiedAt(x, z);
+    }
+  }
+
   private tickBlockEntities(): void {
     if (this.tickCount % 2 === 0) this.tickAnalogSignals();
     this.world.forEachBlockEntity((x, y, z, e) => {
@@ -1919,6 +1980,10 @@ export class Game {
       }
       if (e.type === 'jukebox') {
         this.tickJukebox(x, y, z, e as JukeboxEntity);
+        return;
+      }
+      if (e.type === 'campfire') {
+        this.tickCampfire(x, y, z, e as CampfireEntity);
         return;
       }
       if (e.type === 'hopper') {
@@ -3610,6 +3675,27 @@ export class Game {
     return true;
   }
 
+  /**
+   * Laying food on a campfire. Vanilla takes one item at a time onto whichever of the four corners
+   * is free, and only from a lit fire — an unlit one just sits there.
+   */
+  private useCampfire(t: RaycastHit): boolean {
+    const held = this.player.heldItem();
+    if (!held || blocks.prop(t.state, 'lit') !== 'true') return false;
+    if (!findCookingRecipe('campfire', held)) return false;
+    const e = this.world.getBlockEntity(t.x, t.y, t.z);
+    if (!e || e.type !== 'campfire') return false;
+    const free = e.items.findIndex((s) => !s);
+    if (free < 0) return false;
+    const recipe = findCookingRecipe('campfire', held)!;
+    e.items[free] = { id: held.id, count: 1 };
+    e.times[free] = recipe.cookingTime;
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    this.world.markModifiedAt(t.x, t.z);
+    this.audio.play('click', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+    return true;
+  }
+
   private useHive(t: RaycastHit, id: string): boolean {
     const held = this.player.heldItem();
     if (!held || (held.id !== 'shears' && held.id !== 'glass_bottle')) return false;
@@ -3793,6 +3879,9 @@ export class Game {
     }
     if (def.id === 'beehive' || def.id === 'bee_nest') {
       if (this.useHive(t, def.id)) return true;
+    }
+    if (def.id === 'campfire' || def.id === 'soul_campfire') {
+      if (this.useCampfire(t)) return true;
     }
     // flower pots: vanilla plants what is held in an empty one and hands back what is in a full one
     if (def.id === 'flower_pot' || def.id.startsWith('potted_')) {
@@ -5352,6 +5441,23 @@ export class Game {
     if (armor === 0) return damage;
     const reduction = Math.min(20, Math.max(armor / 5, armor - damage / (2 + toughness / 4))) / 25;
     return damage * (1 - reduction);
+  }
+
+  /**
+   * Damage from the world rather than from a mob: armour counts against everything vanilla's
+   * `bypasses_armor` tag does not name, and takes a point of wear for its trouble.
+   */
+  private hurtByWorld(amount: number, source: DamageSource, ignoreCooldown = false): void {
+    const p = this.player;
+    if (p.gamemode !== 'survival' || p.dead) return;
+    if (!ignoreCooldown && p.hurtTime > 0) return;
+    if (!armorApplies(source)) {
+      this.damage(amount, ignoreCooldown, source);
+      return;
+    }
+    const before = p.health;
+    this.damage(this.armorReduction(amount), ignoreCooldown, source);
+    if (p.health < before) this.damageArmor();
   }
 
   private damageArmor(): void {
