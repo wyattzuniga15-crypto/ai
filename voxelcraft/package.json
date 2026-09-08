@@ -5,6 +5,7 @@
   "description": "Browser voxel survival game modelled on Minecraft Java 1.21.11 mechanics",
   "type": "module",
   "scripts": {
+    "start": "tsx tools/start.ts",
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",

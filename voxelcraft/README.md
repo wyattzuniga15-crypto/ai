@@ -4,12 +4,30 @@ A single-player voxel survival game for the browser modelled on Minecraft Java 1
 block and item rosters, block-state ids, recipes, loot tables, break times, movement constants and
 day length. Private, non-commercial project. Built with Vite, vanilla TypeScript and Three.js.
 
-## Run it
+## Play it
 
 ```sh
 cd voxelcraft
 npm install
+npm start
+```
+
+That is the whole thing. `npm start` fetches whatever is missing the first time — the 1.21.11
+textures, models and data pack, then the structure templates — and opens the game in your browser.
+Later runs skip straight to the server. It takes about a minute the first time and a second after
+that.
+
+```sh
+npm start -- --sounds   # with the music and the long sounds as well (a bigger download, once)
+npm start -- --build    # build the static site and serve that instead
+npm start -- --force    # re-fetch everything
+```
+
+The pieces underneath, if you would rather drive them yourself:
+
+```sh
 npm run assets     # fetches the 1.21.11 textures, models and data pack (once; ~20 s)
+npm run structures # converts Mojang's structure templates into public/structures/
 npm run dev        # http://localhost:5173
 npm run build      # static site in dist/ – host it anywhere
 ```
