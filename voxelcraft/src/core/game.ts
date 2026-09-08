@@ -20,6 +20,9 @@ import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
 import { END_PLATFORM, END_SURFACE, GATEWAY_REACH, GATEWAY_SLOTS, GATEWAY_Y, endGatewayShrine, endPodium, gatewaySlot } from '../world/gen/end.ts';
 import { DRAGON_HEIGHT, HAUL_STACK, NAUTILUS_HEALING, NAUTILUS_TAME_CHANCE, NAUTILUS_TAME_FOODS, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
+/** Vanilla's brush: a stroke every ten ticks, and ten of them to clear a suspicious block. */
+export const BRUSH_COOLDOWN = 10;
+export const BRUSHES_TO_CLEAR = 10;
 import { buildStructureSets, structureStart, type StructureSet } from '../world/gen/structures.ts';
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
 import { FREEZE_TICKS, Player } from '../entities/player.ts';
@@ -27,7 +30,7 @@ import { ItemEntity, itemTexture } from '../entities/itemEntity.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
-import { blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
+import { archaeologyLoot, blockDrops, blockXp, chestLoot, fishingLoot } from '../items/loot.ts';
 import { bowBaseDamage, bowCharge, crossbowChargeTicks, hasChanneling, hasMultishot, impalingBonus, loyaltyLevel, maceDamage, piercingCount, riptideLevel, sweepingRatio, windBurstLift, depthStriderFactor, fireAspectTicks, frostWalkerLevel, hasAquaAffinity, hasCurse, hasFlame, hasInfinity, mendingTarget, protectionFactor, punchKnockback, respirationTicks, soulSpeedLevel, swiftSneakLevel, thornsDamage, weaponBonus, type DamageSource } from '../items/enchantEffects.ts';
 import { arrowEffects, effectsOf, potionColor } from '../items/potions.ts';
 import { items } from '../items/registry.ts';
@@ -44,7 +47,7 @@ import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen, nautilusScreen } from '../ui/screens/screens.ts';
 import { craftingMatcher } from '../items/crafting.ts';
 import { Firework, fireworkLifetime } from '../entities/firework.ts';
-import { containerKind, createBlockEntity, type BeaconEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { containerKind, createBlockEntity, type BeaconEntity, type BrushableEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
 import { songForDisc, type JukeboxSong } from '../items/jukebox.ts';
 import { loadSoundDefinitions } from '../audio/sounds.ts';
 import { MusicManager } from '../audio/music.ts';
@@ -194,6 +197,9 @@ export class Game {
   /** True while a dimension is being built, so nothing else tries to start another. */
   private travelling = false;
   private lastSaveAt = 0;
+  /** The suspicious block being brushed and how long the brush has been on it. */
+  private brushing: { at: string; ticks: number } | null = null;
+
   /** The mob the player is riding, its jump charge and the buck timer for untamed horses. */
   private mount: Mob | null = null;
   private jumpCharge = 0;
@@ -1024,6 +1030,7 @@ export class Game {
     this.tickFireworks();
     this.tickCuring();
     this.tickCopperGolems();
+    this.tickBrushing();
     this.tickShriekers();
     this.tickAmbience();
     this.tickWornEnchantments();
@@ -1387,8 +1394,11 @@ export class Game {
         this.eating = null;
         this.useCooldown = 8;
       }
+    } else if (this.input.isDown('use') && t && !p.dead && held?.id === 'brush' && this.brushBlock(t)) {
+      this.eating = null;
     } else {
       this.eating = null;
+      this.brushing = null;
       if (this.input.tickPressed('use') && t && !p.dead && !p.sneaking && this.useBlock(t)) {
         this.useCooldown = 4;
       } else if (this.input.isDown('use') && this.useCooldown === 0 && !p.dead) {
@@ -1958,6 +1968,15 @@ export class Game {
         if (!spawner) continue;
         spawner.mob = spot.mob;
         this.world.setBlockEntity(spot.x, spot.y, spot.z, spawner);
+        this.world.markModifiedAt(spot.x, spot.z);
+        continue;
+      }
+      // a suspicious block keeps its one find until somebody brushes it out
+      if (spot.table?.startsWith('archaeology/')) {
+        if (id !== 'suspicious_sand' && id !== 'suspicious_gravel') continue;
+        const buried = createBlockEntity(id) as BrushableEntity;
+        buried.item = archaeologyLoot(spot.table, Math.random)[0] ?? null;
+        this.world.setBlockEntity(spot.x, spot.y, spot.z, buried);
         this.world.markModifiedAt(spot.x, spot.z);
         continue;
       }
@@ -3745,6 +3764,58 @@ export class Game {
       return;
     }
     if (t) this.placeBlock(t);
+  }
+
+  /**
+   * Brushing a suspicious block. Vanilla takes a stroke every ten ticks and ten of them to clear a
+   * block, showing the dust falling away in four steps as it goes; stop for two seconds and the
+   * dust settles back. What was buried there pops out when the last stroke lands, and the block is
+   * left as the sand or gravel it was hiding in.
+   */
+  private brushBlock(t: RaycastHit): boolean {
+    const id = blocks.blockOf(t.state).id;
+    if (id !== 'suspicious_sand' && id !== 'suspicious_gravel') return false;
+    const at = `${t.x},${t.y},${t.z}`;
+    if (this.brushing?.at !== at) this.brushing = { at, ticks: 0 };
+    if (this.brushing.ticks++ % BRUSH_COOLDOWN !== 0) return true;
+    let entity = this.world.getBlockEntity(t.x, t.y, t.z);
+    if (!entity || entity.type !== 'brushable') {
+      entity = createBlockEntity(id) as BrushableEntity;
+      this.world.setBlockEntity(t.x, t.y, t.z, entity);
+    }
+    const brushable = entity as BrushableEntity;
+    brushable.brushes++;
+    brushable.lastBrush = this.tickCount;
+    this.audio.play('dig_sand', { x: t.x, y: t.y, z: t.z, pitch: 1.2 + Math.random() * 0.2 });
+    this.blockParticles(t.x, t.y, t.z, t.state, blocks.blockOf(t.state), t.face);
+    if (brushable.brushes < BRUSHES_TO_CLEAR) {
+      // four steps of dust, which is what vanilla shows on the block as it comes clean
+      const dusted = Math.min(3, Math.floor((brushable.brushes * 4) / BRUSHES_TO_CLEAR));
+      if (blocks.prop(t.state, 'dusted') !== String(dusted)) this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'dusted', String(dusted)));
+      this.world.markModifiedAt(t.x, t.z);
+      return true;
+    }
+    // cleared: the block falls back to what it was hiding in, and the find pops out of it
+    this.world.setBlockEntity(t.x, t.y, t.z, null);
+    this.world.setBlock(t.x, t.y, t.z, blocks.defaultState(id === 'suspicious_sand' ? 'sand' : 'gravel'));
+    if (brushable.item) this.dropStack(cloneStack(brushable.item), t.x + 0.5, t.y + 1.1, t.z + 0.5, true);
+    if (this.player.gamemode === 'survival') this.player.inventory.damageSelected(1);
+    this.audio.play('dig_gravel', { x: t.x, y: t.y, z: t.z, pitch: 0.9 });
+    this.brushing = null;
+    return true;
+  }
+
+  /** Suspicious blocks left alone let their dust settle back, as vanilla does after two seconds. */
+  private tickBrushing(): void {
+    if (!this.brushing) return;
+    if (this.input.isDown('use') && this.player.heldItem()?.id === 'brush') return;
+    const [x, y, z] = this.brushing.at.split(',').map(Number);
+    this.brushing = null;
+    const entity = this.world.getBlockEntity(x, y, z);
+    if (!entity || entity.type !== 'brushable') return;
+    entity.brushes = 0;
+    const state = this.world.getBlock(x, y, z);
+    if (state && blocks.prop(state, 'dusted') !== '0') this.world.setBlock(x, y, z, blocks.withProp(state, 'dusted', '0'));
   }
 
   /**

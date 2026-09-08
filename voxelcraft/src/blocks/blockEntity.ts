@@ -89,6 +89,17 @@ export interface SpawnerEntity {
   delay: number;
 }
 
+/**
+ * A suspicious block: what the dig will turn up, how many brush strokes it has taken, and when the
+ * last one was, since vanilla lets the dust settle back if the brushing stops.
+ */
+export interface BrushableEntity {
+  type: 'brushable';
+  item: Slot;
+  brushes: number;
+  lastBrush: number;
+}
+
 /** Jukeboxes: the record inside and how far through it the needle has run. */
 export interface JukeboxEntity {
   type: 'jukebox';
@@ -98,7 +109,7 @@ export interface JukeboxEntity {
   ticks: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity;
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity | BrushableEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -121,6 +132,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId === 'lectern') return { type: 'lectern', book: null, page: 0 };
   if (blockId.endsWith('_banner')) return { type: 'banner', layers: [] };
   if (blockId === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };
+  if (blockId === 'suspicious_sand' || blockId === 'suspicious_gravel') return { type: 'brushable', item: null, brushes: 0, lastBrush: 0 };
   const kind = containerKind(blockId);
   if (kind) return { type: kind as ContainerEntity['type'], items: new Array(CONTAINER_SIZES[kind]).fill(null) };
   if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };

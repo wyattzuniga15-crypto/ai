@@ -1498,3 +1498,25 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      beached one stands on the sand.
 
      That is every structure Mojang ships generating in the game.
+
+136. **Archaeology.** The brush was an item with no behaviour and the suspicious blocks were
+     decoration. Brushing now works the way vanilla's does: a stroke every ten ticks while the brush
+     is held on the block, ten of them to clear it, the dust coming off in four steps as the count
+     climbs (`dusted` is the brush count times four over ten, capped at three), and the block left
+     as the sand or gravel it was hiding in with the find popping out. Stop, and after two seconds
+     the dust settles back and the count resets. The brush loses a point of durability per block
+     cleared.
+
+     Where the finds come from is grounded where the data grounds it and chosen where it does not.
+     Vanilla's trail ruins name their processors in their template pools, so those are exact: a fifth
+     of the gravel weathers to dirt and a tenth more to coarse dirt, a tenth of the mud brick slumps
+     to packed mud, a road piece hides two of the common find, and every other piece six of the
+     common and three of the rare. The desert pyramid and the ocean ruins place theirs in code
+     vanilla does not ship as data, so ours go where the room allows: four blocks of suspicious sand
+     in the corners of the pyramid's treasure chamber floor, and two finds in each ocean ruin piece
+     — sand in the warm ones, gravel in the cold, from the tables named after them.
+
+     The finds are rolled when the structure is written rather than when the block is brushed, and
+     kept on the block. Vanilla rolls at the brush; the difference is invisible from inside the game
+     and it means a suspicious block that is mined loses what was in it, which is vanilla's whole
+     point about brushing.

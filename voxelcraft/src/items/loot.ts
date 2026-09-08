@@ -7,6 +7,7 @@ import { items } from './registry.ts';
 import { blocks } from '../blocks/registry.ts';
 import lootChests from '../../data/loot/chests.json';
 import lootGameplay from '../../data/loot/gameplay.json';
+import lootArchaeology from '../../data/loot/archaeology.json';
 import { enchantments, supports } from './enchanting.ts';
 
 type Json = Record<string, unknown>;
@@ -14,6 +15,7 @@ const blockTables = lootBlocks as Record<string, Json>;
 const entityTables = lootEntities as Record<string, Json>;
 const chestTables = lootChests as unknown as Record<string, Json>;
 const gameplayTables = lootGameplay as unknown as Record<string, Json>;
+const archaeologyTables = lootArchaeology as unknown as Record<string, Json>;
 const itemTags = (tagsJson as { item: Record<string, string[]> }).item;
 
 export interface LootContext {
@@ -327,6 +329,12 @@ export function chestLoot(table: string, random: () => number = Math.random): It
   const def = chestTables[key];
   if (!def) return [];
   return evalTable(def, { tool: null, random });
+}
+
+/** What comes out of a suspicious block once it has been brushed clean. */
+export function archaeologyLoot(table: string, random: () => number = Math.random): ItemStack[] {
+  const def = archaeologyTables[table.replace('minecraft:', '').replace(/^archaeology\//, '')];
+  return def ? evalTable(def, { tool: null, random }) : [];
 }
 
 /** Drops for a mob death. */

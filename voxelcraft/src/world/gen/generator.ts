@@ -21,6 +21,11 @@ import { buildMonument, MONUMENT_SIZE, MONUMENT_Y } from './monument.ts';
 /** Structures vanilla lays out in code, keyed by the placement name their index entry carries. */
 const TEMPLE_KINDS = new Set<string>(['desert_pyramid', 'jungle_temple', 'swamp_hut']);
 
+/** Structures whose pieces vanilla buries finds in for the brush to turn up. */
+const ARCHAEOLOGY_PROCESSOR: Record<string, StructurePlacement['processor']> = {
+  ocean_ruin_warm: 'ocean_ruin_warm', ocean_ruin_cold: 'ocean_ruin_cold', trail_ruins: 'trail_ruins',
+};
+
 /**
  * Something a structure placed that the main thread has to finish: a chest with the loot table that
  * fills it, a spawner with the mob it turns, or a mob the structure comes with (a hut's witch).
@@ -977,7 +982,8 @@ export class WorldGenerator {
     if (y === null) return EMPTY_STRUCTURE;
     // ruined portals crumble; everything else is placed whole
     const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
-    const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: ground }];
+    const processor = ARCHAEOLOGY_PROCESSOR[set.name];
+    const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: ground, ...(processor ? { processor } : {}) }];
     if (set.name === 'igloo') pieces.push(...this.iglooBasement(set, template, wx, y, wz, rotation, rng, decaySeed));
     if (set.cluster) pieces.push(...this.ruinCluster(set, wx, wz, rng, decaySeed));
     this.lastStructure = { name: set.name, x: wx, y, z: wz };
@@ -1056,7 +1062,7 @@ export class WorldGenerator {
       const z = wz + rng.int(spread * 2 + 1) - spread;
       const y = this.structureGroundY(x, z, w, d, 'ocean_floor');
       if (y === null) continue;
-      out.push({ set, template, x, y, z, rotation, integrity: 1, decaySeed, placement: 'ocean_floor' });
+      out.push({ set, template, x, y, z, rotation, integrity: 1, decaySeed, placement: 'ocean_floor', ...(ARCHAEOLOGY_PROCESSOR[set.name] ? { processor: ARCHAEOLOGY_PROCESSOR[set.name] } : {}) });
     }
     return out;
   }
@@ -1281,7 +1287,7 @@ export class WorldGenerator {
       return {
         set, template: piece.template, x: piece.x, y: ground ?? piece.y, z: piece.z,
         rotation: piece.rotation, integrity: 1, decaySeed, placement: buried ? 'buried' : 'surface',
-        ...(set.name === 'trail_ruins' ? { processor: 'trail_ruins' as const } : {}),
+        ...(ARCHAEOLOGY_PROCESSOR[set.name] ? { processor: ARCHAEOLOGY_PROCESSOR[set.name] } : {}),
       };
     });
     this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length, variant: variant.start };

@@ -48,12 +48,22 @@ describe('desert pyramid', () => {
     expect(c.get('stone_pressure_plate')).toBe(1);
 
     // four chests, all of the pyramid's table, all standing in the room
-    expect(loot.length).toBe(4);
-    for (const spot of loot) {
+    const chests = loot.filter((spot) => spot.startsWith('chests/'));
+    expect(chests.length).toBe(4);
+    for (const spot of chests) {
       expect(spot.startsWith('chests/desert_pyramid@')).toBe(true);
       const [x, y, z] = spot.split('@')[1].split(',').map(Number);
       expect(blocks.idOf(world.access.get(x, y, z))).toBe('chest');
       expect(y).toBeLessThan(64); // the room is under the floor, not in the hall
+    }
+    // and four blocks of suspicious sand in the corners of the same floor, for a brush to find
+    const buried = loot.filter((spot) => spot.startsWith('archaeology/desert_pyramid@'));
+    expect(buried.length).toBe(4);
+    expect(c.get('suspicious_sand')).toBe(4);
+    for (const spot of buried) {
+      const [x, y, z] = spot.split('@')[1].split(',').map(Number);
+      expect(blocks.idOf(world.access.get(x, y, z))).toBe('suspicious_sand');
+      expect(y).toBeLessThan(64);
     }
     // the plate sits over the charge, with the floor between them
     const plate = [...world.written].find(([, s]) => blocks.idOf(s) === 'stone_pressure_plate')!;

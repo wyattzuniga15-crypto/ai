@@ -342,8 +342,8 @@ export interface StructurePlacement {
   /** Ruined portals: how much of the stone brick has gone mossy, and whether it is blackstone. */
   mossiness?: number;
   blackstone?: boolean;
-  /** Trail ruins: the archaeology processor vanilla runs over each of their pieces. */
-  processor?: 'trail_ruins';
+  /** The archaeology processor vanilla runs over a piece, which buries the finds in it. */
+  processor?: 'trail_ruins' | 'ocean_ruin_warm' | 'ocean_ruin_cold';
   /** Seed for the decay hash, so a piece crumbles the same however its chunks are visited. */
   decaySeed: number;
   /** Terrain fitting to apply under the piece: ocean pieces keep their water. */
@@ -382,18 +382,41 @@ export interface StampHooks {
  * each piece are the suspicious ones the dig is about. The six are chosen from the whole piece, not
  * the part of it in this chunk, so neighbouring chunks agree on which they are.
  */
-const TRAIL_SUSPICIOUS_LIMIT = 6;
+const TRAIL_ROAD_COMMON = 2;
+const TRAIL_HOUSE_COMMON = 6;
+const TRAIL_HOUSE_RARE = 3;
+/** How many finds vanilla's ocean ruins hide; ours are the same handful in every piece. */
+const OCEAN_RUIN_FINDS = 2;
 
-function trailSuspicious(p: StructurePlacement): Set<number> {
+/**
+ * Which blocks of a piece are the buried finds, and what each is worth. Vanilla's capped processors
+ * take the first few matches they meet; ours sort the whole piece by a hash of each position so the
+ * same few come out however the piece is split between chunks.
+ */
+function buriedFinds(p: StructurePlacement): Map<number, string> {
   const { template } = p;
-  const gravel: { i: number; h: number }[] = [];
+  const warm = p.processor === 'ocean_ruin_warm';
+  const ocean = warm || p.processor === 'ocean_ruin_cold';
+  const wanted = ocean && warm ? 'sand' : 'gravel';
+  const matches: { i: number; h: number }[] = [];
   for (let i = 0; i < template.blocks.length; i += 4) {
     const entry = template.blocks[i + 3];
-    if (!template.known[entry] || blocks.idOf(template.states[entry]) !== 'gravel') continue;
-    gravel.push({ i, h: hashPos(p.decaySeed ^ 0x7a11, template.blocks[i], template.blocks[i + 1], template.blocks[i + 2]) });
+    if (!template.known[entry] || blocks.idOf(template.states[entry]) !== wanted) continue;
+    matches.push({ i, h: hashPos(p.decaySeed ^ 0x7a11, template.blocks[i], template.blocks[i + 1], template.blocks[i + 2]) });
   }
-  gravel.sort((a, b) => a.h - b.h || a.i - b.i);
-  return new Set(gravel.slice(0, TRAIL_SUSPICIOUS_LIMIT).map((g) => g.i));
+  matches.sort((a, b) => a.h - b.h || a.i - b.i);
+  const out = new Map<number, string>();
+  if (ocean) {
+    matches.slice(0, OCEAN_RUIN_FINDS).forEach((g) => out.set(g.i, `archaeology/${warm ? 'ocean_ruin_warm' : 'ocean_ruin_cold'}`));
+    return out;
+  }
+  // the trail ruins' roads carry two of the common find; every other piece six of it and three rare
+  const road = template.key.startsWith('trail_ruins_roads');
+  const common = road ? TRAIL_ROAD_COMMON : TRAIL_HOUSE_COMMON;
+  const rare = road ? 0 : TRAIL_HOUSE_RARE;
+  matches.slice(0, common).forEach((g) => out.set(g.i, 'archaeology/trail_ruins_common'));
+  matches.slice(common, common + rare).forEach((g) => out.set(g.i, 'archaeology/trail_ruins_rare'));
+  return out;
 }
 
 export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks: StampHooks = {}): number {
@@ -402,7 +425,7 @@ export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks:
   const [sx, , sz] = template.size;
   const inside = (x: number, z: number) => !clip || (x >= clip.x0 && x <= clip.x1 && z >= clip.z0 && z <= clip.z1);
   let placed = 0;
-  const suspicious = p.processor === 'trail_ruins' ? trailSuspicious(p) : null;
+  const suspicious = p.processor ? buriedFinds(p) : null;
   for (const spot of template.loot) {
     const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
     if (inside(p.x + rx, p.z + rz)) onLoot?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.table);
@@ -434,14 +457,20 @@ export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks:
     let state = rotateState(template.states[entry], rotation);
     if (p.blackstone) state = swapBlock(state, BLACKSTONE);
     else if (p.mossiness && hashPos(p.decaySeed ^ 0x11055, x, p.y + ly, z) < p.mossiness) state = swapBlock(state, MOSSY);
-    if (p.processor === 'trail_ruins') {
+    if (p.processor) {
       const id = blocks.idOf(state);
-      const roll = hashPos(p.decaySeed ^ 0x7a12, x, p.y + ly, z);
-      if (id === 'gravel') {
-        if (suspicious!.has(i)) state = blocks.stateWith('suspicious_gravel', { dusted: '0' });
-        else if (roll < 0.2) state = blocks.defaultState('dirt');
-        else if (roll < 0.3) state = blocks.defaultState('coarse_dirt');
-      } else if (id === 'mud_bricks' && roll < 0.1) state = blocks.defaultState('packed_mud');
+      const table = suspicious!.get(i);
+      if (table !== undefined) {
+        state = blocks.stateWith(id === 'sand' ? 'suspicious_sand' : 'suspicious_gravel', { dusted: '0' });
+        onLoot?.(x, p.y + ly, z, table);
+      } else if (p.processor === 'trail_ruins') {
+        // the rest of a trail ruin weathers: gravel to dirt, and the mud brick back to packed mud
+        const roll = hashPos(p.decaySeed ^ 0x7a12, x, p.y + ly, z);
+        if (id === 'gravel') {
+          if (roll < 0.2) state = blocks.defaultState('dirt');
+          else if (roll < 0.3) state = blocks.defaultState('coarse_dirt');
+        } else if (id === 'mud_bricks' && roll < 0.1) state = blocks.defaultState('packed_mud');
+      }
     }
     world.set(x, p.y + ly, z, state);
     written?.add(`${x},${p.y + ly},${z}`);

@@ -154,6 +154,12 @@ function desertPyramid(s: TempleSite): void {
   put(s, 10, -10, 10, st('stone_pressure_plate'));
   for (const [cx, cz, facing] of [[10, 8, 'south'], [8, 10, 'east'], [12, 10, 'west'], [10, 12, 'north']] as [number, number, string][])
     chest(s, cx, -10, cz, 'chests/desert_pyramid', facing);
+  // and the dig: four blocks of the chamber floor, one in each corner, hiding what a brush turns up
+  for (const [dx, dz] of [[8, 8], [12, 8], [8, 12], [12, 12]]) {
+    put(s, dx, -11, dz, st('suspicious_sand'));
+    const [wx, wz] = world(s, dx, dz);
+    if (wx >= s.clip.x0 && wx <= s.clip.x1 && wz >= s.clip.z0 && wz <= s.clip.z1) s.onLoot?.(wx, s.y - 11, wz, 'archaeology/desert_pyramid');
+  }
   // the way down is solid: a player has to dig through the marked floor to find any of it
   box(s, 10, -7, 10, 10, -1, 10, SAND);
 
