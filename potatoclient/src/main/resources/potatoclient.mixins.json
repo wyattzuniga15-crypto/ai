@@ -11,6 +11,7 @@
     "BackgroundRendererMixin",
     "BlockEntityRenderDispatcherMixin",
     "CloudRendererMixin",
+    "DebugRendererAccessor",
     "EntityRenderDispatcherMixin",
     "EntityRendererMixin",
     "ItemRendererMixin",

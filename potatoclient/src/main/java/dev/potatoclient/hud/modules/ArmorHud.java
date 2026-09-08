@@ -118,9 +118,10 @@ public class ArmorHud extends HudModule {
 		int x = 0;
 		int y = 0;
 		for (ItemStack stack : stacks) {
-			// drawItem paints the sprite plus the vanilla damage bar.
 			context.drawItem(stack, x, y);
-			context.drawItemBar(stack, x, y);
+			// drawStackOverlay is the public entry point for the damage bar and
+			// the stack count; drawItemBar itself is private to DrawContext.
+			context.drawStackOverlay(this.client.textRenderer, stack, x, y);
 
 			if (cfg.showDurabilityNumbers && stack.isDamageable()) {
 				String label = durabilityLabel(stack);

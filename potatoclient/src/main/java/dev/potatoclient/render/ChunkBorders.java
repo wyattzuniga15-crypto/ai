@@ -1,6 +1,7 @@
 package dev.potatoclient.render;
 
 import dev.potatoclient.config.ConfigManager;
+import dev.potatoclient.mixin.DebugRendererAccessor;
 import net.minecraft.client.MinecraftClient;
 
 /**
@@ -27,6 +28,7 @@ public final class ChunkBorders {
 		if (client.debugRenderer == null) {
 			return;
 		}
-		client.debugRenderer.showChunkBorder = ConfigManager.get().render.chunkBorders.enabled;
+		((DebugRendererAccessor) client.debugRenderer)
+				.setShowChunkBorder(ConfigManager.get().render.chunkBorders.enabled);
 	}
 }
