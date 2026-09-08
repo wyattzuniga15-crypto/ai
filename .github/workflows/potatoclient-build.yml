@@ -1,0 +1,45 @@
+name: Build Potato Client
+
+on:
+  push:
+    paths:
+      - 'potatoclient/**'
+      - '.github/workflows/potatoclient-build.yml'
+  pull_request:
+    paths:
+      - 'potatoclient/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build
+        working-directory: potatoclient
+        run: ./gradlew build --no-daemon --stacktrace
+
+      # The remapped jar is the one to install; Loom also emits -sources and
+      # -dev jars next to it, which are not useful in a mods folder.
+      - name: Collect the mod jar
+        working-directory: potatoclient
+        run: |
+          mkdir -p ../dist
+          find build/libs -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' \
+            -exec cp {} ../dist/ \;
+          ls -la ../dist
+
+      - name: Upload the mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: potatoclient-jar
+          path: dist/*.jar
+          if-no-files-found: error
