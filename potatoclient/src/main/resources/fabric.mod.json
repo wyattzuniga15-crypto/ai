@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "potatoclient",
+  "version": "${version}",
+  "name": "Potato Client",
+  "description": "A client-side performance and utility toolkit for Minecraft 1.21.4: a draggable HUD, debug rendering, and a one-switch Potato Mode. Built to sit on top of Sodium, Lithium and Iris rather than compete with them.",
+  "authors": [
+    "Potato Client contributors"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/potatoclient/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.potatoclient.PotatoClient"
+    ],
+    "modmenu": [
+      "dev.potatoclient.compat.modmenu.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "potatoclient.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=21"
+  },
+  "breaks": {},
+  "custom": {
+    "modmenu": {
+      "badges": [
+        "client"
+      ]
+    }
+  }
+}

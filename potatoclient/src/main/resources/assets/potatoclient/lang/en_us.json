@@ -1,0 +1,22 @@
+{
+  "category.potatoclient.main": "Potato Client",
+  "key.potatoclient.config": "Open settings",
+  "key.potatoclient.hud_editor": "Open HUD editor",
+  "key.potatoclient.potato_mode": "Toggle Potato Mode",
+  "key.potatoclient.hitboxes": "Toggle hitboxes",
+  "key.potatoclient.chunk_borders": "Toggle chunk borders",
+  "key.potatoclient.fullbright": "Toggle fullbright",
+  "key.potatoclient.toggle_hud": "Toggle HUD",
+
+  "potatoclient.screen.config": "Potato Client",
+  "potatoclient.screen.hud_editor": "HUD Editor",
+  "potatoclient.category.hud": "HUD",
+  "potatoclient.category.render": "Rendering & Debug",
+  "potatoclient.category.potato": "Potato Mode",
+  "potatoclient.button.hud_editor": "Open HUD Editor…",
+  "potatoclient.button.done": "Done",
+  "potatoclient.button.reset": "Reset positions",
+  "potatoclient.hint.editor": "Drag to move · Right-click to toggle · Mouse wheel to scale · R to reset · Esc to close",
+  "potatoclient.toast.potato_on": "Potato Mode ON",
+  "potatoclient.toast.potato_off": "Potato Mode OFF"
+}

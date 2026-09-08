@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.potatoclient.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "client": [
+    "BackgroundRendererAccessor",
+    "BackgroundRendererMixin",
+    "BlockEntityRenderDispatcherMixin",
+    "CloudRendererMixin",
+    "EntityRenderDispatcherMixin",
+    "EntityRendererMixin",
+    "ItemRendererMixin",
+    "MouseMixin",
+    "ParticleManagerMixin",
+    "PlayerInteractionManagerMixin",
+    "RenderPhaseMixin",
+    "SimpleOptionAccessor",
+    "SkyRenderingMixin",
+    "SpriteAnimatorMixin",
+    "WeatherRenderingMixin"
+  ],
+  "mixins": []
+}

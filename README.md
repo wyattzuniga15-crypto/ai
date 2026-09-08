@@ -1,3 +1,7 @@
+> This repository also holds **[Potato Client](potatoclient/)**, a client-side
+> performance and utility mod for Minecraft 1.21.4 (Fabric). It is a separate
+> project and shares nothing with the game below.
+
 # Cube Roll
 
 A single-file 3D block-rolling puzzle game. No build step, no dependencies, no
