@@ -18,8 +18,23 @@ import { ModelBaker, type ModelsJson } from '../world/models.ts';
 import type { Dimension, StructureBundle } from '../world/protocol.ts';
 import { NETHER_FLOOR, NETHER_ROOF } from '../world/gen/nether.ts';
 import { END_PLATFORM, END_SURFACE, GATEWAY_REACH, GATEWAY_SLOTS, GATEWAY_Y, endGatewayShrine, endPodium, gatewaySlot } from '../world/gen/end.ts';
-import { DRAGON_HEIGHT, HAUL_STACK, NAUTILUS_HEALING, NAUTILUS_TAME_CHANCE, NAUTILUS_TAME_FOODS, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
+import { DRAGON_HEIGHT, HAUL_STACK, WIND_CHARGE_KNOCKBACK, NAUTILUS_HEALING, NAUTILUS_TAME_CHANCE, NAUTILUS_TAME_FOODS, WITHER_SPAWN_TICKS, dragonShielded, witherArmoured } from '../entities/ai.ts';
 import { PORTAL_COOLDOWN, PORTAL_WAIT, buildPortal, findPortalNear, lightPortal, scalePosition, type PortalBlocks } from '../world/portal.ts';
+/** What each thrown thing is worth: the pearl's fall, the endermite that rides it, the eye's odds. */
+export const ENDER_PEARL_DAMAGE = 5;
+export const ENDERMITE_CHANCE = 0.05;
+export const ENDER_EYE_SURVIVES = 0.8;
+/** How steeply an eye of ender climbs on its way to the stronghold. */
+export const ENDER_EYE_CLIMB = 0.3;
+/** How long an eye of ender flies before it drops or shatters. */
+export const ENDER_EYE_LIFE = 80;
+/** A bottle of enchanting is lobbed more gently than anything else thrown. */
+export const XP_BOTTLE_SPEED = 0.7;
+/** How far a wind charge's burst reaches. */
+export const WIND_BURST_RADIUS = 3.5;
+/** The one thing a snowball hurts. */
+export const SNOWBALL_BLAZE_DAMAGE = 3;
+
 /** Vanilla's brush: a stroke every ten ticks, and ten of them to clear a suspicious block. */
 export const BRUSH_COOLDOWN = 10;
 export const BRUSHES_TO_CLEAR = 10;
@@ -27,6 +42,7 @@ import { buildStructureSets, structureStart, type StructureSet } from '../world/
 import { WorldGenerator, type StructureSpot } from '../world/gen/generator.ts';
 import { FREEZE_TICKS, Player } from '../entities/player.ts';
 import { ItemEntity, itemTexture } from '../entities/itemEntity.ts';
+import { THROW_SPEED } from '../entities/arrow.ts';
 import { blocks, type BlockDef } from '../blocks/registry.ts';
 import { collisionBoxes } from '../blocks/collision.ts';
 import { breakTicks, canHarvest } from '../blocks/mining.ts';
@@ -422,11 +438,13 @@ export class Game {
       arrowHitBlock: (x, y, z, point) => this.hitTarget(x, y, z, point),
       blockMesh: (state) => this.blockMeshes.mesh(state),
       recordNear: (x, y, z, range) => !!this.record && Math.hypot(this.record.x + 0.5 - x, this.record.y + 0.5 - y, this.record.z + 0.5 - z) <= range,
-      arrowHitMob: (box, damage, fire, knockback, effects, pierced) => {
+      arrowHitMob: (box, damage, fire, knockback, effects, pierced, thrown) => {
         // a bolt that has already gone through a mob never hits the same one twice
         const hit = this.entities.mobsIntersecting(box).find((m) => !pierced?.includes(m));
         if (!hit) return false;
         pierced?.push(hit);
+        // a snowball stings a blaze for three and does nothing at all to anything else
+        if (thrown === 'snowball' && hit.def.id === 'blaze') damage = SNOWBALL_BLAZE_DAMAGE;
         // Punch throws the mob further and Flame sets it alight, as vanilla's arrows do
         hit.hurt(damage, this.player.pos, 'player', 0.3 + knockback * 0.5);
         if (fire > 0) hit.fireTicks = Math.max(hit.fireTicks, fire);
@@ -2094,6 +2112,156 @@ export class Game {
     this.useCooldown = 8;
   }
 
+  /**
+   * A spawn egg: vanilla puts the mob on top of the block that was clicked, facing whoever threw it,
+   * and a baby one where the egg says so. Ours reads the mob out of the egg's own name.
+   */
+  private useSpawnEgg(held: ItemStack, t: RaycastHit): boolean {
+    const type = held.id.replace(/_spawn_egg$/, '');
+    if (!mobStats(type)) return false;
+    const [dx, dy, dz] = FACE_NORMALS[t.face];
+    const x = t.x + dx + 0.5;
+    const y = t.y + dy;
+    const z = t.z + dz + 0.5;
+    const m = this.entities.spawn(type, x, y, z, this.player.yaw + Math.PI);
+    if (!m) return false;
+    m.persistent = true;
+    this.particles.poof(x, y + m.height / 2, z, 8, Math.random, m.width, m.height);
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    this.useCooldown = 4;
+    return true;
+  }
+
+  /**
+   * A wind charge bursting: it hurts nothing and throws everything near it away from where it
+   * landed, hardest at the middle and fading to nothing at the edge.
+   */
+  private windBurst(pos: THREE.Vector3, power: number): void {
+    const p = this.player;
+    const shove = (x: number, y: number, z: number, vel: THREE.Vector3, out: () => void) => {
+      const away = new THREE.Vector3(x - pos.x, y - pos.y, z - pos.z);
+      const d = away.length();
+      if (d > WIND_BURST_RADIUS) return;
+      if (d < 1e-4) away.set(0, 1, 0);
+      away.normalize().multiplyScalar(power * (1 - d / WIND_BURST_RADIUS) * 0.5);
+      vel.add(away);
+      out();
+    };
+    shove(p.pos.x, p.pos.y + 0.9, p.pos.z, p.vel, () => {
+      p.onGround = false;
+      p.fallDistance = 0;
+    });
+    for (const m of this.entities.mobsNear(pos.x, pos.y, pos.z, WIND_BURST_RADIUS)) {
+      shove(m.pos.x, m.pos.y + m.height / 2, m.pos.z, m.vel, () => { m.onGround = false; });
+    }
+    for (let i = 0; i < 12; i++) {
+      this.particles.spawnSprite('poof', pos.x, pos.y, pos.z, (Math.random() - 0.5) * 0.3, Math.random() * 0.2, (Math.random() - 0.5) * 0.3, 12, 0.5);
+    }
+    this.audio.play('fizz', { x: pos.x, y: pos.y, z: pos.z, pitch: 0.7 });
+  }
+
+  /**
+   * The things a player throws by hand. Vanilla launches all of them at 1.5 except a bottle of
+   * enchanting, which is lobbed more gently and twenty degrees higher, and they fall at 0.03 a tick
+   * rather than an arrow's 0.05. Each bursts on the first thing it touches.
+   */
+  private throwItem(held: ItemStack): void {
+    const p = this.player;
+    const id = held.id;
+    const eye = p.eyePosition(1, this.tmpEye);
+    const dir = p.lookDirection(this.tmpDir).clone();
+    if (id === 'ender_eye') {
+      // an eye of ender goes where the stronghold is, not where the player is looking
+      const set = this.structureSets.find((x) => x.name === 'stronghold');
+      const at = set ? this.locateStructure(set) : null;
+      if (at) {
+        dir.set(at.x - p.pos.x, 0, at.z - p.pos.z);
+        if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1);
+        dir.normalize();
+      }
+      dir.y = ENDER_EYE_CLIMB;
+      dir.normalize();
+    } else if (id === 'experience_bottle') {
+      // vanilla lobs it twenty degrees above where the player is looking
+      const flat = Math.hypot(dir.x, dir.z);
+      const pitch = Math.atan2(dir.y, flat) + (20 * Math.PI) / 180;
+      const cos = Math.cos(pitch);
+      dir.set((dir.x / (flat || 1)) * cos, Math.sin(pitch), (dir.z / (flat || 1)) * cos);
+    }
+    const speed = id === 'experience_bottle' ? XP_BOTTLE_SPEED : THROW_SPEED;
+    const from = eye.clone().addScaledVector(dir, 0.3);
+    // a snowball stings a blaze and shoves everything else; nothing else thrown does any damage
+    const arrow = this.entities.shootArrow(from, from.clone().addScaledVector(dir, 16), speed, 0, true);
+    arrow.vel.copy(dir).multiplyScalar(speed);
+    arrow.knockback = id === 'snowball' || id === 'wind_charge' ? 1 : 0;
+    arrow.thrownId = id;
+    if (id === 'ender_eye') {
+      // vanilla's eye is no ordinary projectile: it drifts through the world for four seconds
+      arrow.ghost = true;
+      arrow.life = ENDER_EYE_LIFE;
+    }
+    arrow.asThrown(itemTexture(this.icons.forStack({ id, count: 1 })), 0.35, (pos) => this.thrownImpact(id, pos));
+    this.audio.play('bow', { pitch: id === 'experience_bottle' ? 0.6 : 1.2 });
+    if (p.gamemode !== 'creative') p.inventory.consumeSelected();
+    this.useCooldown = 8;
+  }
+
+  /** What each thrown thing does where it lands. */
+  private thrownImpact(id: string, pos: THREE.Vector3): void {
+    const p = this.player;
+    const at = { x: pos.x, y: pos.y, z: pos.z };
+    if (id === 'snowball') {
+      this.particles.poof(pos.x, pos.y, pos.z, 8, Math.random, 0.3, 0.3);
+      this.audio.play('dig_snow' in this.audio ? 'dig_snow' : 'dig_gravel', { ...at, pitch: 1.6 });
+      return;
+    }
+    if (id.endsWith('egg') && id !== 'ender_pearl') {
+      this.particles.poof(pos.x, pos.y, pos.z, 6, Math.random, 0.3, 0.3);
+      // one egg in eight hatches, and one hatching in thirty-two brings four chicks out at once
+      if (Math.random() < 1 / 8) {
+        const chicks = Math.random() < 1 / 32 ? 4 : 1;
+        for (let i = 0; i < chicks; i++) {
+          const chick = this.entities.spawn('chicken', pos.x, pos.y, pos.z, Math.random() * Math.PI * 2, true);
+          if (chick) chick.persistent = true;
+        }
+        this.audio.play('chicken', { ...at, pitch: 1.4 });
+      }
+      return;
+    }
+    if (id === 'ender_pearl') {
+      this.particles.poof(pos.x, pos.y, pos.z, 12, Math.random, 0.4, 0.4);
+      this.audio.play('enderman_teleport', at);
+      // the pearl lands against a wall or a floor, so step up out of it rather than into it
+      let y = pos.y;
+      for (let i = 0; i < 4 && !p.fitsAt(this.world, pos.x, y, pos.z); i++) y += 1;
+      p.teleport(pos.x, y, pos.z);
+      p.vel.set(0, 0, 0);
+      p.fallDistance = 0;
+      if (p.gamemode === 'survival') this.damage(ENDER_PEARL_DAMAGE, true, 'fall');
+      // vanilla lets an endermite out of one pearl in twenty
+      if (Math.random() < ENDERMITE_CHANCE) this.entities.spawn('endermite', pos.x, pos.y, pos.z, Math.random() * Math.PI * 2);
+      return;
+    }
+    if (id === 'wind_charge') {
+      this.windBurst(pos, WIND_CHARGE_KNOCKBACK);
+      return;
+    }
+    if (id === 'experience_bottle') {
+      // three to eleven experience, which is two rolls of five over a base of three
+      const xp = 3 + Math.floor(Math.random() * 5) + Math.floor(Math.random() * 5);
+      this.spawnXp(xp, pos.x, pos.y, pos.z);
+      this.particles.spawnSprite('spark', pos.x, pos.y, pos.z, 0, 0.05, 0, 20, 0.3);
+      this.audio.play('orb', { ...at, pitch: 0.8 });
+      return;
+    }
+    if (id === 'ender_eye') {
+      // four eyes in five survive the flight; the fifth shatters where it fell
+      if (Math.random() < ENDER_EYE_SURVIVES) this.dropStack({ id: 'ender_eye', count: 1 }, pos.x, pos.y, pos.z, false);
+      else this.particles.poof(pos.x, pos.y, pos.z, 8, Math.random, 0.3, 0.3);
+      this.audio.play('enderman_teleport', { ...at, pitch: 1.5 });
+    }
+  }
+
   /** Fills a glass bottle from the water the player is looking at. */
   private fillBottle(): void {
     const p = this.player;
@@ -3747,6 +3915,10 @@ export class Game {
       this.strikeFlint(t);
       return;
     }
+    if (held.id === 'ender_eye' && !(t && blocks.blockOf(t.state).id === 'end_portal_frame' && blocks.prop(t.state, 'eye') !== 'true')) {
+      this.throwItem(held);
+      return;
+    }
     if (held.id === 'ender_eye' && t && blocks.blockOf(t.state).id === 'end_portal_frame' && blocks.prop(t.state, 'eye') !== 'true') {
       this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'eye', 'true'));
       this.audio.play('click', { x: t.x, y: t.y, z: t.z, pitch: 1.4 });
@@ -3754,6 +3926,16 @@ export class Game {
       this.tryOpenEndPortal(t.x, t.y, t.z);
       return;
     }
+    if (def.behavior === 'throwable' && held.id !== 'ender_eye') {
+      this.throwItem(held);
+      return;
+    }
+    // a fire charge lights what a flint and steel lights, and is spent doing it rather than worn
+    if (held.id === 'fire_charge' && t) {
+      this.strikeFlint(t, true);
+      return;
+    }
+    if (def.behavior === 'spawn_egg' && t && this.useSpawnEgg(held, t)) return;
     if (def.behavior === 'axe' && t && this.useAxeOn(t)) return;
     if (held.id === 'honeycomb' && t && this.waxBlock(t)) return;
     if (def.behavior === 'hoe' && t && this.tillSoil(t)) return;
@@ -3822,7 +4004,7 @@ export class Game {
    * Flint and steel: vanilla lights a nether portal when the face struck opens into an obsidian
    * frame, and otherwise sets a fire on the face itself.
    */
-  private strikeFlint(t: RaycastHit): void {
+  private strikeFlint(t: RaycastHit, charge = false): void {
     const p = this.player;
     const [dx, dy, dz] = FACE_NORMALS[t.face];
     const x = t.x + dx, y = t.y + dy, z = t.z + dz;
@@ -3832,7 +4014,7 @@ export class Game {
       if (blocks.prop(t.state, 'waterlogged') === 'true') return;
       this.world.setBlock(t.x, t.y, t.z, blocks.withProp(t.state, 'lit', 'true'));
       this.audio.play('fizz', { x: t.x, y: t.y, z: t.z });
-      if (p.gamemode === 'survival') p.inventory.damageSelected(1);
+      if (p.gamemode === 'survival') { if (charge) p.inventory.consumeSelected(); else p.inventory.damageSelected(1); }
       return;
     }
     const world = this.portalBlocks();
@@ -3844,7 +4026,7 @@ export class Game {
       this.world.setBlock(x, y, z, blocks.defaultState('fire'));
     }
     this.audio.play('fizz', { x, y, z });
-    if (p.gamemode === 'survival') p.inventory.damageSelected(1);
+    if (p.gamemode === 'survival') { if (charge) p.inventory.consumeSelected(); else p.inventory.damageSelected(1); }
   }
 
   /**

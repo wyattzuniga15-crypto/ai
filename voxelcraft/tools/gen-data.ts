@@ -452,7 +452,8 @@ function itemBehavior(name: string): string {
   if (name.endsWith('_pottery_sherd')) return 'pottery_sherd';
   if (name === 'bundle' || name.endsWith('_bundle')) return 'bundle';
   if (name === 'arrow' || name === 'spectral_arrow' || name === 'tipped_arrow') return 'arrow';
-  if (name === 'ender_pearl' || name === 'snowball' || name === 'egg' || name === 'wind_charge' || name === 'experience_bottle' || name === 'fire_charge' || name === 'ender_eye' || name.endsWith('_egg') && name !== 'dragon_egg') return 'throwable';
+  // the hen's eggs are thrown; a turtle's and a sniffer's are blocks that are placed
+  if (name === 'ender_pearl' || name === 'snowball' || name === 'wind_charge' || name === 'experience_bottle' || name === 'fire_charge' || name === 'ender_eye' || name === 'egg' || name === 'blue_egg' || name === 'brown_egg') return 'throwable';
   const singles: Record<string, string> = {
     bow: 'bow', crossbow: 'crossbow', trident: 'trident', shield: 'shield', elytra: 'elytra', fishing_rod: 'fishing_rod',
     shears: 'shears', flint_and_steel: 'flint_and_steel', bone_meal: 'bone_meal', compass: 'compass', recovery_compass: 'compass',

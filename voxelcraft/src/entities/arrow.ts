@@ -5,6 +5,12 @@ import { collisionBoxes } from '../blocks/collision.ts';
 import { aabbIntersects, type AABB } from './physics.ts';
 import { entityTexture } from './boxModel.ts';
 
+/** ThrowableProjectile.getGravity: a snowball drops more slowly than an arrow. */
+export const THROWN_GRAVITY = 0.03;
+
+/** The speed vanilla throws a snowball, an egg, a pearl or a wind charge at. */
+export const THROW_SPEED = 1.5;
+
 export class Arrow {
   readonly pos = new THREE.Vector3();
   readonly prev = new THREE.Vector3();
@@ -28,7 +34,14 @@ export class Arrow {
   /** What it has already gone through, so one bolt never hits the same mob twice. */
   readonly pierced: unknown[] = [];
   /** Splash potions burst on anything they touch instead of sticking; a trident comes back. */
-  kind: 'arrow' | 'potion' | 'trident' = 'arrow';
+  kind: 'arrow' | 'potion' | 'trident' | 'thrown' = 'arrow';
+  /** Which thrown item this is, so a snowball can sting a blaze and nothing else. */
+  thrownId = '';
+  /** Ticks before it bursts of its own accord, or 0 for one that flies until it hits something. */
+  life = 0;
+  /** An eye of ender goes through the world rather than into it. */
+  ghost = false;
+
   /** The trident that was thrown, handed back when it lands. */
   onLanded: ((pos: THREE.Vector3, hitMob: boolean) => void) | null = null;
   onSplash: ((pos: THREE.Vector3) => void) | null = null;
@@ -57,6 +70,12 @@ export class Arrow {
       this.removed = true;
       return;
     }
+    // an eye of ender is not stopped by anything: it flies its span and then bursts where it is
+    if (this.life > 0 && this.age >= this.life) {
+      this.onSplash?.(this.pos.clone());
+      this.removed = true;
+      return;
+    }
     const next = this.pos.clone().add(this.vel);
     // step along the path checking blocks
     const steps = Math.ceil(this.vel.length() / 0.25) || 1;
@@ -67,7 +86,7 @@ export class Arrow {
       const pz = this.pos.z + this.vel.z * t;
       const box: AABB = { minX: px - 0.05, minY: py - 0.05, minZ: pz - 0.05, maxX: px + 0.05, maxY: py + 0.05, maxZ: pz + 0.05 };
       if (!this.fromPlayer && playerBox && aabbIntersects(box, [playerBox.minX, playerBox.minY, playerBox.minZ, playerBox.maxX, playerBox.maxY, playerBox.maxZ])) {
-        if (this.kind === 'potion') this.onSplash?.(new THREE.Vector3(px, py, pz));
+        if (this.kind === 'potion' || this.kind === 'thrown') this.onSplash?.(new THREE.Vector3(px, py, pz));
         else hurtPlayer(Math.max(1, Math.ceil(this.damage * this.vel.length())), this.pos);
         this.removed = true;
         return;
@@ -79,16 +98,18 @@ export class Arrow {
           continue;
         }
         this.pos.set(px, py, pz);
-        this.onLanded?.(this.pos.clone(), true);
+        // a thrown thing bursts on whatever it hits, mob or not
+        if (this.kind === 'thrown') this.onSplash?.(this.pos.clone());
+        else this.onLanded?.(this.pos.clone(), true);
         this.removed = true;
         return;
       }
-      const s = world.getBlock(Math.floor(px), Math.floor(py), Math.floor(pz));
+      const s = this.ghost ? 0 : world.getBlock(Math.floor(px), Math.floor(py), Math.floor(pz));
       if (s !== 0) {
         for (const b of collisionBoxes(s)) {
           if (aabbIntersects(box, [Math.floor(px) + b[0], Math.floor(py) + b[1], Math.floor(pz) + b[2], Math.floor(px) + b[3], Math.floor(py) + b[4], Math.floor(pz) + b[5]])) {
             this.pos.set(px, py, pz);
-            if (this.kind === 'potion') {
+            if (this.kind === 'potion' || this.kind === 'thrown') {
               this.onSplash?.(this.pos.clone());
               this.removed = true;
               return;
@@ -109,7 +130,8 @@ export class Arrow {
     }
     this.pos.copy(next);
     this.vel.multiplyScalar(0.99);
-    this.vel.y -= 0.05;
+    // vanilla's throwables fall at 0.03 a tick; an arrow and a trident at 0.05
+    this.vel.y -= this.kind === 'thrown' ? THROWN_GRAVITY : 0.05;
   }
 
   /** Turns the projectile into a thrown trident, which is drawn longer and spins as it flies. */
@@ -118,6 +140,23 @@ export class Arrow {
     this.mesh.geometry.dispose();
     const geo = new THREE.PlaneGeometry(1.4, 0.5);
     this.mesh.geometry = geo;
+    const mat = this.mesh.material as THREE.MeshBasicMaterial;
+    mat.map = texture;
+    mat.side = THREE.DoubleSide;
+    mat.needsUpdate = true;
+    return this;
+  }
+
+  /**
+   * Turns the projectile into a thrown item: a snowball, an egg, a pearl or a bottle. Vanilla's
+   * throwables fall more slowly than an arrow and burst on the first thing they touch, whatever it
+   * is, so the potion path is reused for the impact.
+   */
+  asThrown(texture: THREE.Texture, size: number, onImpact: (pos: THREE.Vector3) => void): this {
+    this.kind = 'thrown';
+    this.onSplash = onImpact;
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = new THREE.PlaneGeometry(size, size);
     const mat = this.mesh.material as THREE.MeshBasicMaterial;
     mat.map = texture;
     mat.side = THREE.DoubleSide;

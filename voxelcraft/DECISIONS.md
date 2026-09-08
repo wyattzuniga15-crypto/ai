@@ -1520,3 +1520,31 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      kept on the block. Vanilla rolls at the brush; the difference is invisible from inside the game
      and it means a suspicious block that is mined loses what was in it, which is vanilla's whole
      point about brushing.
+
+137. **The things you throw, and the eggs that are not eggs.** Nine items had no behaviour at all,
+     and eighty-seven more were inert.
+
+     The throwables reuse the projectile the arrows and splash potions already fly on, with a fourth
+     kind that bursts on the first thing it touches, whatever that is, and falls at vanilla's 0.03 a
+     tick rather than an arrow's 0.05. All of them launch at 1.5 except a bottle of enchanting,
+     which is lobbed at 0.7 and twenty degrees above where the player is looking. A snowball does
+     nothing to anything except a blaze, which it stings for three, and shoves what it hits; an egg
+     hatches one chick in eight, and one hatching in thirty-two brings four out at once; a pearl
+     puts the thrower where it landed for five points of fall damage, and lets an endermite out one
+     time in twenty; a wind charge throws everything within three and a half blocks away from it and
+     hurts nothing; a bottle of enchanting bursts into three to eleven experience. A fire charge is
+     not thrown at all — vanilla lights fires with it, so it takes the flint and steel's path and is
+     spent rather than worn.
+
+     An eye of ender is not a projectile in vanilla at all: it drifts through the world rather than
+     into it, for eighty ticks, and then either drops as an item (four times in five) or shatters.
+     Ours does the same, aimed at the nearest stronghold rather than at where the player is looking,
+     which is the whole point of throwing one.
+
+     Spawn eggs put the mob on the face that was clicked, facing whoever threw it. All eighty-seven
+     of them name a mob the game has, which is worth saying now that every entity type with stats is
+     in.
+
+     And a data fix worth its own note: the tool classified anything ending in `_egg` as a
+     throwable, so turtle eggs and sniffer eggs were items that could be thrown and not placed. They
+     are blocks; only the hen's three are thrown.
