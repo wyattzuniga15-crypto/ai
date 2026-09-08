@@ -536,6 +536,21 @@ writeJson(path.join(DATA, 'collision.json'), { shapes: shapesMd.shapes });
 // ------------------------------------------------------------------------------------------------
 // Items
 // ------------------------------------------------------------------------------------------------
+/**
+ * The seven spears. Their damage, wear and swing are read out of Mojang's own Bedrock behaviour
+ * files (`behavior_pack/items/*_spear.json`), which minecraft-data has no attribute modifiers for:
+ * `minecraft:damage` is the blow, `minecraft:durability` the wear, `minecraft:cooldown` the swing in
+ * seconds, and `minecraft:enchantable` the enchantability.
+ */
+const SPEARS: Record<string, { damage: number; durability: number; cooldown: number; enchantability: number }> = {
+  wooden_spear: { damage: 1, durability: 60, cooldown: 0.65, enchantability: 15 },
+  stone_spear: { damage: 2, durability: 130, cooldown: 0.75, enchantability: 5 },
+  copper_spear: { damage: 2, durability: 190, cooldown: 0.85, enchantability: 13 },
+  iron_spear: { damage: 3, durability: 250, cooldown: 0.95, enchantability: 14 },
+  golden_spear: { damage: 1, durability: 30, cooldown: 0.95, enchantability: 22 },
+  diamond_spear: { damage: 4, durability: 1560, cooldown: 1.05, enchantability: 10 },
+  netherite_spear: { damage: 5, durability: 2030, cooldown: 1.15, enchantability: 15 },
+};
 const items = itemsMd.map((i) => {
   const behavior = itemBehavior(i.name);
   const out: Record<string, unknown> = {
@@ -579,6 +594,17 @@ const items = itemsMd.map((i) => {
   if (ENCHANTABILITY[i.name] !== undefined) out.enchantability = ENCHANTABILITY[i.name];
   if (i.name === 'turtle_helmet') out.armor = { slot: 'helmet', points: 2, toughness: 0, knockbackResistance: 0 };
   if (i.name === 'elytra') out.armor = { slot: 'chestplate', points: 0, toughness: 0, knockbackResistance: 0 };
+  // The spears, whose numbers minecraft-data does not carry: taken from Mojang's own Bedrock
+  // behaviour files, where `minecraft:damage` is the blow itself and the attack cooldown in seconds
+  // is the reciprocal of the attacks-per-second every other weapon here is written in.
+  const spear = SPEARS[i.name];
+  if (spear) {
+    out.attack = { damage: spear.damage, speed: Math.round((1 / spear.cooldown) * 1000) / 1000 };
+    out.durability = spear.durability;
+    out.enchantability = spear.enchantability;
+    out.tier = i.name.slice(0, -6);
+    out.tierLevel = TIERS[i.name.slice(0, -6)]?.level ?? 0;
+  }
   if (i.name === 'trident') out.attack = { damage: 9, speed: 1.1 };
   if (i.name === 'mace') out.attack = { damage: 6, speed: 0.6 };
   if (i.name === 'shears') out.miningSpeed = 5;

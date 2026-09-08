@@ -80,7 +80,7 @@ const TOOL_IDS = new Set([
 ]);
 
 /** Weapons, armour and everything else a fight calls for. */
-const COMBAT_BEHAVIORS = new Set(['sword', 'bow', 'crossbow', 'trident', 'mace', 'arrow', 'shield']);
+const COMBAT_BEHAVIORS = new Set(['sword', 'bow', 'crossbow', 'trident', 'mace', 'arrow', 'shield', 'spear']);
 const COMBAT_IDS = new Set(['arrow', 'spectral_arrow', 'tipped_arrow', 'shield', 'totem_of_undying', 'firework_star', 'snowball', 'egg', 'ender_pearl', 'ender_eye', 'splash_potion', 'lingering_potion', 'wolf_armor']);
 
 const isColored = (id: string): boolean => {

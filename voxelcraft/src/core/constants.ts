@@ -17,6 +17,9 @@ export const PLAYER_EYE_HEIGHT = 1.62;
 export const PLAYER_SNEAK_HEIGHT = 1.5;
 export const PLAYER_SNEAK_EYE_HEIGHT = 1.27;
 export const BLOCK_REACH = 4.5;
+/** How far a swing reaches, and how much further a spear does (Mojang's own piercing reach). */
+export const MELEE_REACH = 3;
+export const SPEAR_REACH = 4.5;
 
 export const DEFAULT_RENDER_DISTANCE = 8;
 export const MC_VERSION = '1.21.11';

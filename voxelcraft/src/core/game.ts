@@ -4,7 +4,7 @@
  * state selection, drops), survival stats, the day cycle, commands and saving.
  */
 import * as THREE from 'three';
-import { BLOCK_REACH, DAY_LENGTH, SEA_LEVEL, WORLD_MAX_Y, WORLD_MIN_Y } from './constants.ts';
+import { BLOCK_REACH, DAY_LENGTH, MELEE_REACH, SEA_LEVEL, SPEAR_REACH, WORLD_MAX_Y, WORLD_MIN_Y } from './constants.ts';
 import { GameLoop } from './loop.ts';
 import { Input } from './input.ts';
 import type { Options, SaveManager, WorldMeta } from './save.ts';
@@ -1377,8 +1377,10 @@ export class Game {
     if (this.input.tickPressed('attack') && !p.dead) {
       const eye = p.eyePosition(1, this.tmpEye);
       const dir = p.lookDirection(this.tmpDir);
-      const hit = this.entities.raycast(eye, dir, 3);
-      if (hit && (!t || hit.distance < t.distance)) {
+      // a spear is the one weapon that reaches past arm's length, which is what it has over a sword
+      const spear = items.byId.get(p.heldItem()?.id ?? '')?.behavior === 'spear';
+      const hit = this.entities.raycast(eye, dir, spear ? SPEAR_REACH : MELEE_REACH);
+      if (hit && (!t || hit.distance < t.distance || spear)) {
         this.attackMob(hit.mob);
         this.breaking = null;
         this.useCooldown = 5;
@@ -1434,7 +1436,7 @@ export class Game {
     if (this.input.tickPressed('use') && !p.dead && this.useCooldown === 0) {
       const eye = p.eyePosition(1, this.tmpEye);
       const dir = p.lookDirection(this.tmpDir);
-      const hit = this.entities.raycast(eye, dir, 3);
+      const hit = this.entities.raycast(eye, dir, MELEE_REACH);
       if (hit && (!t || hit.distance < t.distance) && this.interactMob(hit.mob)) {
         this.eating = null;
         this.useCooldown = 4;
@@ -5452,7 +5454,7 @@ export class Game {
     if (crit) this.particles.crits(mob.pos.x, mid, mob.pos.z, 8, Math.random, 'crit');
     if (damage > 2) this.particles.crits(mob.pos.x, mid, mob.pos.z, Math.floor(damage * 0.5), Math.random, 'damage');
     this.audio.play(crit ? 'anvil' : 'hurt', { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z, pitch: crit ? 1.5 : 1.2, volume: 0.6 });
-    if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe' || def.behavior === 'mace' || def.behavior === 'trident')) p.inventory.damageSelected(def.behavior === 'sword' || def.behavior === 'trident' ? 1 : 2);
+    if (held && def?.durability && (def.behavior === 'sword' || def.behavior === 'axe' || def.behavior === 'pickaxe' || def.behavior === 'shovel' || def.behavior === 'hoe' || def.behavior === 'mace' || def.behavior === 'trident' || def.behavior === 'spear')) p.inventory.damageSelected(def.behavior === 'sword' || def.behavior === 'trident' || def.behavior === 'spear' ? 1 : 2);
     p.exhaustion += 0.1;
     if (p.gamemode === 'survival') this.hud.showToast('');
   }

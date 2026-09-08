@@ -1729,3 +1729,22 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      a blow by the same four-per-cent-a-point formula everything else uses, wears through a point
      per point of damage until it falls apart, mends a quarter of its sixty-four for each armadillo
      scute, and comes off with shears at the wear it had.
+
+146. **The spears, at last.** They were held back through three slices for want of attack stats:
+     minecraft-data ships no attribute modifiers, and guessing a weapon's damage is worse than
+     leaving it undone. Mojang's Bedrock behaviour files have them —
+     `behavior_pack/items/<tier>_spear.json` carries `minecraft:damage` (the blow), `durability`,
+     `cooldown` (the swing in seconds) and `enchantable` (the value) — so the numbers are read out of
+     those and written into `data/items.json` by the generator, with the cooldown turned into the
+     attacks-a-second every other weapon here is written in.
+
+     A spear hits softer than the sword of its own tier (1, 2, 2, 3, 1, 4 and 5 against a sword's
+     4 to 8) and swings slower the better it is, from 0.65 seconds on wood to 1.15 on netherite.
+     What it has instead is `minecraft:piercing_weapon`'s reach: four and a half blocks against a
+     swing's three. Measured in the game: an iron sword took six off a zombie two blocks away and
+     could not touch one at four; an iron spear took three at both, a wooden one took one, and
+     nothing reached five and a half.
+
+     The lunge and the kinetic charge in those same files — a spear thrown forward at speed hitting
+     harder — are left out: they need a mounted charge our combat does not have, and half of a
+     mechanic is worse than none.
