@@ -1572,3 +1572,29 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      Boats are aimed at the water rather than through it, so placing one takes its own fluid-aware
      raycast rather than the block target the rest of the game uses. They save and load with the
      chunk they are in, the way minecarts do.
+
+139. **Name tags and leads.** Two items that did nothing, both of which needed something drawn in
+     the world that the game had never drawn before.
+
+     A name tag has to have been named on an anvil first, as vanilla insists — a blank one does
+     nothing. The name goes on the mob, the mob stops despawning, and a plate is painted on a canvas
+     and hung over its head as a sprite, always turned to whoever is looking. Naming a sheep `jeb_`
+     runs it through all sixteen dyes, blending between them a colour every twenty-five ticks, which
+     is vanilla's oldest easter egg and cost about ten lines.
+
+     A lead ties to the mob and draws a cord back to whoever holds it — a line of twelve segments
+     that sags in the middle rather than a straight bar. Vanilla's distances: past six blocks the
+     mob is pulled along, past ten the cord snaps and the lead falls where it broke. Reaching out to
+     a leashed mob with an empty hand takes the lead back into the hand rather than dropping it.
+     Clicking a fence while holding leads ties every mob on one to that post, and a tied mob is held
+     near the post instead of near the player, which is how a pen is built.
+
+     Which mobs take them: everything except the two bosses and the end crystal. Vanilla's own rule
+     has grown to nearly that over the versions, and the alternative — a hand-kept list of ninety
+     mobs — would be wrong more often than this is.
+
+     Spears were left out of this slice on purpose. The seven of them are in the data with their
+     durability and their `lunge` enchantment, but nothing we have carries their attack damage or
+     speed: minecraft-data does not ship attribute modifiers, and every other weapon's numbers in
+     `tools/gen-data.ts` are hand-entered from ones I could check. Guessing a weapon's damage is
+     worse than leaving it undone.

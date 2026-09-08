@@ -95,7 +95,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HORSE_FOODS, NAUTILUS_SEAT, NAUTILUS_TYPES, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HORSE_FOODS, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -106,6 +106,7 @@ import { smithingScreen, stonecutterScreen } from '../ui/screens/workstations.ts
 import { ParticleSystem } from '../render/particles.ts';
 import { tintColor } from '../world/mesher.ts';
 import { carriedBy, carriedStore, mobFireAssets, type Mob as MobType } from '../entities/mob.ts';
+import { LEASH_BREAK, LEASH_FORCE, LEASH_PULL, LeashLine } from '../entities/nameplate.ts';
 import { WOLF_FOODS, isBreedingFood } from '../entities/mobTypes.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import { countBookshelves } from '../items/enchanting.ts';
@@ -217,6 +218,9 @@ export class Game {
   /** True while a dimension is being built, so nothing else tries to start another. */
   private travelling = false;
   private lastSaveAt = 0;
+  /** The cord drawn for each mob on a lead. */
+  private readonly leashLines = new Map<MobType, LeashLine>();
+
   /** The suspicious block being brushed and how long the brush has been on it. */
   private brushing: { at: string; ticks: number } | null = null;
 
@@ -1071,6 +1075,7 @@ export class Game {
     this.tickFireworks();
     this.tickCuring();
     this.tickCopperGolems();
+    this.tickLeads();
     this.tickBrushing();
     this.tickShriekers();
     this.tickAmbience();
@@ -1454,7 +1459,9 @@ export class Game {
     } else {
       this.eating = null;
       this.brushing = null;
-      if (this.input.tickPressed('use') && t && !p.dead && !p.sneaking && this.useBlock(t)) {
+      if (this.input.tickPressed('use') && t && !p.dead && this.tieToFence(t)) {
+        this.useCooldown = 4;
+      } else if (this.input.tickPressed('use') && t && !p.dead && !p.sneaking && this.useBlock(t)) {
         this.useCooldown = 4;
       } else if (this.input.isDown('use') && this.useCooldown === 0 && !p.dead) {
         if (t) {
@@ -5517,6 +5524,106 @@ export class Game {
   }
 
   /**
+   * Leads. A mob on one follows whoever holds it and is pulled along once it falls six blocks
+   * behind; past ten the cord snaps and the lead drops where it broke. A lead tied to a fence holds
+   * the mob near the post instead, which is how vanilla pens an animal.
+   */
+  private tickLeads(): void {
+    const holder = this.player.pos.clone().setY(this.player.pos.y + this.player.eyeHeight * 0.6);
+    const seen = new Set<MobType>();
+    for (const m of this.entities.mobs) {
+      if (m.dead || m.extra.leashed !== true) continue;
+      seen.add(m);
+      const post = typeof m.extra.leashX === 'number'
+        ? new THREE.Vector3(m.extra.leashX as number, m.extra.leashY as number, m.extra.leashZ as number)
+        : null;
+      const to = post ?? holder;
+      const d = m.distanceTo(to);
+      if (!post && d > LEASH_BREAK) {
+        this.dropLead(m);
+        continue;
+      }
+      if (d > LEASH_PULL) {
+        // vanilla pulls the mob toward the holder rather than dragging it bodily
+        const pull = to.clone().sub(m.pos).normalize().multiplyScalar(LEASH_FORCE * (d - LEASH_PULL));
+        m.vel.add(pull);
+        m.moveTarget = to.clone();
+        m.moveSpeed = 1.2;
+        m.moveTimeout = 40;
+      }
+      let line = this.leashLines.get(m);
+      if (!line) {
+        line = new LeashLine();
+        this.leashLines.set(m, line);
+        this.renderer.scene.add(line.line);
+      }
+      line.update(m.pos.clone().setY(m.pos.y + m.height * 0.8), post ? to.clone().setY(to.y + 0.4) : holder);
+    }
+    for (const [m, line] of this.leashLines) {
+      if (seen.has(m)) continue;
+      this.renderer.scene.remove(line.line);
+      line.dispose();
+      this.leashLines.delete(m);
+    }
+  }
+
+  /** Cuts a lead: the mob is loose and the lead falls where it was. */
+  private dropLead(m: MobType, give = false): void {
+    m.extra.leashed = false;
+    delete m.extra.leashX;
+    delete m.extra.leashY;
+    delete m.extra.leashZ;
+    if (this.player.gamemode !== 'creative') {
+      if (give) this.player.inventory.add({ id: 'lead', count: 1 });
+      else this.dropStack({ id: 'lead', count: 1 }, m.pos.x, m.pos.y + m.height / 2, m.pos.z, true);
+    }
+    this.audio.play('click', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.8 });
+  }
+
+  /** Ties every lead the player is holding to the fence they clicked. */
+  private tieToFence(t: RaycastHit): boolean {
+    if (!blocks.blockOf(t.state).id.endsWith('_fence')) return false;
+    let tied = 0;
+    for (const m of this.entities.mobs) {
+      if (m.dead || m.extra.leashed !== true || typeof m.extra.leashX === 'number') continue;
+      if (m.distanceTo(this.player.pos) > LEASH_BREAK) continue;
+      m.extra.leashX = t.x + 0.5;
+      m.extra.leashY = t.y + 0.5;
+      m.extra.leashZ = t.z + 0.5;
+      tied++;
+    }
+    if (!tied) return false;
+    this.audio.play('saddle', { x: t.x, y: t.y, z: t.z, pitch: 1.1 });
+    return true;
+  }
+
+  /**
+   * A name tag and a lead, the two things that work on almost any mob. A tag has to have been named
+   * on an anvil first, as vanilla insists; a lead ties the mob to whoever is holding it, and taking
+   * it back is a matter of reaching out to the mob with an empty hand.
+   */
+  private interactTagOrLead(m: MobType, held: ItemStack, survival: boolean): boolean {
+    const at = { x: m.pos.x, y: m.pos.y + m.height, z: m.pos.z };
+    if (held.id === 'name_tag' && held.name) {
+      if (!canBeNamed(m.def.id)) return false;
+      m.extra.name = held.name;
+      m.persistent = true; // vanilla never despawns a mob somebody has named
+      if (survival) this.player.inventory.consumeSelected();
+      this.audio.play('click', { ...at, pitch: 1.4 });
+      return true;
+    }
+    if (held.id === 'lead' && canBeLeashed(m.def.id) && m.extra.leashed !== true) {
+      m.extra.leashed = true;
+      delete m.extra.leashX;
+      m.persistent = true;
+      if (survival) this.player.inventory.consumeSelected();
+      this.audio.play('saddle', { ...at, pitch: 1.2 });
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * The copper golem takes the same three tools its blocks do: honeycomb waxes it where it stands,
    * an axe takes the wax back off or scrapes an age away, and shears take its flower.
    */
@@ -5569,6 +5676,7 @@ export class Game {
       this.openTradeScreen(m);
       return true;
     }
+    if (held && this.interactTagOrLead(m, held, survival)) return true;
     if (m.def.id === 'copper_golem' && held && this.interactCopperGolem(m, held, survival)) return true;
     if (!held) return false;
     if (held.id === 'shears' && m.def.id === 'sheep' && !m.isBaby && m.extra.sheared !== true) {

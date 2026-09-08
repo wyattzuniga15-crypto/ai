@@ -292,6 +292,19 @@ const ironGolemModel: ModelDef = {
   ],
 };
 
+/** The three vanilla will not let a name tag or a lead touch: the two bosses and the crystal. */
+export const UNTAGGABLE = ['ender_dragon', 'wither', 'end_crystal'];
+
+/** Whether a name tag names this mob. */
+export function canBeNamed(type: string): boolean {
+  return !UNTAGGABLE.includes(type) && !!mobStats(type);
+}
+
+/** Whether a lead ties to it. Vanilla leashes almost everything now; the bosses are the exception. */
+export function canBeLeashed(type: string): boolean {
+  return canBeNamed(type);
+}
+
 /** Where Mojang seats a nautilus's rider, and how deeply they breathe while they are there. */
 export const NAUTILUS_SEAT = 0.925;
 

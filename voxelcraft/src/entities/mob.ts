@@ -5,6 +5,7 @@ import { aabbIntersects, boxesIn, isFluidAt, sweep, type AABB } from './physics.
 import { buildModel, entityTexture, type BuiltModel, type ModelDef } from './boxModel.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GlowOutline } from '../render/glow.ts';
+import { JEB_NAME, NAME_PLATE_LIFT, jebColor, namePlate } from './nameplate.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
@@ -247,6 +248,9 @@ export class Mob {
   /** Persistent mobs never despawn (named, bred, passive). */
   persistent: boolean;
   private fireMesh: THREE.Mesh | null = null;
+  /** The name plate a named mob wears, and the name it was drawn for. */
+  private plate: THREE.Sprite | null = null;
+  private plateName = '';
   private beamMesh: THREE.Mesh | null = null;
   /** Built the first time the mob glows, then just hidden and shown. */
   private outline: GlowOutline | null = null;
@@ -657,6 +661,12 @@ export class Mob {
       this.fireMesh.geometry.dispose();
       this.fireMesh = null;
     }
+    if (this.plate) {
+      this.plate.parent?.remove(this.plate);
+      this.plate.material.map?.dispose();
+      this.plate.material.dispose();
+      this.plate = null;
+    }
     if (this.outline) {
       this.outline.dispose();
       this.outline = null;
@@ -726,6 +736,31 @@ export class Mob {
     this.outline.setVisible(true);
   }
 
+  /**
+   * The name a name tag gave it, painted on a plate that hangs over its head. Vanilla draws one for
+   * every named mob, always turned to whoever is looking.
+   */
+  private renderName(): void {
+    const name = typeof this.extra.name === 'string' ? this.extra.name : '';
+    if (name === this.plateName) {
+      if (this.plate) this.plate.position.y = this.height + NAME_PLATE_LIFT;
+      return;
+    }
+    this.plateName = name;
+    if (this.plate) {
+      this.plate.parent?.remove(this.plate);
+      this.plate.material.map?.dispose();
+      this.plate.material.dispose();
+      this.plate = null;
+    }
+    if (!name) return;
+    const plate = namePlate(name);
+    if (!plate) return;
+    plate.position.y = this.height + NAME_PLATE_LIFT;
+    this.model.group.add(plate);
+    this.plate = plate;
+  }
+
   private renderFire(): void {
     const g = this.model.group;
     const burning = this.fireTicks > 0 && !this.dead && !!mobFireAssets.material;
@@ -749,6 +784,7 @@ export class Mob {
     g.position.copy(this.prev).lerp(this.pos, alpha);
     this.renderFire();
     this.renderGlow();
+    this.renderName();
     if (this.def.animation === 'guardian' || this.def.animation === 'crystal') this.renderBeam();
     const baby = this.isBaby;
     g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
@@ -1302,7 +1338,9 @@ export class Mob {
       const layer = entityTexture(this.base, this.def.id === 'sheep' ? 'sheep/sheep_wool.png' : this.def.id === 'cat' ? CAT_COLLAR_LAYER : 'wolf/wolf_collar.png');
       this.woolMaterials = this.model.materials.filter((m) => m.map === layer);
     }
-    const dye = this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : this.def.id === 'wolf' || this.def.id === 'cat' ? DYE_COLORS[String(this.extra.collar ?? 'red')] ?? 0xff0000 : 0xffffff;
+    // vanilla's oldest easter egg: a sheep called jeb_ runs through the dyes rather than wearing one
+    const rainbow = this.def.id === 'sheep' && this.extra.name === JEB_NAME ? jebColor(this.age) : null;
+    const dye = rainbow ?? (this.def.id === 'sheep' ? DYE_COLORS[String(this.extra.color ?? 'white')] ?? 0xffffff : this.def.id === 'wolf' || this.def.id === 'cat' ? DYE_COLORS[String(this.extra.collar ?? 'red')] ?? 0xff0000 : 0xffffff);
     for (const m of this.model.materials) {
       const tinted = this.woolMaterials?.includes(m);
       const tr = tinted ? ((dye >> 16) & 255) / 255 : 1, tg = tinted ? ((dye >> 8) & 255) / 255 : 1, tb = tinted ? (dye & 255) / 255 : 1;
