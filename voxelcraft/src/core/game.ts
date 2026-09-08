@@ -66,7 +66,8 @@ import { ContainerScreen, type ScreenDef } from '../ui/screens/container.ts';
 import { beaconScreen, brewingScreen, cartographyScreen, chestScreen, crafterScreen, loomScreen, craftingTableScreen, dispenserScreen, furnaceScreen, hopperScreen, inventoryScreen, makeGrid, type CraftingGrid, horseScreen, nautilusScreen } from '../ui/screens/screens.ts';
 import { craftingMatcher } from '../items/crafting.ts';
 import { Firework, fireworkLifetime } from '../entities/firework.ts';
-import { containerKind, createBlockEntity, type BeaconEntity, type BrushableEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { containerKind, createBlockEntity, type BeaconEntity, type BrushableEntity, type BrewingEntity, type CrafterEntity, type LecternEntity, type ContainerEntity, type DriedGhastEntity, type FurnaceEntity, type HiveEntity, type JukeboxEntity, type SpawnerEntity } from '../blocks/blockEntity.ts';
+import { hydrationOf, hydrationTick, inWater, withHydration } from '../blocks/driedGhast.ts';
 import { songForDisc, type JukeboxSong } from '../items/jukebox.ts';
 import { loadSoundDefinitions } from '../audio/sounds.ts';
 import { MusicManager } from '../audio/music.ts';
@@ -96,7 +97,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -1845,6 +1846,10 @@ export class Game {
         this.tickSpawner(x, y, z, e as SpawnerEntity);
         return;
       }
+      if (e.type === 'dried_ghast') {
+        this.tickDriedGhast(x, y, z, e as DriedGhastEntity);
+        return;
+      }
       if (e.type === 'beacon') {
         if (this.tickCount % 80 === 0) this.tickBeacon(x, y, z, e as BeaconEntity);
         return;
@@ -2116,6 +2121,36 @@ export class Game {
    * four times to put a mob in the nine-by-three-by-nine box around it, stopping once six of them
    * are already there, and waits ten to forty seconds before the next batch.
    */
+  /**
+   * A dried ghast soaking. Standing in water it climbs a hydration step every five minutes, and a
+   * step past the last one it splits open and a ghastling comes out; on dry land it dries back down
+   * at the same rate. The block only counts while a player is near enough for its chunk to be up.
+   */
+  private tickDriedGhast(x: number, y: number, z: number, e: DriedGhastEntity): void {
+    const state = this.world.getBlock(x, y, z);
+    if (state === 0 || blocks.blockOf(state).id !== 'dried_ghast') return;
+    const wet = inWater(state, (dx, dy, dz) => {
+      const s = this.world.getBlock(x + dx, y + dy, z + dz);
+      return s === 0 ? 'air' : blocks.blockOf(s).id;
+    });
+    const step = hydrationTick(hydrationOf(state), e.soak, wet, e.wet);
+    e.soak = step.soak;
+    e.wet = wet;
+    if (!step.changed) return;
+    this.world.markModifiedAt(x, z);
+    if (step.hatch) {
+      this.world.setBlock(x, y, z, blocks.prop(state, 'waterlogged') === 'true' ? blocks.defaultState('water') : 0);
+      const ghastling = this.entities.spawn('happy_ghast', x + 0.5, y + 0.5, z + 0.5, Math.random() * Math.PI * 2, true);
+      if (ghastling) ghastling.persistent = true;
+      this.particles.poof(x + 0.5, y + 0.5, z + 0.5, 16, Math.random, 1, 0.6);
+      this.audio.play('splash', { x, y, z, pitch: 1.4 });
+      return;
+    }
+    this.world.setBlock(x, y, z, withHydration(state, step.hydration));
+    this.particles.spawnSprite('happy', x + 0.5, y + 1, z + 0.5, 0, 0.05, 0, 20, 0.3);
+    this.audio.play('fizz', { x, y, z, pitch: 0.8 + step.hydration * 0.15, volume: 0.4 });
+  }
+
   private tickSpawner(x: number, y: number, z: number, e: SpawnerEntity): void {
     if (!e.mob) return;
     const p = this.player.pos;
@@ -5942,6 +5977,15 @@ export class Game {
   private interactHappyGhast(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
     const p = this.player;
     const harness = typeof m.extra.harness === 'string' ? m.extra.harness : '';
+    // a ghastling grows up sooner for a snowball, which is the only thing it will take
+    if (held?.id === GHASTLING_FOOD && m.isBaby) {
+      const grow = typeof m.extra.grow === 'number' ? m.extra.grow : GHASTLING_GROW;
+      m.extra.grow = Math.max(1, grow - GHASTLING_GROW / 10);
+      if (survival) p.inventory.consumeSelected();
+      this.particles.hearts(m.pos.x, at.y, m.pos.z, 5, Math.random, m.width, 0.5);
+      this.audio.play('eat', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
     if (held && isHarness(held.id)) {
       if (harness || m.isBaby) return false;
       m.extra.harness = held.id;

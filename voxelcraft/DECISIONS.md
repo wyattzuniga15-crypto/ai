@@ -1647,3 +1647,23 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      the descending half of Mojang's vertical control is done by looking down, which the ghast
      follows anyway. The buck timer that threw a rider off an untamed horse was firing on every
      mount, which no other animal does; it is now the equines' alone.
+
+142. **The dried ghast, and the ghastling in it.** Bartered off a piglin or made from eight ghast
+     tears round a lump of soul sand, and until now a block that only sat there. It counts as wet
+     when it has drunk the water in or when water touches any of its sides; wet, its hydration
+     climbs a step every five minutes, and a step past the last one the block splits open and a
+     ghastling comes out, leaving behind whatever water it was standing in. On dry land it dries
+     back down at the same rate and stops at nothing. Lifting it out of the water, or dropping it
+     back in, starts the count again, the way vanilla puts a fresh tick on the schedule whenever the
+     state under it changes.
+
+     The five minutes is the one number here that is not in anything we hold: Mojang keeps block
+     timings in code, and neither minecraft-data nor the Bedrock samples ship a behaviour file for
+     this block. Four steps of five minutes is the twenty minutes the wiki gives for a block to
+     hatch, and it is the same twenty minutes Mojang's own behaviour pack gives a ghastling to grow
+     up (`ageable duration: 1200` seconds), which is the family of numbers this block belongs to.
+
+     The ghastling itself is the happy ghast at Mojang's own baby scale of 0.2375 rather than the
+     half that every other baby takes, which is why mobs now carry their own baby scale; it has its
+     own skin, is too small to wear a harness or carry anyone, and a snowball takes a tenth off the
+     time it has left to grow.

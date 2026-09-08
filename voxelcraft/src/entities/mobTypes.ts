@@ -317,6 +317,12 @@ export const HAPPY_GHAST_SEATS: [number, number][] = [[0, 1.7], [-1.7, 0], [0, -
 export const HAPPY_GHAST_BACKWARDS = 0.5;
 /** How far under a happy ghast there has to be ground before its rider may step off. */
 export const HAPPY_GHAST_STEP_OFF = 4;
+/** The ghastling: Mojang shrinks the baby to under a quarter, and gives it its own skin. */
+export const GHASTLING_SCALE = 0.2375;
+export const GHASTLING_TEXTURE = 'ghast/happy_ghast_baby.png';
+/** What it eats to grow up sooner, and how long it takes on its own (Mojang's twenty minutes). */
+export const GHASTLING_FOOD = 'snowball';
+export const GHASTLING_GROW = 24000;
 /** Mojang tempts one with a snowball, and an unharnessed one with the harness itself. */
 export const HAPPY_GHAST_TEMPT_RANGE = 16;
 /** How close it comes before it stops: Mojang keeps a four-block ghast seven blocks off. */
@@ -1320,6 +1326,8 @@ interface MobSpec {
   flapping?: boolean;
   loot?: string;
   scale?: number;
+  /** How much smaller a baby is, when vanilla does not simply halve it (a ghastling is 0.2375). */
+  babyScale?: number;
   aquatic?: boolean;
   fireproof?: boolean;
   walksOnLava?: boolean;
@@ -1503,7 +1511,7 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // the last of the variants: the same models in other skins, at other sizes
   illusioner: { model: illagerModel('illager/illusioner.png'), animation: 'illager', eyeHeight: 1.62, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), bowAttackGoal({ id: 'blindness', ticks: 300 }), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   giant: { model: biped('zombie/zombie.png', 64), animation: 'biped', eyeHeight: 10.4, followRange: 32, scale: 6, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), meleeAttackGoal(1.5), wanderGoal(160, 0.7), randomLookGoal] },
-  happy_ghast: { model: happyGhastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 32, flying: true, scale: 4.5, data: 'happy_ghast', goals: () => [temptGoal(['snowball', ...HARNESS_COLORS.map((c) => `${c}_harness`)], HAPPY_GHAST_TEMPT_RANGE, 0.6, HAPPY_GHAST_TEMPT_STOP), wanderGoal(120, 0.6, 16), lookAtPlayerGoal(16), randomLookGoal] },
+  happy_ghast: { model: happyGhastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 32, flying: true, scale: 4.5, babyScale: GHASTLING_SCALE, data: 'happy_ghast', goals: () => [temptGoal(['snowball', ...HARNESS_COLORS.map((c) => `${c}_harness`)], HAPPY_GHAST_TEMPT_RANGE, 0.6, HAPPY_GHAST_TEMPT_STOP), wanderGoal(120, 0.6, 16), lookAtPlayerGoal(16), randomLookGoal] },
   camel_husk: { model: camelModel, animation: 'quadruped', eyeHeight: 2.1, followRange: 24, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(24), meleeAttackGoal(0.6), wanderGoal(160, 0.7, 10), randomLookGoal] },
   parched: { model: biped('skeleton/parched.png', 32, true), animation: 'biped', eyeHeight: 1.74, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), bowAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   pufferfish: { model: pufferfishModel, animation: 'fish', eyeHeight: 0.35, followRange: 8, aquatic: true, goals: () => [swimGoal(), pufferPuffGoal()] },
@@ -1662,6 +1670,7 @@ export function mobStats(id: string): MobStats | null {
     model: spec.model,
     animation: spec.animation,
     scale: spec.scale,
+    babyScale: spec.babyScale,
   };
 }
 

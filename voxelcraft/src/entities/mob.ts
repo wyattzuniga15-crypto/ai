@@ -9,7 +9,7 @@ import { JEB_NAME, NAME_PLATE_LIFT, jebColor, namePlate } from './nameplate.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { COPPER_GOLEM_SKINS, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { COPPER_GOLEM_SKINS, GHASTLING_TEXTURE, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -42,6 +42,8 @@ export interface MobStats {
   animation: 'biped' | 'quadruped' | 'creeper' | 'spider' | 'chicken' | 'slime' | 'fish' | 'bat' | 'squid' | 'nautilus' | 'rabbit' | 'silverfish' | 'breeze' | 'warden' | 'phantom' | 'horse' | 'bee' | 'illager' | 'vex' | 'guardian' | 'blaze' | 'ghast' | 'strider' | 'wither' | 'crystal' | 'dragon' | 'shulker';
   /** Render scale of the box model (slime sizes, wither skeleton 1.2, cave spider 0.7). */
   scale?: number;
+  /** How much smaller a baby is, when vanilla does not simply halve it (a ghastling is 0.2375). */
+  babyScale?: number;
 }
 
 export interface MobWorld extends BlockSource {
@@ -285,12 +287,17 @@ export class Mob {
     return this.extra.baby === true;
   }
 
+  /** How much smaller this mob is as a baby: half, unless its own spec says otherwise. */
+  private get babyScale(): number {
+    return this.isBaby ? this.def.babyScale ?? 0.5 : 1;
+  }
+
   get width(): number {
-    return this.def.width * (this.isBaby ? 0.5 : 1);
+    return this.def.width * this.babyScale;
   }
 
   get height(): number {
-    return this.def.height * (this.isBaby ? 0.5 : 1);
+    return this.def.height * this.babyScale;
   }
 
   aabb(pos = this.pos): AABB {
@@ -796,7 +803,7 @@ export class Mob {
     this.renderName();
     if (this.def.animation === 'guardian' || this.def.animation === 'crystal') this.renderBeam();
     const baby = this.isBaby;
-    g.scale.setScalar((this.def.scale ?? 1) * (baby ? 0.5 : 1));
+    g.scale.setScalar((this.def.scale ?? 1) * this.babyScale);
     const headPart = this.model.parts.get('head');
     // vanilla babies keep a full-size head, but a nautilus's head part is its whole shell
     if (headPart) headPart.scale.setScalar(baby && this.def.animation !== 'nautilus' ? 2 : 1);
@@ -1261,6 +1268,8 @@ export class Mob {
       if (armor) this.setLayerTexture(NAUTILUS_ARMOR_LAYER, armor);
     }
     if (this.def.id === 'happy_ghast') {
+      // a ghastling is small enough to have its own skin, and too small to wear anything
+      if (this.isBaby) this.setTexture(GHASTLING_TEXTURE);
       // the harness only shows once one is on, and it takes the colour of the one that was put there
       const harness = typeof this.extra.harness === 'string' ? this.extra.harness : '';
       for (const n of ['harness', 'goggles']) {

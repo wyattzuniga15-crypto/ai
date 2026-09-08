@@ -80,6 +80,14 @@ export interface HiveEntity {
   nectar: boolean[];
 }
 
+/** A dried ghast soaking or drying out: ticks spent at the hydration its state is showing. */
+export interface DriedGhastEntity {
+  type: 'dried_ghast';
+  soak: number;
+  /** Whether it was in water last tick: going in or coming out starts the count again. */
+  wet: boolean;
+}
+
 /** Monster spawners: which mob comes out and how long until the next batch. */
 export interface SpawnerEntity {
   type: 'spawner';
@@ -109,7 +117,7 @@ export interface JukeboxEntity {
   ticks: number;
 }
 
-export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity | BrushableEntity;
+export type BlockEntity = ContainerEntity | FurnaceEntity | BrewingEntity | CrafterEntity | LecternEntity | BannerEntity | BeaconEntity | SignEntity | HiveEntity | SpawnerEntity | JukeboxEntity | BrushableEntity | DriedGhastEntity;
 
 export const CONTAINER_SIZES: Record<string, number> = {
   chest: 27, trapped_chest: 27, barrel: 27, shulker_box: 27, hopper: 5, dispenser: 9, dropper: 9,
@@ -138,6 +146,7 @@ export function createBlockEntity(blockId: string): BlockEntity | null {
   if (blockId.endsWith('_sign')) return { type: 'sign', lines: ['', '', '', ''] };
   if (blockId === 'beehive' || blockId === 'bee_nest') return { type: 'beehive', bees: [], nectar: [] };
   if (blockId === 'spawner') return { type: 'spawner', mob: '', delay: 20 };
+  if (blockId === 'dried_ghast') return { type: 'dried_ghast', soak: 0, wet: false };
   if (blockId === 'jukebox') return { type: 'jukebox', items: [null], ticks: 0 };
   return null;
 }
