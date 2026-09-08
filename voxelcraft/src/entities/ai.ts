@@ -520,7 +520,7 @@ export const sitGoal = (): Goal => ({
  * Vanilla TemptGoal: the animal walks toward a player holding one of `items` and stops just short.
  * Cats and ocelots creep in slowly, which is how the player gets close enough to feed them.
  */
-export const temptGoal = (items: string[], range = 10, speed = 0.6): Goal => ({
+export const temptGoal = (items: string[], range = 10, speed = 0.6, stopAt = 2.5): Goal => ({
   flags: FLAG_MOVE | FLAG_LOOK,
   canUse: (m, w) => {
     if (m.extra.sitting === true) return false;
@@ -530,7 +530,7 @@ export const temptGoal = (items: string[], range = 10, speed = 0.6): Goal => ({
   tick: (m, w) => {
     const p = w.playerPos();
     m.lookTarget = w.playerEye();
-    if (m.distanceTo(p) < 2.5) {
+    if (m.distanceTo(p) < stopAt) {
       m.moveTarget = null;
       return;
     }

@@ -73,6 +73,7 @@ const OPERATOR_IDS = new Set(['barrier', 'command_block', 'chain_command_block',
 const TOOL_BEHAVIORS = new Set(['pickaxe', 'axe', 'shovel', 'hoe', 'shears', 'bucket', 'fishing_rod', 'flint_and_steel', 'spawn_egg', 'elytra', 'firework', 'boat', 'minecart', 'bundle']);
 const TOOL_IDS = new Set([
   'lead', 'name_tag', 'compass', 'recovery_compass', 'clock', 'map', 'filled_map', 'spyglass', 'brush', 'saddle', 'bundle',
+  ...COLORS.map((c) => `${c}_harness`),
   'goat_horn', 'bucket', 'water_bucket', 'lava_bucket', 'powder_snow_bucket', 'milk_bucket', 'axolotl_bucket', 'tadpole_bucket',
   'cod_bucket', 'salmon_bucket', 'pufferfish_bucket', 'tropical_fish_bucket', 'flint_and_steel', 'fire_charge', 'shears', 'elytra',
   'writable_book', 'written_book', 'glass_bottle', 'wind_charge',

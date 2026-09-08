@@ -9,7 +9,7 @@ import { JEB_NAME, NAME_PLATE_LIFT, jebColor, namePlate } from './nameplate.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { COPPER_GOLEM_SKINS, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { COPPER_GOLEM_SKINS, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -156,6 +156,13 @@ const RIDDEN_ACCEL = 1.79;
  * tick; ours drags at 0.9, so the push is halved to land in the same place.
  */
 const RIDDEN_SWIM_ACCEL = 0.0275;
+/**
+ * A ridden flier pushes at its own flying speed each tick, which against the 0.91 air drag settles
+ * at `speed × 0.91 / 0.09`. For the happy ghast's 0.05 that is just over half a block a tick, and
+ * Mojang's own vertical velocity for one — half a block a tick — lands in the same place, so the
+ * climb and the run come out matched the way they do in vanilla.
+ */
+const RIDDEN_FLY_ACCEL = 1;
 
 let nextId = 1;
 
@@ -477,14 +484,16 @@ export class Mob {
         const cos = Math.cos(this.yaw);
         dirX = (-c.strafe * cos - c.forward * sin) / Math.max(1, len);
         dirZ = (c.strafe * sin - c.forward * cos) / Math.max(1, len);
-        accel = attr * RIDDEN_ACCEL * (this.onGround ? 1 : 0.2);
-        if (this.inWater) accel *= 0.5;
+        accel = this.def.flying ? attr * RIDDEN_FLY_ACCEL : attr * RIDDEN_ACCEL * (this.onGround ? 1 : 0.2);
+        if (this.inWater && !this.def.flying) accel *= 0.5;
       }
       // an underwater mount goes wherever its rider looks, which is how vanilla steers one
       if (this.def.aquatic && this.inWater) {
         accel = RIDDEN_SWIM_ACCEL;
         this.vel.y += c.lift * accel * (len > 0.001 ? 1 : 0);
       }
+      // a flier climbs on its own, whether or not it is going anywhere
+      if (this.def.flying) this.vel.y += c.lift * attr * RIDDEN_FLY_ACCEL;
       if (c.jump > 0 && this.onGround) {
         this.vel.y = c.jump;
         this.onGround = false;
@@ -1251,7 +1260,15 @@ export class Mob {
       }
       if (armor) this.setLayerTexture(NAUTILUS_ARMOR_LAYER, armor);
     }
-    if (this.def.id === 'happy_ghast') this.setTexture('ghast/happy_ghast.png');
+    if (this.def.id === 'happy_ghast') {
+      // the harness only shows once one is on, and it takes the colour of the one that was put there
+      const harness = typeof this.extra.harness === 'string' ? this.extra.harness : '';
+      for (const n of ['harness', 'goggles']) {
+        const p = parts.get(n);
+        if (p) p.visible = !!harness;
+      }
+      if (harness) this.setLayerTexture(HAPPY_GHAST_HARNESS_LAYER, harnessLayer(harness));
+    }
     if (this.def.id === 'camel_husk') this.setTexture('camel/camel_husk.png');
     if (this.def.id === 'tropical_fish') this.setTexture('fish/tropical_a.png');
     if (this.def.id === 'armadillo') {

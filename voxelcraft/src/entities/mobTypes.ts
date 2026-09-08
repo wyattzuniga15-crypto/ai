@@ -308,6 +308,33 @@ export function canBeLeashed(type: string): boolean {
 /** Where Mojang seats a nautilus's rider, and how deeply they breathe while they are there. */
 export const NAUTILUS_SEAT = 0.925;
 
+/**
+ * The happy ghast's harness. Mojang seats four riders round the top of it, and the ghast goes
+ * where the camera points at its own flying speed, backwards at half of it.
+ */
+export const HAPPY_GHAST_SEAT = 3.8;
+export const HAPPY_GHAST_SEATS: [number, number][] = [[0, 1.7], [-1.7, 0], [0, -1.7], [1.7, 0]];
+export const HAPPY_GHAST_BACKWARDS = 0.5;
+/** How far under a happy ghast there has to be ground before its rider may step off. */
+export const HAPPY_GHAST_STEP_OFF = 4;
+/** Mojang tempts one with a snowball, and an unharnessed one with the harness itself. */
+export const HAPPY_GHAST_TEMPT_RANGE = 16;
+/** How close it comes before it stops: Mojang keeps a four-block ghast seven blocks off. */
+export const HAPPY_GHAST_TEMPT_STOP = 7;
+export const HAPPY_GHAST_HARNESS_LAYER = 'equipment/happy_ghast_body/white_harness.png';
+
+/** The sixteen harnesses, in dye order. */
+export const HARNESS_COLORS = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'];
+
+export function isHarness(id: string): boolean {
+  return id.endsWith('_harness') && HARNESS_COLORS.includes(id.slice(0, -8));
+}
+
+/** The body texture a harness of this colour is drawn with. */
+export function harnessLayer(id: string): string {
+  return `equipment/happy_ghast_body/${id}.png`;
+}
+
 /** The two nautiluses, which are tamed, saddled and ridden the same way. */
 export const NAUTILUS_TYPES = ['nautilus', 'zombie_nautilus'];
 
@@ -1074,6 +1101,21 @@ const ghastModel: ModelDef = {
   ],
 };
 
+/**
+ * The happy ghast, which is the ghast's own geometry on its own skin, plus the harness drawn as an
+ * equipment layer over it: the straps wrap the body cube a hair proud of it, and the goggles sit
+ * across the front where the eyes are, off the second half of the harness sheet.
+ */
+const happyGhastModel: ModelDef = {
+  // its own skin is the ghast's net on a sheet twice as tall, which is where the harness's goggles sit
+  texture: 'ghast/happy_ghast.png', texW: 64, texH: 64,
+  parts: [
+    ...ghastModel.parts,
+    { name: 'harness', pivot: [0, 17.6, 0], texture: HAPPY_GHAST_HARNESS_LAYER, hidden: true, boxes: [{ uv: [0, 0], box: [-8, -8, -8, 16, 16, 16], inflate: 0.1 }] },
+    { name: 'goggles', parent: 'harness', pivot: [0, 17.6, 0], texture: HAPPY_GHAST_HARNESS_LAYER, hidden: true, boxes: [{ uv: [0, 32], box: [-8, -5, -8, 16, 5, 5], inflate: 0.2 }] },
+  ],
+};
+
 /** The hoglin and the zoglin it turns into: vanilla's boxy body, wide head, ears and four thick legs. */
 function hoglinModel(texture: string): ModelDef {
   return {
@@ -1461,7 +1503,7 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // the last of the variants: the same models in other skins, at other sizes
   illusioner: { model: illagerModel('illager/illusioner.png'), animation: 'illager', eyeHeight: 1.62, followRange: 32, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), bowAttackGoal({ id: 'blindness', ticks: 300 }), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   giant: { model: biped('zombie/zombie.png', 64), animation: 'biped', eyeHeight: 10.4, followRange: 32, scale: 6, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(32), meleeAttackGoal(1.5), wanderGoal(160, 0.7), randomLookGoal] },
-  happy_ghast: { model: ghastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 32, flying: true, scale: 4.5, data: 'happy_ghast', goals: () => [wanderGoal(120, 0.6, 16), lookAtPlayerGoal(16), randomLookGoal] },
+  happy_ghast: { model: happyGhastModel, animation: 'ghast', eyeHeight: 2.6, followRange: 32, flying: true, scale: 4.5, data: 'happy_ghast', goals: () => [temptGoal(['snowball', ...HARNESS_COLORS.map((c) => `${c}_harness`)], HAPPY_GHAST_TEMPT_RANGE, 0.6, HAPPY_GHAST_TEMPT_STOP), wanderGoal(120, 0.6, 16), lookAtPlayerGoal(16), randomLookGoal] },
   camel_husk: { model: camelModel, animation: 'quadruped', eyeHeight: 2.1, followRange: 24, burnsInSun: true, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(24), meleeAttackGoal(0.6), wanderGoal(160, 0.7, 10), randomLookGoal] },
   parched: { model: biped('skeleton/parched.png', 32, true), animation: 'biped', eyeHeight: 1.74, followRange: 16, goals: () => [floatGoal, loseTargetGoal(), targetPlayerGoal(16), bowAttackGoal(), wanderGoal(120), lookAtPlayerGoal(8), randomLookGoal] },
   pufferfish: { model: pufferfishModel, animation: 'fish', eyeHeight: 0.35, followRange: 8, aquatic: true, goals: () => [swimGoal(), pufferPuffGoal()] },

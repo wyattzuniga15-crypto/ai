@@ -1621,3 +1621,29 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      a full bundle refuses a stack rather than swapping with it, which is what a swap would do here
      otherwise. And a hive holding bees weighs a full bundle in vanilla; our hive item does not
      carry its bees, so that rule has nothing to act on and is left out.
+
+141. **The harnesses, and the happy ghast that wears one.** The item model in Mojang's own files is
+     a select on the display context, so a harness draws as an equipment layer over the ghast's own
+     geometry: the straps wrap the body cube a tenth of a pixel proud of it, and the goggles are a
+     16x5x5 box at uv (0,32) whose front face is the pair of lenses in the lower half of the sheet.
+     The happy ghast's skin turned out to be the ghast's 64x32 net on a sheet twice as tall, which
+     is where that half comes from; its model had been reading it as 64x32 and stretching every face
+     over the whole file, so the fix to the texture height is what made the ghast itself right too.
+
+     The rest comes out of Mojang's behaviour pack for it. Four seats round the top at 3.8 up and
+     1.7 out, a rider steering with the camera, backwards at half speed and strafing at full, and a
+     vertical velocity of half a block a tick. That last number is the corroboration for the flying
+     speed: a ridden flier pushing at its 0.05 attribute against our 0.91 air drag settles at 0.505
+     a tick, which is what the climb comes to as well, so the run and the climb match the way they
+     do in vanilla. Measured in the game: 0.503 level, 0.251 backwards, 0.492 strafing, 0.501 up.
+
+     Shears take a harness off, for one point of wear, and Mojang refuses that while anyone is
+     aboard or the player is sneaking. Unharnessed ones are tempted by a snowball or by the harness
+     itself within sixteen blocks, pulling up seven short since the ghast is four wide.
+
+     Two calls of our own. Vanilla steps a rider onto the ghast's own back, and nothing here can
+     stand on a mob, so a happy ghast only lets go where there is ground within four blocks under it
+     rather than dropping its rider out of the sky; and with one sneak binding doing the dismount,
+     the descending half of Mojang's vertical control is done by looking down, which the ghast
+     follows anyway. The buck timer that threw a rider off an untamed horse was firing on every
+     mount, which no other animal does; it is now the equines' alone.

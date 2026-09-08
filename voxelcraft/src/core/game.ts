@@ -96,7 +96,7 @@ import { EntityManager, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HORSE_FOODS, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -5243,7 +5243,17 @@ export class Game {
   private seatHeight(m: Mob): number {
     // Mojang seats a nautilus rider just under a block up, on the top of the shell
     if (m.def.animation === 'nautilus') return NAUTILUS_SEAT;
+    if (m.def.id === 'happy_ghast') return HAPPY_GHAST_SEAT;
     return m.height * 0.75 + (m.def.animation === 'horse' ? 0.05 : 0);
+  }
+
+  /** Sideways from the mount's middle: the happy ghast has four places round its top, one taken. */
+  private seatOffset(m: Mob): [number, number] {
+    if (m.def.id !== 'happy_ghast') return [0, 0];
+    const [sx, sz] = HAPPY_GHAST_SEATS[0];
+    const sin = Math.sin(m.yaw);
+    const cos = Math.cos(m.yaw);
+    return [sx * cos - sz * sin, sx * sin + sz * cos];
   }
 
   /** Puts the player in the saddle after the mount has moved. */
@@ -5251,7 +5261,8 @@ export class Game {
     const m = this.mount;
     if (!m) return;
     const p = this.player;
-    p.pos.set(m.pos.x, m.pos.y + this.seatHeight(m), m.pos.z);
+    const [ox, oz] = this.seatOffset(m);
+    p.pos.set(m.pos.x + ox, m.pos.y + this.seatHeight(m), m.pos.z + oz);
     p.vel.set(0, 0, 0);
     p.onGround = m.onGround;
     p.fallDistance = 0;
@@ -5264,8 +5275,8 @@ export class Game {
     m.control = { forward: 0, strafe: 0, jump: 0, lift: 0 };
     this.player.riding = true;
     this.jumpCharge = 0;
-    // an untamed horse throws the player off after a moment
-    this.buckTimer = m.extra.tamed === true ? 0 : 20 + Math.floor(Math.random() * 40);
+    // an untamed horse throws the player off after a moment; nothing else bucks
+    this.buckTimer = EQUINE_TYPES.includes(m.def.id) && m.extra.tamed !== true ? 20 + Math.floor(Math.random() * 40) : 0;
     this.seatPlayer();
   }
 
@@ -5293,6 +5304,17 @@ export class Game {
     }
   }
 
+  /** Whether there is anything solid within `depth` blocks under a mount, to step off onto. */
+  private groundBelow(m: Mob, depth: number): boolean {
+    const x = Math.floor(m.pos.x);
+    const z = Math.floor(m.pos.z);
+    for (let dy = 0; dy <= depth; dy++) {
+      const state = this.world.getBlock(x, Math.floor(m.pos.y) - dy, z);
+      if (state !== 0 && blocks.blockOf(state).solid) return true;
+    }
+    return false;
+  }
+
   /** Rider input: steering, the charged jump and being bucked off an untamed horse. */
   private rideTick(): void {
     const m = this.mount;
@@ -5303,14 +5325,17 @@ export class Game {
       return;
     }
     if (this.input.tickPressed('sneak')) {
-      this.dismount();
+      // vanilla steps a rider onto the ghast's own back; nothing here can stand on a mob, so a
+      // happy ghast only lets go where there is ground under it rather than dropping its rider
+      if (m.def.flying && !this.groundBelow(m, HAPPY_GHAST_STEP_OFF)) this.chat.addLine('Fly lower to get off', '#aaa');
+      else this.dismount();
       return;
     }
     if (this.buckTimer > 0 && --this.buckTimer === 0) {
       this.buckHorse(m);
       return;
     }
-    const saddled = m.extra.saddle === true;
+    const saddled = m.extra.saddle === true || (m.def.id === 'happy_ghast' && !!m.extra.harness);
     const control = m.control ?? (m.control = { forward: 0, strafe: 0, jump: 0, lift: 0 });
     m.yaw = p.yaw;
     m.headYaw = p.yaw;
@@ -5318,9 +5343,16 @@ export class Game {
     // a saddle is what makes a horse steerable; bareback it just carries the player
     control.forward = saddled ? (this.input.isDown('forward') ? 1 : 0) - (this.input.isDown('back') ? 1 : 0) : 0;
     control.strafe = saddled ? (this.input.isDown('left') ? 1 : 0) - (this.input.isDown('right') ? 1 : 0) : 0;
+    // Mojang lets a happy ghast strafe at full speed and backs it up at half
+    if (m.def.flying && control.forward < 0) control.forward *= HAPPY_GHAST_BACKWARDS;
     // a nautilus swims where its rider looks: the pitch is the climb, and there is nothing to jump
     control.lift = saddled && m.def.aquatic ? Math.sin(p.pitch) * control.forward : 0;
     if (m.def.aquatic) return;
+    // a happy ghast flies where the camera points, and the jump key lifts it whatever it is doing
+    if (m.def.flying) {
+      control.lift = saddled ? Math.sin(p.pitch) * control.forward + (this.input.isDown('jump') ? 1 : 0) : 0;
+      return;
+    }
     const jumpStrength = typeof m.extra.jumpAttr === 'number' ? m.extra.jumpAttr : 0;
     if (saddled && jumpStrength > 0) {
       if (this.input.isDown('jump')) {
@@ -5683,6 +5715,7 @@ export class Game {
     if (m.def.id === 'wolf' && this.interactWolf(m, held, survival, at)) return true;
     if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
     if (NAUTILUS_TYPES.includes(m.def.id) && this.interactNautilus(m, held, survival, at)) return true;
+    if (m.def.id === 'happy_ghast' && this.interactHappyGhast(m, held, survival, at)) return true;
     if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
     if (m.def.id === 'villager' || m.def.id === 'wandering_trader') {
       if (m.isBaby) return false;
@@ -5901,6 +5934,36 @@ export class Game {
    * The nautilus. A pufferfish tames it one try in three; after that it takes a saddle and one of
    * the five body armours through the same screen a horse uses, and any fish heals or breeds it.
    */
+  /**
+   * The happy ghast and its harness. A harness goes on a grown one and it can be ridden from then
+   * on; shears take it off again — Mojang refuses that while anyone is aboard or the player is
+   * sneaking, and the shears wear a point for it. A ghastling is too small to carry anyone.
+   */
+  private interactHappyGhast(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
+    const p = this.player;
+    const harness = typeof m.extra.harness === 'string' ? m.extra.harness : '';
+    if (held && isHarness(held.id)) {
+      if (harness || m.isBaby) return false;
+      m.extra.harness = held.id;
+      m.persistent = true;
+      if (survival) p.inventory.consumeSelected();
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held?.id === 'shears' && harness && !p.sneaking && !m.ridden) {
+      m.extra.harness = '';
+      this.dropStack({ id: harness, count: 1 }, m.pos.x, at.y, m.pos.z, true);
+      if (survival) p.inventory.damageSelected(1);
+      this.audio.play('shear', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (!held && harness && !m.isBaby) {
+      this.mountMob(m);
+      return true;
+    }
+    return false;
+  }
+
   private interactNautilus(m: MobType, held: ItemStack | null, survival: boolean, at: { x: number; y: number; z: number }): boolean {
     const p = this.player;
     const tamed = m.extra.tamed === true;
