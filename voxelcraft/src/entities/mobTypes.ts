@@ -1312,6 +1312,63 @@ const ravagerModel: ModelDef = {
   ],
 };
 
+/**
+ * The armour stand, from Mojang's own geometry: a stone base plate under a frame of thin wooden
+ * posts. Over it hang the four pieces of armour, drawn on vanilla's humanoid equipment layers at
+ * the biped's own sizes rather than the stand's thin ones, which is how vanilla dresses one.
+ */
+export const ARMOR_LAYER = 'equipment/humanoid/iron.png';
+export const LEGGINGS_LAYER = 'equipment/humanoid_leggings/iron.png';
+/** One material per slot, so each piece takes its own material's texture rather than the last one set. */
+export const ARMOR_SLOT_LAYERS = ['armor:boots', 'armor:leggings', 'armor:chest', 'armor:helmet'];
+/** The materials that have an equipment texture of their own; leather takes its dye on top. */
+export const ARMOR_MATERIALS = ['leather', 'chainmail', 'iron', 'golden', 'diamond', 'netherite', 'turtle', 'copper'];
+
+/** The equipment texture a piece of armour is drawn with, or null when it is not armour at all. */
+export function armorLayerTexture(id: string, leggings: boolean): string | null {
+  const m = /^([a-z_]+)_(helmet|chestplate|leggings|boots)$/.exec(id);
+  const file = m ? (m[1] === 'golden' ? 'gold' : m[1] === 'turtle' ? 'turtle_scute' : m[1]) : null;
+  if (!file || !ARMOR_MATERIALS.includes(m![1])) return null;
+  return `equipment/humanoid${leggings ? '_leggings' : ''}/${file}.png`;
+}
+
+/** Which of the four slots a piece goes in, in vanilla's own order: boots, legs, chest, head. */
+export function armorSlotOf(id: string): number {
+  if (id.endsWith('_boots')) return 0;
+  if (id.endsWith('_leggings')) return 1;
+  if (id.endsWith('_chestplate')) return 2;
+  if (id.endsWith('_helmet') || id === 'turtle_helmet' || id === 'carved_pumpkin') return 3;
+  return -1;
+}
+
+const armorPiece = (name: string, parent: string, pivot: [number, number, number], uv: [number, number], box: [number, number, number, number, number, number], inflate: number, slot: number) =>
+  ({ name, parent, pivot, texture: slot === 1 ? LEGGINGS_LAYER : ARMOR_LAYER, layer: ARMOR_SLOT_LAYERS[slot], hidden: true, boxes: [{ uv, box, inflate }] });
+
+const armorStandModel: ModelDef = {
+  texture: 'armorstand/wood.png', texW: 64, texH: 64,
+  parts: [
+    { name: 'baseplate', pivot: [0, 24, 0], boxes: [{ uv: [0, 32], box: [-6, -1, -6, 12, 1, 12] }] },
+    { name: 'waist', parent: 'baseplate', pivot: [0, 12, 0], boxes: [] },
+    { name: 'body', parent: 'waist', pivot: [0, 0, 0], boxes: [{ uv: [0, 26], box: [-6, 0, -1.5, 12, 3, 3] }, { uv: [16, 0], box: [-3, 3, -1, 2, 7, 2] }, { uv: [48, 16], box: [1, 3, -1, 2, 7, 2] }, { uv: [0, 48], box: [-4, 10, -1, 8, 2, 2] }] },
+    { name: 'head', parent: 'body', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-1, -7, -1, 2, 7, 2] }] },
+    { name: 'left_arm', parent: 'body', pivot: [5, 2, 0], boxes: [{ uv: [32, 16], box: [0, -2, -1, 2, 12, 2] }] },
+    { name: 'right_arm', parent: 'body', pivot: [-5, 2, 0], boxes: [{ uv: [24, 0], box: [-2, -2, -1, 2, 12, 2] }] },
+    { name: 'left_leg', parent: 'body', pivot: [1.9, 12, 0], boxes: [{ uv: [40, 16], box: [-1, 0, -1, 2, 11, 2] }] },
+    { name: 'right_leg', parent: 'body', pivot: [-1.9, 12, 0], boxes: [{ uv: [8, 0], box: [-1, 0, -1, 2, 11, 2] }] },
+    // the armour, at the biped's own sizes: a helmet and a chestplate over the posts, then the boots
+    armorPiece('helmet', 'head', [0, 0, 0], [0, 0], [-4, -8, -4, 8, 8, 8], 1, 3),
+    armorPiece('chest', 'body', [0, 0, 0], [16, 16], [-4, 0, -2, 8, 12, 4], 1, 2),
+    armorPiece('right_sleeve', 'right_arm', [-5, 2, 0], [40, 16], [-3, -2, -2, 4, 12, 4], 1, 2),
+    armorPiece('left_sleeve', 'left_arm', [5, 2, 0], [40, 16], [-1, -2, -2, 4, 12, 4], 1, 2),
+    armorPiece('right_boot', 'right_leg', [-1.9, 12, 0], [0, 16], [-2, 0, -2, 4, 12, 4], 1, 0),
+    armorPiece('left_boot', 'left_leg', [1.9, 12, 0], [0, 16], [-2, 0, -2, 4, 12, 4], 1, 0),
+    // the leggings are their own sheet, a hair tighter, as vanilla draws the inner layer
+    armorPiece('belt', 'body', [0, 0, 0], [16, 16], [-4, 0, -2, 8, 12, 4], 0.5, 1),
+    armorPiece('right_legging', 'right_leg', [-1.9, 12, 0], [0, 16], [-2, 0, -2, 4, 12, 4], 0.5, 1),
+    armorPiece('left_legging', 'left_leg', [1.9, 12, 0], [0, 16], [-2, 0, -2, 4, 12, 4], 0.5, 1),
+  ],
+};
+
 /** Illagers, and the mobs they bring along. */
 export const ILLAGER_TYPES = ['pillager', 'vindicator', 'evoker', 'vex', 'ravager'];
 
@@ -1578,6 +1635,8 @@ export const MOB_SPECS: Record<string, MobSpec> = {
   // the end crystal: it stands where it is put, heals the dragon, and goes off when it is hit
   // the shulker: it never moves, and the shell it drops is the only way to a shulker box
   shulker: { model: shulkerModel, animation: 'shulker', eyeHeight: 0.5, followRange: 16, flying: true, override: { xp: 5 }, goals: () => [shulkerGoal()] },
+  // stands where it is put and does nothing but wear what is hung on it
+  armor_stand: { model: armorStandModel, animation: 'biped', eyeHeight: 1.7, followRange: 0, data: 'armor_stand', override: { health: 20, damage: 0, xp: 0, width: 0.5, height: 1.975 }, goals: () => [] },
   end_crystal: { model: endCrystalModel, animation: 'crystal', eyeHeight: 1, followRange: 0, flying: true, fireproof: true, data: 'end_crystal', override: { health: 1, damage: 0, xp: 0, width: 2, height: 2 }, goals: () => [] },
   // the Wither: summoned rather than spawned, flying, and armoured once it is half beaten
   wither: { model: witherModel, animation: 'wither', eyeHeight: 3.1, followRange: 64, flying: true, fireproof: true, scale: 2, goals: () => [witherGoal()] },

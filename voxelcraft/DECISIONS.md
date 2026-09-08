@@ -1688,3 +1688,23 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      own `block/item_frame` model rather than a box model written out by hand — which is what the
      named-model mesh on the block mesh factory is for. A frame takes one item, turns it through the
      eight steps vanilla turns it, and gives both back when it is knocked off.
+
+144. **Armour stands and end crystals.** The stand is Mojang's own geometry off the Bedrock samples
+     — a stone base plate under a frame of thin wooden posts — with the four pieces of armour hung
+     over it at the *biped's* sizes rather than the stand's thin ones, grown by one for the outer
+     layer and by a half for the leggings, which is how vanilla dresses one. Since all four pieces
+     share two texture sheets but have to take four different metals at once, a model part can now
+     name the material it goes under apart from the texture it was built with; without that a gold
+     chestplate and a diamond helmet came out the same colour. It goes down facing one of the eight
+     ways vanilla turns it, takes each piece into its own slot, hands the topmost one back to an
+     empty hand, and drops itself and everything on it when it is broken.
+
+     An end crystal only stands on obsidian or bedrock with the two blocks over it clear, as vanilla
+     asks, and goes off where it stands when it is struck. Four of them on the fountain's bedrock
+     ring — one on each side, at three blocks out, which is where our own podium puts that ring —
+     burn up and turn the fight back on, and the dragon comes back with it.
+
+     That last one turned up a bug of ours: the fountain was only laid when `endPodiumY` was unset,
+     but merely *asking* where the podium goes set that field, so anything that asked first left the
+     island with no fountain at all. Knowing where it goes and having laid it are now two different
+     facts.

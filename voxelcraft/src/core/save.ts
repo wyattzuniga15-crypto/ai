@@ -25,6 +25,8 @@ export interface WorldMeta {
   dragonKilled?: boolean;
   /** The level the End's exit portal stands at, kept as vanilla keeps the fight's portal position. */
   endPodiumY?: number;
+  /** Whether the fountain's bedrock has actually been laid, which is not the same as knowing where. */
+  endPodiumBuilt?: boolean;
   /** Set once the end poem has rolled, so it only ever plays the first time home. */
   seenCredits?: boolean;
   /** Every End gateway that has been opened, and where the one it is paired with stands. */

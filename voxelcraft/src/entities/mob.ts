@@ -9,7 +9,7 @@ import { JEB_NAME, NAME_PLATE_LIFT, jebColor, namePlate } from './nameplate.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { COPPER_GOLEM_SKINS, GHASTLING_TEXTURE, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { ARMOR_SLOT_LAYERS, armorLayerTexture, COPPER_GOLEM_SKINS, GHASTLING_TEXTURE, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -1266,6 +1266,23 @@ export class Mob {
         else if (name.endsWith('_coral_0') || name.endsWith('_coral_1')) part.visible = coral;
       }
       if (armor) this.setLayerTexture(NAUTILUS_ARMOR_LAYER, armor);
+    }
+    if (this.def.id === 'armor_stand') {
+      // whatever is hung on it shows, each piece on the sheet its own material is drawn from
+      const worn = (this.extra.worn ?? []) as unknown as (string | null)[];
+      const show = (names: string[], slot: number) => {
+        const id = worn[slot] ?? null;
+        const tex = id ? armorLayerTexture(id, slot === 1) : null;
+        for (const n of names) {
+          const p = parts.get(n);
+          if (p) p.visible = !!tex;
+        }
+        if (tex) this.setLayerTexture(ARMOR_SLOT_LAYERS[slot], tex);
+      };
+      show(['right_boot', 'left_boot'], 0);
+      show(['belt', 'right_legging', 'left_legging'], 1);
+      show(['chest', 'right_sleeve', 'left_sleeve'], 2);
+      show(['helmet'], 3);
     }
     if (this.def.id === 'happy_ghast') {
       // a ghastling is small enough to have its own skin, and too small to wear anything

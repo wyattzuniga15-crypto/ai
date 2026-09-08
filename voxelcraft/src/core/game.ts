@@ -98,7 +98,7 @@ import { EntityManager, rayBox, type ManagerHost } from '../entities/manager.ts'
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, armorSlotOf, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -916,6 +916,7 @@ export class Game {
       const state = b.id === 'air' ? 0 : b.props && blocks.has(b.id) ? blocks.stateWith(b.id, b.props) : blocks.defaultState(b.id);
       this.world.setBlock(b.x, b.y, b.z, state);
     }
+    this.meta.endPodiumBuilt = true;
     if (active) this.audio.play('enchant', { x: 0, y: base, z: 0 });
   }
 
@@ -2855,8 +2856,10 @@ export class Game {
         this.dragonBar = false;
       }
       if (this.tickCount % 40 !== 0 || !this.world.getChunk(0, 0)) return;
-      // vanilla's fountain stands on the island from the start, empty until the dragon falls
-      if (typeof this.meta.endPodiumY !== 'number') this.buildExitPortal(false);
+      // vanilla's fountain stands on the island from the start, empty until the dragon falls.
+      // Knowing where it goes is not the same as having laid it: asking for the level alone must
+      // not count as building it, or the fountain never appears.
+      if (!this.meta.endPodiumBuilt) this.buildExitPortal(false);
       if (!this.meta.dragonKilled) this.entities.spawn('ender_dragon', 0, DRAGON_HEIGHT, 0, 0);
       return;
     }
@@ -4073,6 +4076,8 @@ export class Game {
     }
     if (def.behavior === 'boat' && this.placeBoat(held.id)) return;
     if (t && (held.id === 'painting' || held.id === 'item_frame' || held.id === 'glow_item_frame') && this.placeHanging(held.id as HangingKind, t)) return;
+    if (t && held.id === 'end_crystal' && this.placeEndCrystal(t)) return;
+    if (t && held.id === 'armor_stand' && this.placeArmorStand(t)) return;
     if (def.behavior === 'spawn_egg' && t && this.useSpawnEgg(held, t)) return;
     if (def.behavior === 'axe' && t && this.useAxeOn(t)) return;
     if (held.id === 'honeycomb' && t && this.waxBlock(t)) return;
@@ -4644,6 +4649,113 @@ export class Game {
       }
     }
     p.teleport(boat.pos.x, boat.pos.y + 1, boat.pos.z);
+  }
+
+  /**
+   * Standing an armour stand up: on top of a block, turned to one of the eight ways vanilla turns
+   * one, which is away from whoever put it there.
+   */
+  private placeArmorStand(t: RaycastHit): boolean {
+    if (t.face !== 1) return false;
+    const x = t.x + 0.5, y = t.y + 1, z = t.z + 0.5;
+    if (this.world.getBlock(t.x, t.y + 1, t.z) !== 0 || this.world.getBlock(t.x, t.y + 2, t.z) !== 0) return false;
+    // vanilla rounds the placer's own facing to the nearest eighth of a turn
+    const step = Math.PI / 4;
+    const yaw = Math.round(this.player.yaw / step) * step;
+    const stand = this.entities.spawn('armor_stand', x, y, z, yaw);
+    if (!stand) return false;
+    stand.persistent = true;
+    stand.extra.worn = [null, null, null, null] as unknown as string;
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    this.audio.play('dig_wood', { x, y, z, pitch: 0.9 });
+    return true;
+  }
+
+  /** What a stand is wearing, made on first use. */
+  private standSlots(m: MobType): Slot[] {
+    const store = m.extra as unknown as { armor?: Slot[] };
+    if (!store.armor) store.armor = [null, null, null, null];
+    return store.armor;
+  }
+
+  /**
+   * Dressing a stand. A piece of armour goes into its own slot, and an empty hand takes the topmost
+   * piece back off, which is the way vanilla hands one back when it has nowhere to point at.
+   */
+  private interactArmorStand(m: MobType, held: ItemStack | null, survival: boolean): boolean {
+    const armor = this.standSlots(m);
+    const slot = held ? armorSlotOf(held.id) : -1;
+    if (held && slot >= 0) {
+      const swap = armor[slot];
+      armor[slot] = cloneStack(held, 1);
+      if (survival) this.player.inventory.consumeSelected();
+      if (swap && this.player.inventory.add(swap) > 0) this.dropStack(swap, m.pos.x, m.pos.y + 1, m.pos.z, true);
+      this.syncArmorStand(m);
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held) return false;
+    for (let i = armor.length - 1; i >= 0; i--) {
+      const piece = armor[i];
+      if (!piece) continue;
+      armor[i] = null;
+      this.syncArmorStand(m);
+      if (this.player.inventory.add(piece) > 0) this.dropStack(piece, m.pos.x, m.pos.y + 1, m.pos.z, true);
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 0.8 });
+      return true;
+    }
+    return false;
+  }
+
+  /** Tells the model which pieces it is wearing, so they are drawn. */
+  private syncArmorStand(m: MobType): void {
+    m.extra.worn = this.standSlots(m).map((s) => s?.id ?? null) as unknown as string;
+  }
+
+  /**
+   * Standing an end crystal up. Vanilla takes only obsidian and bedrock, wants the two blocks over
+   * it clear and nothing standing there, and then asks the dragon fight whether that was the fourth
+   * one round the fountain.
+   */
+  private placeEndCrystal(t: RaycastHit): boolean {
+    if (t.face !== 1) return false;
+    const on = blocks.blockOf(t.state).id;
+    if (on !== 'obsidian' && on !== 'bedrock') return false;
+    const x = t.x, y = t.y + 1, z = t.z;
+    if (this.world.getBlock(x, y, z) !== 0 || this.world.getBlock(x, y + 1, z) !== 0) return false;
+    if (this.entities.mobs.some((m) => !m.dead && Math.floor(m.pos.x) === x && Math.floor(m.pos.z) === z && m.pos.y >= y - 1 && m.pos.y <= y + 2)) return false;
+    const crystal = this.entities.spawn('end_crystal', x + 0.5, y, z + 0.5, 0);
+    if (!crystal) return false;
+    crystal.persistent = true;
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    this.audio.play('click', { x, y, z, pitch: 0.7 });
+    this.tryRespawnDragon();
+    return true;
+  }
+
+  /**
+   * Vanilla's respawn: four crystals standing on the fountain's bedrock ring, one on each side,
+   * burn up and the dragon comes back. The pillars get their crystals again with it.
+   */
+  private tryRespawnDragon(): boolean {
+    if (this.world.dimension !== 'end' || !this.meta.dragonKilled) return false;
+    const base = this.podiumLevel();
+    const spots: [number, number][] = [[3, 0], [-3, 0], [0, 3], [0, -3]];
+    const found: Mob[] = [];
+    for (const [dx, dz] of spots) {
+      const at = this.entities.mobs.find((m) => !m.dead && m.def.id === 'end_crystal' && Math.floor(m.pos.x) === dx && Math.floor(m.pos.z) === dz && Math.abs(m.pos.y - (base + 1)) < 1.5);
+      if (!at) return false;
+      found.push(at);
+    }
+    for (const m of found) {
+      this.particles.poof(m.pos.x, m.pos.y + 1, m.pos.z, 20, Math.random, 1, 0.8);
+      this.entities.remove(m);
+    }
+    this.meta.dragonKilled = false;
+    this.buildExitPortal(false);
+    this.audio.play('enchant', { x: 0, y: base, z: 0, pitch: 0.6 });
+    this.chat.addLine('The Ender Dragon stirs', '#a5f');
+    return true;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -5938,6 +6050,7 @@ export class Game {
     if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
     if (NAUTILUS_TYPES.includes(m.def.id) && this.interactNautilus(m, held, survival, at)) return true;
     if (m.def.id === 'happy_ghast' && this.interactHappyGhast(m, held, survival, at)) return true;
+    if (m.def.id === 'armor_stand') return this.interactArmorStand(m, held, survival);
     if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
     if (m.def.id === 'villager' || m.def.id === 'wandering_trader') {
       if (m.isBaby) return false;
@@ -6342,6 +6455,12 @@ export class Game {
     if (byPlayer && m.extra.captain === true) {
       this.player.effects.add('bad_omen', 120000, 0);
       this.hud.showToast('Bad Omen');
+    }
+    // a stand gives back what it was wearing, and itself
+    if (m.def.id === 'armor_stand') {
+      this.dropStack({ id: 'armor_stand', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+      for (const piece of this.standSlots(m)) if (piece) this.dropStack(piece, m.pos.x, m.pos.y + 0.8, m.pos.z, true);
+      return;
     }
     // an end crystal goes off where it stood, taking the pillar's top with it
     if (m.def.id === 'end_crystal') {

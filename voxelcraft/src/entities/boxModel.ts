@@ -24,6 +24,11 @@ export interface PartDef {
   parent?: string;
   /** Optional separate texture (sheep wool layer). */
   texture?: string;
+  /**
+   * Name this part's material goes under, when several parts share a texture but have to be swapped
+   * apart from each other — the four pieces of armour on a stand, each of its own material.
+   */
+  layer?: string;
   /** Hidden until animation shows it (e.g. baby/variant parts). */
   hidden?: boolean;
 }
@@ -115,12 +120,12 @@ export function buildModel(def: ModelDef, base: string): BuiltModel {
   const basePose = new Map<string, THREE.Euler>();
   const materials: THREE.MeshBasicMaterial[] = [];
   const layers = new Map<string, THREE.MeshBasicMaterial>();
-  const matFor = (tex: string) => {
-    const existing = layers.get(tex);
+  const matFor = (tex: string, key = tex) => {
+    const existing = layers.get(key);
     if (existing) return existing;
     const m = new THREE.MeshBasicMaterial({ map: entityTexture(base, tex), transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
     materials.push(m);
-    layers.set(tex, m);
+    layers.set(key, m);
     return m;
   };
   const mainMat = matFor(def.texture);
@@ -134,7 +139,7 @@ export function buildModel(def: ModelDef, base: string): BuiltModel {
     absolute.set(p.name, g.position.clone());
     if (p.rotation) g.rotation.set(-p.rotation[0], -p.rotation[1], p.rotation[2]);
     basePose.set(p.name, g.rotation.clone());
-    const mat = p.texture ? matFor(p.texture) : mainMat;
+    const mat = p.texture ? matFor(p.texture, p.layer ?? p.texture) : mainMat;
     for (const b of p.boxes) {
       const mesh = new THREE.Mesh(boxGeometry(b, def.texW, def.texH), mat);
       g.add(mesh);
