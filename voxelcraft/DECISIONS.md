@@ -1708,3 +1708,24 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      but merely *asking* where the podium goes set that field, so anything that asked first left the
      island with no fountain at all. Knowing where it goes and having laid it are now two different
      facts.
+
+145. **The saddled pig and strider, and the wolf's coat.** A saddle goes on a grown pig or strider
+     and stays on — vanilla only gives it back when the animal dies — and from then on the animal
+     carries a rider. It only walks while the rider holds the stick that steers it (a carrot for the
+     pig, a warped fungus for the strider) and goes wherever they look, which is Mojang's rule that
+     the rider is only the controlling passenger while that item is in hand.
+
+     The boost numbers come from Mojang's own behaviour files rather than from memory: a third again
+     as fast (1.35), for three seconds on a pig at two points of the carrot and sixteen seconds on a
+     strider at one of the fungus. Measured in the game the pig ran at 0.165 blocks a tick and 0.223
+     boosted, which is 1.35 to three figures.
+
+     A ridden pig is not a galloping horse, so it moves on its own walking formula rather than the
+     horse's ridden one; on the horse's factor the same pig came out at nearly eleven blocks a
+     second, faster than a diamond-shod horse, which is plainly wrong for a pig. On its own pace it
+     rides at the speed it walks, which is what Mojang's data says a ridden pig does.
+
+     Wolf armour is drawn on the wolf's own boxes off vanilla's body sheet, takes eleven points off
+     a blow by the same four-per-cent-a-point formula everything else uses, wears through a point
+     per point of damage until it falls apart, mends a quarter of its sixty-four for each armadillo
+     scute, and comes off with shears at the wear it had.

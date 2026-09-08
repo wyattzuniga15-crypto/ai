@@ -9,7 +9,7 @@ import { JEB_NAME, NAME_PLATE_LIFT, jebColor, namePlate } from './nameplate.ts';
 import { DYE_COLORS } from '../ui/specialIcons.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { blocks } from '../blocks/registry.ts';
-import { ARMOR_SLOT_LAYERS, armorLayerTexture, COPPER_GOLEM_SKINS, GHASTLING_TEXTURE, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
+import { ARMOR_SLOT_LAYERS, SADDLE_ANIMALS, WOLF_ARMOR_DURABILITY, WOLF_ARMOR_POINTS, armorLayerTexture, COPPER_GOLEM_SKINS, GHASTLING_TEXTURE, HAPPY_GHAST_HARNESS_LAYER, harnessLayer, NAUTILUS_ARMOR_LAYER, nautilusArmorTexture, CAT_COLLAR_LAYER, HORSE_ARMOR_LAYER, HORSE_MARKING_LAYER, VILLAGER_LEVEL_LAYER, VILLAGER_PROFESSION_LAYER, VILLAGER_TYPE_LAYER, beeTexture, catTexture, villagerBadgeTexture, villagerProfessionTexture, villagerTypeTexture, villagerWearsBrim, horseArmorPoints, horseArmorTexture, horseCoatTexture, horseMarkingTexture } from './mobTypes.ts';
 
 export interface MobStats {
   id: string;
@@ -249,7 +249,7 @@ export class Mob {
   /** Set while the player rides this mob: goals stop and `control` drives movement. */
   ridden = false;
   /** Steering from the rider: forward/strafe in −1..1, and a jump impulse for the next tick. */
-  control: { forward: number; strafe: number; jump: number; lift: number } | null = null;
+  control: { forward: number; strafe: number; jump: number; lift: number; boost?: number } | null = null;
   readonly goals: Goal[];
   private active: Goal | null = null;
   readonly model: BuiltModel;
@@ -356,6 +356,13 @@ export class Mob {
     // horse armour soaks damage with vanilla's armour formula (4% per point)
     const points = typeof this.extra.armor === 'string' ? horseArmorPoints(this.extra.armor) : 0;
     if (points > 0) amount *= 1 - Math.min(20, points) / 25;
+    // a wolf's coat takes the blow instead, wearing through a point per point of damage as vanilla does
+    if (typeof this.extra.wolfArmor === 'number' && amount > 0) {
+      amount *= 1 - Math.min(20, WOLF_ARMOR_POINTS) / 25;
+      const worn = this.extra.wolfArmor + Math.max(1, Math.floor(amount));
+      if (worn >= WOLF_ARMOR_DURABILITY) delete this.extra.wolfArmor;
+      else this.extra.wolfArmor = worn;
+    }
     this.health -= amount;
     this.invulnerable = 10;
     this.hurtTime = 10;
@@ -491,7 +498,12 @@ export class Mob {
         const cos = Math.cos(this.yaw);
         dirX = (-c.strafe * cos - c.forward * sin) / Math.max(1, len);
         dirZ = (c.strafe * sin - c.forward * cos) / Math.max(1, len);
-        accel = this.def.flying ? attr * RIDDEN_FLY_ACCEL : attr * RIDDEN_ACCEL * (this.onGround ? 1 : 0.2);
+        // a pig or a strider carries a rider at its own walking pace, not a horse's gallop
+        accel = this.def.flying ? attr * RIDDEN_FLY_ACCEL
+          : SADDLE_ANIMALS[this.def.id] ? attr * attr * 2.2 * (this.onGround ? 1 : 0.2)
+          : attr * RIDDEN_ACCEL * (this.onGround ? 1 : 0.2);
+        // a carrot or a fungus on a stick pushes a pig or a strider along faster while it lasts
+        if (c.boost) accel *= c.boost;
         if (this.inWater && !this.def.flying) accel *= 0.5;
       }
       // an underwater mount goes wherever its rider looks, which is how vanilla steers one
@@ -1266,6 +1278,15 @@ export class Mob {
         else if (name.endsWith('_coral_0') || name.endsWith('_coral_1')) part.visible = coral;
       }
       if (armor) this.setLayerTexture(NAUTILUS_ARMOR_LAYER, armor);
+    }
+    // a saddle or a coat of armour shows once it is on
+    if (SADDLE_ANIMALS[this.def.id]) {
+      const p = parts.get('saddle');
+      if (p) p.visible = this.extra.saddle === true;
+    }
+    if (this.def.id === 'wolf') {
+      const armored = typeof this.extra.wolfArmor === 'number';
+      for (const [name, part] of parts) if (name.startsWith('armor_')) part.visible = armored;
     }
     if (this.def.id === 'armor_stand') {
       // whatever is hung on it shows, each piece on the sheet its own material is drawn from

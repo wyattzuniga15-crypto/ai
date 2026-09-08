@@ -57,6 +57,26 @@ const endermanModel: ModelDef = {
   ],
 };
 
+/** Vanilla's own equipment sheets for the things an animal wears. */
+export const WOLF_ARMOR_LAYER = 'equipment/wolf_body/armadillo_scute.png';
+export const PIG_SADDLE_LAYER = 'equipment/pig_saddle/saddle.png';
+export const STRIDER_SADDLE_LAYER = 'equipment/strider_saddle/saddle.png';
+/** How much wolf armour takes off a blow, and the scute that mends it. */
+export const WOLF_ARMOR_POINTS = 11;
+export const WOLF_ARMOR_DURABILITY = 64;
+export const WOLF_ARMOR_REPAIR = 'armadillo_scute';
+/** The animals a saddle alone makes rideable, and the stick that steers each one. */
+export const SADDLE_ANIMALS: Record<string, string> = { pig: 'carrot_on_a_stick', strider: 'warped_fungus_on_a_stick' };
+/**
+ * Mojang's boost, off his own behaviour files: a third again as fast for three seconds on a pig and
+ * sixteen on a strider, and the stick pays two points for the one and one for the other.
+ */
+export const STEER_BOOST_MULTIPLIER = 1.35;
+export const STEER_BOOST: Record<string, { ticks: number; wear: number }> = {
+  pig: { ticks: 3 * 20, wear: 2 },
+  strider: { ticks: 16 * 20, wear: 1 },
+};
+
 const wolfModel: ModelDef = {
   texture: 'wolf/wolf.png', texW: 64, texH: 32,
   parts: [
@@ -70,6 +90,14 @@ const wolfModel: ModelDef = {
     { name: 'tail', pivot: [-1, 12, 8], rotation: [1.0, 0, 0], boxes: [{ uv: [9, 18], box: [0, 0, 0, 2, 8, 2] }] },
     // collar layer (tinted with the collar dye, shown when tamed)
     { name: 'collar', parent: 'mane', pivot: [-1, 14, -3], texture: 'wolf/wolf_collar.png', hidden: true, boxes: [{ uv: [21, 0], box: [-3, -3, -3, 8, 6, 7], inflate: 0.15 }] },
+    // armadillo-scute armour, on the wolf's own boxes off vanilla's body sheet
+    { name: 'armor_head', parent: 'head', pivot: [-1, 13.5, -7], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [0, 0], box: [-2, -3, -2, 6, 6, 4], inflate: 0.35 }] },
+    { name: 'armor_body', parent: 'body', pivot: [0, 14, 2], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [18, 14], box: [-3, -2, -3, 6, 9, 6], inflate: 0.35 }] },
+    { name: 'armor_mane', parent: 'mane', pivot: [-1, 14, -3], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [21, 0], box: [-3, -3, -3, 8, 6, 7], inflate: 0.35 }] },
+    { name: 'armor_right_hind_leg', parent: 'right_hind_leg', pivot: [-2.5, 16, 7], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2], inflate: 0.25 }] },
+    { name: 'armor_left_hind_leg', parent: 'left_hind_leg', pivot: [0.5, 16, 7], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2], inflate: 0.25 }] },
+    { name: 'armor_right_front_leg', parent: 'right_front_leg', pivot: [-2.5, 16, -4], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2], inflate: 0.25 }] },
+    { name: 'armor_left_front_leg', parent: 'left_front_leg', pivot: [0.5, 16, -4], texture: WOLF_ARMOR_LAYER, hidden: true, boxes: [{ uv: [0, 18], box: [0, 0, 0, 2, 8, 2], inflate: 0.25 }] },
   ],
 };
 
@@ -729,6 +757,8 @@ const pigModel: ModelDef = {
     { name: 'left_hind_leg', pivot: [3, 18, 7], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 6, 4], mirror: true }] },
     { name: 'right_front_leg', pivot: [-3, 18, -5], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 6, 4] }] },
     { name: 'left_front_leg', pivot: [3, 18, -5], boxes: [{ uv: [0, 16], box: [-2, 0, -2, 4, 6, 4], mirror: true }] },
+    // the saddle strap, drawn over the body on vanilla's own equipment sheet
+    { name: 'saddle', parent: 'body', pivot: [0, 11, 2], texture: PIG_SADDLE_LAYER, hidden: true, boxes: [{ uv: [28, 8], box: [-5, -10, -7, 10, 16, 8], inflate: 0.5 }] },
   ],
 };
 
@@ -1146,6 +1176,7 @@ const striderModel: ModelDef = {
     { name: 'body', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-8, -8, -8, 16, 14, 16] }] },
     { name: 'right_leg', pivot: [-4, 6, 0], boxes: [{ uv: [0, 32], box: [-2, 0, -2, 4, 18, 4] }] },
     { name: 'left_leg', pivot: [4, 6, 0], boxes: [{ uv: [0, 55], box: [-2, 0, -2, 4, 18, 4] }] },
+    { name: 'saddle', parent: 'body', pivot: [0, 0, 0], texture: STRIDER_SADDLE_LAYER, hidden: true, boxes: [{ uv: [0, 0], box: [-8, -8, -8, 16, 14, 16], inflate: 0.5 }] },
   ],
 };
 

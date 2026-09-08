@@ -98,7 +98,7 @@ import { EntityManager, rayBox, type ManagerHost } from '../entities/manager.ts'
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
-import { mobStats, armorSlotOf, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
+import { mobStats, armorSlotOf, SADDLE_ANIMALS, STEER_BOOST, STEER_BOOST_MULTIPLIER, WOLF_ARMOR_POINTS, WOLF_ARMOR_REPAIR, CAT_FOODS, CHESTED_EQUINES, COPPER_GOLEM_OXIDATION, EQUINE_TYPES, GHASTLING_FOOD, GHASTLING_GROW, HAPPY_GHAST_BACKWARDS, HAPPY_GHAST_SEAT, HAPPY_GHAST_STEP_OFF, HAPPY_GHAST_SEATS, HORSE_FOODS, isHarness, NAUTILUS_SEAT, NAUTILUS_TYPES, canBeLeashed, canBeNamed, nautilusArmorTexture, villagerTypeFor } from '../entities/mobTypes.ts';
 import { buildOffers, levelFor, professionForBlock, professionName, type Offer } from '../entities/villagers.ts';
 import { tradingScreen, type Merchant } from '../ui/screens/trading.ts';
 import type { AABB } from '../entities/physics.ts';
@@ -3990,6 +3990,8 @@ export class Game {
     const p = this.player;
     const held = p.heldItem();
     if (!held) return;
+    // riding a pig or a strider with its stick in hand: the click is the boost
+    if (this.mount && held.id === SADDLE_ANIMALS[this.mount.def.id] && this.boostSteerable(this.mount)) return;
     const def = items.byId.get(held.id);
     if (!def) return;
     if (def.behavior === 'bucket') {
@@ -5500,6 +5502,31 @@ export class Game {
       } else this.particles.poof(m.pos.x, at.y, m.pos.z, 7, Math.random, m.width, 0.5);
       return true;
     }
+    // wolf armour: on with the coat, off with the shears, mended a scute at a time
+    const worn = typeof m.extra.wolfArmor === 'number' ? m.extra.wolfArmor : null;
+    if (held?.id === 'wolf_armor' && worn === null) {
+      m.extra.wolfArmor = held.damage ?? 0;
+      if (survival) this.player.inventory.consumeSelected();
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held?.id === 'shears' && worn !== null) {
+      m.extra.wolfArmor = -1;
+      delete m.extra.wolfArmor;
+      this.dropStack({ id: 'wolf_armor', count: 1, ...(worn ? { damage: worn } : {}) }, m.pos.x, at.y, m.pos.z, true);
+      if (survival) this.player.inventory.damageSelected(1);
+      this.audio.play('shear', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    if (held?.id === WOLF_ARMOR_REPAIR && worn !== null && worn > 0) {
+      // vanilla mends a quarter of the coat per scute
+      const max = items.byId.get('wolf_armor')?.durability ?? 64;
+      m.extra.wolfArmor = Math.max(0, worn - Math.ceil(max / 4));
+      if (survival) this.player.inventory.consumeSelected();
+      this.particles.hearts(m.pos.x, at.y, m.pos.z, 5, Math.random, m.width, 0.5);
+      this.audio.play('anvil', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.4, volume: 0.4 });
+      return true;
+    }
     const dye = held && held.id.endsWith('_dye') ? held.id.slice(0, -4) : null;
     if (dye && DYE_COLORS[dye] !== undefined && m.extra.collar !== dye) {
       m.extra.collar = dye;
@@ -5669,6 +5696,19 @@ export class Game {
       this.buckHorse(m);
       return;
     }
+    // a pig or a strider walks forward while its rider holds the stick that steers it, and no other way
+    const steer = SADDLE_ANIMALS[m.def.id];
+    if (steer && m.extra.saddle === true) {
+      const control = m.control ?? (m.control = { forward: 0, strafe: 0, jump: 0, lift: 0 });
+      m.yaw = m.headYaw = p.yaw;
+      m.headPitch = 0;
+      control.forward = p.heldItem()?.id === steer ? 1 : 0;
+      control.strafe = 0;
+      control.lift = 0;
+      control.boost = this.tickSteerBoost(m);
+      if (this.input.isDown('jump') && m.onGround) control.jump = 0.42;
+      return;
+    }
     const saddled = m.extra.saddle === true || (m.def.id === 'happy_ghast' && !!m.extra.harness);
     const control = m.control ?? (m.control = { forward: 0, strafe: 0, jump: 0, lift: 0 });
     m.yaw = p.yaw;
@@ -5701,6 +5741,27 @@ export class Game {
     } else if (saddled && this.input.isDown('jump') && m.onGround) {
       control.jump = 0.42;
     }
+  }
+
+  /**
+   * Vanilla's boost: a click with the stick sets a run of 140 to 980 ticks whose push swells and
+   * fades along a sine, up to two and a bit times the animal's own speed, and costs the stick a point.
+   */
+  private boostSteerable(m: MobType): boolean {
+    const spec = STEER_BOOST[m.def.id];
+    if (!spec || (typeof m.extra.boostLeft === 'number' && m.extra.boostLeft > 0)) return false;
+    m.extra.boostLeft = spec.ticks;
+    if (this.player.gamemode === 'survival') this.player.inventory.damageSelected(spec.wear);
+    this.audio.play('click', { x: m.pos.x, y: m.pos.y, z: m.pos.z, pitch: 1.5 });
+    return true;
+  }
+
+  /** How hard the boost is pushing this tick, counting it down as it goes. */
+  private tickSteerBoost(m: MobType): number {
+    const left = typeof m.extra.boostLeft === 'number' ? m.extra.boostLeft : 0;
+    if (left <= 0) return 1;
+    m.extra.boostLeft = left - 1;
+    return STEER_BOOST_MULTIPLIER;
   }
 
   /** Vanilla taming: being thrown raises the horse's temper until it accepts the player. */
@@ -6050,6 +6111,7 @@ export class Game {
     if (EQUINE_TYPES.includes(m.def.id) && this.interactEquine(m, held, survival, at)) return true;
     if (NAUTILUS_TYPES.includes(m.def.id) && this.interactNautilus(m, held, survival, at)) return true;
     if (m.def.id === 'happy_ghast' && this.interactHappyGhast(m, held, survival, at)) return true;
+    if (SADDLE_ANIMALS[m.def.id] && this.interactSaddled(m, held, survival)) return true;
     if (m.def.id === 'armor_stand') return this.interactArmorStand(m, held, survival);
     if ((m.def.id === 'cat' || m.def.id === 'ocelot') && this.interactCat(m, held, survival, at)) return true;
     if (m.def.id === 'villager' || m.def.id === 'wandering_trader') {
@@ -6270,6 +6332,27 @@ export class Game {
    * the five body armours through the same screen a horse uses, and any fish heals or breeds it.
    */
   /**
+   * A pig or a strider: a saddle goes on a grown one, and from then on it can be ridden. Shears do
+   * not take it off again — vanilla only gives the saddle back when the animal dies.
+   */
+  private interactSaddled(m: MobType, held: ItemStack | null, survival: boolean): boolean {
+    const saddled = m.extra.saddle === true;
+    if (held?.id === 'saddle' && !saddled && !m.isBaby) {
+      m.extra.saddle = true;
+      m.persistent = true;
+      if (survival) this.player.inventory.consumeSelected();
+      this.audio.play('saddle', { x: m.pos.x, y: m.pos.y, z: m.pos.z });
+      return true;
+    }
+    // the stick that steers it is held, not used on it: a click with one aboard is the boost
+    if (saddled && held?.id !== SADDLE_ANIMALS[m.def.id] && !m.isBaby) {
+      this.mountMob(m);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * The happy ghast and its harness. A harness goes on a grown one and it can be ridden from then
    * on; shears take it off again — Mojang refuses that while anyone is aboard or the player is
    * sneaking, and the shears wear a point for it. A ghastling is too small to carry anyone.
@@ -6456,6 +6539,9 @@ export class Game {
       this.player.effects.add('bad_omen', 120000, 0);
       this.hud.showToast('Bad Omen');
     }
+    // a saddled animal gives its saddle back, and a wolf its coat
+    if (m.extra.saddle === true && SADDLE_ANIMALS[m.def.id]) this.dropStack({ id: 'saddle', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
+    if (typeof m.extra.wolfArmor === 'number') this.dropStack({ id: 'wolf_armor', count: 1, ...(m.extra.wolfArmor ? { damage: m.extra.wolfArmor } : {}) }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
     // a stand gives back what it was wearing, and itself
     if (m.def.id === 'armor_stand') {
       this.dropStack({ id: 'armor_stand', count: 1 }, m.pos.x, m.pos.y + 0.5, m.pos.z, true);
