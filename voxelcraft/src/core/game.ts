@@ -32,6 +32,9 @@ export const ENDER_EYE_LIFE = 80;
 export const XP_BOTTLE_SPEED = 0.7;
 /** How far a wind charge's burst reaches. */
 export const WIND_BURST_RADIUS = 3.5;
+/** Where a boat floats relative to the water it is on, and where its rider sits. */
+export const BOAT_SURFACE = 0.9;
+export const BOAT_SEAT = 0.35;
 /** The one thing a snowball hurts. */
 export const SNOWBALL_BLAZE_DAMAGE = 3;
 
@@ -81,6 +84,7 @@ import { FallingBlockEntity } from '../entities/fallingBlock.ts';
 import { PrimedTnt } from '../entities/primedTnt.ts';
 import { FishingBobber, bobberMesh } from '../entities/bobber.ts';
 import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type CartKind } from '../entities/minecart.ts';
+import { Boat, boatItem, boatItemId } from '../entities/boat.ts';
 import { FACING_OFFSET } from '../world/piston.ts';
 import { containerAt, hopperStates, insertOne, tickHopper, type HopperWorld } from '../world/hopper.ts';
 import { hooksFor, updateRun } from '../world/tripwire.ts';
@@ -236,6 +240,9 @@ export class Game {
   readonly primedTnt: PrimedTnt[] = [];
   /** Minecarts on the rails, and the one the player is sitting in. */
   readonly minecarts: Minecart[] = [];
+  readonly boats: Boat[] = [];
+  /** The boat the player is sitting in. */
+  private boat: Boat | null = null;
   private cart: Minecart | null = null;
   /** Detector rails a cart has crossed, with the tick it last saw one, so the pulse can be held. */
   private readonly detectorsOn = new Map<string, number>();
@@ -507,6 +514,17 @@ export class Game {
     this.entities.onRestoreItem = (s) => {
       if (s.item) this.dropStack({ ...s.item }, s.x, s.y, s.z, false).pickupDelay = 0;
     };
+    this.entities.onRestoreBoat = (s) => {
+      const kind = boatItem(s.type);
+      if (!kind) return;
+      const boat = new Boat(kind.chest ? 'chest_boat' : 'boat', kind.wood, s.x, s.y, s.z, import.meta.env.BASE_URL);
+      boat.yaw = s.yaw;
+      boat.prevYaw = s.yaw;
+      const saved = (s.extra as { items?: Slot[] | null } | undefined)?.items;
+      if (boat.items && Array.isArray(saved)) for (let i = 0; i < boat.items.length; i++) boat.items[i] = saved[i] ?? null;
+      this.boats.push(boat);
+      this.renderer.scene.add(boat.mesh);
+    };
     this.entities.onRestoreCart = (s) => {
       const kind = cartKindFor(s.type);
       if (!kind) return;
@@ -654,6 +672,7 @@ export class Game {
     for (const m of this.entities.mobs) if (!m.dead) mobChunks.add(`${Math.floor(m.pos.x) >> 4},${Math.floor(m.pos.z) >> 4}`);
     for (const e of this.itemEntities) if (!e.dead) mobChunks.add(`${Math.floor(e.pos.x) >> 4},${Math.floor(e.pos.z) >> 4}`);
     for (const c of this.minecarts) if (!c.dead) mobChunks.add(`${Math.floor(c.pos.x) >> 4},${Math.floor(c.pos.z) >> 4}`);
+    for (const b of this.boats) if (!b.dead) mobChunks.add(`${Math.floor(b.pos.x) >> 4},${Math.floor(b.pos.z) >> 4}`);
     for (const c of this.world.chunks.values()) {
       const key = `${c.cx},${c.cz}`;
       if (c.modified || mobChunks.has(key)) {
@@ -742,6 +761,9 @@ export class Game {
       this.itemEntities.length = 0;
       for (const cart of this.minecarts) this.renderer.scene.remove(cart.mesh);
       this.minecarts.length = 0;
+      for (const boat of this.boats) this.renderer.scene.remove(boat.mesh);
+      this.boats.length = 0;
+      this.boat = null;
       this.cart = null;
       this.signs.clear();
       this.chests.prune(new Set());
@@ -1039,6 +1061,7 @@ export class Game {
     this.tickPressurePlates();
     this.tickTripwires();
     this.tickMinecarts();
+    this.tickBoats();
     this.tickBobber();
     if (this.tickCount % 10 === 0) this.tickMap();
     this.tickWeather();
@@ -1322,6 +1345,13 @@ export class Game {
         this.useCooldown = 5;
         return;
       }
+      const struck = this.boatUnderCursor();
+      if (struck && (!t || struck.pos.distanceTo(eye) < t.distance)) {
+        this.breakBoat(struck);
+        this.breaking = null;
+        this.useCooldown = 5;
+        return;
+      }
       const cart = this.cartUnderCursor();
       if (cart && cart !== this.cart && (!t || cart.pos.distanceTo(eye) < t.distance)) {
         this.breakCart(cart);
@@ -1360,6 +1390,13 @@ export class Game {
       const dir = p.lookDirection(this.tmpDir);
       const hit = this.entities.raycast(eye, dir, 3);
       if (hit && (!t || hit.distance < t.distance) && this.interactMob(hit.mob)) {
+        this.eating = null;
+        this.useCooldown = 4;
+        return;
+      }
+      const boat = this.boatUnderCursor();
+      if (boat && boat !== this.boat && !boatItem(p.heldItem()?.id ?? '')) {
+        this.useBoat(boat);
         this.eating = null;
         this.useCooldown = 4;
         return;
@@ -3935,6 +3972,7 @@ export class Game {
       this.strikeFlint(t, true);
       return;
     }
+    if (def.behavior === 'boat' && this.placeBoat(held.id)) return;
     if (def.behavior === 'spawn_egg' && t && this.useSpawnEgg(held, t)) return;
     if (def.behavior === 'axe' && t && this.useAxeOn(t)) return;
     if (held.id === 'honeycomb' && t && this.waxBlock(t)) return;
@@ -4394,6 +4432,131 @@ export class Game {
    * Minecarts roll along their rails; the one being ridden takes a little push from the keys, as
    * vanilla lets a rider nudge a cart along, and carries the player with it.
    */
+  /** Rowing: the boat under whoever is aboard turns and is pushed the way it points. */
+  private tickBoats(): void {
+    for (let i = this.boats.length - 1; i >= 0; i--) {
+      const boat = this.boats[i];
+      if (boat === this.boat) {
+        boat.control = {
+          forward: (this.input.isDown('forward') ? 1 : 0) - (this.input.isDown('back') ? 1 : 0),
+          turn: (this.input.isDown('right') ? 1 : 0) - (this.input.isDown('left') ? 1 : 0),
+        };
+      } else {
+        boat.control = null;
+      }
+      boat.tick(this.world);
+      if (boat.pos.y < WORLD_MIN_Y) boat.dead = true;
+      if (!boat.dead) continue;
+      if (this.boat === boat) this.leaveBoat();
+      this.renderer.scene.remove(boat.mesh);
+      this.boats.splice(i, 1);
+    }
+    if (this.boat) {
+      if (this.input.tickPressed('sneak') || this.player.dead) this.leaveBoat();
+      else this.seatBoat();
+    }
+  }
+
+  /**
+   * Puts a boat on the water (or the ground) the player is looking at. A boat is one of the few
+   * things aimed at the water itself rather than through it, so this takes its own fluid raycast.
+   */
+  private placeBoat(id: string): boolean {
+    const kind = boatItem(id);
+    if (!kind) return false;
+    const { wood, chest } = kind;
+    const eye = this.player.eyePosition(1, this.tmpEye);
+    const dir = this.player.lookDirection(this.tmpDir);
+    const t = this.world.raycast(eye, dir, BLOCK_REACH, true);
+    if (!t) return false;
+    // vanilla sets a boat on top of what was clicked, and on the surface when that is water
+    const [dx, dy, dz] = FACE_NORMALS[t.face];
+    const surface = blocks.blockOf(t.state).id === 'water';
+    const boat = new Boat(chest ? 'chest_boat' : 'boat', wood, t.x + (surface ? 0 : dx) + 0.5, surface ? t.y + BOAT_SURFACE : t.y + dy, t.z + (surface ? 0 : dz) + 0.5, import.meta.env.BASE_URL);
+    boat.yaw = this.player.yaw;
+    boat.prevYaw = boat.yaw;
+    this.boats.push(boat);
+    this.renderer.scene.add(boat.mesh);
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    this.audio.play('splash', { x: boat.pos.x, y: boat.pos.y, z: boat.pos.z, pitch: 1.2 });
+    return true;
+  }
+
+  /** The boat the player is looking at, within reach. */
+  private boatUnderCursor(): Boat | null {
+    const eye = this.player.eyePosition(1, this.tmpEye);
+    const dir = this.player.lookDirection(this.tmpDir);
+    let best: Boat | null = null;
+    let bestDist = BLOCK_REACH;
+    for (const boat of this.boats) {
+      const to = boat.pos.clone().add(new THREE.Vector3(0, 0.3, 0)).sub(eye);
+      const along = to.dot(dir);
+      if (along <= 0 || along > bestDist) continue;
+      if (to.clone().addScaledVector(dir, -along).length() > 1) continue;
+      best = boat;
+      bestDist = along;
+    }
+    return best;
+  }
+
+  /** Sits the player in a boat, or opens the chest one. */
+  private useBoat(boat: Boat): void {
+    if (boat.items && this.player.sneaking) {
+      this.openScreen(chestScreen(this.player.inventory, boat.items, 3, 'Boat with Chest'));
+      return;
+    }
+    if (this.mount) this.dismount();
+    if (this.cart) this.leaveCart();
+    if (this.boat && this.boat !== boat) this.leaveBoat();
+    this.boat = boat;
+    boat.ridden = true;
+    this.player.riding = true;
+    this.seatBoat();
+  }
+
+  private seatBoat(): void {
+    const boat = this.boat;
+    if (!boat) return;
+    const p = this.player;
+    p.prevPos.set(boat.prev.x, boat.prev.y + BOAT_SEAT, boat.prev.z);
+    p.pos.set(boat.pos.x, boat.pos.y + BOAT_SEAT, boat.pos.z);
+    p.vel.set(0, 0, 0);
+    p.onGround = true;
+    p.fallDistance = 0;
+  }
+
+  /** Steps out of the boat, putting the player beside it. */
+  private leaveBoat(): void {
+    const boat = this.boat;
+    if (!boat) return;
+    boat.ridden = false;
+    boat.control = null;
+    this.boat = null;
+    const p = this.player;
+    p.riding = false;
+    p.vel.set(0, 0, 0);
+    for (const [dx, dz] of [[1.2, 0], [-1.2, 0], [0, 1.2], [0, -1.2], [0, 0]]) {
+      const x = boat.pos.x + dx;
+      const z = boat.pos.z + dz;
+      if (p.fitsAt(this.world, x, boat.pos.y + 0.5, z)) {
+        p.teleport(x, boat.pos.y + 0.5, z);
+        return;
+      }
+    }
+    p.teleport(boat.pos.x, boat.pos.y + 1, boat.pos.z);
+  }
+
+  /** Breaking a boat: it drops its own item and whatever it was carrying. */
+  private breakBoat(boat: Boat): void {
+    boat.dead = true;
+    if (this.player.gamemode !== 'creative') {
+      const id = boatItemId(boat.wood, boat.kind === 'chest_boat');
+      this.dropStack({ id: items.byId.has(id) ? id : 'oak_boat', count: 1 }, boat.pos.x, boat.pos.y + 0.3, boat.pos.z, true);
+      for (const slot of boat.items ?? []) if (slot) this.dropStack(cloneStack(slot), boat.pos.x, boat.pos.y + 0.3, boat.pos.z, true);
+    }
+    this.audio.play('dig_wood', { x: boat.pos.x, y: boat.pos.y, z: boat.pos.z });
+  }
+
   private tickMinecarts(): void {
     for (let i = this.minecarts.length - 1; i >= 0; i--) {
       const cart = this.minecarts[i];
@@ -4661,6 +4824,10 @@ export class Game {
     for (const cart of this.minecarts) {
       if (cart.dead || (Math.floor(cart.pos.x) >> 4) !== cx || (Math.floor(cart.pos.z) >> 4) !== cz) continue;
       list.push({ type: cart.kind, x: cart.pos.x, y: cart.pos.y, z: cart.pos.z, yaw: cart.yaw, health: 0, age: 0, extra: { items: cart.items ?? null } });
+    }
+    for (const boat of this.boats) {
+      if (boat.dead || (Math.floor(boat.pos.x) >> 4) !== cx || (Math.floor(boat.pos.z) >> 4) !== cz) continue;
+      list.push({ type: boatItemId(boat.wood, boat.kind === 'chest_boat'), x: boat.pos.x, y: boat.pos.y, z: boat.pos.z, yaw: boat.yaw, health: 0, age: 0, extra: { items: boat.items ?? null } });
     }
     return list;
   }
@@ -6173,6 +6340,7 @@ export class Game {
     for (const e of this.fallingBlocks) e.updateMesh(alpha);
     for (const e of this.primedTnt) e.updateMesh(alpha);
     for (const e of this.minecarts) e.updateMesh(alpha);
+    for (const e of this.boats) e.render(alpha);
     this.chests.animate();
     this.blockEntities.animate(this.tickCount + partialTime / 50);
     this.beams.animate(this.tickCount + partialTime / 50);

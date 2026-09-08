@@ -1548,3 +1548,27 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      And a data fix worth its own note: the tool classified anything ending in `_egg` as a
      throwable, so turtle eggs and sniffer eggs were items that could be thrown and not placed. They
      are blocks; only the hen's three are thrown.
+
+138. **Boats.** Twenty items that did nothing, and the one thing missing from a game with oceans in
+     it. The model had to be reverse-engineered: Mojang's Bedrock samples have no boat geometry
+     under any name I could find, and the Java model lives in code rather than data. So it came out
+     of the texture itself — `boat/oak.png` is a 128×64 net, and decoding its alpha gives the box
+     each region was cut for exactly: a 28×16×3 floor at (0,0), a 18×6×2 back at (0,19), a 16×6×2
+     front at (0,27) and two 28×6×2 sides at (0,35) and (0,43), with each oar a 2×2×18 shaft and a
+     1×6×7 blade at (62,0) and (62,20). A chest boat's sheet is twice as tall and carries a 12×8×12
+     base, a 12×5×12 lid and the latch. Every one of those numbers is a measurement rather than a
+     guess, and the boat renders cleanly with the real texture, which is the check that matters.
+
+     The bamboo raft uses the same layout with its own texture. Vanilla gives the raft its own flat
+     geometry; ours is the boat's, which reads correctly because the texture net is laid out the
+     same way, and is the honest limit of what the assets alone can tell us.
+
+     Steering is vanilla's: a boat is turned rather than strafed, and only then pushed the way it
+     points — a stroke of 0.04 a tick forward, a twelfth of that back, against a water drag of 0.9,
+     which settles at about seven blocks a second. On land the drag is 0.5 and it slides to a stop.
+     It floats by being pushed up whenever its floor is under water and held down when the block
+     above it is not, which keeps it riding the surface without bobbing.
+
+     Boats are aimed at the water rather than through it, so placing one takes its own fluid-aware
+     raycast rather than the block target the rest of the game uses. They save and load with the
+     chunk they are in, the way minecarts do.
