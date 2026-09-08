@@ -74,6 +74,7 @@ const JAR_PATHS = [
   'data/minecraft/enchantment/',
   'data/minecraft/trim_pattern/',
   'data/minecraft/trim_material/',
+  'data/minecraft/painting_variant/',
   'data/minecraft/damage_type/',
   'pack.mcmeta',
   'version.json',

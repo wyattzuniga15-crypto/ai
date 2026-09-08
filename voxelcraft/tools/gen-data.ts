@@ -878,6 +878,35 @@ writeJson(path.join(DATA, 'trims.json'), { patterns: trimPatterns, materials: tr
 
 
 // ------------------------------------------------------------------------------------------------
+// Paintings
+// ------------------------------------------------------------------------------------------------
+/**
+ * Vanilla's `painting_variant` registry: how many blocks across and down each picture hangs, and
+ * whether a player may put it up (the placeable tag leaves out the four that only a command gives
+ * you). The names and the painters come from the language file, as vanilla labels them.
+ */
+const placeableTag = (() => {
+  const f = path.join(pack, 'tags', 'painting_variant', 'placeable.json');
+  if (!fs.existsSync(f)) return null;
+  return new Set(readJson<{ values: string[] }>(f).values.map((v) => v.replace('minecraft:', '')));
+})();
+const paintings = dataFiles(path.join(pack, 'painting_variant')).map((f) => {
+  const id = f.slice(0, -5);
+  const raw = readJson<{ width: number; height: number }>(path.join(pack, 'painting_variant', f));
+  return {
+    id,
+    name: lang[`painting.minecraft.${id}.title`] ?? titleCase(id),
+    author: lang[`painting.minecraft.${id}.author`] ?? '',
+    width: raw.width,
+    height: raw.height,
+    placeable: placeableTag ? placeableTag.has(id) : true,
+  };
+}).sort((a, b) => a.id.localeCompare(b.id));
+if (!paintings.length) console.warn('no painting variants found: is data/minecraft/painting_variant in the fetch?');
+writeJson(path.join(DATA, 'paintings.json'), paintings);
+
+
+// ------------------------------------------------------------------------------------------------
 // Jukebox songs
 // ------------------------------------------------------------------------------------------------
 /**

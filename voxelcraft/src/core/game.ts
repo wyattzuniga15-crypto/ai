@@ -87,13 +87,14 @@ import { PrimedTnt } from '../entities/primedTnt.ts';
 import { FishingBobber, bobberMesh } from '../entities/bobber.ts';
 import { CART_BLOCKS, CART_ITEMS, Minecart, cartKindFor, minecartMesh, type CartKind } from '../entities/minecart.ts';
 import { Boat, boatItem, boatItemId } from '../entities/boat.ts';
+import { FACING_VEC, FRAME_ROTATIONS, Hanging, PAINTING_BY_ID, choosePainting, hangingCells, type Facing, type HangingKind } from '../entities/hanging.ts';
 import { FACING_OFFSET } from '../world/piston.ts';
 import { containerAt, hopperStates, insertOne, tickHopper, type HopperWorld } from '../world/hopper.ts';
 import { hooksFor, updateRun } from '../world/tripwire.ts';
 import { analogOutput, isPowered, targetStrength } from '../world/redstone.ts';
 import { Rng } from './rng.ts';
 import { WATER_DELAY, LAVA_DELAY } from '../world/fluids.ts';
-import { EntityManager, type ManagerHost } from '../entities/manager.ts';
+import { EntityManager, rayBox, type ManagerHost } from '../entities/manager.ts';
 import { type Mob } from '../entities/mob.ts';
 import { entityDrops } from '../items/loot.ts';
 import { explode, exposure, explosionDamage } from '../world/explosion.ts';
@@ -247,6 +248,8 @@ export class Game {
   /** Minecarts on the rails, and the one the player is sitting in. */
   readonly minecarts: Minecart[] = [];
   readonly boats: Boat[] = [];
+  /** Paintings and item frames nailed to walls. */
+  readonly hangings: Hanging[] = [];
   /** The boat the player is sitting in. */
   private boat: Boat | null = null;
   private cart: Minecart | null = null;
@@ -531,6 +534,25 @@ export class Game {
       this.boats.push(boat);
       this.renderer.scene.add(boat.mesh);
     };
+    this.entities.onRestoreHanging = (s) => {
+      const e = (s.extra ?? {}) as { facing?: Facing; variant?: string | null; rotation?: number; item?: Slot };
+      const variant = e.variant ? PAINTING_BY_ID.get(e.variant) ?? null : null;
+      if (s.type === 'painting' && !variant) return;
+      const h = new Hanging(s.type as HangingKind, e.facing ?? 'north', s.x, s.y, s.z, variant);
+      if (h.kind === 'painting') h.buildPainting(import.meta.env.BASE_URL);
+      else {
+        const mesh = this.blockMeshes.namedMesh(`block/${h.kind}`);
+        if (mesh) h.group.add(mesh);
+      }
+      h.rotation = e.rotation ?? 0;
+      if (e.item) {
+        h.item = cloneStack(e.item);
+        this.setFrameItem(h);
+      }
+      h.orient();
+      this.hangings.push(h);
+      this.renderer.scene.add(h.group);
+    };
     this.entities.onRestoreCart = (s) => {
       const kind = cartKindFor(s.type);
       if (!kind) return;
@@ -769,6 +791,8 @@ export class Game {
       this.minecarts.length = 0;
       for (const boat of this.boats) this.renderer.scene.remove(boat.mesh);
       this.boats.length = 0;
+      for (const h of this.hangings) this.renderer.scene.remove(h.group);
+      this.hangings.length = 0;
       this.boat = null;
       this.cart = null;
       this.signs.clear();
@@ -1014,6 +1038,12 @@ export class Game {
         this.itemEntities.splice(i, 1);
       }
     }
+    for (let i = this.hangings.length - 1; i >= 0; i--) {
+      const h = this.hangings[i];
+      if ((h.wall.x >> 4) !== c.cx || (h.wall.z >> 4) !== c.cz) continue;
+      this.renderer.scene.remove(h.group);
+      this.hangings.splice(i, 1);
+    }
     for (let i = this.minecarts.length - 1; i >= 0; i--) {
       const cart = this.minecarts[i];
       if (cart === this.cart || (Math.floor(cart.pos.x) >> 4) !== c.cx || (Math.floor(cart.pos.z) >> 4) !== c.cz) continue;
@@ -1068,6 +1098,7 @@ export class Game {
     this.tickTripwires();
     this.tickMinecarts();
     this.tickBoats();
+    this.tickHangings();
     this.tickBobber();
     if (this.tickCount % 10 === 0) this.tickMap();
     this.tickWeather();
@@ -1366,6 +1397,13 @@ export class Game {
         this.useCooldown = 5;
         return;
       }
+      const hanging = this.hangingUnderCursor();
+      if (hanging && (!t || hanging.center().distanceTo(eye) < t.distance)) {
+        this.breakHanging(hanging);
+        this.breaking = null;
+        this.useCooldown = 5;
+        return;
+      }
     }
     // mining
     if (this.input.isDown('attack') && t && !p.dead) {
@@ -1397,6 +1435,12 @@ export class Game {
       const dir = p.lookDirection(this.tmpDir);
       const hit = this.entities.raycast(eye, dir, 3);
       if (hit && (!t || hit.distance < t.distance) && this.interactMob(hit.mob)) {
+        this.eating = null;
+        this.useCooldown = 4;
+        return;
+      }
+      const hanging = this.hangingUnderCursor();
+      if (hanging && this.useHanging(hanging)) {
         this.eating = null;
         this.useCooldown = 4;
         return;
@@ -4028,6 +4072,7 @@ export class Game {
       return;
     }
     if (def.behavior === 'boat' && this.placeBoat(held.id)) return;
+    if (t && (held.id === 'painting' || held.id === 'item_frame' || held.id === 'glow_item_frame') && this.placeHanging(held.id as HangingKind, t)) return;
     if (def.behavior === 'spawn_egg' && t && this.useSpawnEgg(held, t)) return;
     if (def.behavior === 'axe' && t && this.useAxeOn(t)) return;
     if (held.id === 'honeycomb' && t && this.waxBlock(t)) return;
@@ -4601,6 +4646,144 @@ export class Game {
     p.teleport(boat.pos.x, boat.pos.y + 1, boat.pos.z);
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Paintings and item frames
+  // ---------------------------------------------------------------------------------------------
+
+  /** The face name a raycast hit maps to, which is the way a hanging thing ends up facing. */
+  private hitFacing(face: number): Facing {
+    return (['down', 'up', 'north', 'south', 'west', 'east'] as Facing[])[face] ?? 'north';
+  }
+
+  /**
+   * Hanging a picture or a frame. Vanilla only takes a face with something solid behind every block
+   * it covers and air in front of all of them, and no other hanging thing already there; a picture
+   * then grows counter-clockwise and up from the block that was clicked, and of every one that fits
+   * the largest is taken, one of those at random.
+   */
+  private placeHanging(kind: HangingKind, t: RaycastHit): boolean {
+    const facing = this.hitFacing(t.face);
+    if (kind === 'painting' && (facing === 'up' || facing === 'down')) return false;
+    const room = (w: number, h: number): boolean => {
+      for (const [dx, dy, dz] of hangingCells(w, h, facing)) {
+        const bx = t.x + dx, by = t.y + dy, bz = t.z + dz;
+        const wall = this.world.getBlock(bx, by, bz);
+        if (wall === 0 || !blocks.blockOf(wall).solid) return false;
+        const [fx, fy, fz] = FACING_VEC[facing];
+        const f = this.world.getBlock(bx + fx, by + fy, bz + fz);
+        if (f !== 0 && !blocks.blockOf(f).replaceable) return false;
+      }
+      return !this.hangings.some((other) => !other.dead && other.facing === facing && this.hangingCovers(other, t, facing, w, h));
+    };
+    const variant = kind === 'painting' ? choosePainting((v) => room(v.width, v.height), Math.random) : null;
+    if (kind === 'painting' && !variant) return false;
+    if (kind !== 'painting' && !room(1, 1)) return false;
+    const hanging = new Hanging(kind, facing, t.x, t.y, t.z, variant);
+    if (kind === 'painting') hanging.buildPainting(import.meta.env.BASE_URL);
+    else {
+      const mesh = this.blockMeshes.namedMesh(`block/${kind}`);
+      if (mesh) hanging.group.add(mesh);
+    }
+    hanging.orient();
+    this.hangings.push(hanging);
+    this.renderer.scene.add(hanging.group);
+    this.world.markModifiedAt(t.x, t.z);
+    this.audio.play('dig_wood', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+    if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+    return true;
+  }
+
+  /** Whether an existing hanging thing would be in the way of a new one of this size. */
+  private hangingCovers(h: Hanging, t: RaycastHit, facing: Facing, w: number, hh: number): boolean {
+    const mine = new Set(hangingCells(w, hh, facing).map(([dx, dy, dz]) => `${t.x + dx},${t.y + dy},${t.z + dz}`));
+    for (const [dx, dy, dz] of hangingCells(h.width, h.height, h.facing)) {
+      if (mine.has(`${h.wall.x + dx},${h.wall.y + dy},${h.wall.z + dz}`)) return true;
+    }
+    return false;
+  }
+
+  /** The hanging thing the cursor is on, within reach. */
+  private hangingUnderCursor(): Hanging | null {
+    const eye = this.player.eyePosition(1, this.tmpEye);
+    const dir = this.player.lookDirection(this.tmpDir);
+    let best: Hanging | null = null;
+    let bestDist = BLOCK_REACH;
+    for (const h of this.hangings) {
+      if (h.dead) continue;
+      const d = rayBox(eye, dir, h.aabb());
+      if (d === null || d > bestDist) continue;
+      best = h;
+      bestDist = d;
+    }
+    return best;
+  }
+
+  /**
+   * Using a frame: an empty one takes what is held, a full one turns its item round one of the
+   * eight steps vanilla turns it. A picture does nothing at all.
+   */
+  private useHanging(h: Hanging): boolean {
+    if (h.kind === 'painting') return false;
+    const held = this.player.heldItem();
+    if (!h.hasItem() && held) {
+      h.item = cloneStack(held, 1);
+      this.setFrameItem(h);
+      if (this.player.gamemode === 'survival') this.player.inventory.consumeSelected();
+      this.audio.play('click', { x: h.wall.x, y: h.wall.y, z: h.wall.z, pitch: 1.2 });
+      this.world.markModifiedAt(h.wall.x, h.wall.z);
+      return true;
+    }
+    if (!h.hasItem()) return false;
+    h.rotation = (h.rotation + 1) % FRAME_ROTATIONS;
+    h.turnItem();
+    this.audio.play('click', { x: h.wall.x, y: h.wall.y, z: h.wall.z, pitch: 0.9 });
+    this.world.markModifiedAt(h.wall.x, h.wall.z);
+    return true;
+  }
+
+  /** Draws the item a frame is holding, flat in the frame. */
+  private setFrameItem(h: Hanging): void {
+    if (!h.item) {
+      h.setItem(null);
+      return;
+    }
+    const tex = itemTexture(this.icons.forStack(h.item));
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide }));
+    h.setItem(mesh);
+  }
+
+  /** Knocking one off the wall: it drops itself, and a frame drops what it was holding too. */
+  breakHanging(h: Hanging, drop = true): void {
+    if (h.dead) return;
+    h.dead = true;
+    this.renderer.scene.remove(h.group);
+    const i = this.hangings.indexOf(h);
+    if (i >= 0) this.hangings.splice(i, 1);
+    const c = h.center();
+    if (drop && this.player.gamemode === 'survival') {
+      this.dropStack({ id: h.itemId, count: 1 }, c.x, c.y, c.z, true);
+      if (h.item) this.dropStack(cloneStack(h.item), c.x, c.y, c.z, true);
+    }
+    this.world.markModifiedAt(h.wall.x, h.wall.z);
+    this.audio.play('dig_wood', { x: c.x, y: c.y, z: c.z, pitch: 0.8 });
+  }
+
+  /** A hanging thing whose wall has gone falls off, which is how vanilla drops one. */
+  private tickHangings(): void {
+    if (this.tickCount % 10 !== 0) return;
+    for (const h of [...this.hangings]) {
+      let held = true;
+      for (const [dx, dy, dz] of hangingCells(h.width, h.height, h.facing)) {
+        const s = this.world.getBlock(h.wall.x + dx, h.wall.y + dy, h.wall.z + dz);
+        if (s === 0 || !blocks.blockOf(s).solid) {
+          held = false;
+          break;
+        }
+      }
+      if (!held) this.breakHanging(h);
+    }
+  }
+
   /** Breaking a boat: it drops its own item and whatever it was carrying. */
   private breakBoat(boat: Boat): void {
     boat.dead = true;
@@ -4883,6 +5066,10 @@ export class Game {
     for (const boat of this.boats) {
       if (boat.dead || (Math.floor(boat.pos.x) >> 4) !== cx || (Math.floor(boat.pos.z) >> 4) !== cz) continue;
       list.push({ type: boatItemId(boat.wood, boat.kind === 'chest_boat'), x: boat.pos.x, y: boat.pos.y, z: boat.pos.z, yaw: boat.yaw, health: 0, age: 0, extra: { items: boat.items ?? null } });
+    }
+    for (const h of this.hangings) {
+      if (h.dead || (h.wall.x >> 4) !== cx || (h.wall.z >> 4) !== cz) continue;
+      list.push({ type: h.kind, x: h.wall.x, y: h.wall.y, z: h.wall.z, yaw: 0, health: 0, age: 0, extra: { facing: h.facing, variant: h.variant?.id ?? null, rotation: h.rotation, item: h.item ? cloneStack(h.item) : null } });
     }
     return list;
   }

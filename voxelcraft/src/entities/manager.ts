@@ -245,6 +245,7 @@ export class EntityManager {
   /** Called for saved minecarts, which the game keeps outside the mob list. */
   onRestoreCart: ((s: MobSave) => void) | null = null;
   onRestoreBoat: ((s: MobSave) => void) | null = null;
+  onRestoreHanging: ((s: MobSave) => void) | null = null;
 
   restoreChunk(cx: number, cz: number, saved: MobSave[] | null): void {
     const key = chunkKey(cx, cz);
@@ -261,6 +262,10 @@ export class EntityManager {
       }
       if (s.type.endsWith('_boat') || s.type.endsWith('_raft')) {
         this.onRestoreBoat?.(s);
+        continue;
+      }
+      if (s.type === 'painting' || s.type === 'item_frame' || s.type === 'glow_item_frame') {
+        this.onRestoreHanging?.(s);
         continue;
       }
       const m = this.spawn(s.type, s.x, s.y, s.z, s.yaw);
@@ -700,7 +705,8 @@ export class EntityManager {
   }
 }
 
-function rayBox(o: THREE.Vector3, d: THREE.Vector3, b: AABB): number | null {
+/** Distance along a ray to the near face of a box, or null when it misses. */
+export function rayBox(o: THREE.Vector3, d: THREE.Vector3, b: AABB): number | null {
   let tmin = -Infinity;
   let tmax = Infinity;
   const axes: [number, number, number, number][] = [[o.x, d.x, b.minX, b.maxX], [o.y, d.y, b.minY, b.maxY], [o.z, d.z, b.minZ, b.maxZ]];

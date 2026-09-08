@@ -1667,3 +1667,24 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      half that every other baby takes, which is why mobs now carry their own baby scale; it has its
      own skin, is too small to wear a harness or carry anyone, and a snowball takes a tenth off the
      time it has left to grow.
+
+143. **Paintings and item frames.** Both hang off the face of a block, and both follow Mojang's own
+     rules for the room they take. A picture grows counter-clockwise and upward from the block that
+     was clicked — `(size - 1) / -2` truncated toward zero, so a one- or two-wide one starts on that
+     block and a three- or four-wide one reaches one back — and an even side pushes the middle of it
+     half a block that way. Every block it covers has to have something solid behind it and air in
+     front, and of every picture that fits, vanilla keeps the largest by area and takes one of those
+     at random; over twenty tries in the same four-by-four space the game gave five different
+     four-by-fours, which is the rule working. Take one of the blocks behind it away and the whole
+     picture comes off the wall as an item, which is Mojang's `survives` check.
+
+     The size and the name of all 51 pictures now come from vanilla's own `painting_variant`
+     registry, fetched with the rest of the assets and written out to `data/paintings.json`; the
+     `placeable` tag is what keeps the four elemental ones (earth, fire, water, wind) off the wall,
+     since only a command gives you those. Painting textures are sixteen pixels to the block, which
+     the tests check against the registry, so a picture is drawn at its true size.
+
+     Item frames take any of the six faces, not just the four walls, and are drawn from vanilla's
+     own `block/item_frame` model rather than a box model written out by hand — which is what the
+     named-model mesh on the block mesh factory is for. A frame takes one item, turns it through the
+     eight steps vanilla turns it, and gives both back when it is knocked off.
