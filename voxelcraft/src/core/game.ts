@@ -4,7 +4,7 @@
  * state selection, drops), survival stats, the day cycle, commands and saving.
  */
 import * as THREE from 'three';
-import { BLOCK_REACH, DAY_LENGTH, MELEE_REACH, SEA_LEVEL, SPEAR_REACH, WORLD_MAX_Y, WORLD_MIN_Y } from './constants.ts';
+import { BLOCK_REACH, DAY_LENGTH, MELEE_REACH, SEA_LEVEL, SPEAR_REACH, TOTEM, TOTEM_ABSORPTION, TOTEM_FIRE_RESISTANCE, TOTEM_REGENERATION, WORLD_MAX_Y, WORLD_MIN_Y } from './constants.ts';
 import { GameLoop } from './loop.ts';
 import { Input } from './input.ts';
 import type { Options, SaveManager, WorldMeta } from './save.ts';
@@ -1291,6 +1291,7 @@ export class Game {
     p.health = Math.max(0, p.health - amount);
     p.hurtTime = 10;
     this.audio.play(p.health <= 0 ? 'death' : 'hurt', { pitch: 0.9 + Math.random() * 0.2 });
+    if (p.health <= 0 && this.useTotem()) return;
     if (p.health <= 0) {
       this.closeScreen();
       p.dead = true;
@@ -5665,6 +5666,36 @@ export class Game {
       }
       p.teleport(m.pos.x, m.pos.y + 0.2, m.pos.z);
     }
+  }
+
+  /**
+   * Vanilla's totem of undying: a blow that would kill is survived instead, from either hand. The
+   * player is left on a single point of health with everything else cleared away and Mojang's own
+   * three blessings put on: Regeneration for forty-five seconds, Fire Resistance for forty and
+   * Absorption for five.
+   */
+  private useTotem(): boolean {
+    const p = this.player;
+    const main = p.heldItem();
+    const off = p.inventory.offhand;
+    const hand = main?.id === TOTEM ? 'main' : off?.id === TOTEM ? 'off' : null;
+    if (!hand) return false;
+    if (hand === 'main') p.inventory.consumeSelected();
+    else {
+      off!.count -= 1;
+      if (off!.count <= 0) p.inventory.offhand = null;
+      p.inventory.version++;
+    }
+    p.health = 1;
+    p.absorption = 0;
+    p.effects.clear();
+    p.effects.add('regeneration', TOTEM_REGENERATION, 1);
+    p.effects.add('fire_resistance', TOTEM_FIRE_RESISTANCE, 0);
+    p.effects.add('absorption', TOTEM_ABSORPTION, 1);
+    this.hud.showToast('Totem of Undying');
+    this.particles.spawnSprite('happy', p.pos.x, p.pos.y + 1, p.pos.z, 0, 0.05, 0, 40, 0.6);
+    this.audio.play('levelup', { pitch: 0.8, volume: 0.8 });
+    return true;
   }
 
   /** Whether there is anything solid within `depth` blocks under a mount, to step off onto. */

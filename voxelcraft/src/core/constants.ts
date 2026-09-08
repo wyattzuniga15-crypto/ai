@@ -20,6 +20,11 @@ export const BLOCK_REACH = 4.5;
 /** How far a swing reaches, and how much further a spear does (Mojang's own piercing reach). */
 export const MELEE_REACH = 3;
 export const SPEAR_REACH = 4.5;
+/** What a totem leaves the player with: Mojang's own three blessings, in ticks. */
+export const TOTEM = 'totem_of_undying';
+export const TOTEM_REGENERATION = 900;
+export const TOTEM_FIRE_RESISTANCE = 800;
+export const TOTEM_ABSORPTION = 100;
 
 export const DEFAULT_RENDER_DISTANCE = 8;
 export const MC_VERSION = '1.21.11';

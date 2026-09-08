@@ -1748,3 +1748,10 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      The lunge and the kinetic charge in those same files — a spear thrown forward at speed hitting
      harder — are left out: they need a mounted charge our combat does not have, and half of a
      mechanic is worse than none.
+
+147. **The totem of undying.** An audit of every item behaviour after the spears turned up one
+     signature item that did nothing at all: the totem was in the creative menu and nowhere else. A
+     blow that would kill is now survived from either hand, exactly as vanilla survives it — the
+     totem is spent, the player is left on a single point of health with every effect cleared away,
+     and Mojang's own three go on: Regeneration II for nine hundred ticks, Fire Resistance for eight
+     hundred and Absorption II for a hundred.

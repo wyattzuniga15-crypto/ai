@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { items } from '../src/items/registry.ts';
-import { MELEE_REACH, SPEAR_REACH } from '../src/core/constants.ts';
+import { MELEE_REACH, SPEAR_REACH, TOTEM, TOTEM_ABSORPTION, TOTEM_FIRE_RESISTANCE, TOTEM_REGENERATION } from '../src/core/constants.ts';
 import { tabOf } from '../src/items/creativeTabs.ts';
 
 const SPEARS = ['wooden', 'stone', 'copper', 'iron', 'golden', 'diamond', 'netherite'].map((t) => `${t}_spear`);
@@ -62,5 +62,18 @@ describe('the spears', () => {
 
   it('is listed with the weapons', () => {
     for (const id of SPEARS) expect(tabOf(items.get(id)), id).toBe('combat');
+  });
+});
+
+describe('the totem of undying', () => {
+  it('carries Mojang\'s own three blessings, in ticks', () => {
+    expect(TOTEM).toBe('totem_of_undying');
+    expect(items.has(TOTEM)).toBe(true);
+    expect(items.get(TOTEM).stack).toBe(1);
+    // regeneration for forty-five seconds, fire resistance for forty, absorption for five
+    expect(TOTEM_REGENERATION).toBe(900);
+    expect(TOTEM_FIRE_RESISTANCE).toBe(800);
+    expect(TOTEM_ABSORPTION).toBe(100);
+    expect(tabOf(items.get(TOTEM))).toBe('combat');
   });
 });
