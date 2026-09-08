@@ -1463,3 +1463,38 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      While it is saddled and in the water it breathes for its rider — vanilla's breath of the
      nautilus — so the air bar holds while you ride. Its saddle and the five body armours go on
      through vanilla's own nautilus screen, and the armour soaks damage on the horse ladder.
+
+135. **The last of the structures.** Five of Mojang's thirty-four were never placed, and one more
+     was placed but could never appear.
+
+     *Nether fossils* are the simplest: fourteen skeletons of bone block, spread one every other
+     chunk through the soul sand valleys — by far the densest spread in the game — dropped onto the
+     first floor under a height sampled between y 32 and the roof, which is vanilla's own walk.
+
+     *The ruined portals* were the interesting ones. All seven share a single spread, and each names
+     its own biomes and its own setups, so they are emitted as variants of one entry: the biome
+     picks which of the seven a start becomes, and then one of that one's setups is drawn by weight.
+     The setup says where it stands (on the ground, sunk into it, under it, on the sea floor, in the
+     nether), how much of its stone brick has gone mossy, and whether the whole thing is blackstone
+     instead. Two of the seven — the ocean's and the nether's — were simply missing before, and the
+     other five now weather the way their own files say rather than all alike: a jungle portal comes
+     up four fifths mossy, a plains one a fifth. The blackstone swap maps the whole stone-brick
+     family (and the plain stone, the slabs, the stairs and the wall) onto blackstone, which is the
+     only reading the shared templates allow. `vines` and `overgrown`, which only the jungle and
+     swamp setups set, are still not applied.
+
+     *Trail ruins* are a jigsaw structure like a village, with one wrinkle: their start height is
+     both projected to the ground and offset, so they sit fifteen blocks under whatever they are
+     built on. That needed a `startYRelative` flag — every other buried structure here measures from
+     y 0. Their archaeology processor is vanilla's: a fifth of the gravel weathers to dirt and a
+     tenth more to coarse dirt, a tenth of the mud brick slumps to packed mud, and up to six gravel
+     blocks per piece become the suspicious ones. The six are chosen from the whole piece rather
+     than the part of it in the chunk being written, so neighbouring chunks agree on which they are.
+     Brushing them is still not implemented, so for now they are a block rather than a dig.
+
+     *Beached shipwrecks* were in the index all along but could never generate: both shipwreck
+     structures were placed on the ocean floor, and the ground test refuses a floor at or above sea
+     level, so every start in a beach biome came back empty. They are variants now too, and the
+     beached one stands on the sand.
+
+     That is every structure Mojang ships generating in the game.

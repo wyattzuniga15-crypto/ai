@@ -15,12 +15,15 @@ import { biomeIndex, biomes } from '../biomes.ts';
 import type { ChunkData } from '../chunk.ts';
 import type { BlockAccess } from './features.ts';
 import type { StructureSpot } from './generator.ts';
-import { assembleJigsaw, claimsStart, nearbyStarts, pickVariant, placementBox, stampStructure, type StructurePlacement, type StructureSet } from './structures.ts';
+import { assembleJigsaw, claimsStart, nearbyStarts, pickSetup, pickVariant, placementBox, stampStructure, type PortalSetup, type StructurePlacement, type StructureSet } from './structures.ts';
 import { FORTRESS_Y, assembleFortress, fillFortressPiece, type FortressPiece } from './fortress.ts';
 
 /** The Nether is generated between these, with bedrock at both ends, as vanilla builds it. */
 export const NETHER_FLOOR = 0;
 export const NETHER_ROOF = 127;
+
+/** The lowest a nether fossil or a nether ruined portal is placed, from Mojang's own height range. */
+export const NETHER_PIECE_MIN_Y = 32;
 /** Vanilla's lava sea fills to here. */
 export const NETHER_LAVA_LEVEL = 31;
 /** The biomes that belong to this world, for picking out the structures that can stand in it. */
@@ -317,6 +320,8 @@ export class NetherGenerator {
         // vanilla's beardifier pushes terrain away from a structure with a falloff around it, which
         // is what makes a bastion a courtyard standing in the open rather than a warren packed in
         // solid netherrack. Ours clears each piece's box and a margin around and above it.
+        // only the bastion pushes terrain away; a fossil and a portal are meant to be embedded
+        if (set.placement !== 'jigsaw') continue;
         const MARGIN = 6;
         // never clear a cell another piece stands in: the chunk beside this one writes its own half
         // of the structure and its blocks must survive this chunk's margin
@@ -358,6 +363,12 @@ export class NetherGenerator {
     if (set.placement === 'fortress' && set.biomeSet.has(biome)) {
       this.fortresses.set(key, assembleFortress(mix(this.seed ^ set.salt, cx, cz, 0xf027), wx, wz));
       this.lastStructure = { name: set.name, x: wx, y: FORTRESS_Y, z: wz };
+    } else if (set.placement === 'nether_fossil' && set.biomeSet.has(biome)) {
+      pieces = this.buildNetherPiece(set, wx, wz, rng, null);
+    } else if (set.placement === 'ruined_portal' && set.biomeSet.has(biome)) {
+      const variant = pickVariant(set, biome, rng);
+      const setup = variant ? pickSetup(set, variant.start, rng) : null;
+      if (setup) pieces = this.buildNetherPiece(set, wx, wz, rng, setup);
     } else if (set.biomeSet.has(biome)) {
       const variant = pickVariant(set, biome, rng);
       // the bastion is one of vanilla's jigsaw structures, built at the height its own data names
@@ -379,6 +390,28 @@ export class NetherGenerator {
     }
     this.structureCache.set(key, pieces);
     return pieces;
+  }
+
+  /**
+   * A single template dropped onto the first floor under a height picked out of the air, which is
+   * how vanilla places both a nether fossil and the nether's own ruined portal: sample a height,
+   * walk down until there is floor under the air, and stand it there.
+   */
+  private buildNetherPiece(set: StructureSet, wx: number, wz: number, rng: Rng, setup: PortalSetup | null): StructurePlacement[] {
+    const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
+    if (!template) return [];
+    const rotation = rng.int(4);
+    let y = NETHER_PIECE_MIN_Y + rng.int(NETHER_ROOF - 2 - NETHER_PIECE_MIN_Y);
+    while (y > NETHER_PIECE_MIN_Y && !(this.solidAt(wx, y - 1, wz) && !this.solidAt(wx, y, wz))) y--;
+    if (y <= NETHER_PIECE_MIN_Y) return [];
+    const decaySeed = mix(this.seed ^ set.salt, wx, wz, 0x0d3c);
+    // a fossil is whole; a portal has crumbled the same way the overworld's have
+    const integrity = setup ? 0.6 + rng.next() * 0.3 : 1;
+    this.lastStructure = { name: set.name, x: wx, y, z: wz };
+    return [{
+      set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: 'buried' as const,
+      ...(setup ? { mossiness: setup.mossiness, blackstone: setup.blackstone } : {}),
+    }];
   }
 
   /** A huge crimson or warped fungus: a stem with a cap of wart blocks and a shroomlight or two. */

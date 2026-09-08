@@ -26,7 +26,7 @@ export interface StructureVariant { start: string; weight: number; biomes: strin
 export interface StructureIndexEntry {
   name: string;
   /** How the structure is placed; `mineshaft` is built in code rather than from templates. */
-  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion' | 'monument' | 'fortress' | 'end_city';
+  placement: 'surface' | 'ocean_floor' | 'jigsaw' | 'mineshaft' | 'desert_pyramid' | 'jungle_temple' | 'swamp_hut' | 'stronghold' | 'buried_treasure' | 'fossil' | 'mansion' | 'monument' | 'fortress' | 'end_city' | 'ruined_portal' | 'nether_fossil' | 'shipwreck';
   spacing: number;
   separation: number;
   salt: number;
@@ -55,8 +55,63 @@ export interface StructureIndexEntry {
   /** Structures built at a fixed depth rather than on the surface: an ancient city sits at y -27. */
   startY?: number;
   startYMax?: number | null;
+  /** Trail ruins: the start height is measured from the ground rather than from y 0. */
+  startYRelative?: boolean;
   /** Pools chosen once per structure rather than per connector (a chamber's spawner contents). */
   aliases?: PoolAlias[];
+  /** Ruined portals: the setups each of the seven names, keyed by variant. */
+  setups?: Record<string, PortalSetup[]>;
+}
+
+/**
+ * One of a ruined portal's setups, straight out of its structure JSON: where it stands, how much of
+ * its stone brick has gone mossy, and whether the whole thing is blackstone instead.
+ */
+export interface PortalSetup {
+  placement: 'underground' | 'on_land_surface' | 'partly_buried' | 'on_ocean_floor' | 'in_mountain' | 'in_nether' | string;
+  mossiness: number;
+  blackstone: boolean;
+  airPocket: number;
+  cold: boolean;
+  overgrown: boolean;
+  vines: boolean;
+  weight: number;
+}
+
+/** What mossiness turns each of the portal's stone blocks into. */
+const MOSSY: Record<string, string> = {
+  stone_bricks: 'mossy_stone_bricks',
+  stone_brick_stairs: 'mossy_stone_brick_stairs',
+  stone_brick_slab: 'mossy_stone_brick_slab',
+  stone_brick_wall: 'mossy_stone_brick_wall',
+};
+
+/** And what the nether's portals are built of instead: blackstone, all the way through. */
+const BLACKSTONE: Record<string, string> = {
+  stone_bricks: 'blackstone', cracked_stone_bricks: 'blackstone', chiseled_stone_bricks: 'blackstone',
+  mossy_stone_bricks: 'blackstone', stone: 'blackstone',
+  stone_brick_stairs: 'blackstone_stairs',
+  stone_brick_slab: 'blackstone_slab', stone_slab: 'blackstone_slab', smooth_stone_slab: 'blackstone_slab',
+  stone_brick_wall: 'blackstone_wall',
+};
+
+const swapCache = new Map<string, number>();
+
+/** Swaps one block for another of the same shape, keeping its state properties. */
+function swapBlock(state: number, table: Record<string, string>): number {
+  const id = blocks.idOf(state);
+  const to = table[id];
+  if (!to || !blocks.has(to)) return state;
+  const key = `${state}:${to}`;
+  const cached = swapCache.get(key);
+  if (cached !== undefined) return cached;
+  const props = blocks.props(state);
+  const wanted = new Set(blocks.get(to).states.map((st) => st.name));
+  const kept: Record<string, string> = {};
+  for (const [k, v] of Object.entries(props)) if (wanted.has(k)) kept[k] = v;
+  const out = blocks.stateWith(to, kept);
+  swapCache.set(key, out);
+  return out;
 }
 
 export interface RuntimeTemplate {
@@ -239,6 +294,19 @@ const FACING = ['north', 'east', 'south', 'west'];
 const AXIS_ROTATE: Record<string, string> = { x: 'z', z: 'x' };
 
 /** Rotates a block state's facing/axis so a turned template still looks right. */
+/** One of a ruined portal variant's setups, drawn by vanilla's weights. */
+export function pickSetup(set: StructureSet, variant: string, rng: Rng): PortalSetup | null {
+  const list = set.setups?.[variant];
+  if (!list || !list.length) return null;
+  const total = list.reduce((n, s) => n + s.weight, 0);
+  let roll = rng.next() * total;
+  for (const s of list) {
+    roll -= s.weight;
+    if (roll <= 0) return s;
+  }
+  return list[list.length - 1];
+}
+
 export function rotateState(state: number, rotation: number): number {
   if ((rotation & 3) === 0 || state === 0) return state;
   const facing = blocks.prop(state, 'facing');
@@ -271,6 +339,11 @@ export interface StructurePlacement {
   rotation: number;
   /** Fraction of blocks kept; ruined portals decay like vanilla's block_rot processor. */
   integrity: number;
+  /** Ruined portals: how much of the stone brick has gone mossy, and whether it is blackstone. */
+  mossiness?: number;
+  blackstone?: boolean;
+  /** Trail ruins: the archaeology processor vanilla runs over each of their pieces. */
+  processor?: 'trail_ruins';
   /** Seed for the decay hash, so a piece crumbles the same however its chunks are visited. */
   decaySeed: number;
   /** Terrain fitting to apply under the piece: ocean pieces keep their water. */
@@ -303,12 +376,33 @@ export interface StampHooks {
   onItem?: (x: number, y: number, z: number, item: string) => void;
 }
 
+/**
+ * Vanilla's trail ruins processors: a fifth of the gravel weathers to dirt and a tenth more to
+ * coarse dirt, a tenth of the mud brick slumps back to packed mud, and up to six gravel blocks in
+ * each piece are the suspicious ones the dig is about. The six are chosen from the whole piece, not
+ * the part of it in this chunk, so neighbouring chunks agree on which they are.
+ */
+const TRAIL_SUSPICIOUS_LIMIT = 6;
+
+function trailSuspicious(p: StructurePlacement): Set<number> {
+  const { template } = p;
+  const gravel: { i: number; h: number }[] = [];
+  for (let i = 0; i < template.blocks.length; i += 4) {
+    const entry = template.blocks[i + 3];
+    if (!template.known[entry] || blocks.idOf(template.states[entry]) !== 'gravel') continue;
+    gravel.push({ i, h: hashPos(p.decaySeed ^ 0x7a11, template.blocks[i], template.blocks[i + 1], template.blocks[i + 2]) });
+  }
+  gravel.sort((a, b) => a.h - b.h || a.i - b.i);
+  return new Set(gravel.slice(0, TRAIL_SUSPICIOUS_LIMIT).map((g) => g.i));
+}
+
 export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks: StampHooks = {}): number {
   const { written, clip, onLoot, onEntity, onSpawner, onItem } = hooks;
   const { template, rotation } = p;
   const [sx, , sz] = template.size;
   const inside = (x: number, z: number) => !clip || (x >= clip.x0 && x <= clip.x1 && z >= clip.z0 && z <= clip.z1);
   let placed = 0;
+  const suspicious = p.processor === 'trail_ruins' ? trailSuspicious(p) : null;
   for (const spot of template.loot) {
     const [rx, rz] = rotate(spot.pos[0], spot.pos[2], sx, sz, rotation);
     if (inside(p.x + rx, p.z + rz)) onLoot?.(p.x + rx, p.y + spot.pos[1], p.z + rz, spot.table);
@@ -337,7 +431,19 @@ export function stampStructure(world: BlockAccess, p: StructurePlacement, hooks:
     if (!inside(x, z)) continue;
     // decay is hashed from the position, not drawn in template order, so clipping cannot change it
     if (p.integrity < 1 && hashPos(p.decaySeed, x, p.y + ly, z) > p.integrity) continue;
-    world.set(x, p.y + ly, z, rotateState(template.states[entry], rotation));
+    let state = rotateState(template.states[entry], rotation);
+    if (p.blackstone) state = swapBlock(state, BLACKSTONE);
+    else if (p.mossiness && hashPos(p.decaySeed ^ 0x11055, x, p.y + ly, z) < p.mossiness) state = swapBlock(state, MOSSY);
+    if (p.processor === 'trail_ruins') {
+      const id = blocks.idOf(state);
+      const roll = hashPos(p.decaySeed ^ 0x7a12, x, p.y + ly, z);
+      if (id === 'gravel') {
+        if (suspicious!.has(i)) state = blocks.stateWith('suspicious_gravel', { dusted: '0' });
+        else if (roll < 0.2) state = blocks.defaultState('dirt');
+        else if (roll < 0.3) state = blocks.defaultState('coarse_dirt');
+      } else if (id === 'mud_bricks' && roll < 0.1) state = blocks.defaultState('packed_mud');
+    }
+    world.set(x, p.y + ly, z, state);
     written?.add(`${x},${p.y + ly},${z}`);
     placed++;
   }

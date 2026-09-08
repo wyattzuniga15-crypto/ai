@@ -37,11 +37,16 @@ const ruinPieces = (warm: boolean): string[] => {
   return out;
 };
 
-const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor' | 'mansion' | 'end_city'; structures: string[]; main?: string[] }[] = [
+const WANTED: { name: string; set: string; pieces: string[]; placement: 'surface' | 'ocean_floor' | 'mansion' | 'end_city' | 'ruined_portal' | 'nether_fossil' | 'shipwreck'; structures: string[]; main?: string[] }[] = [
   // the igloo's basement pieces are stamped by the generator under the top, never on their own
   { name: 'igloo', set: 'igloos', pieces: ['igloo/top', 'igloo/middle', 'igloo/bottom'], main: ['igloo_top'], placement: 'surface', structures: ['igloo'] },
-  { name: 'shipwreck', set: 'shipwrecks', pieces: [], placement: 'ocean_floor', structures: ['shipwreck', 'shipwreck_beached'] },
-  { name: 'ruined_portal', set: 'ruined_portals', pieces: [], placement: 'surface', structures: ['ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_mountain', 'ruined_portal_swamp'] },
+  // two shipwrecks share one spread: one settles on the sea floor, the other runs aground on a beach
+  { name: 'shipwreck', set: 'shipwrecks', pieces: [], placement: 'shipwreck', structures: ['shipwreck', 'shipwreck_beached'] },
+  // all seven ruined portals share one spread; each has its own biomes and its own setups, so they
+  // are emitted as variants of one entry rather than merged into a single biome list
+  { name: 'ruined_portal', set: 'ruined_portals', pieces: [], placement: 'ruined_portal', structures: ['ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_mountain', 'ruined_portal_swamp', 'ruined_portal_ocean', 'ruined_portal_nether'] },
+  // the nether's bone fossils: fourteen templates, dropped onto whatever floor is under them
+  { name: 'nether_fossil', set: 'nether_fossils', pieces: [], placement: 'nether_fossil', structures: ['nether_fossil'] },
   { name: 'pillager_outpost', set: 'pillager_outposts', pieces: ['pillager_outpost/watchtower'], placement: 'surface', structures: ['pillager_outpost'] },
   // every mansion template; the generator lays them out on vanilla's eight-block grid
   { name: 'mansion', set: 'woodland_mansions', pieces: [], placement: 'mansion', structures: ['mansion'] },
@@ -229,6 +234,8 @@ const JIGSAW: { name: string; set: string; only?: string }[] = [
   { name: 'village', set: 'villages' },
   { name: 'ancient_city', set: 'ancient_cities' },
   { name: 'trial_chambers', set: 'trial_chambers' },
+  // the trail ruins are buried: their start follows the ground and then goes fifteen blocks under it
+  { name: 'trail_ruins', set: 'trail_ruins' },
   // the nether complexes hold two structures on one spread: the bastion is the jigsaw half of it
   { name: 'bastion_remnant', set: 'nether_complexes', only: 'bastion_remnant' },
 ];
@@ -260,6 +267,37 @@ function readAliases(def: { pool_aliases?: Record<string, unknown>[] }): PoolAli
   return out;
 }
 
+/**
+ * The seven ruined portals: each names its own biomes and its own setups (where it sits, how mossy
+ * it is, whether it is built of blackstone), and vanilla picks one of a structure's setups by
+ * weight once it has chosen the structure.
+ */
+function portalVariants(mcDir: string, names: string[]): { variants: Variant[]; setups: Record<string, PortalSetup[]> } {
+  const variants: Variant[] = [];
+  const setups: Record<string, PortalSetup[]> = {};
+  for (const name of names) {
+    const file = path.join(mcDir, 'data', 'minecraft', 'worldgen', 'structure', `${name}.json`);
+    if (!fs.existsSync(file)) continue;
+    const def = JSON.parse(fs.readFileSync(file, 'utf8')) as { setups: Record<string, unknown>[] };
+    const key = name === 'ruined_portal' ? 'standard' : name.replace('ruined_portal_', '');
+    variants.push({ start: key, weight: 1, biomes: biomesFor(mcDir, [name]) });
+    setups[key] = def.setups.map((raw) => ({
+      placement: String(raw.placement),
+      mossiness: Number(raw.mossiness ?? 0),
+      blackstone: raw.replace_with_blackstone === true,
+      airPocket: Number(raw.air_pocket_probability ?? 0),
+      cold: raw.can_be_cold === true,
+      overgrown: raw.overgrown === true,
+      vines: raw.vines === true,
+      weight: Number(raw.weight ?? 1),
+    }));
+  }
+  return { variants, setups };
+}
+
+/** Template folders that are not named after the structure. */
+const TEMPLATE_DIRS: Record<string, string> = { mansion: 'woodland_mansion', nether_fossil: 'nether_fossils' };
+
 const mc = versionDir();
 const structureDir = path.join(mc, 'data', 'minecraft', 'structure');
 const setDir = path.join(mc, 'data', 'minecraft', 'worldgen', 'structure_set');
@@ -268,7 +306,8 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 interface Variant { start: string; weight: number; biomes: string[] }
-interface IndexEntry { name: string; placement: string; spacing: number; separation: number; salt: number; share?: { before: number; weight: number; total: number }; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; aliases?: PoolAlias[]; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
+interface PortalSetup { placement: string; mossiness: number; blackstone: boolean; airPocket: number; cold: boolean; overgrown: boolean; vines: boolean; weight: number }
+interface IndexEntry { name: string; placement: string; setups?: Record<string, PortalSetup[]>; startYRelative?: boolean; spacing: number; separation: number; salt: number; share?: { before: number; weight: number; total: number }; frequency?: number; count?: number; distance?: number; spread?: number; cluster?: number; maxDistance?: number; startY?: number; startYMax?: number | null; aliases?: PoolAlias[]; pieces: string[]; biomes: string[]; main?: string[]; variants?: Variant[]; maxDepth?: number }
 const index: IndexEntry[] = [];
 let files = 0;
 let bytes = 0;
@@ -281,7 +320,7 @@ for (const want of WANTED) {
   }
   const set = JSON.parse(fs.readFileSync(setFile, 'utf8')) as { placement: { spacing: number; separation: number; salt: number } };
   // an empty piece list means "every template in the structure's folder"
-  const dir = path.join(structureDir, want.name === 'mansion' ? 'woodland_mansion' : want.name);
+  const dir = path.join(structureDir, TEMPLATE_DIRS[want.name] ?? want.name);
   const folder = path.basename(dir);
   const pieces = want.pieces.length
     ? want.pieces
@@ -307,6 +346,11 @@ for (const want of WANTED) {
     ...(want.main ? { main: want.main.filter((m) => written.includes(m)) } : {}),
     // vanilla scatters more small ruins round the one it starts with
     ...(want.name.startsWith('ocean_ruin') ? { cluster: 24 } : {}),
+    ...(want.placement === 'ruined_portal' ? portalVariants(mc, want.structures) : {}),
+    // the beached one keeps its own biome list, so a start on a beach knows to sit on the sand
+    ...(want.placement === 'shipwreck'
+      ? { variants: want.structures.map((n) => ({ start: n === 'shipwreck_beached' ? 'beached' : 'sunken', weight: 1, biomes: biomesFor(mc, [n]) })) }
+      : {}),
   });
 }
 
@@ -328,6 +372,7 @@ for (const want of JIGSAW) {
   const aliases: PoolAlias[] = [];
   let startY: number | null = null;
   let startYMax: number | null = null;
+  let startYRelative = false;
   for (const entry of set.structures) {
     const name = entry.structure.replace('minecraft:', '');
     if (want.only && name !== want.only) continue;
@@ -355,11 +400,13 @@ for (const want of JIGSAW) {
       else for (const g of alias.groups) for (const e of g.entries) queue.push(e.target);
     }
     maxDistance = Math.max(maxDistance, def.max_distance_from_center ?? 80);
-    // a structure built underground says where it starts; one projected to a heightmap follows the ground
-    const h = def.project_start_to_heightmap ? undefined : def.start_height;
+    // a structure built underground says where it starts; one projected to a heightmap follows the
+    // ground, and the trail ruins do both — the ground, and then fifteen blocks under it
+    const h = def.start_height;
     if (h) {
       startY = h.absolute ?? h.min_inclusive?.absolute ?? null;
       startYMax = h.absolute ?? h.max_inclusive?.absolute ?? startY;
+      if (def.project_start_to_heightmap) startYRelative = true;
     }
   }
   const pieces: string[] = [];
@@ -403,7 +450,7 @@ for (const want of JIGSAW) {
     // structures sharing one spread (the fortress and the bastion) split its starts by weight
     ...(want.only ? { share: { before: 0, weight: own, total } } : {}),
     pieces, biomes: [...biomes].sort(), variants, maxDepth: depth, maxDistance,
-    ...(startY !== null ? { startY, startYMax } : {}),
+    ...(startY !== null ? { startY, startYMax, ...(startYRelative ? { startYRelative } : {}) } : {}),
     ...(aliases.length ? { aliases } : {}),
   });
 }

@@ -11,7 +11,7 @@ import { blocks } from '../../blocks/registry.ts';
 import { biomeIndex, biomes, type BiomeDef } from '../biomes.ts';
 import { ChunkData } from '../chunk.ts';
 import { placeBeeNest, placeTallPlant, placeTree, type BlockAccess } from './features.ts';
-import { claimsStart, assembleJigsaw, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
+import { claimsStart, assembleJigsaw, pickSetup, pickVariant, placementBox, rotate, stampStructure, structureStart, type ClipBox, type StructurePlacement, type StructureSet } from './structures.ts';
 import { assembleMineshaft, fillShaftPiece, type ShaftKind, type ShaftPiece } from './mineshaft.ts';
 import { buildTemple, TEMPLE_SIZE, type TempleKind } from './temples.ts';
 import { assembleStronghold, fillStrongholdPiece, type StrongholdPiece } from './stronghold.ts';
@@ -965,19 +965,56 @@ export class WorldGenerator {
     if (set.placement === 'fossil') return this.buildFossil(set, wx, wz, rng, decaySeed);
     if (set.placement === 'mansion') return this.buildMansion(set, wx, wz, rng, decaySeed);
     if (set.placement === 'jigsaw') return { pieces: this.buildJigsaw(set, biome, wx, wz, rng, decaySeed) };
+    if (set.placement === 'ruined_portal') return this.buildRuinedPortal(set, biome, wx, wz, rng, decaySeed);
     const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
     const rotation = rng.int(4);
     const [sx, , sz] = template.size;
     const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
-    const y = this.structureGroundY(wx, wz, rw, rd, set.placement);
+    // a shipwreck either settles on the sea floor or runs aground, by which of the two the biome is
+    const beached = set.placement === 'shipwreck' && pickVariant(set, biome, rng)?.start === 'beached';
+    const ground = set.placement === 'shipwreck' ? (beached ? 'surface' : 'ocean_floor') : set.placement;
+    const y = this.structureGroundY(wx, wz, rw, rd, ground);
     if (y === null) return EMPTY_STRUCTURE;
     // ruined portals crumble; everything else is placed whole
     const integrity = set.name === 'ruined_portal' ? 0.6 + rng.next() * 0.3 : 1;
-    const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: set.placement }];
+    const pieces: StructurePlacement[] = [{ set, template, x: wx, y, z: wz, rotation, integrity, decaySeed, placement: ground }];
     if (set.name === 'igloo') pieces.push(...this.iglooBasement(set, template, wx, y, wz, rotation, rng, decaySeed));
     if (set.cluster) pieces.push(...this.ruinCluster(set, wx, wz, rng, decaySeed));
     this.lastStructure = { name: set.name, x: wx, y, z: wz };
     return { pieces };
+  }
+
+  /**
+   * Ruined portals. All seven share one spread, so the biome picks which of them a start becomes,
+   * and then one of that one's setups is drawn by weight: the setup says where it stands (on the
+   * ground, sunk into it, under it, on the sea floor), how much of its stone brick has gone mossy,
+   * and whether the whole thing is blackstone instead. The portal itself always crumbles.
+   */
+  private buildRuinedPortal(set: StructureSet, biome: string, wx: number, wz: number, rng: Rng, decaySeed: number): StructureInstance {
+    const variant = pickVariant(set, biome, rng);
+    const setup = variant ? pickSetup(set, variant.start, rng) : null;
+    if (!variant || !setup) return EMPTY_STRUCTURE;
+    const template = set.mainTemplates[rng.int(set.mainTemplates.length)];
+    const rotation = rng.int(4);
+    const [sx, sy, sz] = template.size;
+    const [rw, rd] = (rotation & 1) === 1 ? [sz, sx] : [sx, sz];
+    const surface = this.structureGroundY(wx, wz, rw, rd, setup.placement === 'on_ocean_floor' ? 'ocean_floor' : 'surface');
+    if (surface === null) return EMPTY_STRUCTURE;
+    // vanilla sinks a desert portal into the sand and buries an underground one well below the light
+    const y = setup.placement === 'underground'
+      ? Math.max(WORLD_MIN_Y + 6, surface - sy - 3 - rng.int(12))
+      : setup.placement === 'partly_buried'
+        ? surface - 1 - rng.int(Math.max(1, Math.floor(sy / 2)))
+        : surface;
+    const integrity = 0.6 + rng.next() * 0.3;
+    this.lastStructure = { name: set.name, x: wx, y, z: wz, variant: variant.start, setup: setup.placement };
+    return {
+      pieces: [{
+        set, template, x: wx, y, z: wz, rotation, integrity, decaySeed,
+        placement: setup.placement === 'underground' || setup.placement === 'partly_buried' ? 'buried' : setup.placement === 'on_ocean_floor' ? 'ocean_floor' : 'surface',
+        mossiness: setup.mossiness, blackstone: setup.blackstone,
+      }],
+    };
   }
 
   /**
@@ -1229,9 +1266,11 @@ export class WorldGenerator {
     const startPool = variant.start;
     // a city is built at the depth its structure names; a village follows the ground it stands on
     const buried = set.startY !== undefined;
+    // the trail ruins are the one buried structure measured from the ground rather than from y 0
+    const ground = Math.floor(this.columnInfo(wx, wz).height);
     const baseY = buried
-      ? set.startY! + (set.startYMax && set.startYMax > set.startY! ? rng.int(set.startYMax - set.startY! + 1) : 0)
-      : Math.floor(this.columnInfo(wx, wz).height) + 1;
+      ? (set.startYRelative ? ground : 0) + set.startY! + (set.startYMax && set.startYMax > set.startY! ? rng.int(set.startYMax - set.startY! + 1) : 0)
+      : ground + 1;
     const assembled = assembleJigsaw(set, startPool, wx, baseY, wz, rng);
     if (assembled.length < 2) return [];
     const pieces = assembled.map((piece) => {
@@ -1242,6 +1281,7 @@ export class WorldGenerator {
       return {
         set, template: piece.template, x: piece.x, y: ground ?? piece.y, z: piece.z,
         rotation: piece.rotation, integrity: 1, decaySeed, placement: buried ? 'buried' : 'surface',
+        ...(set.name === 'trail_ruins' ? { processor: 'trail_ruins' as const } : {}),
       };
     });
     this.lastStructure = { name: set.name, x: wx, y: baseY, z: wz, pieces: pieces.length, variant: variant.start };
@@ -1323,7 +1363,7 @@ export class WorldGenerator {
   }
 
   /** The last structure worked out, for tests and debugging. */
-  lastStructure: { name: string; x: number; y: number; z: number; pieces?: number; variant?: string } | null = null;
+  lastStructure: { name: string; x: number; y: number; z: number; pieces?: number; variant?: string; setup?: string } | null = null;
   /**
    * Block entities the structures in this chunk want: chests with the loot table that fills them,
    * spawners with the mob they turn. They are made on the main thread, where the tables live.
