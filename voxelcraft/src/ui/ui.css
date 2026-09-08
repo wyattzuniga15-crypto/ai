@@ -20,6 +20,8 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 .slot .count { position: absolute; right: calc(-1px * var(--gui)); bottom: calc(-2px * var(--gui)); font-size: calc(8px * var(--gui)); font-weight: bold; line-height: 1; text-shadow: calc(1px * var(--gui)) calc(1px * var(--gui)) 0 #3f3f3f; }
 .slot .durability { position: absolute; left: calc(2px * var(--gui)); bottom: calc(1px * var(--gui)); width: calc(13px * var(--gui)); height: calc(2px * var(--gui)); background: #000; }
 .slot .durability > div { height: calc(1px * var(--gui)); }
+.slot .bundle-open { position: absolute; inset: 0; }
+.slot .bundle-open img { position: absolute; inset: 0; width: 100%; height: 100%; }
 #hotbar .slot { top: calc(3px * var(--gui)); }
 #status { position: absolute; left: 50%; bottom: calc(22px * var(--gui) + 8px); transform: translateX(-50%); width: calc(182px * var(--gui)); height: calc(20px * var(--gui)); }
 #hearts, #food { position: absolute; bottom: calc(1px * var(--gui)); height: calc(9px * var(--gui)); display: flex; gap: 0; }
@@ -97,6 +99,16 @@ h2 { font-size: 18px; margin: 0 0 16px; text-shadow: 2px 2px 0 #3f3f3f; font-wei
 #tooltip { position: absolute; pointer-events: none; z-index: 6; background: rgba(16, 0, 16, 0.94); border: 2px solid #26005a; padding: 6px 8px; font-size: calc(7px * var(--gui)); text-shadow: 2px 2px 0 #3f3f3f; white-space: pre; }
 #tooltip .sub { color: #a0a0a0; }
 #tooltip .ench { color: #a0a0ff; }
+#tooltip .bundle-grid { display: grid; grid-template-columns: repeat(4, calc(24px * var(--gui))); margin: calc(2px * var(--gui)) 0; }
+#tooltip .bundle-cell { position: relative; width: calc(24px * var(--gui)); height: calc(24px * var(--gui)); border-image: url('/textures/gui/sprites/container/bundle/slot_background.png') 4 fill / calc(4px * var(--gui)) repeat; }
+#tooltip .bundle-cell.shown { border-image-source: url('/textures/gui/sprites/container/bundle/slot_highlight_back.png'); }
+#tooltip .bundle-cell.shown::after { content: ''; position: absolute; inset: 0; border-image: url('/textures/gui/sprites/container/bundle/slot_highlight_front.png') 4 fill / calc(4px * var(--gui)) repeat; }
+#tooltip .bundle-cell img { position: absolute; left: calc(4px * var(--gui)); top: calc(4px * var(--gui)); width: calc(16px * var(--gui)); height: calc(16px * var(--gui)); image-rendering: pixelated; }
+#tooltip .bundle-cell .count { z-index: 2; position: absolute; right: calc(3px * var(--gui)); bottom: calc(1px * var(--gui)); font-size: calc(8px * var(--gui)); font-weight: bold; line-height: 1; text-shadow: calc(1px * var(--gui)) calc(1px * var(--gui)) 0 #3f3f3f; }
+#tooltip .bundle-cell .more { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: calc(8px * var(--gui)); }
+#tooltip .bundle-bar { position: relative; width: calc(96px * var(--gui)); height: calc(13px * var(--gui)); border-image: url('/textures/gui/sprites/container/bundle/bundle_progressbar_border.png') 2 fill / calc(2px * var(--gui)) repeat; }
+#tooltip .bundle-bar > div { position: absolute; left: calc(1px * var(--gui)); top: calc(1px * var(--gui)); height: calc(11px * var(--gui)); border-image: url('/textures/gui/sprites/container/bundle/bundle_progressbar_fill.png') 2 fill / calc(2px * var(--gui)) repeat; }
+#tooltip .bundle-bar > div.full { border-image-source: url('/textures/gui/sprites/container/bundle/bundle_progressbar_full.png'); }
 .death { background: rgba(120, 0, 0, 0.6); }
 .death h1 { font-size: 48px; text-shadow: 4px 4px 0 #3f3f3f; }
 

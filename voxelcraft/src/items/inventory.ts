@@ -14,6 +14,8 @@ export interface ItemStack {
   trim?: { pattern: string; material: string };
   /** Container contents carried by the item (shulker boxes), 27 slots. */
   contents?: (ItemStack | null)[];
+  /** Which of a bundle's contents it is showing, and the one a right click pulls back out. */
+  selected?: number;
   /** What a bottle holds: a potion id from `items/potions.ts`. */
   potion?: string;
   /** Written and writable books: their pages, and who wrote a signed one. */
@@ -67,6 +69,7 @@ export function cloneStack(s: ItemStack, count = s.count): ItemStack {
   if (s.repairCost) c.repairCost = s.repairCost;
   if (s.trim) c.trim = { ...s.trim };
   if (s.contents) c.contents = s.contents.map((x) => (x ? cloneStack(x) : null));
+  if (s.selected !== undefined && s.selected >= 0) c.selected = s.selected;
   if (s.potion) c.potion = s.potion;
   if (s.pages) c.pages = [...s.pages];
   if (s.author) c.author = s.author;

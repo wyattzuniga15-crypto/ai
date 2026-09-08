@@ -1598,3 +1598,26 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      speed: minecraft-data does not ship attribute modifiers, and every other weapon's numbers in
      `tools/gen-data.ts` are hand-entered from ones I could check. Guessing a weapon's damage is
      worse than leaving it undone.
+
+140. **Bundles hold weight, not items, and only open under the cursor.** Vanilla's bundle takes 64
+     units of weight; one item weighs 64 divided by how high it stacks, so 64 cobblestone, sixteen
+     eggs or a single saddle fill one, and a stack that will only part fit goes in as far as the
+     weight allows. Containers stay out of containers: no bundle and no shulker box goes into a
+     bundle. Packing merges with a matching entry and moves it to the front, so the newest thing in
+     is the first back out.
+
+     The look comes straight out of `assets/minecraft/items/bundle.json`, which is a select on the
+     display context: only in the GUI, and only when the bundle `has_selected_item`, does it draw
+     `bundle_open_back`, the selected item and `bundle_open_front` stacked; otherwise it is the
+     plain closed sprite. So a bundle only opens while the wheel has picked something out under the
+     cursor, and moving the cursor away shuts it again — vanilla sends a select packet with -1 for
+     exactly that. Whatever is showing is what a right click takes back out; with nothing showing it
+     is the front. The tooltip is Mojang's own: the four-wide grid of `slot_background` cells with
+     `slot_highlight_back`/`_front` on the one being shown, the twelfth cell counting the rest, the
+     `bundle_progressbar` under it, and its own strings — "Empty" and "Can hold a mixed stack of
+     items" when there is nothing in it, `n/64` or "Full" when there is.
+
+     Two smaller calls. Vanilla's overrides swallow a right click whether or not anything moved, so
+     a full bundle refuses a stack rather than swapping with it, which is what a swap would do here
+     otherwise. And a hive holding bees weighs a full bundle in vanilla; our hive item does not
+     carry its bees, so that rule has nothing to act on and is left out.

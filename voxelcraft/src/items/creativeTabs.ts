@@ -70,7 +70,7 @@ const FUNCTIONAL_BEHAVIORS = new Set(['container', 'workstation', 'sign', 'bed',
 const OPERATOR_IDS = new Set(['barrier', 'command_block', 'chain_command_block', 'repeating_command_block', 'command_block_minecart', 'structure_block', 'structure_void', 'jigsaw', 'light', 'debug_stick', 'spawner', 'trial_spawner', 'vault']);
 
 /** Tools and the odds and ends that go with them. */
-const TOOL_BEHAVIORS = new Set(['pickaxe', 'axe', 'shovel', 'hoe', 'shears', 'bucket', 'fishing_rod', 'flint_and_steel', 'spawn_egg', 'elytra', 'firework', 'boat', 'minecart']);
+const TOOL_BEHAVIORS = new Set(['pickaxe', 'axe', 'shovel', 'hoe', 'shears', 'bucket', 'fishing_rod', 'flint_and_steel', 'spawn_egg', 'elytra', 'firework', 'boat', 'minecart', 'bundle']);
 const TOOL_IDS = new Set([
   'lead', 'name_tag', 'compass', 'recovery_compass', 'clock', 'map', 'filled_map', 'spyglass', 'brush', 'saddle', 'bundle',
   'goat_horn', 'bucket', 'water_bucket', 'lava_bucket', 'powder_snow_bucket', 'milk_bucket', 'axolotl_bucket', 'tadpole_bucket',

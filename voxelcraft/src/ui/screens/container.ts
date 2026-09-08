@@ -10,6 +10,7 @@ import { trimMaterial, trimPattern } from '../../items/trims.ts';
 import { cloneStack, stackable, type ItemStack, type Slot } from '../../items/inventory.ts';
 import { items } from '../../items/registry.ts';
 import { effectsOf, potionDisplayName, potionOf } from '../../items/potions.ts';
+import { addToBundle, BUNDLE_CAPACITY, BUNDLE_CELLS, bundleWeight, clearBundleSelection, cycleBundle, isBundle, removeFromBundle, shownIndex } from '../../items/bundle.ts';
 
 export type SlotGroup = 'container' | 'inventory' | 'hotbar' | 'armor' | 'offhand' | 'result' | 'craft';
 
@@ -62,6 +63,8 @@ export interface ScreenHost {
   drop(stack: ItemStack): void;
   creative: boolean;
   advancedTooltips: boolean;
+  /** A sound from the GUI itself, which is how a bundle says it took something in or gave it back. */
+  sound?(name: string, pitch: number): void;
 }
 
 const T = (p: string) => `url('${import.meta.env.BASE_URL}textures/gui/${p}')`;
@@ -132,8 +135,12 @@ export class ContainerScreen {
       });
       el.addEventListener('mouseleave', () => {
         if (this.hovered === i) this.hovered = -1;
+        // the cursor leaving shuts an open bundle, the way vanilla's select packet with -1 does
+        const st = this.def.slots[i].get();
+        if (st && isBundle(st.id) && clearBundleSelection(st)) renderSlot(this.slotEls[i], st, this.host.icons);
         this.updateTooltip();
       });
+      el.addEventListener('wheel', (e) => this.onSlotWheel(i, e), { passive: false });
       this.slotEls.push(el);
       this.gui.append(el);
     });
@@ -154,8 +161,7 @@ export class ContainerScreen {
       this.mouse = { x: e.clientX, y: e.clientY };
       this.cursorEl.style.left = `${e.clientX - 8 * s}px`;
       this.cursorEl.style.top = `${e.clientY - 8 * s}px`;
-      this.tooltip.style.left = `${e.clientX + 12}px`;
-      this.tooltip.style.top = `${e.clientY - 12}px`;
+      this.placeTooltip();
     });
     window.addEventListener('mouseup', this.onMouseUp);
     this.keyHandler = (e) => this.onKey(e);
@@ -227,6 +233,11 @@ export class ContainerScreen {
       this.changed();
       return;
     }
+    // a right click on or with a bundle packs and unpacks it rather than moving the stack
+    if (button === 2 && this.bundleClick(slot, st, cur)) {
+      this.changed();
+      return;
+    }
     if (!cur) {
       if (!st) {
         // an empty hand on an empty slot: only the crafter does anything with that
@@ -278,6 +289,79 @@ export class ContainerScreen {
       this.cursor = st;
     }
     this.changed();
+  }
+
+  /**
+   * Vanilla's two bundle overrides, asked in its order: a bundle on the cursor acts on the slot
+   * first, and only then does a bundle in the slot act on what is carried. Either way a right
+   * click packs the other stack away, or on nothing tips the shown item back out.
+   */
+  private bundleClick(slot: SlotDef, st: Slot, cur: Slot): boolean {
+    // a crafting result is not a slot a bundle may work on, so the click goes through as normal
+    if (slot.result) return false;
+    if (cur && isBundle(cur.id)) {
+      if (!st) this.unpackInto(cur, slot);
+      else this.packAway(cur, st, (rest) => slot.set(rest));
+      // vanilla's override swallows the click whether or not anything moved
+      return true;
+    }
+    if (st && isBundle(st.id)) {
+      if (!cur) {
+        const out = removeFromBundle(st);
+        if (out) {
+          this.cursor = out;
+          slot.set(st);
+          this.host.sound?.('pop', 0.9);
+        }
+      } else {
+        this.packAway(st, cur, (rest) => { this.cursor = rest; });
+        slot.set(st);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** Puts what it can of a stack into a bundle, handing back whatever is left over. */
+  private packAway(bundle: ItemStack, stack: ItemStack, rest: (s: Slot) => void): void {
+    const n = addToBundle(bundle, stack);
+    if (n <= 0) {
+      this.host.sound?.('click', 0.6);
+      return;
+    }
+    stack.count -= n;
+    rest(stack.count > 0 ? stack : null);
+    this.host.sound?.('pop', 1.2);
+  }
+
+  /** Tips the shown item out of a carried bundle into an empty slot, keeping what will not fit. */
+  private unpackInto(bundle: ItemStack, slot: SlotDef): void {
+    const out = removeFromBundle(bundle);
+    if (!out) return;
+    if (slot.accepts && !slot.accepts(out)) {
+      addToBundle(bundle, out);
+      return;
+    }
+    const max = Math.min(items.maxStack(out.id), slot.maxCount ?? 64);
+    if (out.count > max) {
+      const keep = cloneStack(out, out.count - max);
+      out.count = max;
+      addToBundle(bundle, keep);
+    }
+    slot.set(out);
+    this.host.sound?.('pop', 0.9);
+  }
+
+  /** The wheel over a bundle walks its contents; whatever it lands on is what the open bundle shows. */
+  private onSlotWheel(i: number, e: WheelEvent): void {
+    const slot = this.def.slots[i];
+    const st = slot.get();
+    if (!st || !isBundle(st.id) || !st.contents?.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!cycleBundle(st, e.deltaY > 0 ? 1 : -1)) return;
+    renderSlot(this.slotEls[i], st, this.host.icons);
+    this.updateTooltip();
   }
 
   private applyDrag(button: number, slots: number[]): void {
@@ -438,6 +522,40 @@ export class ContainerScreen {
     this.cursor = null;
   }
 
+  /**
+   * Vanilla's bundle tooltip: a four-wide grid of what is inside, the one the bundle is showing
+   * lit up, an overflow cell counting whatever will not fit, and the fullness bar under it. An
+   * empty bundle says so and says what it is for instead.
+   */
+  private bundleTooltip(st: ItemStack): void {
+    const inside = (st.contents ?? []).filter((s): s is ItemStack => !!s);
+    if (!inside.length) {
+      this.tooltip.append(h('div', { class: 'sub', text: 'Empty' }));
+      this.tooltip.append(h('div', { class: 'sub', text: 'Can hold a mixed stack of items' }));
+      return;
+    }
+    const shown = shownIndex(st);
+    const cells = inside.length > BUNDLE_CELLS ? BUNDLE_CELLS - 1 : inside.length;
+    const grid = h('div', { class: 'bundle-grid' });
+    for (let i = 0; i < cells; i++) {
+      const s = inside[i];
+      const cell = h('div', { class: i === shown ? 'bundle-cell shown' : 'bundle-cell' });
+      cell.append(h('img', { src: this.host.icons.forStack(s), alt: s.id, draggable: false }));
+      if (s.count > 1) cell.append(h('span', { class: 'count', text: String(s.count) }));
+      if (i === shown) cell.style.zIndex = '1';
+      grid.append(cell);
+    }
+    if (inside.length > BUNDLE_CELLS) grid.append(h('div', { class: 'bundle-cell' }, h('span', { class: 'more', text: `+${inside.length - cells}` })));
+    this.tooltip.append(grid);
+    const weight = bundleWeight(st.contents);
+    const bar = h('div', { class: 'bundle-bar' });
+    const fill = h('div', { class: weight >= BUNDLE_CAPACITY ? 'full' : '' });
+    fill.style.width = `calc(${Math.round((94 * Math.min(weight, BUNDLE_CAPACITY)) / BUNDLE_CAPACITY)}px * var(--gui))`;
+    bar.append(fill);
+    this.tooltip.append(bar);
+    this.tooltip.append(h('div', { class: 'sub', text: weight >= BUNDLE_CAPACITY ? 'Full' : `${weight}/${BUNDLE_CAPACITY}` }));
+  }
+
   private updateTooltip(): void {
     const slot = this.hovered >= 0 ? this.def.slots[this.hovered] : null;
     const st = slot?.get();
@@ -475,7 +593,8 @@ export class ContainerScreen {
       line(pattern?.name ?? st.trim.pattern);
       line(material?.name ?? st.trim.material);
     }
-    if (st.contents) {
+    if (isBundle(st.id)) this.bundleTooltip(st);
+    else if (st.contents) {
       const inside = st.contents.filter((s): s is ItemStack => !!s);
       for (const s of inside.slice(0, 5)) this.tooltip.append(h('div', { text: `${items.byId.get(s.id)?.name ?? s.id} x${s.count}` }));
       if (inside.length > 5) {
@@ -499,8 +618,18 @@ export class ContainerScreen {
     if (def?.durability && st.damage) this.tooltip.append(h('div', { class: 'sub', text: `Durability: ${def.durability - st.damage} / ${def.durability}` }));
     if (this.host.advancedTooltips) this.tooltip.append(h('div', { class: 'sub', text: `minecraft:${st.id}` }));
     this.tooltip.classList.remove('hidden');
-    this.tooltip.style.left = `${this.mouse.x + 12}px`;
-    this.tooltip.style.top = `${this.mouse.y - 12}px`;
+    this.placeTooltip();
+  }
+
+  /** Beside the cursor, pulled back onto the screen when it would hang off, as vanilla does. */
+  private placeTooltip(): void {
+    if (this.tooltip.classList.contains('hidden')) return;
+    const w = this.tooltip.offsetWidth;
+    const h = this.tooltip.offsetHeight;
+    const left = Math.max(2, Math.min(this.mouse.x + 12, window.innerWidth - w - 2));
+    const top = Math.max(2, Math.min(this.mouse.y - 12, window.innerHeight - h - 2));
+    this.tooltip.style.left = `${left}px`;
+    this.tooltip.style.top = `${top}px`;
   }
 }
 

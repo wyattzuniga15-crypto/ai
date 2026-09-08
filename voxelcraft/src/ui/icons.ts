@@ -177,6 +177,22 @@ export class ItemIcons {
     return url;
   }
 
+  /** One flat sprite off the atlas by its texture path, for icons drawn out of several pieces. */
+  spriteIcon(texture: string): string {
+    const key = `sprite:${texture}`;
+    const cached = this.cache.get(key);
+    if (cached !== undefined) return cached;
+    let url = '';
+    try {
+      url = this.drawSprite([texture]);
+    } catch (e) {
+      console.warn('sprite failed for', texture, e);
+    }
+    if (!url) url = this.drawChecker();
+    this.cache.set(key, url);
+    return url;
+  }
+
   private drawSprite(textures: string[], tints?: number[]): string {
     const g = this.sprite.getContext('2d')!;
     g.clearRect(0, 0, SIZE, SIZE);

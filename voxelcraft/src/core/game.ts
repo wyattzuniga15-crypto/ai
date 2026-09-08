@@ -76,6 +76,7 @@ import { tickBrewing } from '../blocks/brewing.ts';
 import { craftOnce } from '../blocks/crafter.ts';
 import { beaconRange, beamColors, pyramidLevels, seesSky } from '../blocks/beacon.ts';
 import { cloneStack, type Slot } from '../items/inventory.ts';
+import { emptyBundle } from '../items/bundle.ts';
 import { Simulation } from '../world/simulation.ts';
 import { applyBoneMeal, behaviorFor, type BlockWorld } from '../blocks/behaviors.ts';
 import { copperAge, copperBase, isWaxedCopper, retainingState, scrapeCopper, waxCopper } from '../blocks/copper.ts';
@@ -3935,6 +3936,18 @@ export class Game {
       if (p.gamemode === 'survival') p.inventory.consumeSelected();
       return;
     }
+    // using a bundle in hand tips the whole lot out, into the pack first and onto the ground after
+    if (def.behavior === 'bundle') {
+      const out = emptyBundle(held);
+      if (!out.length) return;
+      for (const s of out) {
+        const left = p.inventory.add(s);
+        if (left > 0) this.dropStack(cloneStack(s, left), p.pos.x, p.pos.y + p.eyeHeight - 0.3, p.pos.z, true);
+      }
+      p.inventory.version++;
+      this.audio.play('pop', { x: p.pos.x, y: p.pos.y, z: p.pos.z, pitch: 0.8 });
+      return;
+    }
     if (held.id === 'map') {
       this.makeMap();
       return;
@@ -6355,6 +6368,7 @@ export class Game {
       },
       creative: this.player.gamemode === 'creative',
       advancedTooltips: this.hud.showDebug,
+      sound: (name: string, pitch: number) => this.audio.play(name, { pitch }),
     };
     this.screen = new ContainerScreen(def, host, this.renderer.canvas.parentElement ?? document.body);
     this.screen.onClose = () => this.closeScreen();

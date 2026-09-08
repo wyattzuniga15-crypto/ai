@@ -4,6 +4,7 @@ import type { Player } from '../entities/player.ts';
 import type { ItemIcons } from './icons.ts';
 import { items } from '../items/registry.ts';
 import type { ItemStack } from '../items/inventory.ts';
+import { isBundle, shownIndex } from '../items/bundle.ts';
 
 const T = (p: string) => `url('${import.meta.env.BASE_URL}textures/gui/sprites/hud/${p}.png')`;
 
@@ -14,8 +15,16 @@ export type BossBarColor = (typeof BOSS_BAR_COLORS)[number];
 export function renderSlot(el: HTMLElement, stack: ItemStack | null, icons: ItemIcons): void {
   el.replaceChildren();
   if (!stack) return;
-  const img = h('img', { src: icons.forStack(stack), alt: stack.id, draggable: false }) as HTMLImageElement;
-  el.append(img);
+  // a bundle the player has scrolled round opens up, with the thing it is showing between its halves
+  const shown = isBundle(stack.id) ? shownIndex(stack) : -1;
+  if (shown >= 0) {
+    const inside = stack.contents![shown]!;
+    const layer = (src: string) => h('img', { src, alt: stack.id, draggable: false });
+    el.append(h('div', { class: 'bundle-open' },
+      layer(icons.spriteIcon(`item/${stack.id}_open_back`)),
+      layer(icons.forStack(inside)),
+      layer(icons.spriteIcon(`item/${stack.id}_open_front`))));
+  } else el.append(h('img', { src: icons.forStack(stack), alt: stack.id, draggable: false }) as HTMLImageElement);
   const def = items.byId.get(stack.id);
   if (def?.durability && stack.damage) {
     const frac = 1 - stack.damage / def.durability;
