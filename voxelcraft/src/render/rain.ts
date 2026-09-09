@@ -28,7 +28,7 @@ export class RainRenderer {
     const prepare = (t: THREE.Texture): THREE.Texture => {
       t.magFilter = THREE.NearestFilter;
       t.minFilter = THREE.NearestFilter;
-      t.colorSpace = THREE.SRGBColorSpace;
+      t.colorSpace = THREE.NoColorSpace;
       t.wrapS = THREE.RepeatWrapping;
       t.wrapT = THREE.RepeatWrapping;
       return t;

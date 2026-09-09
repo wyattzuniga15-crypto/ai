@@ -22,7 +22,7 @@ export function itemTexture(iconUrl: string): THREE.Texture {
     tex = new THREE.TextureLoader().load(iconUrl);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
-    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.colorSpace = THREE.NoColorSpace;
     textureCache.set(iconUrl, tex);
   }
   return tex;

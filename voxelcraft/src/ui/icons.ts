@@ -31,7 +31,7 @@ export class ItemIcons {
     canvas.height = SIZE;
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, preserveDrawingBuffer: true });
     this.renderer.setClearColor(0x000000, 0);
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     const d = 0.8;
     this.camera = new THREE.OrthographicCamera(-d, d, d, -d, 0.01, 10);
     this.camera.position.set(0, 0, 5);

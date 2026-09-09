@@ -18,7 +18,7 @@ export function paintingTexture(base: string, file: string): THREE.Texture {
     tex = new THREE.TextureLoader().load(`${base}textures/painting/${file}`);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
-    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.colorSpace = THREE.NoColorSpace;
     textures.set(key, tex);
   }
   return tex;

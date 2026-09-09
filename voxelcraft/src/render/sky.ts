@@ -38,11 +38,11 @@ export class Sky {
     const loader = new THREE.TextureLoader();
     const sunTex = loader.load(`${base}textures/environment/celestial/sun.png`);
     sunTex.magFilter = THREE.NearestFilter;
-    sunTex.colorSpace = THREE.SRGBColorSpace;
+    sunTex.colorSpace = THREE.NoColorSpace;
     this.moonTex = loader.load(`${base}textures/environment/celestial/moon/${MOON_FILES[0]}`);
-    this.moonPhases = MOON_FILES.map((f) => { const t = loader.load(`${base}textures/environment/celestial/moon/${f}`); t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
+    this.moonPhases = MOON_FILES.map((f) => { const t = loader.load(`${base}textures/environment/celestial/moon/${f}`); t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.NoColorSpace; return t; });
     this.moonTex.magFilter = THREE.NearestFilter;
-    this.moonTex.colorSpace = THREE.SRGBColorSpace;
+    this.moonTex.colorSpace = THREE.NoColorSpace;
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ map: sunTex, transparent: true, depthWrite: false, depthTest: true, fog: false, blending: THREE.AdditiveBlending }));
     this.moon = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshBasicMaterial({ map: this.moonTex, transparent: true, depthWrite: false, depthTest: true, fog: false, blending: THREE.AdditiveBlending }));
     this.sun.renderOrder = -10;

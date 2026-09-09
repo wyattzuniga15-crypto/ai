@@ -314,6 +314,11 @@ export class Game {
   private overlayClose: (() => void) | null = null;
   private stepDistance = 0;
   private attackTicks = 100;
+  /**
+   * Chunks that have already had their one roll for a herd of animals and their structure loot.
+   * Keyed by dimension as well as position: the Nether and the overworld are different worlds, and
+   * forgetting that meant a trip through a portal handed every chunk back home a second herd.
+   */
   private readonly animalChunks: Set<string>;
 
   constructor(opts: GameOptions) {
@@ -385,7 +390,9 @@ export class Game {
     this.simulation = new Simulation(blockWorld, () => this.world.chunks.values());
     // map extending has to know how wide a map already is, and only the world keeps the maps
     craftingMatcher.mapScale = (id) => this.maps.get(id)?.scale ?? 0;
-    this.animalChunks = new Set(opts.meta.animalChunks ?? []);
+    // saves written before the keys carried a dimension hold bare coordinates: those were the
+    // overworld's, which is the only dimension that ever spawned animals
+    this.animalChunks = new Set((opts.meta.animalChunks ?? []).map((k) => (k.includes(':') ? k : `overworld:${k}`)));
     const game = this;
     const host: ManagerHost = {
       scene: this.renderer.scene,
@@ -803,7 +810,6 @@ export class Game {
       this.blockEntities.prune(new Set());
       this.beams.prune(new Set());
       this.drawnBlocks.clear();
-      this.animalChunks.clear();
       this.world.dispose();
       this.world = this.makeWorld(to);
       this.meta.dimension = to;
@@ -2838,7 +2844,7 @@ export class Game {
       this.tridentTexture = new THREE.TextureLoader().load(this.icons.icon('trident'));
       this.tridentTexture.magFilter = THREE.NearestFilter;
       this.tridentTexture.minFilter = THREE.NearestFilter;
-      this.tridentTexture.colorSpace = THREE.SRGBColorSpace;
+      this.tridentTexture.colorSpace = THREE.NoColorSpace;
     }
     arrow.asTrident(this.tridentTexture);
     const thrown = cloneStack(trident, 1);
@@ -3175,7 +3181,7 @@ export class Game {
       this.fireworkTexture = new THREE.TextureLoader().load(this.icons.icon('firework_rocket'));
       this.fireworkTexture.magFilter = THREE.NearestFilter;
       this.fireworkTexture.minFilter = THREE.NearestFilter;
-      this.fireworkTexture.colorSpace = THREE.SRGBColorSpace;
+      this.fireworkTexture.colorSpace = THREE.NoColorSpace;
     }
     const flight = stack.firework?.flight ?? 1;
     const rocket = new Firework(this.fireworkTexture, x, y, z, fireworkLifetime(flight), stack.firework?.explosions ?? [], aim);
@@ -5295,7 +5301,7 @@ export class Game {
       c.pendingMobs = null;
     }
     this.entities.restoreChunk(cx, cz, saved);
-    const key = `${cx},${cz}`;
+    const key = `${this.world.dimension}:${cx},${cz}`;
     if (!this.animalChunks.has(key)) {
       this.animalChunks.add(key);
       // cows and sheep belong to the overworld; the Nether gets its own animals with its mobs
@@ -5327,7 +5333,7 @@ export class Game {
       this.potionTexture = new THREE.TextureLoader().load(this.icons.icon('splash_potion'));
       this.potionTexture.magFilter = THREE.NearestFilter;
       this.potionTexture.minFilter = THREE.NearestFilter;
-      this.potionTexture.colorSpace = THREE.SRGBColorSpace;
+      this.potionTexture.colorSpace = THREE.NoColorSpace;
     }
     const arrow = this.entities.shootArrow(from, to, 0.75, 0, true);
     arrow.asPotion(this.potionTexture, color, (pos) => {
@@ -5364,7 +5370,7 @@ export class Game {
       this.potionTexture = new THREE.TextureLoader().load(this.icons.icon('splash_potion'));
       this.potionTexture.magFilter = THREE.NearestFilter;
       this.potionTexture.minFilter = THREE.NearestFilter;
-      this.potionTexture.colorSpace = THREE.SRGBColorSpace;
+      this.potionTexture.colorSpace = THREE.NoColorSpace;
     }
     const arrow = this.entities.shootArrow(from, to, 0.75, 0);
     arrow.asPotion(this.potionTexture, color, (pos) => {

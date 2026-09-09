@@ -31,7 +31,7 @@ export class PlayerPreview {
     this.canvas.height = height;
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, alpha: true, antialias: false });
     this.renderer.setClearColor(0x000000, 0);
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 20);
     this.camera.position.set(0, 1.0, 4.6);
     this.camera.lookAt(0, 1.0, 0);

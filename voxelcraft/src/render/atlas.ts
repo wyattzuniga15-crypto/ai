@@ -71,7 +71,7 @@ export async function loadAtlas(base: string, name: string): Promise<LoadedAtlas
   ]);
   const index = new AtlasIndex(json);
   const texture = new THREE.DataTexture(px.data, px.width, px.height, THREE.RGBAFormat, THREE.UnsignedByteType);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.colorSpace = THREE.NoColorSpace;
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestMipmapLinearFilter;
   texture.generateMipmaps = false;

@@ -55,7 +55,7 @@ const textureCache = new Map<string, THREE.Texture>();
 function prepare(t: THREE.Texture, path: string): THREE.Texture {
   t.magFilter = THREE.NearestFilter;
   t.minFilter = THREE.NearestFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
+  t.colorSpace = THREE.NoColorSpace;
   textureCache.set(path, t);
   return t;
 }

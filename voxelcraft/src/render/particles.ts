@@ -166,7 +166,7 @@ export class ParticleSystem {
     this.sheetTexture.magFilter = THREE.NearestFilter;
     this.sheetTexture.minFilter = THREE.NearestFilter;
     this.sheetTexture.flipY = false;
-    this.sheetTexture.colorSpace = THREE.SRGBColorSpace;
+    this.sheetTexture.colorSpace = THREE.NoColorSpace;
     this.sprites = new PointBatch(this.sheetTexture);
     scene.add(this.blocks.points, this.sprites.points);
   }

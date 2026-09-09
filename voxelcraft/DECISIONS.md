@@ -1845,3 +1845,28 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      game in a tight loop never yields long enough for the worker's answer to come back. Given a
      moment, the light is right.
 
+150. **What playing it turned up: a dark world and a crowded one.** Two things came back from
+     somebody actually playing rather than from a probe, and both were real.
+
+     *Everything was rendered at about half brightness.* Three works in a linear colour space by
+     default: it decodes each texture on the way in and encodes the result on the way out. The
+     terrain shader writes `gl_FragColor` itself, so it never got the encode back — the decoded,
+     linear value went straight to the screen. Stone, whose texture averages `#7e7e7e`, was coming
+     out `#363636`, which is exactly `#7e7e7e` decoded and never re-encoded. Mobs, drawn with
+     three's own materials, did get the encode, so the animals were lit correctly and the world
+     under them was not.
+
+     Minecraft has no linear working space at all: it multiplies a texture's bytes by the tint and
+     the light level as they stand and puts that on the screen. So the fix is to do the same —
+     colour management off, every texture read as plain numbers, no conversion on the way out.
+     Measured after: stone renders `#7e7e7e`, exactly its texture, and forest grass at noon renders
+     `#446a33` against the `#466f34` that vanilla's own multiply gives. Before, it was `#24381c`.
+
+     *A trip through a portal handed every chunk at home a second herd.* The set remembering which
+     chunks had already had their one roll for animals was keyed by coordinates alone and cleared
+     whenever the dimension changed — so coming back from the Nether, every overworld chunk looked
+     unvisited and rolled again, on top of the animals already saved in it. The keys carry their
+     dimension now and the set is never cleared. Measured over a reload and a Nether round trip, the
+     count holds at about a quarter of an animal a chunk, which is where vanilla's own
+     one-in-ten-chunks roll of a group of four lands.
+

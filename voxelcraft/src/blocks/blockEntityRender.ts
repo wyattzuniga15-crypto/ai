@@ -268,7 +268,7 @@ export class BeaconBeamRenderer {
       this.texture.wrapT = THREE.RepeatWrapping;
       this.texture.magFilter = THREE.NearestFilter;
       this.texture.minFilter = THREE.NearestFilter;
-      this.texture.colorSpace = THREE.SRGBColorSpace;
+      this.texture.colorSpace = THREE.NoColorSpace;
       this.texture.repeat.set(1, 64);
     }
     const group = new THREE.Group();
