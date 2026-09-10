@@ -206,8 +206,9 @@ export class ParticleSystem {
     const t = this.atlas.index.tiles[tile];
     if (!t) return;
     const patch = 4 / 16;
-    const u = t.x / this.atlas.width + (rng() * (1 - patch)) * (t.w / this.atlas.width);
-    const v = t.y / this.atlas.height + (rng() * (1 - patch)) * (t.h / this.atlas.height);
+    const su = rng() * (1 - patch);
+    const sv = rng() * (1 - patch);
+    const [u, v] = this.atlas.index.uv(tile, su, sv);
     this.push({
       x, y, z, px: x, py: y, pz: z, vx, vy, vz, age: 0, life: Math.floor(4 / (rng() * 0.9 + 0.1)), size, gravity: 1,
       r: ((tint >> 16) & 255) / 255 * 0.6, g: ((tint >> 8) & 255) / 255 * 0.6, b: (tint & 255) / 255 * 0.6,

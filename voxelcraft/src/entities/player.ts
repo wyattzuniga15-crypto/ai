@@ -48,6 +48,8 @@ export class Player {
   boostTicks = 0;
   inWater = false;
   inLava = false;
+  /** Whether the last move ran into something sideways; a swimmer uses it to climb out. */
+  horizontalCollision = false;
   gamemode: GameMode = 'survival';
   health = 20;
   /** Twenty, plus four a level of health boost. */
@@ -265,12 +267,18 @@ export class Player {
       this.vel.x += wx * speed;
       this.vel.z += wz * speed;
       if (jump) this.vel.y += 0.04;
+      const yBefore = this.pos.y;
       this.move(world, 0);
       this.vel.x *= Math.min(0.95, drag);
       this.vel.z *= Math.min(0.95, drag);
       this.vel.y *= 0.8;
       this.vel.y -= 0.02;
-      if (this.onGround && jump && !eyeInWater) this.vel.y = 0.3;
+      // vanilla's way out of a fluid: a swimmer pressed against a ledge is lifted at 0.3 as long as
+      // the box would clear 0.6 above where this tick started, which is what carries the player onto
+      // the bank. Without it the only way up was a jump from the bottom, so deep water was a trap.
+      const clears = this.fitsAt(world, this.pos.x + this.vel.x, yBefore + 0.6 + this.vel.y, this.pos.z + this.vel.z);
+      if (this.horizontalCollision && clears) this.vel.y = 0.3;
+      else if (this.onGround && jump && !eyeInWater) this.vel.y = 0.3;
       this.fallDistance = 0;
       return;
     }
@@ -440,6 +448,7 @@ export class Player {
     if (r.hitY) this.vel.y = 0;
     if (r.hitX) this.vel.x = 0;
     if (r.hitZ) this.vel.z = 0;
+    this.horizontalCollision = r.hitX || r.hitZ;
     if (r.hitX || r.hitZ) this.sprinting = this.sprinting && !(r.hitX && r.hitZ);
   }
 

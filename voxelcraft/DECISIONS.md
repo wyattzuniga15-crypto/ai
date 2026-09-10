@@ -1966,3 +1966,30 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      textures with the top tinted the colour a plains biome tints it and each face shaded the way
      vanilla shades that side. The page declares it and the desktop window wears it.
 
+154. **Two bugs from playing it: a mined block wearing the wrong texture, and no way out of deep
+     water.** Both were reported from a real session and both reproduced.
+
+     *The mined block.* Holding the button on a block turned it into something else entirely — a
+     plank being broken looked like a smithing table. The world data was never wrong; a probe that
+     mined eight different blocks confirmed every one left air behind with the right drop. It was
+     the crumbling overlay. The atlas is uploaded with `flipY` off, which is what lets the chunk
+     shader read a tile rectangle straight — `rect.xy + uv * rect.zw`, no flip — but the overlay
+     flipped v, so stage zero sampled 224 pixels lower down the sheet and landed on whatever tile
+     sat there. The convention now lives in one place, `AtlasIndex.uv`, which the overlay and the
+     break particles both go through, and a test walks all ten destroy stages and fails if the flip
+     comes back.
+
+     While it was open, the overlay's blending went to vanilla's: the destroy textures are 252
+     neutral texels at one part in 255 of alpha plus a handful of opaque grey ones, and vanilla's
+     crumbling pass discards below a tenth and then blends `dst*src + src*dst`. So a mid-grey texel
+     leaves the block exactly as it was and the dark ones darken it. Painting them over at full
+     opacity, which is what it did, put flat grey on the block instead of cracks in it.
+
+     *The water.* You could swim to the bank and no further. The only thing that raised a swimmer
+     was a jump pressed while standing on the bottom with their head out, so anything more than a
+     stride deep was a trap. Vanilla does not use the jump key for this at all: `LivingEntity`
+     lifts a swimmer to 0.3 whenever they are colliding sideways and the box 0.6 above where the
+     tick started is clear, and that is what carries a player up a wall and onto the ground. It
+     does the same in lava, and this shares the branch, so it does too. A pool four deep with a
+     bank now takes 46 ticks to climb out of, holding nothing but forward.
+

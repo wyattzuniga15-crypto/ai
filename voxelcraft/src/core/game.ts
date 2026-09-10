@@ -498,7 +498,20 @@ export class Game {
     // crack overlay
     for (let i = 0; i < 10; i++) this.crackTiles.push(opts.assets.blocks.index.tile(`block/destroy_stage_${i}`));
     const crackGeo = new THREE.BoxGeometry(1.004, 1.004, 1.004);
-    const crackMat = new THREE.MeshBasicMaterial({ map: opts.assets.blocks.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, alphaTest: 0.05 });
+    // vanilla's "crumbling" pass: discard below 0.1 alpha, then blend dst*src + src*dst, so a
+    // mid-grey texel leaves the block alone and the dark crack lines darken it
+    const crackMat = new THREE.MeshBasicMaterial({
+      map: opts.assets.blocks.texture,
+      transparent: true,
+      depthWrite: false,
+      alphaTest: 0.1,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.DstColorFactor,
+      blendDst: THREE.SrcColorFactor,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
     this.crack = new THREE.Mesh(crackGeo, crackMat);
     this.crack.visible = false;
     this.crack.renderOrder = 15;
@@ -7211,15 +7224,13 @@ export class Game {
   private setCrackStage(stage: number): void {
     const tileId = this.crackTiles[stage];
     const geo = this.crack.geometry as THREE.BoxGeometry;
-    const atlas = (this.uniforms.atlas.value as THREE.DataTexture).image as { width: number; height: number };
-    const index = this.baker.atlas.tiles[tileId];
     const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
-    // BoxGeometry uvs are 0..1 per face; remap them into the crack tile's atlas rectangle
+    // BoxGeometry uvs run 0..1 per face with v up; the atlas takes v down, so the face's top edge
+    // is the tile's first row
     const tmpl = new THREE.BoxGeometry(1, 1, 1).getAttribute('uv') as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) {
-      const u = tmpl.getX(i);
-      const v = tmpl.getY(i);
-      uv.setXY(i, (index.x + u * index.w) / atlas.width, 1 - (index.y + (1 - v) * index.h) / atlas.height);
+      const [u, v] = this.baker.atlas.uv(tileId, tmpl.getX(i), 1 - tmpl.getY(i));
+      uv.setXY(i, u, v);
     }
     uv.needsUpdate = true;
   }

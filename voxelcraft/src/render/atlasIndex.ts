@@ -46,6 +46,17 @@ export class AtlasIndex {
     return this.byName.has(name);
   }
 
+  /**
+   * Where a point inside a tile lands in atlas uv space, taking (0,0) as the tile's top-left corner
+   * and (1,1) as its bottom-right. The atlas is uploaded with flipY off, so v runs down the image
+   * exactly as a tile's y does and there is nothing to undo — the chunk shader reads it the same
+   * way. Flipping v here instead put a mined block in whatever texture sat lower down the sheet.
+   */
+  uv(id: number, u: number, v: number): [number, number] {
+    const t = this.tiles[id] ?? this.tiles[0];
+    return [(t.x + u * t.w) / this.width, (t.y + v * t.h) / this.height];
+  }
+
   get count(): number {
     return this.tiles.length;
   }
