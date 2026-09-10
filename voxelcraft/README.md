@@ -27,7 +27,9 @@ That builds the game and opens it in a desktop window — no tabs, no address ba
 title screen, F11 for full screen. It is Electron under the skin, which `npm install` fetches.
 
 `npm run pack` builds the folder to hand somebody who has none of this: the game, a launcher for
-each platform, and the sounds it can actually reach, zipped up beside the repo.
+each platform, and the sounds it can actually reach, zipped up beside the repo. The music and the
+records stay out of it — they are three hundred megabytes on their own — and the folder carries a
+`get-music` script that fetches them into itself on demand.
 
 ```sh
 npm start -- --sounds   # with the music and the long sounds as well (a bigger download, once)

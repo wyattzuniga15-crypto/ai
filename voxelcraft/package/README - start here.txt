@@ -54,8 +54,16 @@ SOUND
   the way the game picks and pitches it. Click the window once before you
   expect to hear anything - browsers keep sound off until you do.
 
-  The music and the records are not in here; they are a few hundred megabytes
-  on their own. Everything else is.
+  The music and the records are not in the download — they are about three
+  hundred megabytes on their own, more than ten times everything else here.
+  To add them, run the fetcher once and then start the game again:
+
+    Mac      double-click  "Get the music.command"
+    Windows  double-click  get-music.bat
+    Linux    run           ./get-music.sh
+
+  That one needs Node; it takes a couple of minutes and only has to be done
+  once. Stopping it partway is fine, it picks up where it left off.
 
 
 ABOUT THE FILES

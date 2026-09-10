@@ -54,35 +54,54 @@ function listen(port, tries = 20) {
 }
 
 /**
- * Opens the game in a window of its own. Chrome and the browsers built on it take , which
- * gives a plain window with no tabs and no address bar — near enough to the desktop app. Failing
- * that, the ordinary browser opens, and failing that the address printed above is the way in.
+ * Opens the game in a window of its own. Chrome and the browsers built on it take `--app`, which
+ * gives a plain window with no tabs and no address bar — near enough to the desktop app.
+ *
+ * The browser has to be found on disk first: asking the shell to start one that is not installed
+ * fails quietly long after we have stopped watching, so there would be nothing to fall back from.
  */
 function openWindow(url) {
   const args = [`--app=${url}`, '--window-size=1280,800'];
-  const mac = ['Google Chrome', 'Microsoft Edge', 'Brave Browser', 'Chromium'];
-  const linux = ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge', 'brave-browser'];
-  const win = ['chrome', 'msedge'];
-  const tryRun = (cmd, argv) => {
+  const env = (name) => process.env[name] || '';
+  let candidates = [];
+  if (process.platform === 'darwin') {
+    candidates = [
+      '/Applications/Google Chrome.app',
+      '/Applications/Microsoft Edge.app',
+      '/Applications/Brave Browser.app',
+      '/Applications/Chromium.app',
+      `${env('HOME')}/Applications/Google Chrome.app`,
+    ];
+  } else if (process.platform === 'win32') {
+    candidates = [
+      `${env('LOCALAPPDATA')}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${env('ProgramFiles')}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${env('ProgramFiles(x86)')}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${env('ProgramFiles(x86)')}\\Microsoft\\Edge\\Application\\msedge.exe`,
+      `${env('ProgramFiles')}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    ];
+  } else {
+    for (const exe of ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge', 'brave-browser']) {
+      for (const dir of (env('PATH') || '').split(':')) {
+        if (dir && fs.existsSync(path.join(dir, exe))) candidates.push(path.join(dir, exe));
+      }
+    }
+  }
+  const found = candidates.find((c) => c && fs.existsSync(c));
+  const run = (cmd, argv) => {
     try {
-      const p = spawn(cmd, argv, { stdio: 'ignore', detached: true });
-      p.on('error', () => {});
-      p.unref();
-      return true;
+      const child = spawn(cmd, argv, { stdio: 'ignore', detached: true, windowsHide: false });
+      child.on('error', () => {});
+      child.unref();
     } catch {
-      return false;
+      // nothing to open it with, which is what the printed address is for
     }
   };
-  if (process.platform === 'darwin') {
-    for (const app of mac) if (tryRun('open', ['-na', app, '--args', ...args])) return;
-    tryRun('open', [url]);
-  } else if (process.platform === 'win32') {
-    for (const exe of win) if (tryRun('cmd', ['/c', 'start', '', exe, ...args])) return;
-    tryRun('cmd', ['/c', 'start', '', url]);
-  } else {
-    for (const exe of linux) if (tryRun(exe, args)) return;
-    tryRun('xdg-open', [url]);
-  }
+  if (found && process.platform === 'darwin') run('open', ['-na', found, '--args', ...args]);
+  else if (found) run(found, args);
+  else if (process.platform === 'darwin') run('open', [url]);
+  else if (process.platform === 'win32') run('cmd', ['/c', 'start', '', url]);
+  else run('xdg-open', [url]);
 }
 
 listen(wanted);

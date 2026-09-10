@@ -3,7 +3,8 @@
  * the structure templates, optionally the sounds — and then starts the server.
  *
  *   npm start                 the dev server, on http://localhost:5173
- *   npm start -- --sounds     with the ogg files as well (a bigger download, once)
+ *   npm start -- --sounds     with Mojang's own sound effects (57 MB, once)
+ *   npm start -- --music      and the music and the records as well (another 315 MB)
  *   npm start -- --build      build first and serve the static site instead
  *   npm start -- --force      re-fetch everything, even what is already here
  *
@@ -40,10 +41,15 @@ if (missing('public/structures/index.json')) {
   console.log('✓ structure templates are already here');
 }
 
-if (has('--sounds') && missing('public/sounds')) {
-  run('Fetching the sound files', 'npx', ['tsx', 'tools/fetch-assets.ts', '--sounds']);
+const wantsMusic = has('--music');
+// the effects are 57 MB and the music another 315, so each is asked for separately
+if ((has('--sounds') || wantsMusic) && (force || missing('public/sounds') || (wantsMusic && missing('public/sounds/music')))) {
+  run(wantsMusic ? 'Fetching the sounds, the music and the records' : 'Fetching the sound files',
+    'npx', ['tsx', 'tools/fetch-assets.ts', '--sounds', ...(wantsMusic ? ['--music'] : []), '--skip-build']);
 } else if (!fs.existsSync('public/sounds')) {
-  console.log('✓ ready (run `npm start -- --sounds` once if you want the music and the long sounds)');
+  console.log('✓ ready (run `npm start -- --sounds` once for Mojang\'s own sound effects)');
+} else if (!fs.existsSync('public/sounds/music')) {
+  console.log('✓ sound effects are here (add `npm start -- --music` once for the music and the records)');
 }
 
 // vite opens the browser itself on the port it actually settled on, which is the one to trust;
