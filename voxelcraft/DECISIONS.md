@@ -1940,3 +1940,29 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      running while the generator wants the frames. Vanilla blurs a still, not a moving picture, and
      so does this now — the load time went back to where it was.
 
+153. **The last of the missing textures, and an icon for the window.** Playing it turned up a
+     magenta-and-black checker in the creative menu, which is what this draws when it has nothing
+     else. There were two different reasons for it.
+
+     *Eleven items had no icon at all.* The copper golem statues, the decorated pot and the dragon
+     head are block entities: vanilla draws them in code rather than from an item model, so there is
+     no model for the icon renderer to fall back to. The statues now draw from `statueModel`, the
+     same box model the world already stands them up with, in the standing pose and at whichever of
+     the four ages the block carries. The pot is four flat faces off `decorated_pot_side.png` with
+     the neck off the base texture — `decorated_pot_side.png` is one fourteen-by-sixteen face and
+     nothing else, which is what says the body is faces rather than a box. The dragon head is its
+     own head and jaw, lifted off the mob model, the jaw hung at the offset between the two pivots.
+
+     *And one texture reference never resolved.* Most of Mojang's models name a texture slot with a
+     hash — `#all` — and this resolved that and nothing else. A few of the newer models write the
+     bare slot name instead: `heavy_core.json` says `"texture": "all"`, and vanilla resolves it
+     against the model's own slots either way. Ours did not, so every face of the heavy core fell
+     through to the missing texture. It resolves a bare slot name now, and a test walks every face
+     of every block in the game looking for anything still landing on tile zero.
+
+     *The window's icon.* There was no favicon at all, so the taskbar showed a browser's globe.
+     `npm run icon` draws one the way Minecraft's own icon is drawn — a grass block, three faces of
+     a cube in the two-to-one isometric the inventory icons use, mapped off Mojang's own block
+     textures with the top tinted the colour a plains biome tints it and each face shaded the way
+     vanilla shades that side. The page declares it and the desktop window wears it.
+

@@ -314,6 +314,11 @@ async function buildRuntimeBundles(): Promise<void> {
   log(`public/textures: ${n} files`);
   ensureDir(path.join(PUBLIC, 'lang'));
   fs.copyFileSync(path.join(ASSETS, 'lang', 'en_us.json'), path.join(PUBLIC, 'lang', 'en_us.json'));
+  // the font the menus are set in, and the grass block the window wears in a taskbar
+  for (const [what, tool] of [['font', 'tools/gen-font.ts'], ['icon', 'tools/gen-icon.ts']] as const) {
+    const r = spawnSync('npx', ['tsx', tool], { stdio: 'inherit', shell: process.platform === 'win32' });
+    if (r.status !== 0) log(`${what}: could not be built`);
+  }
   // vanilla's own sound event definitions: which files an event may play, and at what volume,
   // pitch and weight. The game reads it to pick a variant the way vanilla picks one.
   const soundsJson = path.join(jarDir(VERSION), 'assets', 'minecraft', 'sounds.json');

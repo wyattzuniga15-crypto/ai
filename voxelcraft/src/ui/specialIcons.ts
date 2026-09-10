@@ -4,6 +4,7 @@
  * builds them with the mob box-model builder on the real entity textures.
  */
 import type { ModelDef, PartDef } from '../entities/boxModel.ts';
+import { statueModel } from '../blocks/copperStatue.ts';
 
 export interface SpecialIcon {
   model: ModelDef;
@@ -168,5 +169,59 @@ export function specialIcon(id: string): SpecialIcon | null {
   if (id === 'conduit') {
     return { model: { texture: 'conduit/base.png', texW: 32, texH: 16, parts: [{ name: 'shell', pivot: [0, 0, 0], boxes: [{ uv: [0, 0], box: [-3, -3, -3, 6, 6, 6] }] }] }, gui: { rotation: [30, 45, 0], translation: [0, 0, 0], scale: 1 } };
   }
+  // the copper golem statues, in the standing pose vanilla shows them in the menu, at whichever of
+  // the four ages the block carries; the world already draws them from the same model
+  if (id.endsWith('copper_golem_statue')) {
+    const model = statueModel(id, 'standing');
+    if (model) return { model: shiftDown(model, 8), gui: { rotation: [30, 45, 0], translation: [0, 0, 0], scale: 0.62 } };
+  }
+  if (id === 'decorated_pot') {
+    // vanilla's pot: a neck on top of a body, the body's four faces each carrying their own sherd
+    const side = (name: string, rotation: [number, number, number]): PartDef => ({
+      name, pivot: [0, 0, 0], rotation, texture: 'decorated_pot/decorated_pot_side.png',
+      boxes: [{ uv: [1, 0], box: [-7, -8, -7, 14, 16, 0] }],
+    });
+    // the body is four flat faces rather than a solid box — `decorated_pot_side.png` is one
+    // fourteen by sixteen face, and the neck and the lid come off the base texture
+    return {
+      model: {
+        texture: 'decorated_pot/decorated_pot_base.png', texW: 32, texH: 32,
+        parts: [
+          { name: 'neck', pivot: [0, 0, 0], boxes: [
+            { uv: [0, 0], box: [-4, -11, -4, 8, 3, 8] },
+            { uv: [0, 11], box: [-3, -12, -3, 6, 1, 6] },
+          ] },
+          side('front', [0, 0, 0]), side('back', [0, Math.PI, 0]),
+          side('left', [0, Math.PI / 2, 0]), side('right', [0, -Math.PI / 2, 0]),
+        ],
+      },
+      gui: { rotation: [30, 45, 0], translation: [0, 0, 0], scale: 0.6 },
+    };
+  }
+  if (id === 'dragon_head') {
+    // the dragon's own head and jaw, lifted off the mob model it is drawn from in the world
+    return {
+      model: {
+        texture: 'enderdragon/dragon.png', texW: 256, texH: 256,
+        parts: [
+          { name: 'head', pivot: [0, 0, 6], boxes: [
+            { uv: [176, 44], box: [-6, -1, -24, 12, 5, 16] },
+            { uv: [112, 30], box: [-8, -8, -10, 16, 16, 16] },
+            { uv: [0, 0], box: [-5, -12, -4, 2, 4, 6] },
+            { uv: [0, 0], box: [3, -12, -4, 2, 4, 6], mirror: true },
+            { uv: [112, 0], box: [-5, -3, -22, 2, 2, 4] },
+            { uv: [112, 0], box: [3, -3, -22, 2, 2, 4], mirror: true },
+          ] },
+          { name: 'jaw', parent: 'head', pivot: [0, 4, -8], boxes: [{ uv: [176, 65], box: [-6, 0, -16, 12, 4, 16] }] },
+        ],
+      },
+      gui: { rotation: [25, 145, 0], translation: [0, 0, 0], scale: 0.34 },
+    };
+  }
   return null;
+}
+
+/** The same model with every part moved down, which is how a floor-standing model centres in a slot. */
+function shiftDown(model: ModelDef, by: number): ModelDef {
+  return { ...model, parts: model.parts.map((p) => ({ ...p, pivot: [p.pivot[0], p.pivot[1] - by, p.pivot[2]] as [number, number, number] })) };
 }

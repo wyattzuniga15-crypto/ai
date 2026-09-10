@@ -16,6 +16,7 @@
     "assets": "tsx tools/fetch-assets.ts",
     "atlas": "tsx tools/build-atlas.ts",
     "font": "tsx tools/gen-font.ts",
+    "icon": "tsx tools/gen-icon.ts",
     "data": "tsx tools/gen-data.ts",
     "trades": "tsx tools/gen-trades.ts",
     "structures": "tsx tools/gen-structures.ts",

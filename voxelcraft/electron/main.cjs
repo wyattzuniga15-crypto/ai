@@ -56,7 +56,7 @@ async function createWindow() {
     backgroundColor: '#000000',
     autoHideMenuBar: true,
     show: false,
-    icon: path.join(__dirname, 'icon.png'),
+    icon: path.join(root, 'icon.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

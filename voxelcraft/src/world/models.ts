@@ -249,7 +249,11 @@ export class ModelBaker {
     for (const key of Object.keys(textures)) {
       let v = textures[key];
       let g = 0;
-      while (v.startsWith('#') && g++ < 16) v = textures[v.slice(1)] ?? 'missingno';
+      while (g++ < 16) {
+        if (v.startsWith('#')) v = textures[v.slice(1)] ?? 'missingno';
+        else if (textures[v] !== undefined && textures[v] !== v) v = textures[v];
+        else break;
+      }
       out[key] = v;
     }
     const r: ResolvedModel = { textures: out, elements: elements ?? [], ao, display, chain };
@@ -257,10 +261,19 @@ export class ModelBaker {
     return r;
   }
 
+  /**
+   * The texture a face asks for. Most of Mojang's models name a slot with a hash — `#all` — but a
+   * few of the newer ones write the bare slot name instead, and vanilla resolves that against the
+   * model's own slots either way. Anything that is neither a slot nor a hash is a texture path.
+   */
   textureFor(model: ResolvedModel, ref: string): string {
     let v = ref;
     let g = 0;
-    while (v.startsWith('#') && g++ < 16) v = model.textures[v.slice(1)] ?? 'missingno';
+    while (g++ < 16) {
+      if (v.startsWith('#')) v = model.textures[v.slice(1)] ?? 'missingno';
+      else if (model.textures[v] !== undefined && model.textures[v] !== v) v = model.textures[v];
+      else break;
+    }
     return v;
   }
 

@@ -72,3 +72,34 @@ describe('model baker', () => {
     expect(baker.itemModel('oak_planks', 'oak_planks')?.kind).toBe('model');
   });
 });
+
+describe('texture slots', () => {
+  it('resolves a slot named with a hash, the way most of Mojang’s models write it', () => {
+    const m = baker.resolve('block/stone')!;
+    expect(baker.textureFor(m, '#all')).toBe('block/stone');
+  });
+
+  it('resolves a bare slot name too, which is how the newer models write it', () => {
+    // heavy_core's own faces say `"texture": "all"`, with no hash; vanilla resolves it either way,
+    // and before it did here the block came out as the missing texture
+    const m = baker.resolve('block/heavy_core')!;
+    expect(baker.textureFor(m, 'all')).toBe('block/heavy_core');
+  });
+
+  it('leaves a texture path that is not a slot alone', () => {
+    const m = baker.resolve('block/stone')!;
+    expect(baker.textureFor(m, 'block/dirt')).toBe('block/dirt');
+  });
+
+  it('gives every face of every block a texture that is in the atlas', () => {
+    const missing: string[] = [];
+    for (const def of blocks.defs) {
+      const baked = baker.modelFor(blocks.defaultState(def.id), 0);
+      for (const q of baked.quads) {
+        // tile 0 is the missing texture the atlas keeps at the front
+        if (q.tile === 0 && def.id !== 'air') missing.push(`${def.id} (${q.texture})`);
+      }
+    }
+    expect([...new Set(missing)]).toEqual([]);
+  });
+});
