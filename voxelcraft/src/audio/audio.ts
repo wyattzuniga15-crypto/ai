@@ -1,8 +1,10 @@
 /**
- * Procedural sound effects on Web Audio. Every sound is synthesized (no recorded samples) and
- * spatialized by distance from the listener.
+ * Sound on Web Audio. Every voice plays Mojang's own recording where the assets carry it, picked
+ * and weighted the way vanilla picks one, and falls back to the synthesized voice of the same name
+ * where they do not — which is what keeps a copy with no sound assets playable rather than silent.
  */
 import { soundDefs } from './sounds.ts';
+import { SOUND_EVENTS } from './soundEvents.ts';
 
 export interface PlayOptions {
   x?: number;
@@ -70,6 +72,20 @@ const SOUNDS: Record<string, Synth> = {
   dig_glass: (c, o, p, t) => { burst(c, o, t, 'highpass', 3500, 1, 0.002, 0.25, 0.6, p); tone(c, o, t, 'sine', 2600, 2400, 0.15, 0.2, p); },
   dig_water: (c, o, p, t) => burst(c, o, t, 'bandpass', 900, 1.5, 0.02, 0.3, 0.4, p),
   step: (c, o, p, t) => burst(c, o, t, 'lowpass', 900, 1, 0.003, 0.06, 0.25, p),
+  // one fallback voice a surface, so a footstep still lands when the recordings are not there
+  step_stone: (c, o, p, t) => burst(c, o, t, 'lowpass', 900, 1, 0.003, 0.06, 0.25, p),
+  step_wood: (c, o, p, t) => burst(c, o, t, 'bandpass', 500, 1.5, 0.003, 0.07, 0.25, p),
+  step_gravel: (c, o, p, t) => burst(c, o, t, 'highpass', 1400, 0.8, 0.003, 0.08, 0.22, p),
+  step_sand: (c, o, p, t) => burst(c, o, t, 'bandpass', 2200, 0.6, 0.005, 0.08, 0.18, p),
+  step_grass: (c, o, p, t) => burst(c, o, t, 'bandpass', 1300, 1, 0.003, 0.06, 0.2, p),
+  step_wool: (c, o, p, t) => burst(c, o, t, 'lowpass', 420, 0.6, 0.005, 0.06, 0.16, p),
+  step_glass: (c, o, p, t) => burst(c, o, t, 'highpass', 3000, 1, 0.002, 0.05, 0.2, p),
+  step_snow: (c, o, p, t) => burst(c, o, t, 'bandpass', 1800, 0.7, 0.004, 0.07, 0.18, p),
+  step_water: (c, o, p, t) => burst(c, o, t, 'bandpass', 1000, 1.2, 0.01, 0.12, 0.2, p),
+  dig_snow: (c, o, p, t) => burst(c, o, t, 'bandpass', 1600, 0.8, 0.005, 0.12, 0.3, p),
+  place: (c, o, p, t) => burst(c, o, t, 'bandpass', 1200, 1, 0.004, 0.08, 0.3, p),
+  break: (c, o, p, t) => { burst(c, o, t, 'bandpass', 900, 1.5, 0.003, 0.18, 0.4, p); tone(c, o, t, 'sawtooth', 300, 120, 0.15, 0.2, p); },
+  explode: (c, o, p, t) => { burst(c, o, t, 'lowpass', 320, 0.5, 0.01, 1.2, 1.0, p); tone(c, o, t, 'sine', 70, 30, 0.8, 0.8, p); },
   hurt: (c, o, p, t) => tone(c, o, t, 'sawtooth', 420, 180, 0.2, 0.35, p),
   death: (c, o, p, t) => tone(c, o, t, 'sawtooth', 300, 60, 0.6, 0.4, p),
   eat: (c, o, p, t) => { for (let i = 0; i < 3; i++) burst(c, o, t + i * 0.11, 'bandpass', 600, 2, 0.01, 0.06, 0.35, p * (1 + i * 0.1)); },
@@ -183,6 +199,10 @@ export class AudioEngine {
   private track: HTMLAudioElement | null = null;
   private trackName: string | null = null;
   private trackEnded: (() => void) | null = null;
+  /** Decoded recordings by file name; null marks one the assets do not carry. */
+  private readonly samples = new Map<string, AudioBuffer | null>();
+  private readonly loading = new Set<string>();
+  private warmed = false;
 
   /** Must be called from a user gesture at least once (browsers block audio otherwise). */
   unlock(): void {
@@ -209,8 +229,9 @@ export class AudioEngine {
 
   play(name: string, opts: PlayOptions = {}): void {
     if (!this.ctx || !this.master || this.volume <= 0) return;
+    const sample = this.sampleFor(name);
     const synth = SOUNDS[name];
-    if (!synth) return;
+    if (!sample && !synth) return;
     let gain = opts.volume ?? 1;
     if (opts.x !== undefined) {
       const d = Math.hypot(opts.x - this.listener.x, (opts.y ?? this.listener.y) - this.listener.y, (opts.z ?? this.listener.z) - this.listener.z);
@@ -223,13 +244,76 @@ export class AudioEngine {
     if (now - last < 30) return;
     this.lastPlayed.set(name, now);
     const g = this.ctx.createGain();
-    g.gain.value = gain;
     g.connect(this.master);
     try {
-      synth(this.ctx, g, opts.pitch ?? 1, this.ctx.currentTime);
+      if (sample) {
+        // vanilla resamples to change pitch, so the sound gets shorter as it gets higher
+        g.gain.value = gain * sample.volume;
+        const src = this.ctx.createBufferSource();
+        src.buffer = sample.buffer;
+        src.playbackRate.value = Math.max(0.05, (opts.pitch ?? 1) * sample.pitch);
+        src.connect(g);
+        src.start(this.ctx.currentTime);
+      } else {
+        g.gain.value = gain;
+        synth!(this.ctx, g, opts.pitch ?? 1, this.ctx.currentTime);
+      }
     } catch (e) {
       console.warn('sound failed', name, e);
     }
+  }
+
+  /**
+   * The recording to play for a voice, if one is decoded and waiting. The first ask for a sound
+   * starts it loading and is answered by the synthesized voice; every ask after that gets Mojang's.
+   */
+  private sampleFor(name: string): { buffer: AudioBuffer; volume: number; pitch: number } | null {
+    const event = SOUND_EVENTS[name];
+    if (!event) return null;
+    const variant = soundDefs.pick(event);
+    if (!variant || variant.stream) return null;
+    const buffer = this.samples.get(variant.name);
+    if (buffer === undefined) {
+      void this.loadSample(variant.name);
+      return null;
+    }
+    return buffer ? { buffer, volume: variant.volume, pitch: variant.pitch } : null;
+  }
+
+  /** Fetches and decodes one ogg, remembering a miss as null so it is never asked for twice. */
+  private async loadSample(file: string): Promise<void> {
+    if (this.loading.has(file) || !this.ctx) return;
+    this.loading.add(file);
+    try {
+      const res = await fetch(`${this.base}sounds/${file}.ogg`);
+      if (!res.ok) {
+        this.samples.set(file, null);
+        return;
+      }
+      this.samples.set(file, await this.ctx.decodeAudioData(await res.arrayBuffer()));
+    } catch {
+      this.samples.set(file, null);
+    } finally {
+      this.loading.delete(file);
+    }
+  }
+
+  /**
+   * Pulls in every recording the game's voices can reach, a few at a time, so the first pickaxe
+   * swing of a session already sounds like Minecraft rather than like the fallback.
+   */
+  async warmSamples(): Promise<void> {
+    if (!this.ctx || this.warmed) return;
+    this.warmed = true;
+    const files = new Set<string>();
+    for (const event of Object.values(SOUND_EVENTS)) {
+      for (const v of soundDefs.variants(event)) if (!v.stream) files.add(v.name);
+    }
+    const queue = [...files];
+    const workers = Array.from({ length: 6 }, async () => {
+      for (let file = queue.pop(); file; file = queue.pop()) await this.loadSample(file);
+    });
+    await Promise.all(workers);
   }
 
   /**
@@ -240,6 +324,25 @@ export class AudioEngine {
     const variant = soundDefs.pick(event, random);
     if (!variant) {
       this.play(event, opts);
+      return;
+    }
+    const buffer = this.samples.get(variant.name);
+    if (buffer === undefined) void this.loadSample(variant.name);
+    if (buffer && this.ctx && this.master && this.volume > 0) {
+      let gain = (opts.volume ?? 1) * variant.volume;
+      if (opts.x !== undefined) {
+        const d = Math.hypot(opts.x - this.listener.x, (opts.y ?? this.listener.y) - this.listener.y, (opts.z ?? this.listener.z) - this.listener.z);
+        gain *= Math.max(0, 1 - d / 16);
+        if (gain <= 0.01) return;
+      }
+      const g = this.ctx.createGain();
+      g.gain.value = gain;
+      g.connect(this.master);
+      const src = this.ctx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.value = Math.max(0.05, (opts.pitch ?? 1) * variant.pitch);
+      src.connect(g);
+      src.start(this.ctx.currentTime);
       return;
     }
     this.play(event, { ...opts, volume: (opts.volume ?? 1) * variant.volume, pitch: (opts.pitch ?? 1) * variant.pitch });

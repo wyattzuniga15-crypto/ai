@@ -1870,3 +1870,29 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      count holds at about a quarter of an animal a chunk, which is where vanilla's own
      one-in-ten-chunks roll of a group of four lands.
 
+151. **Mojang's own recordings, at last.** Every sound the game made was synthesized: ninety-four
+     little Web Audio voices, written to stand in for Minecraft's while the real files were not
+     there. They were only ever a stand-in, and they sound like one.
+
+     The recordings themselves are not in the client jar — they come off Mojang's asset CDN, which
+     is not reachable from every network. The same GitHub mirror the textures come from carries
+     them, so the fetch takes them from there unless it is told otherwise, and falls back to older
+     mirror branches for the handful the newest one is missing. That is 3,627 effect files, 57 MB.
+     The music and the records are a few hundred megabytes on their own and stay behind `--music`.
+
+     What was missing was the wiring. `sounds.json` had been read since the audio went in, and it
+     was used for exactly two things: choosing which *music* file to stream, and lifting a volume
+     and a pitch to hand to the synthesized voice. Nothing ever played a recording for a short
+     sound. So each of the game's voices now names the vanilla event it stands for — `dig_stone` is
+     `block.stone.break`, `click` is `ui.button.click`, `cow` is `entity.cow.ambient` — and the
+     engine picks a variant by vanilla's own weights, plays the decoded buffer at the variant's
+     volume, and pitches it by resampling, which is what vanilla does and is why a pitched-up sound
+     is also a shorter one. All 107 voices resolve to a real event and a file that is actually
+     there; the synthesized voices stay as the fallback for a copy fetched without the assets.
+
+     Two things came out of the mapping that were plain gaps. Footsteps played one generic voice
+     whatever you walked on, though the call site had already worked out the block's sound group for
+     the volume — they take the group now, so grass, stone, wood, sand, gravel, wool, snow and glass
+     each sound like themselves. And `dig_snow` and `place` were asked for by name with no voice
+     registered under either, so breaking snow and potting a plant were silent.
+

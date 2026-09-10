@@ -39,9 +39,10 @@ gitignored folders (`assets/`, `public/atlas`, `public/textures`, `public/texts`
 Re-run with `-- --force` to refresh, or `-- --source=mirror` to skip the official CDN.
 
 The sound files are not in the client jar — they come off Mojang's asset CDN — so they are opt-in:
-`npm run assets -- --sounds` walks the version's asset index and fills `public/sounds/` (gitignored
-too). Without it the game still picks the track vanilla would have played, and simply stays quiet;
-the synthesized effects play either way.
+`npm run assets -- --sounds` fills `public/sounds/` (gitignored too) with the 3,627 effect files, and
+`--music` adds the music and the records on top. Mojang's CDN is not reachable from every network, so
+the fetch takes them off the same GitHub mirror the textures come from unless `--source=official`
+says otherwise. Without them the game falls back to the synthesized voices it has always had.
 
 `npm run structures` converts Mojang's structure templates from the fetched client into
 `public/structures/` (gitignored, like the textures); without it the world simply generates no

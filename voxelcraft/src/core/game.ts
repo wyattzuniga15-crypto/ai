@@ -525,8 +525,13 @@ export class Game {
     this.audio.base = import.meta.env.BASE_URL;
     // vanilla's own sound event table, if the assets were fetched; without it the game still runs,
     // it simply has no music or records to stream
-    void loadSoundDefinitions(import.meta.env.BASE_URL);
-    const unlock = () => this.audio.unlock();
+    // the table first, then the recordings themselves, so the first swing of a pickaxe in a
+    // session already sounds like Minecraft rather than like the fallback voice
+    void loadSoundDefinitions(import.meta.env.BASE_URL).then((ok) => { if (ok) void this.audio.warmSamples(); });
+    const unlock = () => {
+      this.audio.unlock();
+      void this.audio.warmSamples();
+    };
     this.renderer.canvas.addEventListener('mousedown', unlock);
     window.addEventListener('keydown', unlock);
     this.entities.onRestoreItem = (s) => {
@@ -7457,7 +7462,8 @@ export class Game {
         const below = this.world.getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y - 0.1), Math.floor(p.pos.z));
         if (below !== 0) {
           const d = blocks.blockOf(below);
-          this.audio.play('step', { pitch: 0.9 + Math.random() * 0.2, volume: 0.6 + (blockSoundGroup(d.id, d.tool, d.behavior) === 'grass' ? 0 : 0.2) });
+          const group = blockSoundGroup(d.id, d.tool, d.behavior);
+          this.audio.play(`step_${group}`, { pitch: 0.9 + Math.random() * 0.2, volume: 0.6 + (group === 'grass' ? 0 : 0.2) });
         }
       }
     }

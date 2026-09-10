@@ -43,12 +43,16 @@ const FORCE = args.get('force') === 'true';
 const SKIP_BUILD = args.get('skip-build') === 'true';
 /** Sound files are not in the jar: they come off Mojang's own asset CDN, so they are opt-in. */
 const WITH_SOUNDS = args.get('sounds') === 'true';
+/** Music and records are hundreds of megabytes on their own, so they come only when asked for. */
+const WITH_MUSIC = args.get('music') === 'true';
 
 const MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const RESOURCES_URL = 'https://resources.download.minecraft.net';
 const MIRROR_REPO = 'https://github.com/InventivetalentDev/minecraft-assets';
 const MIRROR_RAW = `https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/${VERSION}`;
 const MCDATA_RAW = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data';
+/** Older mirror branches to fall back to for the few sounds the newest one is missing. */
+const SOUND_FALLBACK_VERSIONS = ['1.21.5', '1.21.1'];
 
 /** Sub-trees of the client jar that the game uses. Everything else is ignored. */
 const JAR_PATHS = [
@@ -332,6 +336,15 @@ async function fetchSounds(): Promise<void> {
   interface Manifest { versions: { id: string; url: string }[] }
   interface VersionJson { assetIndex: { url: string } }
   interface Index { objects: Record<string, { hash: string; size: number }> }
+  if (SOURCE !== 'official') {
+    try {
+      await fetchSoundsFromMirror();
+      return;
+    } catch (e) {
+      if (SOURCE === 'mirror') throw e;
+      log(`sounds: the mirror did not answer (${String(e).slice(0, 80)}), trying Mojang's own CDN`);
+    }
+  }
   const manifest = await fetchJson<Manifest>(MANIFEST_URL);
   const entry = manifest.versions.find((v) => v.id === VERSION);
   if (!entry) throw new Error(`version ${VERSION} not in Mojang manifest`);
@@ -355,6 +368,70 @@ async function fetchSounds(): Promise<void> {
   });
   await Promise.all(workers);
   log(`public/sounds: ${done} files`);
+}
+
+/**
+ * The same ogg files off the GitHub mirror, named as `sounds.json` names them rather than by hash.
+ * Mojang's asset CDN is not reachable from every network; the mirror carries the identical files.
+ * Music and records are the big ones and are fetched only when they are asked for by name.
+ */
+async function fetchSoundsFromMirror(): Promise<void> {
+  const defs = readJson<Record<string, { sounds?: (string | { name: string; type?: string })[] }>>(path.join(PUBLIC, 'sounds.json'));
+  const names = new Set<string>();
+  for (const entry of Object.values(defs)) {
+    for (const sound of entry.sounds ?? []) {
+      if (typeof sound === 'string') names.add(sound);
+      else if (sound.type !== 'event') names.add(sound.name);
+    }
+  }
+  const isMusic = (n: string): boolean => n.startsWith('music/') || n.startsWith('records/');
+  const wanted = [...names].filter((n) => WITH_MUSIC || !isMusic(n)).sort();
+  log(`sounds: ${wanted.length} files from the mirror${WITH_MUSIC ? ' (music and records included)' : ' (effects only; add --music for the rest)'}`);
+  const root = path.join(PUBLIC, 'sounds');
+  let done = 0;
+  let missing = 0;
+  const queue = wanted.slice();
+  const workers = Array.from({ length: 24 }, async () => {
+    for (let name = queue.pop(); name; name = queue.pop()) {
+      const out = path.join(root, `${name}.ogg`);
+      if (!FORCE && fs.existsSync(out) && fs.statSync(out).size > 64) {
+        done++;
+        continue;
+      }
+      // the mirror's newest branches are missing a handful of files that older ones still carry,
+      // and an unchanged sound is the same file in every version, so an older branch fills the gap
+      let got = false;
+      for (const version of [VERSION, ...SOUND_FALLBACK_VERSIONS]) {
+        try {
+          await download(`https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/${version}/assets/minecraft/sounds/${name}.ogg`, out);
+          // a missing file comes back as a fourteen-byte "404: Not Found" page, not as an error
+          if (fs.statSync(out).size > 64) {
+            got = true;
+            break;
+          }
+          fs.rmSync(out);
+        } catch {
+          // try the next version
+        }
+      }
+      if (!got) missing++;
+      if (++done % 400 === 0) log(`sounds: ${done}/${wanted.length}`);
+    }
+  });
+  await Promise.all(workers);
+  const bytes = dirBytes(root);
+  log(`public/sounds: ${done - missing} files (${(bytes / 1048576).toFixed(0)} MB)${missing ? `, ${missing} not on the mirror` : ''}`);
+}
+
+/** Total size of everything under a directory. */
+function dirBytes(dir: string): number {
+  if (!fs.existsSync(dir)) return 0;
+  let total = 0;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    total += e.isDirectory() ? dirBytes(full) : fs.statSync(full).size;
+  }
+  return total;
 }
 
 async function main() {
