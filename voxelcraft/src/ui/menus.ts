@@ -44,6 +44,9 @@ export class Menus {
   }
 
   showLoading(text: string, progress = 0): void {
+    // the screen behind is done with: leaving the title's panorama running costs the world
+    // generator half a second of frames it could be using
+    if (!this.loading) this.hide();
     if (!this.loading) {
       this.loading = h('div', { id: 'loading' }, h('div', { class: 'msg', text }), h('div', { class: 'bar' }, h('div')));
       this.root.append(this.loading);
@@ -59,15 +62,29 @@ export class Menus {
 
   showTitle(): void {
     this.inGame = false;
-    this.show(h('div', { class: 'screen title' },
-      h('h1', { class: 'logo', text: 'VOXELCRAFT' }),
-      h('div', { class: 'subtitle', text: 'Voxels ahoy!' }),
+    const desktop = /Electron/i.test(navigator.userAgent);
+    const screen = h('div', { class: 'screen title' },
+      panorama(),
+      h('div', { class: 'title-logo' },
+        h('div', { class: 'wordmark', text: 'VOXELCRAFT' }),
+        h('div', { class: 'edition', text: 'Java Edition rules' }),
+        h('div', { class: 'splash', text: splashText() }),
+      ),
       h('div', { class: 'panel' },
         button('Singleplayer', () => void this.showWorlds()),
-        button('Options...', () => this.showOptions(() => this.showTitle())),
+        button('Multiplayer', () => {}, 'disabled'),
+        h('div', { class: 'row' },
+          button('Options...', () => this.showOptions(() => this.showTitle()), 'half'),
+          button(desktop ? 'Quit Game' : 'Minecraft Realms', () => { if (desktop) window.close(); }, desktop ? 'half' : 'half disabled'),
+        ),
       ),
-      h('div', { style: 'position:absolute;left:8px;bottom:8px;font-size:12px;color:#ccc', text: 'Voxelcraft 0.1 (Minecraft Java 1.21.11 rules) – private project' }),
-    ));
+      h('div', { class: 'corner left', text: 'Voxelcraft 0.1 (Minecraft Java 1.21.11 rules)' }),
+      h('div', { class: 'corner right', text: 'A private, non-commercial project. Not affiliated with Mojang.' }),
+    );
+    (screen.querySelector('.btn.disabled') as HTMLButtonElement | null)?.setAttribute('disabled', '');
+    for (const b of screen.querySelectorAll('.btn.disabled')) (b as HTMLButtonElement).disabled = true;
+    this.show(screen);
+    bounceSplash(screen.querySelector('.splash') as HTMLElement);
   }
 
   async showWorlds(): Promise<void> {
@@ -110,11 +127,14 @@ export class Menus {
         void this.showWorlds();
       }
     });
-    this.show(h('div', { class: 'screen dirt' },
+    this.show(h('div', { class: 'screen sheet' },
+      backdrop(this.inGame),
       h('h2', { text: 'Select World' }),
       list,
-      h('div', { class: 'row' }, playBtn, button('Create New World', () => this.showCreate(), 'small')),
-      h('div', { class: 'row' }, deleteBtn, exportBtn, button('Import', () => fileInput.click(), 'tiny'), button('Cancel', () => this.showTitle(), 'tiny')),
+      h('div', { class: 'buttons' },
+        h('div', { class: 'row' }, playBtn, button('Create New World', () => this.showCreate(), 'half')),
+        h('div', { class: 'row' }, deleteBtn, exportBtn, button('Import', () => fileInput.click(), 'quarter'), button('Cancel', () => this.showTitle(), 'quarter')),
+      ),
       fileInput,
     ));
   }
@@ -131,7 +151,8 @@ export class Menus {
       create.disabled = true;
       await this.cb.onCreate(name.input.value.trim() || 'New World', seed.input.value, mode);
     });
-    this.show(h('div', { class: 'screen dirt' },
+    this.show(h('div', { class: 'screen sheet' },
+      backdrop(this.inGame),
       h('h2', { text: 'Create New World' }),
       name.el, seed.el,
       h('div', { class: 'field' }, h('label', { text: 'Seed preview' }), h('div', { style: 'font-size:12px;color:#ccc', text: seed.input.value ? String(parseSeed(seed.input.value)) : 'random' })),
@@ -143,8 +164,9 @@ export class Menus {
 
   showPause(): void {
     this.inGame = true;
-    this.show(h('div', { class: 'screen' },
-      h('h2', { text: 'Game menu' }),
+    this.show(h('div', { class: 'screen sheet' },
+      backdrop(true),
+      h('h2', { text: 'Game Menu' }),
       button('Back to Game', () => this.cb.onResume()),
       button('Options...', () => this.showOptions(() => this.showPause())),
       button('Save and Quit to Title', () => this.cb.onQuitToTitle()),
@@ -154,7 +176,8 @@ export class Menus {
   showOptions(back: () => void): void {
     const o = this.options;
     const change = () => this.cb.onOptionsChanged(o);
-    this.show(h('div', { class: `screen ${this.inGame ? '' : 'dirt'}` },
+    this.show(h('div', { class: 'screen sheet' },
+      backdrop(this.inGame),
       h('h2', { text: 'Options' }),
       slider((v) => `Render Distance: ${v} chunks`, 2, 16, 1, o.renderDistance, (v) => { o.renderDistance = v; change(); }),
       slider((v) => `FOV: ${v === 70 ? 'Normal' : v}`, 30, 110, 1, o.fov, (v) => { o.fov = v; change(); }),
@@ -263,4 +286,61 @@ export class Menus {
   setOptions(o: Options): void {
     this.options = o;
   }
+}
+
+/**
+ * The title screen's rolling background. Vanilla stands the camera inside a cube of six pictures
+ * and turns it slowly; six faces of a box and one long rotation come out at the same place.
+ */
+/**
+ * What sits behind a screen. Vanilla blurs what was already there: the world when the screen was
+ * opened from inside one, and the rolling panorama when it was opened from the title.
+ */
+function backdrop(inGame: boolean): HTMLElement {
+  if (inGame) return h('div', { class: 'backdrop in-world' });
+  // vanilla blurs a still of what was behind, not a moving picture: one face, held, costs nothing
+  const still = h('div', { class: 'backdrop still' });
+  still.style.backgroundImage = `url('${import.meta.env.BASE_URL}textures/gui/title/background/panorama_0.png')`;
+  return still;
+}
+
+function panorama(): HTMLElement {
+  const base = `${import.meta.env.BASE_URL}textures/gui/title/background/panorama_`;
+  // 0, 1, 2 and 3 are the four walls in order, so laying them side by side and sliding the strip
+  // along by exactly its own width comes back round to where it started without a seam
+  const strip = h('div', { class: 'panorama-strip' });
+  for (const n of ['0', '1', '2', '3', '0']) {
+    const face = h('div', { class: 'panorama-face' });
+    face.style.backgroundImage = `url('${base}${n}.png')`;
+    strip.append(face);
+  }
+  return h('div', { class: 'panorama' }, strip, h('div', { class: 'panorama-overlay' }));
+}
+
+/** Mojang's own splash list, once it has been fetched; otherwise one of our own. */
+let splashes: string[] | null = null;
+void fetch(`${import.meta.env.BASE_URL}texts/splashes.txt`)
+  .then((r) => (r.ok ? r.text() : ''))
+  // the font is Mojang's ascii page, so the lines in other alphabets are left out of the draw
+  .then((t) => { splashes = t.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && /^[\x20-\x7e]+$/.test(l)); })
+  .catch(() => { splashes = null; });
+
+function splashText(): string {
+  const own = ['Voxels ahoy!', 'Also try Minecraft!', 'Made in a browser!', 'Now with real sounds!'];
+  const list = splashes?.length ? splashes : own;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+/** Vanilla bounces the splash on a sine of the clock, and turns it twenty degrees. */
+function bounceSplash(el: HTMLElement | null): void {
+  if (!el) return;
+  const start = performance.now();
+  const tick = () => {
+    if (!el.isConnected) return;
+    const t = (performance.now() - start) / 1000;
+    const scale = 1 - Math.abs(Math.sin(t * 2)) * 0.1;
+    el.style.transform = `rotate(-20deg) scale(${scale.toFixed(3)})`;
+    requestAnimationFrame(tick);
+  };
+  tick();
 }

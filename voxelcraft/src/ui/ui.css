@@ -1,6 +1,17 @@
+/* Mojang's own font, built out of `ascii.png` by `npm run font`: eight pixels tall, seven of them
+   above the baseline, so a size of 8 * the gui scale draws it at exactly vanilla's size. */
+@font-face {
+  font-family: 'Minecraft';
+  src: url('/font/minecraft.ttf') format('truetype');
+  font-display: block;
+}
+
 :root {
   --gui: 3;
-  --font: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font: 'Minecraft', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  /* vanilla's text is drawn twice, the shadow a quarter of the way down and across */
+  --px: calc(1px * var(--gui));
+  --text: calc(8px * var(--gui));
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: var(--font); color: #fff; }
@@ -44,41 +55,110 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 #fire-overlay { position: absolute; left: 0; right: 0; bottom: -10%; height: 55%; background-repeat: repeat-x; background-size: auto 100%; image-rendering: pixelated; opacity: 0.9; pointer-events: none; }
 #toast { position: absolute; left: 50%; top: 60px; transform: translateX(-50%); font-size: 18px; text-shadow: 2px 2px 0 #000; opacity: 0; transition: opacity 0.3s; }
 
-/* ---- menus ---- */
+/* ---- menus ----
+   Vanilla's screens: a button is 200x20 at the gui scale with the widget texture nine-sliced over
+   it, the text is the font above with its own shadow, and the screens themselves are laid out the
+   way `Screen.init` lays them out — title at the top, buttons at the bottom, the rest between. */
 #overlay { position: absolute; inset: 0; pointer-events: none; }
-.screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; background: rgba(0, 0, 0, 0.6); }
-.screen.title { background: url('/textures/gui/title/background/panorama_0.png') center/cover; }
-.screen.title::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.45); }
+.screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; background: rgba(0, 0, 0, 0.6); font-family: var(--font); }
 .screen > * { position: relative; }
-.dirt { background: #3a2a1d url('/textures/gui/menu_background.png') repeat; background-size: calc(32px * 2); image-rendering: pixelated; }
-.dirt::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
-h1.logo { font-size: 56px; letter-spacing: 2px; margin: 0 0 8px; text-shadow: 4px 4px 0 #3f3f3f; font-weight: 900; }
-.subtitle { color: #ffff55; font-size: 16px; text-shadow: 2px 2px 0 #3f3f3f; margin-bottom: 40px; transform: rotate(-12deg); }
-.btn { width: 400px; height: 40px; margin: 4px; border: 2px solid #000; background: #6f6f6f; color: #fff; font: 700 16px var(--font); text-shadow: 2px 2px 0 #3f3f3f; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.35), inset -2px -2px 0 rgba(0,0,0,0.4); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.btn:hover:not(:disabled) { background: #7f8fbf; border-color: #fff; }
-.btn:disabled { color: #a0a0a0; cursor: default; }
-.btn.small { width: 196px; }
-.btn.tiny { width: 150px; height: 40px; }
-.row { display: flex; gap: 4px; }
+
+/* the rolling panorama the title screen stands in */
+.screen.title { background: #000; overflow: hidden; justify-content: flex-start; }
+/* the camera stands at the middle of the box, so the box is pushed forward by exactly the
+   perspective distance and each picture hung half a box away with its face turned inward */
+/* The rolling background. Vanilla turns a box of six pictures around the camera; the four walls
+   laid end to end and slid along by one wall's width come back to the same place, which is the
+   same slow drift without the arithmetic of standing inside a cube. */
+.panorama { position: absolute; inset: 0; overflow: hidden; }
+.panorama-strip { position: absolute; left: 0; top: 50%; height: 130vh; display: flex; transform: translateY(-50%); animation: panorama-pan 180s linear infinite; }
+.panorama-face { height: 100%; aspect-ratio: 1; background-size: 100% 100%; image-rendering: auto; }
+@keyframes panorama-pan {
+  from { transform: translate(0, -50%) scale(1.02); }
+  to { transform: translate(-520vh, -50%) scale(1.02); }
+}
+.panorama-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+
+.title-logo { margin-top: 9vh; margin-bottom: calc(12px * var(--gui)); text-align: center; }
+.title-logo .wordmark { font-size: calc(20px * var(--gui)); line-height: 1; letter-spacing: calc(1px * var(--gui)); text-shadow: calc(2px * var(--gui)) calc(2px * var(--gui)) 0 #3f3f3f; }
+.title-logo .edition { font-size: calc(6px * var(--gui)); color: #d0d0d0; margin-top: calc(2px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+/* the splash sits off the logo's shoulder, yellow and bouncing, as vanilla draws it */
+/* vanilla hangs it off the logo's bottom-right corner, clear of the letters */
+.title-logo .splash { position: absolute; left: 100%; top: calc(18px * var(--gui)); margin-left: calc(-22px * var(--gui)); color: #ffff00; font-size: calc(6px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; white-space: nowrap; transform-origin: left center; }
+
+.corner { position: absolute; bottom: calc(2px * var(--gui)); font-size: calc(6px * var(--gui)); color: #fff; text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+.corner.left { left: calc(2px * var(--gui)); }
+.corner.right { right: calc(2px * var(--gui)); }
+
+/* What sits behind a screen. Since 1.20.5 vanilla blurs what was already there rather than laying
+   dirt over it: the panorama when the screen came from the title, the world when it came from
+   inside one. `menu_background.png` is a fully transparent overlay in these versions. */
+.screen.sheet { background: none; justify-content: flex-start; padding: calc(14px * var(--gui)) 0 calc(6px * var(--gui)); }
+.screen.sheet > h2 { margin-bottom: calc(6px * var(--gui)); }
+.screen.sheet .buttons { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: calc(2px * var(--gui)); }
+.backdrop { position: absolute; inset: 0; }
+.backdrop.in-world { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(calc(2px * var(--gui))); }
+.backdrop.still { background-size: cover; background-position: center; filter: blur(calc(2px * var(--gui))) brightness(0.45); transform: scale(1.06); }
+
+/* a button: the widget texture, nine-sliced with the three-pixel border its own mcmeta gives */
+.btn {
+  width: calc(200px * var(--gui)); height: calc(20px * var(--gui)); margin: calc(2px * var(--gui)) 0;
+  border: 0; padding: 0 calc(4px * var(--gui)); background: none;
+  border-image: url('/textures/gui/sprites/widget/button.png') 3 fill / calc(3px * var(--gui)) repeat;
+  color: #fff; font-family: var(--font); font-size: var(--text); line-height: 1;
+  text-shadow: var(--px) var(--px) 0 #3f3f3f; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  image-rendering: pixelated;
+}
+.btn:hover:not(:disabled) { border-image-source: url('/textures/gui/sprites/widget/button_highlighted.png'); }
+.btn:disabled { border-image-source: url('/textures/gui/sprites/widget/button_disabled.png'); color: #a0a0a0; cursor: default; }
+.btn.half, .btn.small { width: calc(98px * var(--gui)); }
+.btn.quarter { width: calc(48px * var(--gui)); }
+.btn { white-space: nowrap; overflow: hidden; }
+.btn.tiny { width: calc(72px * var(--gui)); }
+/* a long label on a short button shrinks rather than wrapping, as vanilla's does */
+.btn.quarter, .btn.tiny { font-size: calc(6px * var(--gui)); }
+.btn.half, .btn.small { font-size: calc(7px * var(--gui)); }
+.row { display: flex; gap: calc(4px * var(--gui)); }
 .col { display: flex; flex-direction: column; align-items: center; }
-.panel { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-h2 { font-size: 18px; margin: 0 0 16px; text-shadow: 2px 2px 0 #3f3f3f; font-weight: 700; }
-.field { width: 400px; margin: 8px 4px; }
-.field label { display: block; font-size: 12px; color: #a0a0a0; margin-bottom: 4px; text-shadow: 1px 1px 0 #3f3f3f; }
-.field input[type=text] { width: 100%; height: 40px; border: 2px solid #a0a0a0; background: #000; color: #e0e0e0; font: 16px var(--font); padding: 0 8px; outline: none; }
-.field input[type=text]:focus { border-color: #fff; }
-.slider { width: 400px; height: 40px; margin: 4px; position: relative; border: 2px solid #000; background: #6f6f6f; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.35), inset -2px -2px 0 rgba(0,0,0,0.4); }
+.panel { display: flex; flex-direction: column; align-items: center; }
+
+h1.logo { font-size: calc(20px * var(--gui)); margin: 0 0 calc(4px * var(--gui)); text-shadow: calc(2px * var(--gui)) calc(2px * var(--gui)) 0 #3f3f3f; font-weight: normal; }
+.subtitle { color: #ffff00; font-size: var(--text); text-shadow: var(--px) var(--px) 0 #3f3f3f; margin-bottom: calc(12px * var(--gui)); }
+h2 { font-size: var(--text); font-weight: normal; margin: 0 0 calc(8px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+
+/* the text field vanilla draws: a one-pixel frame that lights up when it has the keyboard */
+.field { width: calc(200px * var(--gui)); margin: calc(4px * var(--gui)) 0; }
+.field label { display: block; font-size: var(--text); color: #a0a0a0; margin-bottom: calc(2px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+.field input[type=text] {
+  width: 100%; height: calc(20px * var(--gui)); border: 0; padding: 0 calc(4px * var(--gui)); background: none;
+  border-image: url('/textures/gui/sprites/widget/text_field.png') 1 fill / var(--px) repeat;
+  color: #e0e0e0; font-family: var(--font); font-size: var(--text); outline: none; image-rendering: pixelated;
+}
+.field input[type=text]:focus { border-image-source: url('/textures/gui/sprites/widget/text_field_highlighted.png'); }
+
+/* the slider, with vanilla's own handle sliding along it */
+.slider {
+  width: calc(200px * var(--gui)); height: calc(20px * var(--gui)); margin: calc(2px * var(--gui)) 0; position: relative;
+  border-image: url('/textures/gui/sprites/widget/slider.png') 1 fill / var(--px) repeat; image-rendering: pixelated;
+}
 .slider input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; margin: 0; }
-.slider .label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 16px var(--font); text-shadow: 2px 2px 0 #3f3f3f; pointer-events: none; }
-.slider .knob { position: absolute; top: 0; bottom: 0; width: 8px; background: #bfbfbf; border: 2px solid #000; pointer-events: none; }
-.list { width: 620px; max-height: 50vh; overflow-y: auto; border: 2px solid #000; background: rgba(0,0,0,0.5); margin-bottom: 8px; }
-.list .item { padding: 8px 12px; border: 1px solid transparent; cursor: pointer; }
-.list .item.sel { border-color: #fff; background: rgba(255,255,255,0.08); }
-.list .item .name { font-weight: 700; }
-.list .item .meta { font-size: 12px; color: #a0a0a0; }
-.list .empty { padding: 20px; color: #a0a0a0; text-align: center; }
-#loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #000; z-index: 10; pointer-events: auto; }
-#loading .bar { width: 400px; height: 8px; border: 1px solid #fff; }
+.slider .label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font); font-size: var(--text); text-shadow: var(--px) var(--px) 0 #3f3f3f; pointer-events: none; }
+.slider .knob { position: absolute; top: 0; bottom: 0; width: calc(8px * var(--gui)); border-image: url('/textures/gui/sprites/widget/slider_handle.png') 1 fill / var(--px) repeat; pointer-events: none; }
+.slider:hover .knob { border-image-source: url('/textures/gui/sprites/widget/slider_handle_highlighted.png'); }
+
+/* a list of worlds, on the dark panel vanilla scrolls them in, between two separator lines */
+.list { width: calc(220px * var(--gui)); max-height: 52vh; overflow-y: auto; margin-bottom: calc(6px * var(--gui));
+  background: url('/textures/gui/menu_list_background.png') repeat; background-size: calc(32px * var(--gui)); image-rendering: pixelated;
+  border-top: calc(2px * var(--gui)) solid #000; border-bottom: calc(2px * var(--gui)) solid #000; }
+.list .item { padding: calc(3px * var(--gui)) calc(4px * var(--gui)); border: var(--px) solid transparent; cursor: pointer; font-size: var(--text); }
+.list .item.sel { border-color: #fff; background: rgba(255, 255, 255, 0.08); }
+.list .item .name { color: #fff; text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+.list .item .meta { font-size: var(--text); color: #808080; margin-top: calc(1px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+.list .empty { padding: calc(10px * var(--gui)); color: #a0a0a0; text-align: center; font-size: var(--text); }
+
+#loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(6px * var(--gui)); background: #000; z-index: 10; pointer-events: auto; font-family: var(--font); font-size: var(--text); text-shadow: var(--px) var(--px) 0 #3f3f3f; }
+#loading .bar { width: calc(200px * var(--gui)); height: calc(4px * var(--gui)); border: var(--px) solid #fff; }
 #loading .bar > div { height: 100%; background: #6f6; width: 0; }
 
 /* ---- chat ---- */

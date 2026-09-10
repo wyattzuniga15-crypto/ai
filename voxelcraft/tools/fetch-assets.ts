@@ -298,7 +298,7 @@ function syncAssets(): void {
   }
 }
 
-function buildRuntimeBundles(): void {
+async function buildRuntimeBundles(): Promise<void> {
   const m = buildModels();
   log(`public/models.json: ${m.blockstates} blockstates, ${m.models} models, ${(m.bytes / 1024).toFixed(0)} KB`);
   const a = buildAtlases();
@@ -324,6 +324,16 @@ function buildRuntimeBundles(): void {
   // the end poem and the credits, read at runtime by the screen that plays after the dragon
   fs.rmSync(path.join(PUBLIC, 'texts'), { recursive: true, force: true });
   if (fs.existsSync(path.join(ASSETS, 'texts'))) log(`public/texts: ${copyDir(path.join(ASSETS, 'texts'), path.join(PUBLIC, 'texts'))} files`);
+  // the splashes are one file rather than a tree, and not every source lays the tree down at all
+  const splashes = path.join(PUBLIC, 'texts', 'splashes.txt');
+  if (!fs.existsSync(splashes)) {
+    try {
+      await download(`${MIRROR_RAW}/assets/minecraft/texts/splashes.txt`, splashes);
+      log(`public/texts/splashes.txt: ${fs.readFileSync(splashes, 'utf8').split('\n').length} lines`);
+    } catch {
+      log('public/texts/splashes.txt: not fetched, the title screen falls back to its own');
+    }
+  }
 }
 
 /**
@@ -439,7 +449,7 @@ async function main() {
   const source = await ensureGameFiles();
   await ensureMinecraftData();
   syncAssets();
-  if (!SKIP_BUILD) buildRuntimeBundles();
+  if (!SKIP_BUILD) await buildRuntimeBundles();
   if (WITH_SOUNDS) await fetchSounds();
   log(`done (Minecraft ${VERSION}, source ${source})`);
 }

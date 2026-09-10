@@ -17,6 +17,18 @@ textures, models and data pack, then the structure templates — and opens the g
 Later runs skip straight to the server. It takes about a minute the first time and a second after
 that.
 
+For a window of its own, with no browser around it:
+
+```sh
+npm run app
+```
+
+That builds the game and opens it in a desktop window — no tabs, no address bar, straight into the
+title screen, F11 for full screen. It is Electron under the skin, which `npm install` fetches.
+
+`npm run pack` builds the folder to hand somebody who has none of this: the game, a launcher for
+each platform, and the sounds it can actually reach, zipped up beside the repo.
+
 ```sh
 npm start -- --sounds   # with the music and the long sounds as well (a bigger download, once)
 npm start -- --build    # build the static site and serve that instead

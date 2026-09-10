@@ -1896,3 +1896,47 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      each sound like themselves. And `dig_snow` and `place` were asked for by name with no voice
      registered under either, so breaking snow and potting a plant were silent.
 
+152. **A window of its own, and menus that look like Minecraft's.** Two things, both of them about
+     what the game is like before you are in the world.
+
+     *The window.* The game is a web page, and it was being played in a browser tab with the tabs
+     and the address bar still around it. It now also runs as a desktop app: an Electron window with
+     no chrome on it, opening straight into the title screen, F11 for full screen, `npm run app`.
+     The page is served to it over a loopback port rather than loaded off a `file://` path, because
+     the chunk workers and the texture fetches need a real origin. The launcher in the packed folder
+     does the nearest thing without Electron: it asks Chrome or Edge for an `--app` window, which is
+     a window with no tabs and no address bar either, and falls back to an ordinary tab.
+
+     *The menus.* They were CSS gradients and the system font, and looked nothing like the game they
+     belong to. Three things fixed that, all of them out of Mojang's own files:
+
+     A **font**. `ascii.png` is a sixteen by sixteen grid of eight by eight glyphs, and the font
+     provider that names them puts the baseline seven pixels down and measures a character as its
+     last inked column plus one. `npm run font` walks that grid and builds a real font file out of
+     it, so every word in the game — menus, chat, tooltips, the inventory — is drawn in the shape
+     Minecraft draws it in. Ninety-five glyphs, sixteen kilobytes.
+
+     The **widgets**. A button is `widget/button.png` nine-sliced on the three-pixel border its own
+     mcmeta gives, `button_highlighted` under the pointer, `button_disabled` when it is off; the
+     text fields and sliders likewise. Two hundred by twenty at the gui scale, which is the size
+     vanilla lays them out at.
+
+     The **screens**. The title screen has the panorama behind it, drifting — the four walls laid
+     end to end and slid along by one wall's width, which comes back to where it started without a
+     seam and costs a fraction of standing inside a cube of six. The logo sits over it with the
+     splash bouncing off its shoulder, drawn from Mojang's own `splashes.txt` (the lines in other
+     alphabets left out, since the font is the ascii page). Since 1.20.5 vanilla does not put dirt
+     behind the screens under the title — `menu_background.png` is a fully transparent overlay in
+     these versions — it blurs what was already there, so ours does too: a blurred still of the
+     panorama under the title's screens, and the world itself blurred behind the pause menu.
+
+     The one deliberate difference is the logo. Mojang's is a picture of the word *Minecraft*,
+     composed from letter tiles that have no V, O, X or L in them, so it could not spell this game's
+     name even if it should. The title is set in the font instead, at the size and place vanilla
+     puts its logo.
+
+     Blurring a moving panorama behind every screen turned out to cost about six hundred
+     milliseconds of world generation, since it is a full-screen filter over four large pictures
+     running while the generator wants the frames. Vanilla blurs a still, not a moving picture, and
+     so does this now — the load time went back to where it was.
+

@@ -6,12 +6,16 @@
   "type": "module",
   "scripts": {
     "start": "tsx tools/start.ts",
+    "app": "npm run build && electron electron/main.cjs",
+    "app:dev": "electron electron/main.cjs",
+    "pack": "npm run build && tsx tools/pack.ts",
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "assets": "tsx tools/fetch-assets.ts",
     "atlas": "tsx tools/build-atlas.ts",
+    "font": "tsx tools/gen-font.ts",
     "data": "tsx tools/gen-data.ts",
     "trades": "tsx tools/gen-trades.ts",
     "structures": "tsx tools/gen-structures.ts",
@@ -28,12 +32,15 @@
   "devDependencies": {
     "@playwright/test": "1.56.1",
     "@types/node": "^22.12.0",
-    "@types/three": "^0.185.4",
-    "pngjs": "^7.0.0",
     "@types/pngjs": "^6.0.5",
+    "@types/three": "^0.185.4",
+    "electron": "^33.0.0",
+    "opentype.js": "^1.3.4",
+    "pngjs": "^7.0.0",
     "tsx": "^4.23.13",
     "typescript": "~5.9.3",
     "vite": "^8.2.2",
     "vitest": "^5.0.0"
-  }
+  },
+  "main": "electron/main.cjs"
 }
