@@ -137,3 +137,20 @@ option.VIGNETTE.comment=Slight darkening toward the corners.
 
 option.VIGNETTE_STRENGTH=Vignette Strength
 option.VIGNETTE_STRENGTH.comment=How dark the corners get.
+
+screen.COLOR=Colour
+
+option.COLOR_GRADING=Colour Grading
+option.COLOR_GRADING.comment=Master switch for saturation, vibrance, contrast and white balance. Off gives you the raw tonemapped image.
+
+option.SATURATION=Saturation
+option.SATURATION.comment=Overall colour intensity. 1.0 leaves the image untouched. Applied around perceived brightness, so raising it does not shift hues.
+
+option.VIBRANCE=Vibrance
+option.VIBRANCE.comment=Boosts dull colours much more than already-vivid ones. This is the dial to raise if the world looks drab: it lifts muted greens and browns without driving lava and sunsets into neon.
+
+option.CONTRAST=Contrast
+option.CONTRAST.comment=Contrast about mid-grey. Small changes go a long way; above about 1.15 shadows start clipping to black.
+
+option.WHITE_BALANCE=Warmth
+option.WHITE_BALANCE.comment=Colour temperature. Positive is warmer and more golden, negative is cooler and bluer. Applied in linear light before the tonemap, the way a camera does it, and luminance-preserving so it tints without changing brightness.

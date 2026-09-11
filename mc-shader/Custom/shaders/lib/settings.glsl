@@ -55,4 +55,11 @@
 #define VIGNETTE                    // Slight darkening toward the edges of the screen.
 #define VIGNETTE_STRENGTH 0.25      // [0.0 0.1 0.25 0.4 0.6] How strong the vignette is.
 
+// ---- Colour grading --------------------------------------------------------
+#define COLOR_GRADING               // Saturation, vibrance, contrast and white balance.
+#define SATURATION 1.12             // [0.6 0.8 0.9 1.0 1.06 1.12 1.2 1.3 1.45] Overall colour intensity. 1.0 is untouched.
+#define VIBRANCE 0.35               // [0.0 0.15 0.25 0.35 0.5 0.7 0.9] Boosts dull colours while leaving already-vivid ones alone.
+#define CONTRAST 1.06               // [0.9 0.95 1.0 1.03 1.06 1.12 1.2] Contrast about mid-grey.
+#define WHITE_BALANCE 0.12          // [-0.5 -0.3 -0.15 0.0 0.12 0.25 0.4 0.6] Colour temperature. Positive is warmer.
+
 #endif // LIB_SETTINGS_GLSL

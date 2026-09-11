@@ -119,10 +119,17 @@ vec4 upsampleTent(sampler2D tex, vec2 uv, vec2 texelSize, float radius) {
 }
 
 // ---- Exposure --------------------------------------------------------------
-/* Middle-grey target. The average scene luminance is mapped to this, so a
-   scene averaging 0.12 comes out correctly exposed and anything brighter or
-   darker is scaled toward it. */
-const float EXPOSURE_KEY = 0.12;
+/* Middle-grey target: the mean scene luminance is mapped to this.
+
+   This value has to be chosen against the TONEMAP, not in isolation, and that
+   is where this was previously wrong. It was 0.12, but Uchimura's toe maps
+   0.12 to 0.098 in display space - so the whole frame averaged under 0.10 and
+   every screenshot came out about 2.4x under-exposed, with bright sky over
+   near-black terrain.
+
+   0.25 lands inside the curve's linear section, where it passes through
+   essentially unchanged, so the frame now averages ~0.25 - normal exposure. */
+const float EXPOSURE_KEY = 0.25;
 const float EXPOSURE_MIN = 0.25;
 const float EXPOSURE_MAX = 8.0;
 
@@ -154,13 +161,17 @@ float adaptExposure(float previous, float target, float deltaTime) {
    midsection, and a shoulder that rolls off to the peak. Reinhard has neither
    a real toe nor a controllable linear section, so it desaturates everything
    bright and lifts blacks into grey - the washed-out look. Here the linear
-   region means mid-tones pass through with their contrast intact.            */
+   region means mid-tones pass through with their contrast intact.
+
+   The toe exponent is 1.15 rather than the more common 1.33. At 1.33 the toe
+   is steep enough to crush shadow detail into black, which was a large part of
+   why terrain out of direct sun read as a silhouette.                        */
 vec3 uchimura(vec3 x) {
     const float P = 1.0;    // maximum display brightness
     const float a = 1.0;    // contrast of the linear section
     const float m = 0.22;   // where the linear section starts
     const float l = 0.4;    // how much of the range is linear
-    const float c = 1.33;   // toe contrast
+    const float c = 1.15;   // toe contrast
     const float b = 0.0;    // black level
 
     float l0 = ((P - m) * l) / a;
@@ -217,6 +228,48 @@ vec3 applyTonemap(vec3 color) {
 #else
     return clamp(color, 0.0, 1.0);
 #endif
+}
+
+// ---- Colour grading --------------------------------------------------------
+/* Saturation, around the luminance the eye actually perceives rather than a
+   plain channel average - so boosting it does not shift hues. */
+vec3 applySaturation(vec3 color, float amount) {
+    return mix(vec3(luminance(color)), color, amount);
+}
+
+/* Vibrance: saturation weighted toward colours that are not already saturated.
+
+   A flat saturation boost drives already-vivid things (lava, redstone, a
+   sunset) straight into clipped neon while barely helping the muted greens and
+   browns that make up most of a Minecraft scene. Vibrance scales by how far a
+   pixel currently is from grey, so it lifts the dull majority and leaves the
+   vivid minority alone - which is what "colourful but not radioactive" means
+   in practice. */
+vec3 applyVibrance(vec3 color, float amount) {
+    float mx  = maxOf(color);
+    float mn  = min(color.r, min(color.g, color.b));
+    float sat = mx - mn;                       // 0 = grey, 1 = fully saturated
+    float boost = 1.0 + amount * (1.0 - sat);
+    return mix(vec3(luminance(color)), color, boost);
+}
+
+/* Contrast about a mid-grey pivot. Done in display space after the tonemap,
+   where 0.5 is genuinely the middle of the range. */
+vec3 applyContrast(vec3 color, float amount) {
+    return clamp((color - 0.5) * amount + 0.5, 0.0, 1.0);
+}
+
+/* White balance, applied in LINEAR light before the tonemap - which is where a
+   real camera does it. Positive is warmer. Luminance-preserving, so it tints
+   without also changing the exposure. */
+vec3 applyWhiteBalance(vec3 color, float temperature) {
+    vec3 tint = vec3(1.0 + temperature * 0.14,
+                     1.0 + temperature * 0.01,
+                     1.0 - temperature * 0.13);
+    vec3 result = color * tint;
+    float before = luminance(color);
+    float after  = luminance(result);
+    return result * (before / max(after, 1e-5));
 }
 
 // ---- Vignette --------------------------------------------------------------

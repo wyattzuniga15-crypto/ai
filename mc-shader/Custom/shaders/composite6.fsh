@@ -41,16 +41,31 @@ void main() {
     }
 
     /* Average what is already a heavily box-filtered 1/32-scale buffer. A 6x6
-       grid over it is a good estimate of the whole frame and keeps this pass
-       to 36 fetches. */
-    float total = 0.0;
+       grid over it estimates the whole frame in 36 fetches.
+
+       The weighting is CENTRE-BIASED, not uniform. Outdoors the sky fills the
+       top third of the frame and is far brighter than anything else; metering
+       it uniformly drags the mean up and pushes the terrain you are actually
+       looking at down into black. That is exactly what a camera's
+       centre-weighted meter exists to avoid, and it is why the horizon shot
+       came out as bright sky over a silhouette.
+
+       The falloff is gentle - the sky still counts, it just does not dominate. */
+    float total  = 0.0;
+    float weight = 0.0;
     for (int x = 0; x < 6; x++) {
         for (int y = 0; y < 6; y++) {
             vec2 uv = (vec2(float(x), float(y)) + 0.5) / 6.0;
-            total += texture(colortex10, uv).a;
+
+            // 1.0 at frame centre falling to ~0.35 in the corners.
+            vec2 d = (uv - 0.5) * vec2(1.0, 1.15);   // slight vertical bias
+            float w = 1.0 - 0.65 * clamp(length(d) / 0.72, 0.0, 1.0);
+
+            total  += texture(colortex10, uv).a * w;
+            weight += w;
         }
     }
-    float avgLogLuminance = total / 36.0;
+    float avgLogLuminance = total / max(weight, 1e-4);
 
     float target = exposureFromLogLuminance(avgLogLuminance);
     float adapted = adaptExposure(previous, target, frameTime);

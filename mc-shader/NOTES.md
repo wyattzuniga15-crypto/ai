@@ -486,6 +486,68 @@ remove it. Building a real velocity buffer means writing previous-frame
 positions per entity, which Minecraft's entity renderer does not expose through
 Iris. The brief said to skip it in that case, and this is that case.
 
+### Look pass — fixing "dark and gloomy" ✅ (`check.sh` clean)
+
+Driven by an in-game screenshot: bright pale sky over near-black terrain. Four
+separate causes, only one of which was about colour.
+
+**1. The pack was ~2.4× under-exposed — the dominant bug.** `EXPOSURE_KEY` was
+0.12, but that value has to be chosen *against the tonemap*, and Uchimura's toe
+maps 0.12 to **0.098** in display space. The whole frame averaged under 0.10.
+Raised to **0.25**, which lands inside the curve's linear section and passes
+through essentially unchanged, so the frame now averages ~0.25 — normal
+exposure. Toe exponent also softened 1.33 → 1.15, which was crushing shadow
+detail to black.
+
+**2. The meter was reading the sky.** Auto-exposure averaged the 1/32 mip
+uniformly; outdoors the sky fills the top third and is far brighter than
+anything else, so it dragged the mean up and pushed terrain down — exactly the
+bright-sky-over-silhouette look in the screenshot. Now **centre-weighted**
+(1.0 at frame centre falling to ~0.35 in the corners), which is what a camera's
+centre-weighted meter exists to do.
+
+**3. Shadows had no indirect light, so they went dead blue.** Shaded surfaces
+received *only* sky ambient, which was `(0.42, 0.58, 0.92)` — a 0.50 spread
+between channels. That spread **was** the gloom: everything out of direct sun
+turned the same blue-grey regardless of its own colour.
+
+Two changes. The sky ambient is brighter and far less saturated
+`(0.62, 0.74, 0.98)`. And a **sun-coloured indirect bounce** term was added —
+the thing the pack was missing. In reality a shadowed wall is lit by sunlight
+bouncing off the lit ground nearby, so it carries the *sun's* colour, which is
+why real shadows go warm at golden hour rather than blue. It is deliberately
+**not** gated by the shadow map: bounced light is precisely the light that
+reaches where the sun does not. Net: shade is 1.7× brighter with a 1.5× weaker
+blue cast, and now carries hue.
+
+**4. Two falloffs were too aggressive.**
+- Blocklight was `x⁴·0.55 + x²·0.45` — at light level 7/15 that returns 0.15,
+  so a torch-lit room was a brown smear. Now `x²·0.7 + x·0.3` → 0.33 there
+  (2.2× brighter).
+- Direct sun was gated by the *ambient* falloff, so standing near a wall (sky
+  exposure ~0.6) cost 40% of the sunlight. The sun does not dim because you
+  stepped near a wall. A separate, much gentler `directSkyGate` now only
+  collapses where sky exposure is genuinely near zero — i.e. actually enclosed —
+  which is all the gate was ever for (stopping sun leaking into caves past the
+  shadow map's far plane).
+
+**Colour grading** added in `final`, after the tonemap in display space:
+vibrance → saturation → contrast, with white balance applied *before* the curve
+in linear light, where a sensor does it. Vibrance is the important one: a flat
+saturation boost drives already-vivid things (lava, sunsets) into clipped neon
+while barely helping the muted greens and browns that make up most of a
+Minecraft scene, so vibrance scales by how far a pixel already is from grey.
+
+**Cloud bug found while here:** `cloudFBM3`'s amplitudes sum to 0.875, not 1.0,
+so the raw noise could never reach the coverage threshold — at
+`CLOUD_COVERAGE = 0.3` the ramp topped out at 0.98, above the maximum the noise
+could physically produce, so clouds were *impossible*. Both FBMs are now
+normalised by their amplitude sum.
+
+Everything is an option: the new **Colour** screen is first in the menu, since
+it is the one to reach for when the image looks wrong overall rather than wrong
+in one specific effect.
+
 ---
 
 ## check.sh

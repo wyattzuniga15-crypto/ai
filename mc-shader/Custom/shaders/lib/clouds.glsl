@@ -38,15 +38,25 @@ const float CLOUD_MAX_DISTANCE = 5000.0;
    is for the same reason: exact doubling re-registers the lattice. */
 const mat2 FBM_ROT = mat2(0.80, 0.60, -0.60, 0.80);
 
+/* Normalised to 0..1.
+
+   The amplitudes sum to 0.875, not 1.0, so the raw sum only ever reaches 0.875
+   and averages ~0.44. The coverage threshold ramps up to (1 - COVERAGE + 0.28),
+   which at the default lands at 0.78 - so clouds could never become fully
+   dense, and at low coverage settings the upper end of the ramp was above the
+   maximum the noise could produce at all. Dividing by the amplitude sum makes
+   the threshold mean what it says. */
 float cloudFBM3(vec2 p) {
     float value = 0.0;
     float amp   = 0.5;
+    float total = 0.0;
     for (int i = 0; i < 3; i++) {
         value += amp * valueNoise(p);
+        total += amp;
         p      = FBM_ROT * p * 2.03;
         amp   *= 0.5;
     }
-    return value;
+    return value / total;
 }
 
 // Two octaves, for the light-direction taps. The sun's optical depth only
@@ -54,7 +64,8 @@ float cloudFBM3(vec2 p) {
 float cloudFBM2(vec2 p) {
     float value = 0.5 * valueNoise(p);
     p = FBM_ROT * p * 2.03;
-    return value + 0.25 * valueNoise(p);
+    value += 0.25 * valueNoise(p);
+    return value / 0.75;          // normalised, as above
 }
 
 /* Wind offset, expressed directly in noise-lattice cells per hour.

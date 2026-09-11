@@ -26,12 +26,15 @@ vec2 normalizeLightmap(vec2 lm) {
     return clamp((lm - (1.0 / 32.0)) / (30.0 / 32.0), 0.0, 1.0);
 }
 
-/* Vanilla's light falloff is close to inverse-square with a floor. A plain
-   linear ramp looks flat and washed out, while a raw x^4 goes black too fast
-   near torches. This curve is steep in the middle and tapers at both ends. */
+/* Blocklight falloff.
+
+   The quadratic term keeps the near-source falloff feeling physical; the
+   linear term is what stops mid-range light levels collapsing. A pure x^4
+   curve is more "correct" for a point source but reads as murk: at light
+   level 7/15 it returns 0.15, so a torch-lit room is a brown smear. This
+   returns 0.33 there, which is what a torch-lit room actually looks like. */
 float blocklightFalloff(float x) {
-    float x2 = x * x;
-    return x2 * x2 * 0.55 + x2 * 0.45;
+    return x * x * 0.70 + x * 0.30;
 }
 
 float skylightFalloff(float x) {
@@ -39,12 +42,50 @@ float skylightFalloff(float x) {
     return x * x * (3.0 - 2.0 * x);
 }
 
+/* A separate, much gentler curve for gating DIRECT sunlight by sky exposure.
+
+   The gate exists so the sun cannot reach into caves past the shadow map's
+   far plane, but reusing the ambient falloff for it is too aggressive: under
+   a tree or beside a wall, sky exposure drops to ~0.6 and takes 40% of the
+   sunlight with it, which is why partly-covered ground looked so flat. The
+   sun does not dim because you stepped near a wall. This stays near 1.0
+   across the whole usable range and only collapses where sky exposure is
+   genuinely near zero, i.e. actually enclosed. */
+float directSkyGate(float x) {
+    return smoothstep(0.0, 0.32, x);
+}
+
 // ---- Light colours ---------------------------------------------------------
-// Warm blocklight, cool skylight. Deliberately not normalised to luminance 1:
-// blocklight reads as "fire" partly because it is dimmer than daylight.
-const vec3 BLOCKLIGHT_COLOR = vec3(1.00, 0.56, 0.24);
-const vec3 SKYLIGHT_DAY     = vec3(0.42, 0.58, 0.92);
-const vec3 SKYLIGHT_NIGHT   = vec3(0.12, 0.17, 0.32);
+/* Warm blocklight. Pushed a little away from pure orange toward yellow so
+   torch-lit stone reads as lit rather than as stained. */
+const vec3 BLOCKLIGHT_COLOR = vec3(1.00, 0.62, 0.32);
+
+/* Sky ambient.
+
+   The old values were (0.42, 0.58, 0.92) - a 0.50 spread between the blue and
+   red channels. Since shaded surfaces receive essentially only this term, that
+   spread WAS the gloom: everything out of direct sun turned the same dead
+   blue-grey regardless of its own colour. Real skylight is blue, but nowhere
+   near that blue, and it is much brighter relative to the sun.
+
+   These are brighter and far less saturated. The colour that makes shade look
+   interesting now comes from the bounce term below instead, which is the
+   physically honest place for it. */
+const vec3 SKYLIGHT_DAY   = vec3(0.62, 0.74, 0.98);
+const vec3 SKYLIGHT_NIGHT = vec3(0.14, 0.19, 0.34);
+
+/* Indirect bounce - sunlight that hit something else first.
+
+   This is the term the pack was missing, and it is why shadows looked dead.
+   In the real world a shadowed wall is lit by sunlight bouncing off the lit
+   ground nearby, so it carries the SUN's colour, not the sky's - which is why
+   real shadows are warm at golden hour rather than turning blue.
+
+   It is deliberately NOT gated by the shadow map: bounced light is precisely
+   the light that reaches places the sun does not. Gating it by the shadow
+   would defeat the entire point. A crude single-bounce approximation, but the
+   difference between having it and not having it is enormous. */
+const float BOUNCE_AMOUNT = 0.34;
 
 /* Sun colour as a function of how high the sun is.
 
@@ -84,8 +125,12 @@ vec3 moonlightColor(float moonHeight) {
 vec3 skyAmbientColor(float sunHeight, vec3 normal) {
     vec3 base = mix(SKYLIGHT_NIGHT, SKYLIGHT_DAY, smoothstep(-0.15, 0.25, sunHeight));
     float upness = normal.y * 0.5 + 0.5;
-    return base * mix(0.55, 1.0, upness);
+    // Floor raised from 0.55 to 0.72: a downward-facing surface still sees
+    // light bounced off the ground, so crushing it to half was overdone and
+    // made every overhang read as a black hole.
+    return base * mix(0.72, 1.0, upness);
 }
+
 
 /* ---- Light context --------------------------------------------------------
 
@@ -119,6 +164,33 @@ LightContext getLightContext(vec3 shadowLightPosition, vec3 sunPosition,
     return ctx;
 }
 
+/* Sun-coloured indirect bounce.
+
+   Weighted toward surfaces facing AWAY from the light: those are exactly the
+   ones the direct term never reaches, and the ones that in reality are lit by
+   light bounced off whatever is in front of them. A surface facing the sun
+   already has direct light and needs no help.
+
+   Uses the sun colour even at night (scaled right down), because moonlight
+   bounces too and a hard switch to a different hue at dusk is visible. */
+vec3 bounceColor(LightContext ctx, vec3 normal) {
+    vec3 sunTint = sunlightColor(max(ctx.sunHeight, 0.0));
+
+    // At night there is almost no bounce, but not zero.
+    float nightScale = mix(0.10, 1.0, smoothstep(-0.10, 0.22, ctx.sunHeight));
+
+    // 1 when facing straight away from the light, 0 when facing into it.
+    float facing = 1.0 - clamp(dot(normal, ctx.lightDir), 0.0, 1.0);
+    float weight = mix(0.45, 1.0, facing);
+
+    // Ground bounce is stronger on downward-facing surfaces, which is where
+    // light coming back up off the terrain actually lands.
+    float downness = 1.0 - (normal.y * 0.5 + 0.5);
+    weight *= mix(1.0, 1.35, downness);
+
+    return sunTint * (BOUNCE_AMOUNT * nightScale * weight);
+}
+
 /* ---- The combined model ---------------------------------------------------
 
    albedo     surface colour, with vanilla AO already multiplied in via the
@@ -144,7 +216,11 @@ vec3 computeLighting(vec3 albedo, vec3 normal, vec2 lm, float shadowLit,
                                : sunlightColor(sunHeight);
     // Direct light is gated by sky exposure too, otherwise the sun reaches
     // into caves through the shadow map's far plane.
-    vec3 direct = directColor * NdotL * shadowLit * skyAmount * SUNLIGHT_STRENGTH;
+    // directSkyGate, not skylightFalloff: the gate only needs to stop sunlight
+    // leaking into enclosed spaces, not dim the sun every time you stand near
+    // a wall.
+    vec3 direct = directColor * NdotL * shadowLit * directSkyGate(lm.y)
+                * SUNLIGHT_STRENGTH;
 
     // --- ambient sky ---
     // SSAO applies to ambient only. Occlusion describes how much of the sky
@@ -153,6 +229,11 @@ vec3 computeLighting(vec3 albedo, vec3 normal, vec2 lm, float shadowLit,
     vec3 ambient = skyAmbientColor(sunHeight, normal) * skyAmount * ao
                  * SKYLIGHT_STRENGTH;
 
+    // --- indirect bounce ---
+    // Not gated by shadowLit on purpose: bounced light is the light that
+    // reaches where the sun does not. See bounceColor().
+    vec3 bounce = bounceColor(ctx, normal) * skyAmount * ao * SKYLIGHT_STRENGTH;
+
     // --- block light ---
     vec3 block = BLOCKLIGHT_COLOR * blockAmount * BLOCKLIGHT_STRENGTH
                * mix(1.0, ao, 0.5);
@@ -160,10 +241,10 @@ vec3 computeLighting(vec3 albedo, vec3 normal, vec2 lm, float shadowLit,
     // --- floor ---
     // A small constant so pitch-black caves stay navigable, matching vanilla's
     // minimum light. Night vision lifts this a long way.
-    vec3 minimumLight = vec3(0.006, 0.007, 0.010)
+    vec3 minimumLight = vec3(0.020, 0.023, 0.032)
                       + vec3(0.55, 0.55, 0.60) * nightVisionAmount;
 
-    return albedo * (direct + ambient + block + minimumLight);
+    return albedo * (direct + ambient + bounce + block + minimumLight);
 }
 
 #endif // LIB_LIGHTING_GLSL

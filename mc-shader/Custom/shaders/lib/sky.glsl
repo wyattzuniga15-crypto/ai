@@ -18,13 +18,16 @@
    reflection ray leaves the screen without hitting anything.
    ========================================================================= */
 
-// Daytime endpoints.
-const vec3 SKY_ZENITH_DAY  = vec3(0.16, 0.33, 0.72);
-const vec3 SKY_HORIZON_DAY = vec3(0.58, 0.72, 0.94);
+/* Daytime endpoints. Deeper, more saturated blue at the zenith and a
+   brighter horizon than before - the old pair sat close together in both
+   value and saturation, which flattened the dome into one wash of pale blue
+   with no sense of depth. */
+const vec3 SKY_ZENITH_DAY  = vec3(0.10, 0.30, 0.82);
+const vec3 SKY_HORIZON_DAY = vec3(0.62, 0.80, 1.00);
 
 // Around sunrise/sunset.
-const vec3 SKY_ZENITH_DUSK  = vec3(0.13, 0.16, 0.38);
-const vec3 SKY_HORIZON_DUSK = vec3(0.94, 0.44, 0.20);
+const vec3 SKY_ZENITH_DUSK  = vec3(0.14, 0.14, 0.44);
+const vec3 SKY_HORIZON_DUSK = vec3(1.00, 0.42, 0.16);
 
 // Night.
 const vec3 SKY_ZENITH_NIGHT  = vec3(0.010, 0.018, 0.048);
