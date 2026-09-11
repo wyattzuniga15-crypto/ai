@@ -78,6 +78,7 @@ bloom and auto-exposure.
 | `colortex0` | RGBA16F | Scene colour. Albedo out of gbuffers, lit HDR colour after `deferred`. Cleared to `fogColor` by Iris. |
 | `colortex1` | RGBA16F | `rgb` player-space normal remapped to 0..1, `a` material id |
 | `colortex2` | RGBA16F | `rg` normalised 0..1 lightmap (block, sky), `ba` unused |
+| `colortex3` | R16F | `r` ambient occlusion, 1.0 = unoccluded |
 
 *(rows are added as later steps land)*
 
@@ -98,7 +99,8 @@ instead. Any gbuffer→gbuffer communication has to go through `colortex4`+.
 |---|---|
 | `shadow` | Renders depth from the sun/moon into `shadowtex`, distortion applied. |
 | `gbuffers_*` | Writes albedo + normal + lightmap, or self-shades and tags itself. |
-| `deferred` | Reconstructs position from depth, samples the shadow map, lights opaque geometry, applies fog. |
+| `deferred` | SSAO into `colortex3`. Skipped entirely when SSAO is off. |
+| `deferred1` | Reconstructs position from depth, samples the shadow map, lights opaque geometry, applies fog. |
 | `final` | Copies `colortex0` to the backbuffer. |
 
 ### Step 1 — pass-through skeleton ✅ (`check.sh` clean)
@@ -190,6 +192,68 @@ player-space position from the modelview matrix. Reconstructing it from the
 depth buffer would go through the hand's compressed depth range
 (`MC_HAND_DEPTH`) and land a few centimetres from the camera, putting its
 shadow lookup somewhere else entirely.
+
+### Step 3 — lighting ✅ (`check.sh` clean)
+
+The two lightmap coordinates are treated as what they physically are — exposure
+to block light and exposure to sky light — and each gets its own colour and
+falloff, with direct sun/moon as a third term gated by the shadow map. That
+separation is the entire point: vanilla's lightmap fuses all three into one
+texture lookup, so you cannot warm up torchlight without also warming moonlight,
+and shadowed ground would still be receiving "sun".
+
+- **Blocklight** warm (`1.00, 0.56, 0.24`), falloff `0.55x⁴ + 0.45x²` — a linear
+  ramp looks flat and washed out, a raw `x⁴` goes black too fast near torches.
+- **Skylight** cool, day/night blended on sun height, lifted slightly for
+  upward-facing normals since they see more of the sky dome.
+- **Sun colour by sun angle.** Low sun means more atmosphere, which scatters out
+  the short wavelengths, so the ramp runs red → orange → white in two stages
+  (a single mix would interpolate straight from red to white and skip orange).
+  Intensity falls off near the horizon too — without that, a sunset is noon
+  brightness with a different hue, which reads as wrong.
+- **Direct light is gated by sky exposure** as well as the shadow map, otherwise
+  sun leaks into caves past the shadow map's far plane.
+- **Vanilla AO is kept for free** — it rides inside `gl_Color.rgb` and multiplies
+  into albedo in the gbuffer.
+
+`isNight` comes from the light vectors, not a `worldTime` tick range: if the
+shadow-casting light points away from the sun, it is the moon. True by
+construction, and it switches at the same instant Iris switches
+`shadowLightPosition`, which a hand-picked tick range would not.
+
+`getLightContext()` derives the direction vectors once and is shared by
+`deferred1` and both forward-shaded programs (hand, water), so the three cannot
+drift apart on when night starts.
+
+**SSAO** is Alchemy/SAO style:
+
+    AO += max(0, dot(v,n) - beta*|v|) / (dot(v,v) + eps)
+
+`dot(v,n)` is how far a neighbour rises above the tangent plane — only geometry
+in front of the surface can occlude it — and the `1/|v|²` falloff is the
+solid-angle term. `beta*|v|` subtracts a slope-proportional floor, which is what
+stops a flat surface viewed at an angle from occluding itself under depth-buffer
+quantisation. Cheaper than a hemisphere kernel: one depth fetch per sample, no
+per-sample matrix work.
+
+The radius is scaled by `1/depth` through the projection matrix diagonal, so it
+stays a fixed size *in the world* rather than on screen — a screen-constant
+radius over-occludes distant geometry absurdly. It is also clamped on screen, or
+very close surfaces would sample half the frame.
+
+**Deviation worth flagging: SSAO runs in `deferred`, not `composite`.** AO
+describes how much of the sky hemisphere a point can see, so it belongs on the
+*ambient* term only. A composite-pass AO multiply lands after lighting and
+therefore also darkens direct sunlight, smudging surfaces the sun demonstrably
+reaches. Putting it before the lighting pass keeps it a separate, skippable pass
+(`program.deferred.enabled = SSAO`) while still applying to the right term.
+Blocklight takes it at half strength — a torch is a local source that AO
+shouldn't fully occlude.
+
+The AO is blurred with 4 diagonal taps, depth-weighted. Diagonals cover the same
+footprint as a 3×3 box for under half the bandwidth, and the depth weighting is
+required — a plain blur drags AO across silhouettes and leaves a bright halo
+around every object.
 
 ---
 

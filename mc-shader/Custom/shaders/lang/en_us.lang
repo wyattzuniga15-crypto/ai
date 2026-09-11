@@ -35,3 +35,19 @@ option.SKYLIGHT_STRENGTH.comment=Brightness of ambient light from the sky. This 
 
 option.BLOCKLIGHT_STRENGTH=Block Light
 option.BLOCKLIGHT_STRENGTH.comment=Brightness of light from torches, lava and other light-emitting blocks.
+
+option.SSAO=Ambient Occlusion
+option.SSAO.comment=Darkens creases and corners where light has trouble reaching. Applied to ambient light only, so it never dirties surfaces the sun is hitting directly.
+
+option.SSAO_QUALITY=AO Samples
+option.SSAO_QUALITY.comment=How many neighbours each pixel tests. More is smoother and slower.
+value.SSAO_QUALITY.0=Low
+value.SSAO_QUALITY.1=Medium
+value.SSAO_QUALITY.2=High
+
+option.SSAO_STRENGTH=AO Strength
+option.SSAO_STRENGTH.comment=How dark the occlusion gets.
+
+option.SSAO_RADIUS=AO Radius
+option.SSAO_RADIUS.comment=How far, in blocks, a surface looks for things occluding it. Larger radii catch bigger features but sample more sparsely.
+suffix.SSAO_RADIUS= blocks

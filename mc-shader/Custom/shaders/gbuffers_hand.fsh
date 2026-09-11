@@ -16,7 +16,6 @@ uniform vec3  shadowLightPosition;
 uniform vec3  upPosition;
 uniform vec3  sunPosition;
 uniform float nightVision;
-uniform int   worldTime;
 uniform int   frameCounter;
 
 uniform vec3  fogColor;
@@ -42,20 +41,15 @@ void main() {
     if (color.a < alphaTestRef) discard;
 
     vec3 normal   = normalize(normalPlayer);
-    vec3 lightDir = normalize(mat3(gbufferModelViewInverse) * shadowLightPosition);
-    vec3 sunDir   = normalize(mat3(gbufferModelViewInverse) * sunPosition);
-    vec3 upDir    = normalize(mat3(gbufferModelViewInverse) * upPosition);
-
-    float sunHeight = dot(sunDir, upDir);
-    bool  isNight   = worldTime > 12700 && worldTime < 23300;
+    LightContext ctx = getLightContext(shadowLightPosition, sunPosition,
+                                       upPosition, gbufferModelViewInverse);
 
     float dither = igNoise(gl_FragCoord.xy + float(frameCounter & 15) * 5.588);
-    float shadowLit = getShadow(playerPos, normal, lightDir, dither,
+    float shadowLit = getShadow(playerPos, normal, ctx.lightDir, dither,
                                 shadowtex0, shadowModelView, shadowProjection);
 
     vec3 lit = computeLighting(color.rgb, normal, normalizeLightmap(lmcoord),
-                               shadowLit, 1.0, lightDir, sunHeight, isNight,
-                               nightVision);
+                               shadowLit, 1.0, ctx, nightVision);
 
     lit = applyVanillaFog(lit, viewPos, fogColor,
                           fogStart, fogEnd, fogDensity, fogMode, fogShape);

@@ -59,7 +59,10 @@ entry       = sys.argv[2]
 out_path    = sys.argv[3]
 map_path    = sys.argv[4]
 
-INC = re.compile(r'^\s*#\s*include\s+[<"]([^>"]+)[>"]\s*$')
+# Trailing // comments after an #include are legal in a C preprocessor, so
+# accept them here rather than emitting the line verbatim and letting glslang
+# fail with a confusing "must be followed by a header name".
+INC = re.compile(r'^\s*#\s*include\s+[<"]([^>"]+)[>"]\s*(?://.*)?$')
 out = []
 # linemap[i] = (source file, line number) for output line i+1, so glslang's
 # line numbers can be translated back to the file the author actually edits.

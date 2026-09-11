@@ -87,6 +87,38 @@ vec3 skyAmbientColor(float sunHeight, vec3 normal) {
     return base * mix(0.55, 1.0, upness);
 }
 
+/* ---- Light context --------------------------------------------------------
+
+   The same handful of direction vectors are needed by the deferred pass and by
+   every forward-shaded program (hand, water). Deriving them once here keeps
+   those three in step - and in particular keeps them agreeing about when night
+   starts.
+
+   isNight is taken from the light vectors rather than a worldTime range: if
+   the shadow-casting light points away from the sun, it is the moon. That is
+   true by construction and switches at exactly the same instant Iris switches
+   shadowLightPosition, which a hand-picked tick range would not.  */
+struct LightContext {
+    vec3  lightDir;    // toward the shadow-casting light, player space
+    vec3  sunDir;      // toward the sun, player space
+    vec3  upDir;       // world up, player space
+    float sunHeight;   // dot(sunDir, upDir): +1 noon, 0 horizon, -1 midnight
+    bool  isNight;     // the moon is the shadow-casting light
+};
+
+LightContext getLightContext(vec3 shadowLightPosition, vec3 sunPosition,
+                             vec3 upPosition, mat4 gbufferModelViewInverse) {
+    LightContext ctx;
+    mat3 viewToPlayerRot = mat3(gbufferModelViewInverse);
+
+    ctx.lightDir  = normalize(viewToPlayerRot * shadowLightPosition);
+    ctx.sunDir    = normalize(viewToPlayerRot * sunPosition);
+    ctx.upDir     = normalize(viewToPlayerRot * upPosition);
+    ctx.sunHeight = dot(ctx.sunDir, ctx.upDir);
+    ctx.isNight   = dot(ctx.lightDir, ctx.sunDir) < 0.0;
+    return ctx;
+}
+
 /* ---- The combined model ---------------------------------------------------
 
    albedo     surface colour, with vanilla AO already multiplied in via the
@@ -95,13 +127,14 @@ vec3 skyAmbientColor(float sunHeight, vec3 normal) {
    lm         normalised 0..1 lightmap (x = block, y = sky)
    shadowLit  0..1 from the shadow map; 0 = fully shadowed
    ao         extra ambient occlusion (SSAO); 1.0 = unoccluded
-   lightDir   direction toward the sun or moon, player space
-   sunHeight  dot(sunDir, up)
-   isNight    whether the moon is the shadow-casting light
+   ctx        light directions and sun height, from getLightContext()
 */
 vec3 computeLighting(vec3 albedo, vec3 normal, vec2 lm, float shadowLit,
-                     float ao, vec3 lightDir, float sunHeight, bool isNight,
-                     float nightVisionAmount) {
+                     float ao, LightContext ctx, float nightVisionAmount) {
+    vec3  lightDir  = ctx.lightDir;
+    float sunHeight = ctx.sunHeight;
+    bool  isNight   = ctx.isNight;
+
     float blockAmount = blocklightFalloff(lm.x);
     float skyAmount   = skylightFalloff(lm.y);
 
