@@ -81,6 +81,12 @@ bloom and auto-exposure.
 | `colortex3` | R16F | `r` ambient occlusion, 1.0 = unoccluded |
 | `colortex4` | RGBA16F | `rgb` translucent surface colour (lit), `a` alpha (0 for water) |
 | `colortex5` | RGBA16F | `rgb` translucent player-space normal, `a` `MAT_WATER`/`MAT_TRANSLUCENT` |
+| `colortex6` | RGBA16F @ ½ | bloom mip 1. `a` = mean log-luminance |
+| `colortex7` | RGBA16F @ ¼ | bloom mip 2 |
+| `colortex8` | RGBA16F @ ⅛ | bloom mip 3 |
+| `colortex9` | RGBA16F @ 1/16 | bloom mip 4 |
+| `colortex10` | RGBA16F @ 1/32 | bloom mip 5 |
+| `colortex11` | R32F @ 8×8 | auto-exposure. **Clearing disabled** — it *is* the adaptation history |
 
 *(rows are added as later steps land)*
 
@@ -104,7 +110,10 @@ instead. Any gbuffer→gbuffer communication has to go through `colortex4`+.
 | `deferred` | SSAO into `colortex3`. Skipped entirely when SSAO is off. |
 | `deferred1` | Reconstructs position from depth, samples the shadow map, lights opaque geometry, applies fog. |
 | `composite` | Resolves translucents: refraction, absorption, Fresnel, SSR. Underwater caustics and fog. |
-| `final` | Copies `colortex0` to the backbuffer. |
+| `composite1`–`composite5` | Bloom downsample chain, ½ → 1/32. |
+| `composite6` | Auto-exposure into `colortex11`. |
+| `composite7`–`composite10` | Bloom tent-upsample back up the chain. |
+| `final` | Exposure, bloom composite, tonemap, vignette, out to screen. |
 
 ### Step 1 — pass-through skeleton ✅ (`check.sh` clean)
 
@@ -412,6 +421,71 @@ Mitigations: the step count is an exposed option, the whole feature toggles off
 (restoring vanilla clouds via `program.gbuffers_clouds.enabled`), and the POTATO
 and LOW profiles disable it outright.
 
+### Step 6 — post ✅ (`check.sh` clean)
+
+**Bloom is a real mip chain**, not a wide blur. Five levels, each a genuine
+buffer at a genuine resolution via `size.buffer` — *not* tiles packed into one
+full-res texture, so every pass runs at its own level's resolution instead of
+rasterising a full-screen quad to touch a corner of it.
+
+- **13-tap downsample** (Jimenez/COD). A plain 2×2 box aliases badly — a thin
+  bright line can vanish at one mip and reappear at the next as the camera
+  moves, which reads as the bloom boiling. Weights sum to exactly 1.0.
+- **Karis average on the first step only.** One very bright pixel survives a box
+  downsample with full energy and becomes a large crawling blob. Weighting by
+  `1/(1+luma)` caps any single pixel's contribution. Applying it again further
+  down would just darken the bloom — the fireflies are already gone.
+- **3×3 tent upsample**, progressively. Plain bilinear leaves the lower mip's
+  texel grid visible as blocky structure; tenting on the way back up is what
+  turns the chain into one wide smooth falloff instead of a stack of distinct
+  blur radii.
+- **Soft-knee threshold**, not a hard cutoff. A hard `if (luma > threshold)`
+  makes a light drifting across the boundary flicker between frames.
+
+**Auto-exposure rides the bloom chain for free.** `composite1` stashes
+`log2(luminance)` of the *unfiltered* scene in `.a`; the downsample filter
+averages it along with the colour, so by mip 5 `.a` holds a box-filtered mean
+over the whole frame.
+
+Log space is the point: a *linear* average is dominated by a few bright pixels,
+so one lamp in a dark cave would crush the whole exposure. Averaging logs and
+exponentiating gives the geometric mean, which is what photographic metering
+actually wants.
+
+Adaptation is `1 - exp(-dt·rate)`, not a fixed per-frame lerp — a fixed lerp
+adapts faster at high framerates, so the same scene would feel different on
+different hardware. Brightening is deliberately slower than darkening, because
+eyes dark-adapt far more slowly than they light-adapt.
+
+`colortex11` is 8×8 rather than 1×1 so nothing depends on Iris giving a
+one-pixel viewport; only the first texel does work and the rest copy the
+previous value. `colortex11Clear = false` — clearing it every frame would delete
+the very thing that makes adaptation gradual.
+
+**Tonemap: Uchimura by default**, ACES (Stephen Hill's RRT+ODT fit) as the
+alternative. Uchimura stitches three explicit regions — toe, *linear* midsection,
+shoulder. Reinhard has neither a real toe nor a controllable linear section, so
+it desaturates everything bright and lifts blacks to grey; the linear region is
+what keeps mid-tone contrast intact.
+
+**Order in `final` is load-bearing:** exposure → bloom → tonemap → vignette.
+Bloom is added in HDR *before* the curve because glow is light that physically
+reached the sensor; adding it after would let it blow past white with no
+roll-off and produce flat white blobs. Vignette comes last because it is a lens
+effect, not a property of the scene.
+
+`vignette = false` in shaders.properties so vanilla's own overlay does not stack
+on ours.
+
+**TAA: deliberately skipped.** Doing it without smearing needs per-object motion
+vectors. Iris gives `gbufferPreviousModelView` and `previousCameraPosition`,
+which reproject *static* geometry correctly, but every mob, item frame,
+minecart, falling block and the player's own hand moves independently and would
+ghost — and a neighbourhood colour clamp only bounds that artefact, it does not
+remove it. Building a real velocity buffer means writing previous-frame
+positions per entity, which Minecraft's entity renderer does not expose through
+Iris. The brief said to skip it in that case, and this is that case.
+
 ---
 
 ## check.sh
@@ -447,6 +521,11 @@ Two things it has to do that aren't obvious:
    error in-game — Iris silently omits the row. That is the kind of bug you only
    find by scrolling the options screen hunting for a control that never
    appears, so it fails the build instead.
+
+   It also fails on an option placed in **two** screens, which puts two controls
+   on the same value fighting each other. This caught a real bug during step 6:
+   a careless string edit leaked post-processing options into the Lighting and
+   Sky sub-screens.
 
 `lib/settings.glsl` is included by everything. Iris requires an option macro to
 be defined *identically* in every file that uses it — one shared file is the

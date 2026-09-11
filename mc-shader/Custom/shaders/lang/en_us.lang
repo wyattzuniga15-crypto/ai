@@ -108,3 +108,32 @@ suffix.CLOUD_HEIGHT= blocks
 
 option.CLOUD_SPEED=Cloud Speed
 option.CLOUD_SPEED.comment=How fast clouds drift on the wind.
+
+screen.POST=Post Processing
+
+option.BLOOM=Bloom
+option.BLOOM.comment=Glow around bright things, built from a downsample/upsample mip chain rather than one wide blur, so the falloff is smooth and wide without being expensive.
+
+option.BLOOM_STRENGTH=Bloom Strength
+option.BLOOM_STRENGTH.comment=How much of the glow is mixed into the image.
+
+option.AUTO_EXPOSURE=Auto Exposure
+option.AUTO_EXPOSURE.comment=Adapts overall brightness to the scene, like an eye. Walking out of a cave into daylight will briefly look too bright, then settle.
+
+option.EXPOSURE=Exposure
+option.EXPOSURE.comment=Manual brightness multiplier, applied on top of auto exposure.
+
+option.EXPOSURE_SPEED=Adaptation Speed
+option.EXPOSURE_SPEED.comment=How fast auto exposure settles. Darkening is always faster than brightening, the way eyes actually work.
+
+option.TONEMAP=Tonemap
+option.TONEMAP.comment=The curve that maps HDR light onto your display. Uchimura keeps mid-tone contrast through a linear section; ACES is punchier and more saturated. None simply clips, which blows out highlights.
+value.TONEMAP.0=None
+value.TONEMAP.1=Uchimura
+value.TONEMAP.2=ACES
+
+option.VIGNETTE=Vignette
+option.VIGNETTE.comment=Slight darkening toward the corners.
+
+option.VIGNETTE_STRENGTH=Vignette Strength
+option.VIGNETTE_STRENGTH.comment=How dark the corners get.

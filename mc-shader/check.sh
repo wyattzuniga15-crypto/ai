@@ -263,12 +263,39 @@ for n, line in enumerate(props.read_text().splitlines(), 1):
                 referenced.setdefault(tok, n)
 
 missing = sorted((t, l) for t, l in referenced.items() if t not in known)
+
+# An option placed in two different screens shows up twice in the GUI and the
+# two controls fight over the same value. Easy to cause with a careless edit to
+# a long screen list, and invisible until you open the menu.
+placed = {}
+dupes = []
+for n, line in enumerate(props.read_text().splitlines(), 1):
+    line = line.split('#')[0]
+    if not re.match(r'\s*screen(\.[A-Za-z_]+)?\s*=', line):
+        continue
+    if re.match(r'\s*screen(\.[A-Za-z_]+)?\.columns\s*=', line):
+        continue
+    for tok in line.split('=', 1)[1].split():
+        if re.fullmatch(r'[A-Za-z_]\w*', tok):
+            if tok in placed:
+                dupes.append((tok, placed[tok], n))
+            else:
+                placed[tok] = n
+
+fail = False
 if missing:
     print("FAIL  shaders.properties references options nothing defines:")
     for t, l in missing:
         print("    line %d: %s" % (l, t))
+    fail = True
+if dupes:
+    print("FAIL  shaders.properties places the same option in two screens:")
+    for t, a, b in dupes:
+        print("    %s on lines %d and %d" % (t, a, b))
+    fail = True
+if fail:
     sys.exit(1)
-print("options: %d defined, %d wired into the GUI" % (len(known), len(referenced)))
+print("options: %d defined, %d wired into the GUI" % (len(known), len(placed)))
 PYEOF
 
 if ! python3 "$WORK/audit.py" "$SHADER_DIR"; then
