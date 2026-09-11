@@ -85,7 +85,7 @@ const vec3 SKYLIGHT_NIGHT = vec3(0.14, 0.19, 0.34);
    the light that reaches places the sun does not. Gating it by the shadow
    would defeat the entire point. A crude single-bounce approximation, but the
    difference between having it and not having it is enormous. */
-const float BOUNCE_AMOUNT = 0.34;
+const float BOUNCE_AMOUNT = 0.24;
 
 /* Sun colour as a function of how high the sun is.
 

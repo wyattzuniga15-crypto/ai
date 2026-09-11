@@ -190,7 +190,43 @@ void main() {
         }
     }
 
-    // ---- 2. Underwater ----------------------------------------------------
+    // ---- 2. Atmospheric haze ----------------------------------------------
+    /* Distant terrain fades toward the colour of the sky behind it.
+
+       This is aerial perspective, and its absence is the main reason a shader
+       can look "flat" even when the lighting is right: air is not perfectly
+       clear, so a hillside a few hundred blocks away is looking at you through
+       enough atmosphere to visibly wash it out and pull it toward the sky's
+       hue. Without it every distance reads as equally near, and the scene has
+       no depth.
+
+       It is NOT the same thing as vanilla fog, which only appears close to the
+       render distance as a curtain. This is a gentle exponential present at
+       every distance, blending toward the sky colour in the direction you are
+       actually looking rather than toward one flat fog colour - so hills near
+       the sun haze warm and hills away from it haze cool.  */
+#ifdef ATMOSPHERIC_HAZE
+    if (isEyeInWater == 0) {
+        float hazeDepth = texture(depthtex0, texcoord).r;
+        if (hazeDepth < 1.0) {
+            vec3 hazeView   = screenToView(vec3(texcoord, hazeDepth),
+                                           gbufferProjectionInverse);
+            vec3 hazePlayer = viewToPlayer(hazeView, gbufferModelViewInverse);
+            float dist = length(hazeView);
+
+            vec3 dir = normalize(hazePlayer);
+            // Clamp the sample direction just above the horizon: looking down
+            // at a valley floor should still haze toward the sky above it, not
+            // toward whatever the gradient does below the horizon.
+            vec3 hazeColor = getSkyColor(vec3(dir.x, max(dir.y, 0.03), dir.z), ctx);
+
+            float amount = 1.0 - exp(-dist * 0.0032);
+            color = mix(color, hazeColor, amount * HAZE_STRENGTH);
+        }
+    }
+#endif
+
+    // ---- 3. Underwater ----------------------------------------------------
     if (isEyeInWater == 1) {
         /* Measured against depthtex0, which INCLUDES the water surface.
            Looking up from below, the water volume ends at the surface, not at

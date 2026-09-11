@@ -18,12 +18,16 @@
    reflection ray leaves the screen without hitting anything.
    ========================================================================= */
 
-/* Daytime endpoints. Deeper, more saturated blue at the zenith and a
-   brighter horizon than before - the old pair sat close together in both
-   value and saturation, which flattened the dome into one wash of pale blue
-   with no sense of depth. */
-const vec3 SKY_ZENITH_DAY  = vec3(0.10, 0.30, 0.82);
-const vec3 SKY_HORIZON_DAY = vec3(0.62, 0.80, 1.00);
+/* Daytime endpoints.
+
+   Tuned against a reference screenshot rather than by taste. A real daytime
+   sky is nowhere near as saturated as it feels like it should be: the zenith
+   is a medium blue and the horizon is very nearly white, because the long
+   slant path through the atmosphere scatters so much that it washes out.
+   An earlier pass pushed the zenith to (0.10, 0.30, 0.82), which produced the
+   harsh poster-blue everyone recognises as "shader preset". */
+const vec3 SKY_ZENITH_DAY  = vec3(0.30, 0.50, 0.86);
+const vec3 SKY_HORIZON_DAY = vec3(0.76, 0.85, 0.96);
 
 // Around sunrise/sunset.
 const vec3 SKY_ZENITH_DUSK  = vec3(0.14, 0.14, 0.44);
@@ -54,7 +58,10 @@ vec3 getSkyColor(vec3 dir, LightContext ctx) {
        because that is where the line of sight passes through the most air,
        so the falloff is steep. */
     float up = clamp(dir.y, 0.0, 1.0);
-    float horizonBlend = exp(-up * 4.5);
+    // Gentler than the previous 4.5: a steep exponent squeezes the pale band
+    // into a thin strip right at the horizon and leaves the rest of the dome
+    // flat. Spreading it keeps the gradient readable across the whole sky.
+    float horizonBlend = exp(-up * 2.8);
 
     vec3 sky = mix(zenith, horizon, horizonBlend);
 

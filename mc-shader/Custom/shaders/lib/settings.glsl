@@ -42,7 +42,7 @@
 #define VOLUMETRIC_CLOUDS           // Raymarched cloud layer. This is the single most expensive option here.
 #define CLOUD_QUALITY 1             // [0 1 2 3] Cloud raymarch steps. 0 = 8 (fastest), 1 = 12, 2 = 20, 3 = 32.
 #define CLOUD_COVERAGE 0.5          // [0.3 0.4 0.5 0.6 0.7] How much of the sky the clouds fill.
-#define CLOUD_HEIGHT 300.0          // [160.0 220.0 300.0 400.0] Altitude of the cloud layer, in blocks.
+#define CLOUD_HEIGHT 180.0          // [130.0 180.0 260.0 340.0] Altitude of the cloud layer, in blocks.
 #define CLOUD_SPEED 1.0             // [0.0 0.5 1.0 2.0 4.0] How fast clouds drift.
 
 // ---- Post processing -------------------------------------------------------
@@ -57,9 +57,13 @@
 
 // ---- Colour grading --------------------------------------------------------
 #define COLOR_GRADING               // Saturation, vibrance, contrast and white balance.
-#define SATURATION 1.12             // [0.6 0.8 0.9 1.0 1.06 1.12 1.2 1.3 1.45] Overall colour intensity. 1.0 is untouched.
-#define VIBRANCE 0.35               // [0.0 0.15 0.25 0.35 0.5 0.7 0.9] Boosts dull colours while leaving already-vivid ones alone.
-#define CONTRAST 1.06               // [0.9 0.95 1.0 1.03 1.06 1.12 1.2] Contrast about mid-grey.
-#define WHITE_BALANCE 0.12          // [-0.5 -0.3 -0.15 0.0 0.12 0.25 0.4 0.6] Colour temperature. Positive is warmer.
+#define SATURATION 1.03             // [0.6 0.8 0.9 1.0 1.06 1.12 1.2 1.3 1.45] Overall colour intensity. 1.0 is untouched.
+#define VIBRANCE 0.12               // [0.0 0.15 0.25 0.35 0.5 0.7 0.9] Boosts dull colours while leaving already-vivid ones alone.
+#define CONTRAST 1.02               // [0.9 0.95 1.0 1.03 1.06 1.12 1.2] Contrast about mid-grey.
+#define WHITE_BALANCE 0.05          // [-0.5 -0.3 -0.15 0.0 0.05 0.12 0.25 0.4 0.6] Colour temperature. Positive is warmer.
+
+// ---- Atmosphere ------------------------------------------------------------
+#define ATMOSPHERIC_HAZE            // Distant terrain fades toward the sky colour.
+#define HAZE_STRENGTH 0.55          // [0.0 0.25 0.4 0.55 0.75 1.0] How strongly distance washes terrain out.
 
 #endif // LIB_SETTINGS_GLSL

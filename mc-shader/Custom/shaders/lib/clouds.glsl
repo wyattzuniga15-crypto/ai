@@ -18,19 +18,39 @@
    ========================================================================= */
 
 #if CLOUD_QUALITY == 0
-    #define CLOUD_STEPS 8
-#elif CLOUD_QUALITY == 1
     #define CLOUD_STEPS 12
+#elif CLOUD_QUALITY == 1
+    #define CLOUD_STEPS 18
 #elif CLOUD_QUALITY == 2
-    #define CLOUD_STEPS 20
+    #define CLOUD_STEPS 28
 #else
-    #define CLOUD_STEPS 32
+    #define CLOUD_STEPS 40
 #endif
 
-const float CLOUD_THICKNESS    = 60.0;
-const float CLOUD_NOISE_SCALE  = 0.0016;   // ~625 blocks per noise lattice cell
-const float CLOUD_EXTINCTION   = 0.055;
-const float CLOUD_MAX_DISTANCE = 5000.0;
+const float CLOUD_THICKNESS = 42.0;
+
+/* Feature size.
+
+   This was 0.0016 - one noise lattice cell every 625 blocks. With the layer
+   300 blocks up, a single cell then spanned roughly 50 degrees of sky, so the
+   whole visible cloudscape was two or three enormous blobs smeared across the
+   view. That is what made them look like oil slicks rather than clouds.
+
+   0.012 puts a cell every ~83 blocks, which at a realistic layer height reads
+   as a puff about 10 degrees across - the scale actual cumulus appears at. */
+const float CLOUD_NOISE_SCALE = 0.012;
+
+const float CLOUD_EXTINCTION = 0.095;
+
+/* Longest ray the march will follow. Near-horizontal rays would otherwise run
+   for kilometres and force step lengths far longer than a cloud feature,
+   undersampling into streaks. Truncating here costs only the far horizon,
+   which horizonFade is already dissolving anyway. */
+const float CLOUD_MAX_DISTANCE = 1600.0;
+
+// Hard ceiling on step length, in blocks. Guarantees several samples per
+// feature no matter which way the camera points.
+const float CLOUD_MAX_STEP = 26.0;
 
 /* Rotating between octaves matters. Doubling the frequency on the same axes
    leaves every octave's lattice aligned with the last, and the result shows
@@ -50,7 +70,10 @@ float cloudFBM3(vec2 p) {
     float value = 0.0;
     float amp   = 0.5;
     float total = 0.0;
-    for (int i = 0; i < 3; i++) {
+    // Five octaves rather than three. Three gave smooth blobs with no edge
+    // detail; the upper octaves are what produce the ragged, wispy borders
+    // that read as cloud instead of as fog.
+    for (int i = 0; i < 5; i++) {
         value += amp * valueNoise(p);
         total += amp;
         p      = FBM_ROT * p * 2.03;
@@ -86,8 +109,10 @@ float cloudDensity(vec3 worldPos, vec2 wind, bool cheap) {
 
     // Coverage threshold. Everything below it is clear sky; the soft width
     // above it is what gives clouds wispy edges rather than hard cutouts.
+    // The window is wider than before (0.34) so edges dissolve gradually
+    // instead of ending on a visible contour line.
     float coverage = smoothstep(1.0 - CLOUD_COVERAGE,
-                                1.0 - CLOUD_COVERAGE + 0.28, n);
+                                1.0 - CLOUD_COVERAGE + 0.34, n);
 
     // Vertical profile through the slab: fades in at the base, out at the top,
     // with the top fade broader so clouds look flat-bottomed and billowed on
@@ -159,7 +184,14 @@ vec4 raymarchClouds(vec3 camPos, vec3 dir, LightContext ctx,
     float tNear, tFar;
     if (!cloudSlabRange(camPos, dir, tNear, tFar)) return vec4(0.0);
 
-    float stepLen = (tFar - tNear) / float(CLOUD_STEPS);
+    // Bound the span so step length can never exceed CLOUD_MAX_STEP. Without
+    // this, a near-horizontal ray divides a 1600-block span by the step count
+    // and takes 130-block strides through 83-block features, which aliases
+    // into horizontal streaks.
+    float span    = min(tFar - tNear, CLOUD_MAX_STEP * float(CLOUD_STEPS));
+    float stepLen = span / float(CLOUD_STEPS);
+    tFar          = tNear + span;
+
     vec2  wind    = cloudWind(time);
 
     float cosTheta = dot(dir, ctx.sunDir);
@@ -170,7 +202,16 @@ vec4 raymarchClouds(vec3 camPos, vec3 dir, LightContext ctx,
     vec3 sunColor = ctx.isNight
                   ? moonlightColor(abs(ctx.sunHeight)) * 1.5
                   : sunlightColor(ctx.sunHeight);
-    vec3 ambient  = skyAmbientColor(ctx.sunHeight, vec3(0.0, 1.0, 0.0)) * 0.55;
+
+    /* Ambient/multiple-scattering floor.
+
+       Clouds are white. Not because they are lit hard, but because their
+       droplets scatter light dozens of times before it leaves - so even the
+       shaded underside of a cumulus is bright grey, never the dark blue a
+       single-scatter model gives it. This floor is deliberately generous and
+       only lightly tinted; it is what separates "cloud" from "smoke". */
+    vec3 ambient = mix(skyAmbientColor(ctx.sunHeight, vec3(0.0, 1.0, 0.0)),
+                       vec3(1.0), 0.45) * 1.15;
 
     float transmittance = 1.0;
     vec3  scattered     = vec3(0.0);
@@ -187,7 +228,21 @@ vec4 raymarchClouds(vec3 camPos, vec3 dir, LightContext ctx,
         if (density < 0.002) continue;
 
         float sunDepth = cloudSunDepth(p, ctx.sunDir, wind);
-        vec3  sunLight = sunColor * exp(-sunDepth * CLOUD_EXTINCTION * 3.0);
+
+        /* Multiple scattering, as a sum of Beer terms.
+
+           A single exp(-d) is single-scattering: it says light either gets
+           through or is absorbed, so anything optically thick goes black. In a
+           real cloud that "absorbed" light is not gone, it has just bounced,
+           and most of it eventually comes back out. Summing octaves with
+           progressively weaker extinction and contribution approximates those
+           later bounces cheaply, and is the difference between clouds that
+           look white and fluffy and clouds that look like storm smoke. */
+        float d = sunDepth * CLOUD_EXTINCTION;
+        float beer = exp(-d)
+                   + 0.62 * exp(-d * 0.28)
+                   + 0.32 * exp(-d * 0.07);
+        vec3 sunLight = sunColor * beer * 0.55;
 
         /* Powder term. Beer's law alone makes the lit edge of a cloud its
            brightest point, but real clouds darken right at the edge because
@@ -195,7 +250,7 @@ vec4 raymarchClouds(vec3 camPos, vec3 dir, LightContext ctx,
            reintroduces that, and is what stops clouds looking like fog. */
         float powder = 1.0 - exp(-density * stepLen * CLOUD_EXTINCTION * 4.0);
 
-        vec3 luminance = sunLight * phase * powder * 8.0 + ambient;
+        vec3 luminance = sunLight * phase * powder * 7.0 + ambient;
 
         // Analytic integration of the constant-density segment, rather than a
         // rectangle rule: exact for the step, and stays stable at low step

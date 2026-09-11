@@ -154,3 +154,9 @@ option.CONTRAST.comment=Contrast about mid-grey. Small changes go a long way; ab
 
 option.WHITE_BALANCE=Warmth
 option.WHITE_BALANCE.comment=Colour temperature. Positive is warmer and more golden, negative is cooler and bluer. Applied in linear light before the tonemap, the way a camera does it, and luminance-preserving so it tints without changing brightness.
+
+option.ATMOSPHERIC_HAZE=Atmospheric Haze
+option.ATMOSPHERIC_HAZE.comment=Distant terrain fades toward the colour of the sky behind it. This is aerial perspective, and it is most of what gives a landscape a sense of depth. Not the same as vanilla fog, which only appears as a curtain near the render distance.
+
+option.HAZE_STRENGTH=Haze Strength
+option.HAZE_STRENGTH.comment=How strongly distance washes terrain out. Too high flattens everything into the sky; too low and every hillside looks equally close.
