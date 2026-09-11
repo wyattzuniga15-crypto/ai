@@ -1,0 +1,3 @@
+# Build output. dist/Custom.zip is generated from Custom/ by build.sh, so
+# committing it would just be a stale binary copy of the source next door.
+dist/
