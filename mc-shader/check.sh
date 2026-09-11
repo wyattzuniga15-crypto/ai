@@ -47,6 +47,13 @@ if ! command -v glslangValidator >/dev/null 2>&1; then
   echo ">> installed: $(glslangValidator --version 2>&1 | head -1)"
 fi
 
+# Macros Iris supplies at load time. Lives OUTSIDE the pack so it cannot
+# shadow the real values in-game.
+IRIS_DEFINES="$SCRIPT_DIR/iris-defines.glsl"
+if [[ ! -f "$IRIS_DEFINES" ]]; then
+  echo "WARNING: $IRIS_DEFINES missing - Iris-provided macros will be undefined" >&2
+fi
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -58,6 +65,7 @@ shader_root = sys.argv[1]
 entry       = sys.argv[2]
 out_path    = sys.argv[3]
 map_path    = sys.argv[4]
+defines_path = sys.argv[5] if len(sys.argv) > 5 else None
 
 # Trailing // comments after an #include are legal in a C preprocessor, so
 # accept them here rather than emitting the line verbatim and letting glslang
@@ -102,6 +110,23 @@ def emit(path, depth):
     stack.pop()
 
 emit(entry, 0)
+
+# Iris injects its own macro set (MC_RENDER_STAGE_*, MC_VERSION, IS_IRIS, ...)
+# before compiling. glslang knows none of them, so splice them in right after
+# the #version line - it must stay first.
+if defines_path and os.path.isfile(defines_path):
+    with open(defines_path) as fh:
+        injected = fh.readlines()
+    insert_at = 0
+    for idx, line in enumerate(out):
+        if line.lstrip().startswith('#version'):
+            insert_at = idx + 1
+            break
+    out = out[:insert_at] + injected + out[insert_at:]
+    linemap = (linemap[:insert_at]
+               + [('<iris-defines>', i + 1) for i in range(len(injected))]
+               + linemap[insert_at:])
+
 with open(out_path, 'w') as fh:
     fh.write(''.join(out))
 with open(map_path, 'w') as fh:
@@ -179,7 +204,8 @@ for f in "${FILES[@]}"; do
   esac
   flat="$base.$ext"
 
-  if ! python3 "$WORK/flatten.py" "$SHADER_DIR" "$f" "$flat" "$base.map" 2>"$base.err"; then
+  if ! python3 "$WORK/flatten.py" "$SHADER_DIR" "$f" "$flat" "$base.map" \
+       "$IRIS_DEFINES" 2>"$base.err"; then
     echo "--------------------------------------------------------------"
     echo "FAIL (include)  $rel"
     sed 's/^/    /' "$base.err"

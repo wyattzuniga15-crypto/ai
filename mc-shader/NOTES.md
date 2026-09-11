@@ -345,6 +345,73 @@ are gated by sky exposure, so no sun through a cave roof means no caustics on
 its floor, and skipped on the underside of the surface, which has already been
 resolved as a reflection.
 
+### Step 5 — sky and clouds ✅ (`check.sh` clean)
+
+**Analytic sky.** Zenith/horizon mix driven by sun height, through *two*
+blends — day→dusk peaking as the sun crosses the horizon, dusk→night finishing
+once it is well below. A single mix slides straight from blue to black and skips
+the orange entirely.
+
+The horizon falloff is `exp(-up * 4.5)`, not linear. A linear mix on `dir.y`
+puts the transition halfway up the dome and looks like a painted backdrop; real
+sky compresses its gradient into the last few degrees above the horizon, because
+that is where the line of sight passes through the most air.
+
+Sun glow uses two lobes: a wide `cos⁴` that lifts the whole quarter of sky the
+sun is in, and a tight `cos⁹⁰` core. The wide lobe is what sells low sun — at
+sunset the glow spreads across a huge span of horizon, not just a disc.
+
+**`renderStage`, not guesswork**, distinguishes what `gbuffers_skybasic` is
+drawing. Stars are small quads on the same dome and would otherwise be painted
+over by the gradient. Stars fade out as the sky brightens instead of hanging
+visible against blue.
+
+**Vanilla's sunset band is discarded** when the analytic sky is on. Vanilla
+draws it as a separate alpha-blended quad over the dome; since the analytic sky
+already produces that glow from its scattering term, drawing both blends one
+sunset over another and leaves a seam where the band's alpha ramps out.
+
+**Clouds** are a raymarched slab. Density is separable — 2D FBM over world XZ
+times a vertical profile — which is the point of a *2D* noise layer: the
+expensive part never needs a third dimension.
+
+- **FBM octaves are rotated** between levels, and scaled by 2.03 rather than
+  exactly 2. Doubling on the same axes leaves every octave's lattice registered
+  with the last, and the result shows obvious axis-aligned streaks.
+- **Henyey-Greenstein phase**, two lobes (g = 0.76 forward, g = −0.15 back).
+  This is what gives a cloud with the sun behind it a bright silver lining;
+  without a phase function clouds are uniformly lit blobs.
+- **Powder term.** Beer's law alone makes a cloud's lit edge its brightest
+  point, but real clouds *darken* at the very edge — too little material there
+  to scatter back. Reintroducing it is what stops clouds reading as fog.
+- **Analytic per-step integration** (`1 - e^(-σ·Δt)`) rather than a rectangle
+  rule, which visibly under-integrates at the low step counts this uses.
+- **Light taps use a 2-octave FBM**, the primary march a 3-octave one. The sun's
+  optical depth only needs the broad shape.
+- **Dithered march start**, or the fixed step positions print concentric banding
+  across thin parts of the layer.
+- Vertical profile fades in sharply at the base and out broadly at the top, so
+  clouds are flat-bottomed and billowed on top, like cumulus.
+
+**Cloud drift is also wrap-safe.** The wind offset is expressed directly in
+noise-lattice cells per hour — `vec2(38, 12)` — so at the 3600 s
+`frameTimeCounter` reset the noise field is bit-identical and the cloudscape does
+not jump. The base is even so every `CLOUD_SPEED` in the option list
+(0, 0.5, 1, 2, 4) still lands on whole cells.
+
+**Known limitation:** clouds are drawn in the sky pass, so they only exist where
+sky is visible. Standing *above* `CLOUD_HEIGHT` and looking down, you will not
+see clouds over the terrain below. Moving the march to a deferred pass would fix
+it but would cost a ray on every pixel rather than only sky pixels. At the
+default altitude of 300 (build limit is 320) this is a narrow case.
+
+**Cost, and what I could not measure.** I had no GPU or Minecraft install in
+this container, so the 60fps-at-12-chunks target is *unverified* for this
+feature specifically. It is the one thing in the pack most likely to miss it.
+Mitigations: the step count is an exposed option, the whole feature toggles off
+(restoring vanilla clouds via `program.gbuffers_clouds.enabled`), and the POTATO
+and LOW profiles disable it outright.
+
 ---
 
 ## check.sh
@@ -367,7 +434,15 @@ Two things it has to do that aren't obvious:
    `ERROR: lib/fog.glsl:21:`. Verified accurate for errors in both top-level
    programs and included libs.
 
-3. **It audits `shaders.properties` against the defined options.** A `screen`,
+3. **It supplies the macros Iris injects.** `MC_RENDER_STAGE_*`, `MC_VERSION`,
+   `IS_IRIS`, `MC_HAND_DEPTH` and friends are defined by Iris at load time, not
+   by the pack, so glslang sees them as undeclared identifiers. `check.sh`
+   splices `iris-defines.glsl` in after the `#version` line (which must stay
+   first). That file lives *outside* `Custom/` deliberately — inside the pack it
+   would shadow Iris's real values in-game. The line map accounts for the
+   injection, so reported line numbers stay correct.
+
+4. **It audits `shaders.properties` against the defined options.** A `screen`,
    `sliders` or `profile` entry naming an option no GLSL file defines is not an
    error in-game — Iris silently omits the row. That is the kind of bug you only
    find by scrolling the options screen hunting for a control that never
