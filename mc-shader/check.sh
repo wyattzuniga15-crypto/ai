@@ -228,6 +228,109 @@ for f in "${FILES[@]}"; do
 done
 
 
+# --- uniform-name audit -----------------------------------------------------
+# A misspelled uniform is valid GLSL. It compiles, Iris never binds it, and it
+# reads zero for the entire run - which usually looks like a subtly wrong image
+# rather than an error. Checking names against the documented list is the only
+# way to catch it before launching.
+cat > "$WORK/uniaudit.py" <<'PYEOF'
+import re, sys, pathlib
+shader_dir = pathlib.Path(sys.argv[1])
+list_path  = pathlib.Path(sys.argv[2])
+
+known = {l.strip() for l in list_path.read_text().splitlines()
+         if l.strip() and not l.startswith('#')}
+
+SAMPLERS = re.compile(r'^(colortex\d+|colorimg\d+|depthtex[0-2]|shadowtex[01](HW)?|'
+                      r'shadowcolor[01]|gtexture|lightmap|noisetex|normals|specular|'
+                      r'gcolor|gdepth|gnormal|composite|gaux[1-4]|gdepthtex|'
+                      r'shadow|watershadow|tex)$')
+
+bad = []
+for f in sorted(list(shader_dir.rglob('*.fsh')) + list(shader_dir.rglob('*.vsh'))
+                + list(shader_dir.rglob('*.glsl')) + list(shader_dir.rglob('*.csh'))):
+    for m in re.finditer(r'^\s*uniform\s+\w+\s+(\w+)\s*;', f.read_text(errors='replace'), re.M):
+        name = m.group(1)
+        if name in known or SAMPLERS.match(name) or name.startswith('gl_'):
+            continue
+        bad.append((str(f.relative_to(shader_dir)), name))
+
+if bad:
+    print("FAIL  uniforms not in the Iris reference (these read 0 at runtime):")
+    for rel, name in bad:
+        print("    %s: %s" % (rel, name))
+    sys.exit(1)
+print("uniforms: all declared names are documented Iris uniforms or samplers")
+PYEOF
+
+IRIS_UNIFORMS="$SCRIPT_DIR/iris-uniforms.txt"
+if [[ -f "$IRIS_UNIFORMS" ]]; then
+  if ! python3 "$WORK/uniaudit.py" "$SHADER_DIR" "$IRIS_UNIFORMS"; then
+    FAILED=$((FAILED+1)); FAIL_LIST+=("uniform names")
+  fi
+else
+  echo "note: $IRIS_UNIFORMS missing, skipping uniform-name audit"
+fi
+
+# --- RENDERTARGETS / output-declaration audit -------------------------------
+# If RENDERTARGETS names more buffers than the shader declares outputs for, the
+# extra attachment is bound but never written, and the Iris docs are explicit
+# that it then receives garbage. glslang cannot see this: both halves are
+# individually valid, and one of them is inside a comment.
+cat > "$WORK/rtaudit.py" <<'PYEOF'
+import re, sys, pathlib
+shader_dir = pathlib.Path(sys.argv[1])
+
+RT   = re.compile(r'/\*\s*RENDERTARGETS\s*:\s*([0-9,\s]+?)\s*\*/')
+DB   = re.compile(r'/\*\s*DRAWBUFFERS\s*:\s*([0-9]+)\s*\*/')
+LOC  = re.compile(r'^\s*layout\s*\(\s*location\s*=\s*(\d+)\s*\)\s*out\b', re.M)
+BARE = re.compile(r'^\s*out\s+vec4\s+(\w+)\s*;', re.M)
+
+problems = []
+for f in sorted(shader_dir.rglob('*.fsh')):
+    rel = f.relative_to(shader_dir)
+    text = f.read_text(errors='replace')
+
+    m = RT.search(text)
+    if m:
+        targets = [t for t in m.group(1).replace(' ', '').split(',') if t]
+    else:
+        m2 = DB.search(text)
+        targets = list(m2.group(1)) if m2 else None
+
+    locs = sorted(int(x) for x in LOC.findall(text))
+    bare = BARE.findall(text)
+
+    if targets is None:
+        # No directive: Iris binds the first 8 buffers in order. Fine for a
+        # program that writes one output, worth flagging otherwise.
+        if len(locs) + len(bare) > 1:
+            problems.append((rel, "writes %d outputs but declares no RENDERTARGETS"
+                                  % (len(locs) + len(bare))))
+        continue
+
+    n_out = len(locs) if locs else len(bare)
+    if n_out != len(targets):
+        problems.append((rel, "RENDERTARGETS lists %d buffer(s) (%s) but the shader "
+                              "declares %d output(s)"
+                              % (len(targets), ','.join(targets), n_out)))
+    elif locs and locs != list(range(len(targets))):
+        problems.append((rel, "output locations %s are not contiguous from 0; "
+                              "RENDERTARGETS maps by index, not by buffer number"
+                              % locs))
+
+if problems:
+    print("FAIL  RENDERTARGETS / output mismatch:")
+    for rel, msg in problems:
+        print("    %s: %s" % (rel, msg))
+    sys.exit(1)
+print("rendertargets: all fragment outputs match their RENDERTARGETS")
+PYEOF
+
+if ! python3 "$WORK/rtaudit.py" "$SHADER_DIR"; then
+  FAILED=$((FAILED+1)); FAIL_LIST+=("RENDERTARGETS")
+fi
+
 # --- shaders.properties option audit ---------------------------------------
 # A screen/slider/profile entry naming an option that no GLSL file defines is
 # not an error in-game: Iris just silently omits the row. That is exactly the

@@ -527,6 +527,21 @@ Two things it has to do that aren't obvious:
    a careless string edit leaked post-processing options into the Lighting and
    Sky sub-screens.
 
+5. **It checks `RENDERTARGETS` against the declared fragment outputs.** If the
+   directive names more buffers than the shader writes, the extra attachment is
+   bound but never written and receives *garbage* — the Iris docs say so
+   explicitly. glslang cannot see this: both halves are individually valid, and
+   one of them is inside a comment. It also catches output locations that are
+   not contiguous from 0, since `RENDERTARGETS` maps by index, not by buffer
+   number.
+
+6. **It checks every declared uniform name against the Iris reference.** A
+   misspelled uniform is perfectly valid GLSL — it compiles, Iris never binds
+   it, and it reads zero for the whole run, which shows up as a subtly wrong
+   image rather than an error. The name list is baked into
+   `iris-uniforms.txt` (regeneration command is in its header) so this works
+   without a docs checkout.
+
 `lib/settings.glsl` is included by everything. Iris requires an option macro to
 be defined *identically* in every file that uses it — one shared file is the
 only way to guarantee that as the option list grows.

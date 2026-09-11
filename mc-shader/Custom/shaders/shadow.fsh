@@ -19,8 +19,13 @@ void main() {
     // goes opaque.
     if (color.a < alphaTestRef) discard;
 
-    // Depth is written automatically. The colour goes to shadowcolor0 so that
-    // translucent casters can tint light later; shadowtex1 excludes them, so
-    // comparing the two buffers is what makes coloured shadows possible.
+    /* Depth is what this pass exists for, and it is written automatically.
+
+       The colour output is here because the alternative is worse: with no
+       RENDERTARGETS directive at all, Iris falls back to binding buffers in
+       order, so declaring exactly one is the *minimum* it will allocate.
+       Nothing reads shadowcolor0 today - it is what coloured shadows through
+       stained glass would be built on, by comparing shadowtex0 (all geometry)
+       against shadowtex1 (opaques only) - but that is not implemented. */
     shadowcolor0Out = color;
 }
