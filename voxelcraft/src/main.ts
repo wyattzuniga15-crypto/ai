@@ -1,5 +1,7 @@
 /** Entry point: loads assets, shows the title screen, starts games. */
 import { Menus } from './ui/menus.ts';
+import { applyGuiScale } from './ui/dom.ts';
+import { isTouchDevice } from './ui/touch.ts';
 import { SaveManager, loadOptions, saveOptions, type Options, type WorldMeta } from './core/save.ts';
 import { loadAtlas, type LoadedAtlas } from './render/atlas.ts';
 import type { ModelsJson } from './world/models.ts';
@@ -18,7 +20,10 @@ async function main() {
   const app = document.getElementById('app')!;
   const save = new SaveManager();
   const options: Options = loadOptions();
-  document.documentElement.style.setProperty('--gui', String(options.guiScale));
+  if (isTouchDevice()) phoneSetup();
+  applyGuiScale(options.guiScale);
+  // Auto follows the window, so it has to be worked out again whenever the window changes shape
+  window.addEventListener('resize', () => applyGuiScale(options.guiScale));
   let game: Game | null = null;
   let assets: { blocks: LoadedAtlas; items: LoadedAtlas; models: ModelsJson; structures: StructureBundle } | null = null;
 
@@ -49,7 +54,7 @@ async function main() {
     onQuitToTitle: () => void quitToTitle(),
     onOptionsChanged: (o) => {
       saveOptions(o);
-      document.documentElement.style.setProperty('--gui', String(o.guiScale));
+      applyGuiScale(o.guiScale);
       game?.applyOptions(o);
     },
     onRespawn: () => game?.respawn(),
@@ -120,6 +125,30 @@ async function main() {
     menus.showLoading(`Failed to load assets: ${(e as Error).message}`, 0);
     console.error(e);
   }
+}
+
+/**
+ * What a phone needs that a desktop does not: the page marked as a touch one so the stylesheet can
+ * lay out its controls, a nudge to turn the phone sideways, and a first tap that asks for the whole
+ * screen. Both of the last two are best-effort — iOS grants neither to a page in Safari, which is
+ * what the home-screen install in the manifest is for.
+ */
+function phoneSetup(): void {
+  document.documentElement.classList.add('touch');
+  const rotate = document.getElementById('rotate');
+  const check = () => rotate?.classList.toggle('on', window.innerHeight > window.innerWidth);
+  check();
+  window.addEventListener('resize', check);
+  window.addEventListener('orientationchange', check);
+  const goFullscreen = () => {
+    if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {});
+    const orientation = screen.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
+    void orientation?.lock?.('landscape').catch(() => {});
+  };
+  window.addEventListener('pointerdown', goFullscreen, { once: true });
+  // a double tap zooms a page by default, which on a game means the world jumps under the thumb
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener('dblclick', (e) => e.preventDefault());
 }
 
 void main();

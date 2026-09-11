@@ -1,8 +1,9 @@
 /** Title screen, world list, world creation, pause menu, options and death screen. */
-import { button, h, slider, textField } from './dom.ts';
+import { button, guiScale, h, slider, textField } from './dom.ts';
 import type { WorldMeta, Options } from '../core/save.ts';
 import { ACTION_INFO, DEFAULT_BINDINGS, UNBOUND, keyName, mergeBindings, mouseButtonOf, type Action } from '../core/input.ts';
 import { parseSeed } from '../core/rng.ts';
+import { MC_VERSION } from '../core/constants.ts';
 
 export interface MenuCallbacks {
   onPlay(meta: WorldMeta): void;
@@ -62,26 +63,31 @@ export class Menus {
 
   showTitle(): void {
     this.inGame = false;
-    const desktop = /Electron/i.test(navigator.userAgent);
+    // a window of its own can be closed; a tab cannot, so vanilla's Quit greys out there
+    const ownWindow = /Electron/i.test(navigator.userAgent) || matchMedia('(display-mode: standalone)').matches;
     const screen = h('div', { class: 'screen title' },
       panorama(),
+      // vanilla's own geometry: the logo 256x44 at y=30, the edition strip 128x14 seven under it
       h('div', { class: 'title-logo' },
-        h('div', { class: 'wordmark', text: 'VOXELCRAFT' }),
-        h('div', { class: 'edition', text: 'Java Edition rules' }),
-        h('div', { class: 'splash', text: splashText() }),
+        h('div', { class: 'wordmark' }),
+        h('div', { class: 'edition' }),
       ),
-      h('div', { class: 'panel' },
+      h('div', { class: 'splash', text: splashText() }),
+      // buttons from height/4 + 48 on vanilla's 24-unit rows, then the bottom row at +84
+      h('div', { class: 'menu' },
         button('Singleplayer', () => void this.showWorlds()),
         button('Multiplayer', () => {}, 'disabled'),
-        h('div', { class: 'row' },
+        button('Minecraft Realms', () => {}, 'disabled'),
+        h('div', { class: 'row bottom' },
+          iconButton('language', 'Language', () => this.showLanguage(() => this.showTitle())),
           button('Options...', () => this.showOptions(() => this.showTitle()), 'half'),
-          button(desktop ? 'Quit Game' : 'Minecraft Realms', () => { if (desktop) window.close(); }, desktop ? 'half' : 'half disabled'),
+          button('Quit Game', () => window.close(), ownWindow ? 'half' : 'half disabled'),
+          iconButton('accessibility', 'Accessibility Settings', () => this.showAccessibility(() => this.showTitle())),
         ),
       ),
-      h('div', { class: 'corner left', text: 'Voxelcraft 0.1 (Minecraft Java 1.21.11 rules)' }),
-      h('div', { class: 'corner right', text: 'A private, non-commercial project. Not affiliated with Mojang.' }),
+      h('div', { class: 'corner left', text: `Minecraft ${MC_VERSION}` }),
+      h('div', { class: 'corner right', text: 'Copyright Mojang AB. Do not distribute!' }),
     );
-    (screen.querySelector('.btn.disabled') as HTMLButtonElement | null)?.setAttribute('disabled', '');
     for (const b of screen.querySelectorAll('.btn.disabled')) (b as HTMLButtonElement).disabled = true;
     this.show(screen);
     bounceSplash(screen.querySelector('.splash') as HTMLElement);
@@ -173,6 +179,38 @@ export class Menus {
     ));
   }
 
+  /**
+   * Vanilla's language screen, which lists what is installed and ticks the one in use. This ships
+   * Mojang's own `en_us`, so that is what the list has in it.
+   */
+  showLanguage(back: () => void): void {
+    const list = h('div', { class: 'list' });
+    for (const [code, name] of LANGUAGES) {
+      list.append(h('div', { class: `item${code === 'en_us' ? ' sel' : ''}` }, h('div', { class: 'name', text: name })));
+    }
+    this.show(h('div', { class: 'screen sheet' },
+      backdrop(this.inGame),
+      h('h2', { text: 'Language' }),
+      list,
+      h('div', { class: 'buttons' }, button('Done', back)),
+    ));
+  }
+
+  /** Vanilla's accessibility screen, holding the settings of ours that belong on one. */
+  showAccessibility(back: () => void): void {
+    const o = this.options;
+    const change = () => this.cb.onOptionsChanged(o);
+    this.show(h('div', { class: 'screen sheet' },
+      backdrop(this.inGame),
+      h('h2', { text: 'Accessibility Settings' }),
+      slider((v) => `GUI Scale: ${v === 0 ? 'Auto' : v}`, 0, 4, 1, o.guiScale, (v) => { o.guiScale = v; change(); }),
+      slider((v) => `Brightness: ${v <= 0 ? 'Moody' : v >= 1 ? 'Bright' : Math.round(v * 100) + '%'}`, 0, 1, 0.05, o.gamma, (v) => { o.gamma = v; change(); }),
+      slider((v) => `Sensitivity: ${Math.round(v * 100)}%`, 0.1, 3, 0.05, o.sensitivity, (v) => { o.sensitivity = v; change(); }),
+      slider((v) => `FOV: ${v === 70 ? 'Normal' : v}`, 30, 110, 1, o.fov, (v) => { o.fov = v; change(); }),
+      h('div', { class: 'buttons' }, button('Done', back)),
+    ));
+  }
+
   showOptions(back: () => void): void {
     const o = this.options;
     const change = () => this.cb.onOptionsChanged(o);
@@ -182,7 +220,7 @@ export class Menus {
       slider((v) => `Render Distance: ${v} chunks`, 2, 16, 1, o.renderDistance, (v) => { o.renderDistance = v; change(); }),
       slider((v) => `FOV: ${v === 70 ? 'Normal' : v}`, 30, 110, 1, o.fov, (v) => { o.fov = v; change(); }),
       slider((v) => `Sensitivity: ${Math.round(v * 100)}%`, 0.1, 3, 0.05, o.sensitivity, (v) => { o.sensitivity = v; change(); }),
-      slider((v) => `GUI Scale: ${v}`, 1, 4, 1, o.guiScale, (v) => { o.guiScale = v; change(); }),
+      slider((v) => `GUI Scale: ${v === 0 ? 'Auto' : v}`, 0, 4, 1, o.guiScale, (v) => { o.guiScale = v; change(); }),
       slider((v) => `Brightness: ${v <= 0 ? 'Moody' : v >= 1 ? 'Bright' : Math.round(v * 100) + '%'}`, 0, 1, 0.05, o.gamma, (v) => { o.gamma = v; change(); }),
       slider((v) => `Master Volume: ${Math.round(v * 100)}%`, 0, 1, 0.05, o.volume, (v) => { o.volume = v; change(); }),
       button('Controls...', () => this.showControls(() => this.showOptions(back))),
@@ -317,6 +355,9 @@ function panorama(): HTMLElement {
   return h('div', { class: 'panorama' }, strip, h('div', { class: 'panorama-overlay' }));
 }
 
+/** The languages the game ships, in the order vanilla's own list puts them. */
+const LANGUAGES: [string, string][] = [['en_us', 'English (US)']];
+
 /** Mojang's own splash list, once it has been fetched; otherwise one of our own. */
 let splashes: string[] | null = null;
 void fetch(`${import.meta.env.BASE_URL}texts/splashes.txt`)
@@ -331,15 +372,28 @@ function splashText(): string {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/** Vanilla bounces the splash on a sine of the clock, and turns it twenty degrees. */
+/** One of vanilla's square icon buttons: the regular widget with a 15x15 sprite centred on it. */
+function iconButton(icon: string, label: string, onClick: () => void): HTMLButtonElement {
+  const b = button('', onClick, `icon ${icon}`);
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  return b;
+}
+
+/**
+ * Vanilla bounces the splash on a sine of the clock and turns it twenty degrees, sizing it so a
+ * long line still fits: a hundred units across whatever the text measures plus a margin.
+ */
 function bounceSplash(el: HTMLElement | null): void {
   if (!el) return;
   const start = performance.now();
   const tick = () => {
     if (!el.isConnected) return;
     const t = (performance.now() - start) / 1000;
-    const scale = 1 - Math.abs(Math.sin(t * 2)) * 0.1;
-    el.style.transform = `rotate(-20deg) scale(${scale.toFixed(3)})`;
+    // vanilla's own curve, 1.8 down to 1.7, over the width the line needs
+    const bounce = 1.8 - Math.abs(Math.sin(t * Math.PI * 2)) * 0.1;
+    const fit = (bounce * 100) / (el.offsetWidth / guiScale() + 32);
+    el.style.transform = `translate(-50%, -50%) rotate(-20deg) scale(${fit.toFixed(3)})`;
     requestAnimationFrame(tick);
   };
   tick();

@@ -13,6 +13,30 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
   return el;
 }
 
+/** The GUI scale everything on screen is measured in, as the stylesheet currently has it. */
+export function guiScale(): number {
+  return Number(getComputedStyle(document.documentElement).getPropertyValue('--gui')) || 3;
+}
+
+/**
+ * The scale to draw at when the setting is left on Auto. Vanilla grows the scale for as long as the
+ * screen still measures at least 320 by 240 units, which is what every one of its layouts is drawn
+ * against. A phone is shorter than that rule allows for and would land on 1, where nothing on it is
+ * big enough to hit with a thumb, so a touch screen never goes below 2.
+ */
+export function autoGuiScale(): number {
+  const floor = navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches ? 2 : 1;
+  const fits = Math.floor(Math.min(window.innerWidth / 320, window.innerHeight / 240));
+  return Math.max(floor, Math.min(4, fits));
+}
+
+/** Puts the interface scale on the document, working Auto out against the window as it stands. */
+export function applyGuiScale(setting: number): number {
+  const scale = setting > 0 ? setting : autoGuiScale();
+  document.documentElement.style.setProperty('--gui', String(scale));
+  return scale;
+}
+
 export function button(label: string, onClick: () => void, cls = ''): HTMLButtonElement {
   return h('button', { class: `btn ${cls}`, click: () => onClick() }, label);
 }

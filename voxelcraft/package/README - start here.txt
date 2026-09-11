@@ -1,6 +1,7 @@
 VOXELCRAFT
 A single-player voxel survival game modelled on Minecraft Java 1.21.11.
 Private, non-commercial. Runs in your browser, no internet needed once it is open.
+Plays on a computer with a keyboard and mouse, and on a phone or tablet by touch.
 
 
 HOW TO PLAY
@@ -36,6 +37,32 @@ CONTROLS
   F3               debug overlay
   F5               third person
   Esc              pause
+
+
+ON A PHONE OR A TABLET
+
+  The game has a touch edition: a thumb pad, a jump button, and the world
+  itself for looking around.
+
+  Start it on the computer as above. The window that opens prints a second
+  address, the one beginning 192.168 or 10. — that is the one the phone
+  wants. Put the phone on the same wi-fi, type that address into its browser,
+  and turn the phone sideways.
+
+  For a proper full screen with no address bar around it, use the browser's
+  "Add to Home Screen" and start it from the icon that appears.
+
+  TOUCH CONTROLS
+
+    Left pad         move
+    Right buttons    jump, crouch (and down while flying), sprint
+    Drag the world   look around
+    Tap the world    place, use, eat, open doors and chests
+    Hold the world   mine
+    Tap a slot       pick a hotbar slot
+    Bag / Chat       inventory and chat
+    Drop             drop what is in hand
+    II               pause
 
 
 WHERE TO START

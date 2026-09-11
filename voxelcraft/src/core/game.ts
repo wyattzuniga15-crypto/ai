@@ -56,6 +56,8 @@ import { items } from '../items/registry.ts';
 import { findCookingRecipe } from '../items/smelting.ts';
 import type { ItemStack } from '../items/inventory.ts';
 import { Hud, xpForLevel } from '../ui/hud.ts';
+import { guiScale } from '../ui/dom.ts';
+import { TouchControls, isTouchDevice } from '../ui/touch.ts';
 import { Chat } from '../ui/chat.ts';
 import { CreditsScreen } from '../ui/credits.ts';
 import { creativeScreen } from '../ui/screens/creative.ts';
@@ -196,6 +198,8 @@ export class Game {
   readonly loop: GameLoop;
   readonly sky: Sky;
   readonly hud: Hud;
+  /** The on-screen controls, on a phone or a tablet; nothing at all on a machine with a mouse. */
+  private readonly touch: TouchControls | null;
   readonly chat: Chat;
   readonly icons: ItemIcons;
   readonly baker: ModelBaker;
@@ -481,6 +485,11 @@ export class Game {
     this.entities = new EntityManager(host);
     this.container = opts.container;
     this.hud = new Hud(opts.container, this.icons);
+    if (isTouchDevice()) {
+      this.input.touch = true;
+      this.hud.onSlotTap = (i) => { this.player.inventory.selected = i; };
+      this.touch = new TouchControls(this.input, opts.container, { busy: () => this.state !== 'playing' || this.screen !== null });
+    } else this.touch = null;
     this.chat = new Chat(opts.container);
     this.chat.onSubmit = (t) => this.handleChat(t);
     this.chat.onClose = () => {
@@ -701,6 +710,7 @@ export class Game {
     await this.saveAll();
     this.input.exitLock();
     this.world.dispose();
+    this.touch?.dispose();
     this.hud.root.remove();
     this.chat.root.remove();
     this.renderer.renderer.dispose();
@@ -3917,8 +3927,8 @@ export class Game {
       let book: ReturnType<typeof attachRecipeBook> | null = null;
       screen.overlay = (root) => {
         if (!book) {
-          book = attachRecipeBook(root, { icons: this.icons, inventory: inv, grid, guiScale: this.options.guiScale, refresh: () => this.screen?.refresh() }, 3);
-          recipeBookButton(root, 5, 35, this.options.guiScale, () => book?.toggle());
+          book = attachRecipeBook(root, { icons: this.icons, inventory: inv, grid, guiScale: guiScale(), refresh: () => this.screen?.refresh() }, 3);
+          recipeBookButton(root, 5, 35, guiScale(), () => book?.toggle());
         }
       };
       this.openScreen(screen, () => {
@@ -6827,7 +6837,7 @@ export class Game {
         p.xpLevel = Math.max(0, p.xpLevel - n);
       },
       creative: () => p.gamemode === 'creative',
-      guiScale: this.options.guiScale,
+      guiScale: guiScale(),
       playSound: (name) => this.audio.play(name),
       giveXp: (n) => this.spawnXp(n, p.pos.x, p.pos.y + 1, p.pos.z),
     };
@@ -7000,7 +7010,7 @@ export class Game {
     if (this.player.gamemode === 'creative') {
       this.openScreen(creativeScreen(this.player.inventory, this.creativeState, {
         icons: this.icons,
-        guiScale: this.options.guiScale,
+        guiScale: guiScale(),
         openInventory: () => this.openSurvivalInventory(),
         refresh: () => this.screen?.refresh(),
       }));
@@ -7015,7 +7025,7 @@ export class Game {
     let preview: PlayerPreview | null = null;
     let book: ReturnType<typeof attachRecipeBook> | null = null;
     def.overlay = (root) => {
-      const s = this.options.guiScale;
+      const s = guiScale();
       if (!preview) {
         preview = new PlayerPreview(import.meta.env.BASE_URL, 49 * s, 70 * s);
         preview.canvas.style.cssText = `position:absolute;left:${26 * s}px;top:${8 * s}px;width:${49 * s}px;height:${70 * s}px;pointer-events:none;`;
@@ -7049,7 +7059,7 @@ export class Game {
     this.input.exitLock();
     const host = {
       icons: this.icons,
-      guiScale: this.options.guiScale,
+      guiScale: guiScale(),
       drop: (stack: ItemStack) => {
         const eye = this.player.eyePosition(1);
         const dir = this.player.lookDirection();
@@ -7089,6 +7099,7 @@ export class Game {
   // ---------------------------------------------------------------------------------------------
   private render(alpha: number, dt: number): void {
     const p = this.player;
+    this.touch?.update();
     if (this.state === 'playing') {
       const m = this.input.consumeMouse();
       p.applyMouse(m.dx, m.dy, this.options.sensitivity);

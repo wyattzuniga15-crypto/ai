@@ -1993,3 +1993,45 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      does the same in lava, and this shares the branch, so it does too. A pool four deep with a
      bank now takes 46 ticks to climb out of, holding nothing but forward.
 
+155. **The title screen as Mojang draws it, and a phone edition.**
+
+     *The title screen.* It was setting the name in text with a line under it. Vanilla draws a
+     picture: `minecraft.png` is a 256-by-44 logo taken off a 256-by-64 sheet, standing thirty
+     units down, with `edition.png` — 128 by 14 of a 128-by-16 sheet — overlapping its bottom by
+     seven. The rows below it start at height/4 + 48 and come every 24, and the last row sits a
+     further 84 down with the language and accessibility buttons bracketing Options and Quit at
+     twenty units square. The splash is centred on (width/2 + 90, 70), turned twenty degrees, and
+     sized 100 over the width the line needs so a long one still fits — all of which it now is.
+     The version goes in the bottom-left corner and the copyright in the bottom-right, which is
+     where vanilla puts them. The two square buttons open screens rather than doing nothing: the
+     language list, which has the one language this ships, and an accessibility screen holding the
+     settings of ours that belong on one.
+
+     *Auto interface scale.* Vanilla's default is Auto, and Auto grows the scale for as long as the
+     screen still measures 320 by 240 of its own units. That is now the default here too, worked
+     out again whenever the window changes shape. It turned up one thing on the way: the container
+     screens were laying their slots out from the raw setting, so Auto — which is zero — gave every
+     slot in the inventory a width of nothing. They take the resolved scale now.
+
+     *The phone.* A touch screen has no keyboard, no mouse and no pointer to lock, so the controls
+     are Bedrock's: a thumb pad bottom-left, jump and crouch and sprint bottom-right, the hotbar
+     between them with each slot taking a tap, and everything above given over to looking around.
+     Mining and placing follow Bedrock too — a tap on the world uses what is in hand, a finger held
+     still on it mines, and a drag looks and never mines, so turning to face something cannot break
+     what you were already looking at.
+
+     None of that needed a new path through the game: the on-screen controls report the same actions
+     the keys report, and asking for the pointer simply means "I have the screen now". What did need
+     care is that a tap on a phone also fires the mouse events a mouse would fire, which turned the
+     head twice and hit twice until those were ignored in touch mode. Auto scale never goes below 2
+     on a touch screen, because the rule alone lands a phone on 1 where no control is big enough to
+     hit with a thumb; the rows are also kept clear of the bottom line, which vanilla does not
+     bother with because vanilla is not played on a screen that short. The page declares a manifest
+     so "Add to Home Screen" gives a real full screen, asks for landscape, says so when the phone is
+     stood up, and keeps its controls clear of a notch.
+
+     *Getting it onto the phone.* A server that only answers to the machine it runs on is one a
+     phone cannot reach, so the packed folder's server now answers on the wi-fi as well and prints
+     the address to type in. It hands out the files in its own folder and nothing else. `npm start
+     -- --phone` does the same for the development server.
+

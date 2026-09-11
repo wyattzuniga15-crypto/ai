@@ -99,6 +99,15 @@ export class Input {
   private readonly mouseClicked = new Set<number>();
   private readonly mouseClickedTick = new Set<number>();
   locked = false;
+  /**
+   * Set on a phone or tablet, where there is no pointer to lock: the on-screen controls stand in
+   * for the keyboard and the mouse, and `locked` is simply whether the game has the screen.
+   */
+  touch = false;
+  /** Actions an on-screen control is holding down, and the edges those presses made. */
+  private readonly touchHeld = new Set<Action>();
+  private readonly touchPressedNow = new Set<Action>();
+  private readonly touchPressedTick = new Set<Action>();
   /** When false, game actions are ignored (a menu or text field has focus). */
   enabled = true;
   bindings: Record<Action, string> = { ...DEFAULT_BINDINGS };
@@ -117,13 +126,15 @@ export class Input {
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
     window.addEventListener('blur', () => this.down.clear());
+    // a tap on a touch screen also fires the mouse events a mouse would, and the on-screen controls
+    // have already reported it; letting both through turns the head twice and hits twice
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
+      if (!this.locked || this.touch) return;
       this.mouseDX += e.movementX;
       this.mouseDY += e.movementY;
     });
     element.addEventListener('mousedown', (e) => {
-      if (!this.locked) return;
+      if (!this.locked || this.touch) return;
       e.preventDefault();
       this.mouseDown.add(e.button);
       this.mouseClicked.add(e.button);
@@ -146,7 +157,53 @@ export class Input {
     });
   }
 
+  /** Holds or releases an action from an on-screen control, edges and all. */
+  touchHold(action: Action, down: boolean): void {
+    if (!down) {
+      this.touchHeld.delete(action);
+      return;
+    }
+    if (!this.touchHeld.has(action)) {
+      this.touchPressedNow.add(action);
+      this.touchPressedTick.add(action);
+    }
+    this.touchHeld.add(action);
+  }
+
+  /** A tap: pressed and let go inside the one frame, for the things that only want an edge. */
+  touchTap(action: Action): void {
+    this.touchPressedNow.add(action);
+    this.touchPressedTick.add(action);
+  }
+
+  /** A drag across the screen, which turns the head the way moving the mouse would. */
+  touchLook(dx: number, dy: number): void {
+    this.mouseDX += dx;
+    this.mouseDY += dy;
+  }
+
+  /** A finger on the world, which stands for holding a mouse button over it. */
+  touchButton(button: number, down: boolean): void {
+    if (down) {
+      this.mouseDown.add(button);
+      this.mouseClicked.add(button);
+      this.mouseClickedTick.add(button);
+    } else this.mouseDown.delete(button);
+  }
+
+  /** Releases everything an on-screen control was holding (the controls going away, or a screen). */
+  clearTouch(): void {
+    this.touchHeld.clear();
+    this.mouseDown.clear();
+  }
+
   requestLock(): void {
+    // there is no pointer to lock on a touch screen; the game asks for it to mean "I have the
+    // screen now", and the on-screen controls are what answer that
+    if (this.touch) {
+      this.setLocked(true);
+      return;
+    }
     const now = performance.now();
     if (now - this.lastLockRequest < 100) return;
     this.lastLockRequest = now;
@@ -159,7 +216,22 @@ export class Input {
   }
 
   exitLock(): void {
+    if (this.touch) {
+      this.clearTouch();
+      this.setLocked(false);
+      return;
+    }
     if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  private setLocked(v: boolean): void {
+    if (this.locked === v) return;
+    this.locked = v;
+    if (!v) {
+      this.down.clear();
+      this.mouseDown.clear();
+    }
+    this.onLockChange?.(v);
   }
 
   /** Replaces the binding table with defaults plus the given overrides. */
@@ -169,6 +241,7 @@ export class Input {
 
   isDown(action: Action): boolean {
     if (!this.enabled) return false;
+    if (this.touchHeld.has(action)) return true;
     const code = this.bindings[action];
     const mb = mouseButtonOf(code);
     if (mb >= 0) return this.mouseDown.has(mb);
@@ -177,6 +250,7 @@ export class Input {
 
   wasPressed(action: Action): boolean {
     if (!this.enabled) return false;
+    if (this.touchPressedNow.has(action)) return true;
     const code = this.bindings[action];
     const mb = mouseButtonOf(code);
     if (mb >= 0) return this.mouseClicked.has(mb);
@@ -186,6 +260,7 @@ export class Input {
   /** Edge-triggered press as seen by the 20 TPS simulation (cleared by `endTick`). */
   tickPressed(action: Action): boolean {
     if (!this.enabled) return false;
+    if (this.touchPressedTick.has(action)) return true;
     const code = this.bindings[action];
     const mb = mouseButtonOf(code);
     if (mb >= 0) return this.mouseClickedTick.has(mb);
@@ -226,12 +301,14 @@ export class Input {
   endFrame(): void {
     this.pressedNow.clear();
     this.mouseClicked.clear();
+    this.touchPressedNow.clear();
   }
 
   /** Call at the end of every simulation tick to clear tick-side edge state. */
   endTick(): void {
     this.pressedTick.clear();
     this.mouseClickedTick.clear();
+    this.touchPressedTick.clear();
   }
 }
 

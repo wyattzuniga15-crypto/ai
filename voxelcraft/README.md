@@ -34,6 +34,7 @@ records stay out of it — they are three hundred megabytes on their own — and
 ```sh
 npm start -- --sounds   # with the music and the long sounds as well (a bigger download, once)
 npm start -- --build    # build the static site and serve that instead
+npm start -- --phone    # also serve to the wi-fi, so a phone can open it
 npm start -- --force    # re-fetch everything
 ```
 
@@ -88,6 +89,20 @@ box model format `src/entities/boxModel.ts` uses.
 | F3 | Debug overlay |
 | F5 | Toggle third person |
 | Esc | Pause menu |
+
+On a phone or a tablet the game lays Bedrock's own arrangement over the world instead, and the
+packed folder's launcher prints the address to open on it. "Add to Home Screen" in the phone's
+browser gives a full screen with nothing around it.
+
+| Touch | Action |
+| --- | --- |
+| Left pad | Move |
+| Right buttons | Jump · crouch (down while flying) · sprint |
+| Drag the world | Look around |
+| Tap the world | Place / use |
+| Hold the world | Mine |
+| Tap a hotbar slot | Select it |
+| Bag · Chat · Drop · II | Inventory · chat · drop · pause |
 
 Commands: `/gamemode <survival|creative|spectator>`, `/time set <day|noon|night|midnight|n>`,
 `/tp x y z`, `/give <item> [count]`, `/clear`, `/seed`, `/kill`, `/heal`, `/setblock x y z <block>`,

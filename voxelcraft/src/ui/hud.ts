@@ -38,6 +38,8 @@ export function renderSlot(el: HTMLElement, stack: ItemStack | null, icons: Item
 
 export class Hud {
   readonly root: HTMLElement;
+  /** Set on a touch screen, where tapping a hotbar slot is how a slot gets picked. */
+  onSlotTap: ((i: number) => void) | null = null;
   private raidBar: HTMLElement | null = null;
   private readonly hotbarSlots: HTMLElement[] = [];
   private readonly hotbarSel: HTMLElement;
@@ -72,6 +74,12 @@ export class Hud {
     for (let i = 0; i < 9; i++) {
       const s = h('div', { class: 'slot' });
       s.style.left = `calc(${3 + i * 20}px * var(--gui))`;
+      // with no scroll wheel and no number row, the slot itself is what picks a slot
+      s.addEventListener('pointerdown', (e) => {
+        if (!this.onSlotTap) return;
+        e.preventDefault();
+        this.onSlotTap(i);
+      });
       this.hotbarSlots.push(s);
       this.hotbar.append(s);
     }

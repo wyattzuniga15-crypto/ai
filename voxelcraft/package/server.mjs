@@ -7,6 +7,7 @@
  */
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +20,18 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ogg': 'audio/ogg', '.txt': 'text/plain; charset=utf-8', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json',
 };
+
+/** This machine's address on the network the phone is also on, if it has one. */
+function lanAddress() {
+  for (const cards of Object.values(os.networkInterfaces())) {
+    for (const card of cards ?? []) {
+      if (card.family === 'IPv4' && !card.internal) return card.address;
+    }
+  }
+  return null;
+}
 
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent((req.url ?? '/').split('?')[0]);
@@ -45,10 +57,19 @@ function listen(port, tries = 20) {
     if (e.code === 'EADDRINUSE' && tries > 0) listen(port + 1, tries - 1);
     else throw e;
   });
-  server.listen(port, '127.0.0.1', () => {
+  // listening on every address is what lets a phone on the same wi-fi reach it; the server hands
+  // out the files in this folder and nothing else
+  server.listen(port, '0.0.0.0', () => {
     const url = `http://localhost:${port}/`;
+    const lan = lanAddress();
     console.log(`\n  Voxelcraft is running at ${url}`);
-    console.log('  Close this window (or press Ctrl+C) to stop it.\n');
+    if (lan) {
+      console.log(`\n  To play on a phone or a tablet, put it on the same wi-fi and open`);
+      console.log(`      http://${lan}:${port}/`);
+      console.log('  Turn the phone sideways. For a proper full screen with no address bar,');
+      console.log('  use the browser\'s "Add to Home Screen" and start it from there.');
+    }
+    console.log('\n  Close this window (or press Ctrl+C) to stop it.\n');
     openWindow(url);
   });
 }

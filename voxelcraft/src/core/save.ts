@@ -255,16 +255,23 @@ export interface Options {
   bindings?: Partial<Record<string, string>>;
 }
 
-export const DEFAULT_OPTIONS: Options = { renderDistance: 8, fov: 70, sensitivity: 1, guiScale: 3, gamma: 0.5, volume: 1 };
+/** `guiScale: 0` is Auto, which is what vanilla's own default is. */
+export const DEFAULT_OPTIONS: Options = { renderDistance: 8, fov: 70, sensitivity: 1, guiScale: 0, gamma: 0.5, volume: 1 };
+
+/** A phone has a fraction of the memory and none of the fans, so it starts nearer than a desktop. */
+function defaults(): Options {
+  const phone = navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches;
+  return phone ? { ...DEFAULT_OPTIONS, renderDistance: 5 } : { ...DEFAULT_OPTIONS };
+}
 
 export function loadOptions(): Options {
   try {
     const raw = localStorage.getItem('voxelcraft.options');
-    if (raw) return { ...DEFAULT_OPTIONS, ...(JSON.parse(raw) as Partial<Options>) };
+    if (raw) return { ...defaults(), ...(JSON.parse(raw) as Partial<Options>) };
   } catch {
     /* ignore */
   }
-  return { ...DEFAULT_OPTIONS };
+  return defaults();
 }
 
 export function saveOptions(o: Options): void {

@@ -6,6 +6,7 @@
  *   npm start -- --sounds     with Mojang's own sound effects (57 MB, once)
  *   npm start -- --music      and the music and the records as well (another 315 MB)
  *   npm start -- --build      build first and serve the static site instead
+ *   npm start -- --phone      also serve to the network, so a phone on the same wi-fi can play
  *   npm start -- --force      re-fetch everything, even what is already here
  *
  * Everything it downloads lands in gitignored folders. Nothing Mojang-owned is committed.
@@ -56,11 +57,18 @@ if ((has('--sounds') || wantsMusic) && (force || missing('public/sounds') || (wa
 // on a machine with no desktop to open anything on, it just serves and says where
 const desktop = process.platform === 'darwin' || process.platform === 'win32' || !!process.env.DISPLAY;
 const open = desktop ? ['--open'] : [];
+// a phone cannot reach a server that only answers to this machine, so --phone puts it on the wi-fi
+// and prints the address to type in; vite lists every one of this machine's addresses itself
+const phone = has('--phone') ? ['--host'] : [];
+if (phone.length) {
+  console.log('\nOn the phone: join the same wi-fi, open the Network address below, and turn it');
+  console.log('sideways. "Add to Home Screen" in the browser gives a proper full screen.');
+}
 if (has('--build')) {
   run('Building', 'npx', ['vite', 'build']);
   console.log('\nPress Ctrl+C to stop.\n');
-  run('Serving', 'npx', ['vite', 'preview', ...open]);
+  run('Serving', 'npx', ['vite', 'preview', ...open, ...phone]);
 } else {
   console.log('\nPress Ctrl+C to stop.\n');
-  run('Serving', 'npx', ['vite', ...open]);
+  run('Serving', 'npx', ['vite', ...open, ...phone]);
 }

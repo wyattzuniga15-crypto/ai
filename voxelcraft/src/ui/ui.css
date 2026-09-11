@@ -79,16 +79,26 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 }
 .panorama-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
 
-.title-logo { margin-top: 9vh; margin-bottom: calc(12px * var(--gui)); text-align: center; }
-.title-logo .wordmark { font-size: calc(20px * var(--gui)); line-height: 1; letter-spacing: calc(1px * var(--gui)); text-shadow: calc(2px * var(--gui)) calc(2px * var(--gui)) 0 #3f3f3f; }
-.title-logo .edition { font-size: calc(6px * var(--gui)); color: #d0d0d0; margin-top: calc(2px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; }
-/* the splash sits off the logo's shoulder, yellow and bouncing, as vanilla draws it */
-/* vanilla hangs it off the logo's bottom-right corner, clear of the letters */
-.title-logo .splash { position: absolute; left: 100%; top: calc(18px * var(--gui)); margin-left: calc(-22px * var(--gui)); color: #ffff00; font-size: calc(6px * var(--gui)); text-shadow: var(--px) var(--px) 0 #3f3f3f; white-space: nowrap; transform-origin: left center; }
+/* Mojang's own title logo, on his own measurements: the wordmark is 256x44 of a 256x64 sheet,
+   standing 30 units down, and the edition strip is 128x14 of a 128x16 sheet, overlapping it by 7 */
+.title-logo { position: absolute; left: 50%; top: calc(30px * var(--gui)); width: calc(256px * var(--gui)); height: calc(44px * var(--gui)); transform: translateX(-50%); }
+.title-logo .wordmark { position: absolute; inset: 0; background: url('/textures/gui/title/minecraft.png') no-repeat left top; background-size: 100% calc(100% * 64 / 44); image-rendering: pixelated; }
+.title-logo .edition { position: absolute; left: 50%; top: calc(37px * var(--gui)); width: calc(128px * var(--gui)); height: calc(14px * var(--gui)); transform: translateX(-50%); background: url('/textures/gui/title/edition.png') no-repeat left top; background-size: 100% calc(100% * 16 / 14); image-rendering: pixelated; }
+/* vanilla centres the splash on (width/2 + 90, 70) and turns it twenty degrees; the bounce and the
+   size that keeps a long line on screen are set frame by frame, the way it sets them */
+.screen.title .splash { position: absolute; left: 50%; top: calc(70px * var(--gui)); margin-left: calc(90px * var(--gui)); color: #ffff00; font-size: var(--text); line-height: 1; text-shadow: var(--px) var(--px) 0 #3f3f3f; white-space: nowrap; transform-origin: center; transform: translate(-50%, -50%) rotate(-20deg); }
 
-.corner { position: absolute; bottom: calc(2px * var(--gui)); font-size: calc(6px * var(--gui)); color: #fff; text-shadow: var(--px) var(--px) 0 #3f3f3f; }
-.corner.left { left: calc(2px * var(--gui)); }
-.corner.right { right: calc(2px * var(--gui)); }
+/* vanilla's own rows: the first button at height/4 + 48, then every 24, and the bottom row at +84 */
+/* vanilla puts the rows at height/4 + 48 and lets them run off a short screen; a phone held on its
+   side is exactly that screen, so the block is also kept clear of the line along the bottom */
+.screen.title .menu { position: absolute; left: 50%; top: min(calc(25vh + 48px * var(--gui)), calc(100% - 118px * var(--gui))); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.screen.title .menu > .btn { margin: 0 0 calc(4px * var(--gui)); }
+.screen.title .menu .row.bottom { margin-top: calc(12px * var(--gui)); gap: calc(4px * var(--gui)); align-items: center; }
+
+.corner { position: absolute; bottom: calc(2px * var(--gui)); font-size: var(--text); line-height: 1; color: #fff; text-shadow: var(--px) var(--px) 0 #3f3f3f; white-space: nowrap; }
+/* a phone in landscape puts its notch down one side, and the page is drawn under it */
+.corner.left { left: calc(2px * var(--gui) + env(safe-area-inset-left, 0px)); }
+.corner.right { right: calc(2px * var(--gui) + env(safe-area-inset-right, 0px)); }
 
 /* What sits behind a screen. Since 1.20.5 vanilla blurs what was already there rather than laying
    dirt over it: the panorama when the screen came from the title, the world when it came from
@@ -120,6 +130,14 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 .btn.quarter, .btn.tiny { font-size: calc(6px * var(--gui)); }
 .btn.half, .btn.small { font-size: calc(7px * var(--gui)); }
 .row { display: flex; gap: calc(4px * var(--gui)); }
+/* vanilla's square icon buttons: the ordinary widget with a 15x15 sprite centred on it. The widget
+   is a border-image with `fill`, which paints over the element's own background, so the sprite goes
+   on a layer of its own above it. */
+.btn.icon { position: relative; width: calc(20px * var(--gui)); padding: 0; }
+.btn.icon::after { content: ''; position: absolute; inset: 0; background-repeat: no-repeat; background-position: center; background-size: calc(15px * var(--gui)) calc(15px * var(--gui)); image-rendering: pixelated; }
+.btn.icon.language::after { background-image: url('/textures/gui/sprites/icon/language.png'); }
+.btn.icon.accessibility::after { background-image: url('/textures/gui/sprites/icon/accessibility.png'); }
+.btn.icon:disabled::after { opacity: 0.5; }
 .col { display: flex; flex-direction: column; align-items: center; }
 .panel { display: flex; flex-direction: column; align-items: center; }
 
@@ -228,3 +246,55 @@ h2 { font-size: var(--text); font-weight: normal; margin: 0 0 calc(8px * var(--g
 #credits h2 { font-size: 20px; text-align: center; color: #ffd75f; margin: 44px 0 12px; text-shadow: 2px 2px #3f3f3f; }
 #credits .role { text-align: center; color: #a0a0ff; font-size: 13px; margin-top: 12px; }
 #credits .name { text-align: center; color: #e0e0e0; font-size: 13px; }
+
+/* ---------------------------------------------------------------------------------------------
+   The phone edition. Bedrock's own arrangement: a thumb pad on the left, jump and its neighbours
+   on the right, the hotbar between them, and everything else given over to looking around. The
+   controls are sized in GUI units like the rest of the interface, so they grow with it.
+   --------------------------------------------------------------------------------------------- */
+html.touch, html.touch body { overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+html.touch canvas { touch-action: none; }
+
+/* the document carries `touch` as a flag; the controls are their own element, so a selector for
+   one can never pick up the other */
+#touch-controls { position: absolute; inset: 0; pointer-events: none; z-index: 4; touch-action: none; font-family: var(--font); }
+#touch-controls.hidden { display: none; }
+#touch-controls > * { pointer-events: auto; }
+/* the hotbar keeps the bottom strip to itself, so a thumb reaching for a slot never turns the head */
+.touch-look { position: absolute; left: 0; right: 0; top: 0; bottom: calc(24px * var(--gui)); pointer-events: auto; }
+/* the HUD lets everything through by default; on a phone the hotbar is a control and has to catch */
+html.touch #hotbar { pointer-events: auto; }
+
+.touch-btn {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  width: calc(22px * var(--gui)); height: calc(22px * var(--gui));
+  background: rgba(0, 0, 0, 0.35); border: var(--px) solid rgba(255, 255, 255, 0.45);
+  color: #fff; font-size: calc(9px * var(--gui)); line-height: 1; text-shadow: var(--px) var(--px) 0 #3f3f3f;
+}
+.touch-btn.on { background: rgba(255, 255, 255, 0.4); border-color: #fff; }
+.touch-btn.small { width: auto; min-width: calc(16px * var(--gui)); height: calc(14px * var(--gui)); padding: 0 calc(3px * var(--gui)); font-size: calc(6px * var(--gui)); }
+
+/* the pad: forward over a row of back, left and right, a thumb's reach from the bottom corner */
+.touch-pad { position: absolute; left: calc(6px * var(--gui) + env(safe-area-inset-left, 0px)); bottom: calc(6px * var(--gui) + env(safe-area-inset-bottom, 0px)); width: calc(70px * var(--gui)); height: calc(46px * var(--gui)); pointer-events: none; }
+.touch-pad .touch-btn { pointer-events: auto; }
+.touch-pad .up { left: calc(24px * var(--gui)); top: 0; }
+.touch-pad .left { left: 0; bottom: 0; }
+.touch-pad .down { left: calc(24px * var(--gui)); bottom: 0; }
+.touch-pad .right { left: calc(48px * var(--gui)); bottom: 0; }
+
+.touch-right { position: absolute; right: calc(6px * var(--gui) + env(safe-area-inset-right, 0px)); bottom: calc(6px * var(--gui) + env(safe-area-inset-bottom, 0px)); width: calc(48px * var(--gui)); height: calc(46px * var(--gui)); pointer-events: none; }
+.touch-right .touch-btn { pointer-events: auto; }
+.touch-right .jump { right: 0; bottom: 0; width: calc(26px * var(--gui)); height: calc(26px * var(--gui)); }
+.touch-right .crouch { left: 0; bottom: 0; }
+.touch-right .sprint { right: 0; top: 0; width: calc(18px * var(--gui)); height: calc(18px * var(--gui)); font-size: calc(8px * var(--gui)); }
+
+.touch-top { position: absolute; left: calc(4px * var(--gui) + env(safe-area-inset-left, 0px)); top: calc(4px * var(--gui) + env(safe-area-inset-top, 0px)); display: flex; gap: calc(3px * var(--gui)); pointer-events: none; }
+/* the chat sits above the thumb pad on a phone, where it used to be drawn straight across it */
+html.touch #chat { left: calc(4px * var(--gui) + env(safe-area-inset-left, 0px)); bottom: calc(56px * var(--gui)); width: min(640px, 62vw); }
+.touch-top .touch-btn { position: relative; pointer-events: auto; }
+
+/* a phone is held on its side; standing it up leaves nowhere for the controls to go */
+#rotate { position: absolute; inset: 0; z-index: 30; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #000; color: #fff; font-family: var(--font); font-size: 18px; text-align: center; padding: 24px; }
+html.touch #rotate.on { display: flex; }
+#rotate .glyph { font-size: 56px; animation: rotate-hint 2s ease-in-out infinite; }
+@keyframes rotate-hint { 0%, 45% { transform: rotate(0deg); } 55%, 100% { transform: rotate(-90deg); } }
