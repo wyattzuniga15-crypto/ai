@@ -48,8 +48,6 @@ uniform vec3  sunPosition;
 uniform vec3  upPosition;
 uniform float nightVision;
 uniform int   frameCounter;
-uniform float near;
-uniform float far;
 uniform float viewWidth;
 uniform float viewHeight;
 
@@ -110,7 +108,7 @@ void main() {
     float ao = 1.0;
 #ifdef SSAO
     ao = blurSSAO(colortex3, depthtex0, texcoord,
-                  1.0 / vec2(viewWidth, viewHeight), depth, near, far);
+                  1.0 / vec2(viewWidth, viewHeight), depth, gbufferProjection);
 #endif
 
     vec3 color = computeLighting(albedo, normal, lm, shadowLit, ao, ctx, nightVision);

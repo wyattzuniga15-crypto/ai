@@ -23,9 +23,17 @@ const float HALF_PI = 1.57079632679490;
 #define MAT_ENTITY  0.3
 #define MAT_HAND    0.5
 #define MAT_WATER   0.7
+#define MAT_TRANSLUCENT 0.8
 #define MAT_SKY     0.9
 
 bool matchMat(float stored, float id) { return abs(stored - id) < 0.05; }
+
+/* Block ids handed to the vertex stage in mc_Entity.x, assigned in
+   block.properties. Distinct from the MAT_* gbuffer ids above: these identify
+   the *block*, those identify what a screen pixel holds. Blocks with no entry
+   in block.properties report -1.0. */
+#define MAT_ID_WATER 1.0
+#define MAT_ID_GLASS 2.0
 
 // ---- Small math ------------------------------------------------------------
 float sq(float x)  { return x * x; }

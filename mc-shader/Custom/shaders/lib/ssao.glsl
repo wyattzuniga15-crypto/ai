@@ -26,7 +26,7 @@
    Including programs must declare:
        uniform sampler2D depthtex0;
        uniform mat4 gbufferProjection, gbufferProjectionInverse;
-       uniform float near, far;
+       uniform mat4 gbufferProjection (for the depth-aware blur);
    ========================================================================= */
 
 #if SSAO_QUALITY == 0
@@ -100,8 +100,8 @@ float computeSSAO(sampler2D depthTex, vec2 texcoord, vec3 viewPos,
    silhouette edges and leaves a bright halo around every object. Weighting by
    depth similarity keeps the blur inside surfaces. */
 float blurSSAO(sampler2D aoTex, sampler2D depthTex, vec2 texcoord,
-               vec2 texelSize, float centerDepth, float nearP, float farP) {
-    float centerLinear = linearizeDepth(centerDepth, nearP, farP);
+               vec2 texelSize, float centerDepth, mat4 proj) {
+    float centerLinear = linearizeDepth(centerDepth, proj);
     float total  = texture(aoTex, texcoord).r;
     float weight = 1.0;
 
@@ -117,7 +117,7 @@ float blurSSAO(sampler2D aoTex, sampler2D depthTex, vec2 texcoord,
         float d = texture(depthTex, uv).r;
         if (d >= 1.0) continue;
 
-        float linearD = linearizeDepth(d, nearP, farP);
+        float linearD = linearizeDepth(d, proj);
         // Falls to zero across roughly a quarter block of depth difference,
         // which is tight enough to preserve block edges.
         float w = exp(-abs(linearD - centerLinear) * 8.0);

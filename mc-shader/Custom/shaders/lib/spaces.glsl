@@ -46,10 +46,21 @@ vec3 playerToView(vec3 playerPos, mat4 mv) {
 vec3 viewDirToPlayer(vec3 dir, mat4 mvInverse) { return mat3(mvInverse) * dir; }
 vec3 playerDirToView(vec3 dir, mat4 mv)        { return mat3(mv) * dir; }
 
-// Linearise a hardware depth value into a positive distance along the view
-// axis. near/far are the Iris uniforms of the same name.
-float linearizeDepth(float depth, float near, float far) {
-    return (near * far) / (depth * (near - far) + far);
+/* Linearise a hardware depth value into a positive distance along the view
+   axis, inverted straight out of the projection matrix.
+
+   Note this deliberately does NOT take the `near`/`far` uniforms. Iris's `far`
+   is the render distance in blocks, *not* the far clip plane - the docs are
+   explicit that the actual far plane is roughly `far * 4.0`. Feeding `far`
+   into the usual near/far linearisation silently produces wrong distances.
+   The projection matrix always holds the real planes, so use it.
+
+       ndc.z = (P[2][2]*viewZ + P[3][2]) / -viewZ
+   solves to
+       -viewZ = P[3][2] / (ndc.z + P[2][2])                                  */
+float linearizeDepth(float depth, mat4 proj) {
+    float ndcZ = depth * 2.0 - 1.0;
+    return proj[3][2] / (ndcZ + proj[2][2]);
 }
 
 /* ---- Shadow space ---------------------------------------------------------

@@ -51,3 +51,35 @@ option.SSAO_STRENGTH.comment=How dark the occlusion gets.
 option.SSAO_RADIUS=AO Radius
 option.SSAO_RADIUS.comment=How far, in blocks, a surface looks for things occluding it. Larger radii catch bigger features but sample more sparsely.
 suffix.SSAO_RADIUS= blocks
+
+screen.WATER=Water
+
+option.WATER_WAVES=Waves
+option.WATER_WAVES.comment=Displaces the water surface with three travelling waves. The surface normal is the exact derivative of that displacement, so highlights sit on the crests instead of sliding around.
+
+option.WAVE_STRENGTH=Wave Height
+option.WAVE_STRENGTH.comment=How tall the waves are. Water is a flat quad at the top of its block, so very tall waves will poke into the block above.
+
+option.WAVE_SPEED=Wave Speed
+option.WAVE_SPEED.comment=How fast the waves travel.
+
+option.WATER_NORMAL_STRENGTH=Ripple Detail
+option.WATER_NORMAL_STRENGTH.comment=Strength of the surface normal relative to the actual displacement. Above 1 this adds ripple detail finer than the block-corner vertex grid could ever represent. Costs nothing.
+
+option.SSR=Reflections
+option.SSR.comment=Screen-space reflections on water. Only reflects what is already on screen; anything else falls back to the sky colour.
+
+option.SSR_QUALITY=Reflection Quality
+option.SSR_QUALITY.comment=How many steps each reflection ray takes. Low can miss thin or distant geometry and fall back to sky.
+value.SSR_QUALITY.0=Low
+value.SSR_QUALITY.1=Medium
+value.SSR_QUALITY.2=High
+
+option.WATER_ABSORPTION=Water Clarity
+option.WATER_ABSORPTION.comment=How fast light is absorbed with depth. Higher means shallow water stays clear but deep water goes dark blue-green sooner. 0 makes water completely clear.
+
+option.WATER_REFRACTION=Refraction
+option.WATER_REFRACTION.comment=Bends what you see through the water surface, following the waves.
+
+option.WATER_CAUSTICS=Caustics
+option.WATER_CAUSTICS.comment=The rippling bands of focused light on surfaces underwater.

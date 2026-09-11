@@ -79,6 +79,8 @@ bloom and auto-exposure.
 | `colortex1` | RGBA16F | `rgb` player-space normal remapped to 0..1, `a` material id |
 | `colortex2` | RGBA16F | `rg` normalised 0..1 lightmap (block, sky), `ba` unused |
 | `colortex3` | R16F | `r` ambient occlusion, 1.0 = unoccluded |
+| `colortex4` | RGBA16F | `rgb` translucent surface colour (lit), `a` alpha (0 for water) |
+| `colortex5` | RGBA16F | `rgb` translucent player-space normal, `a` `MAT_WATER`/`MAT_TRANSLUCENT` |
 
 *(rows are added as later steps land)*
 
@@ -101,6 +103,7 @@ instead. Any gbuffer→gbuffer communication has to go through `colortex4`+.
 | `gbuffers_*` | Writes albedo + normal + lightmap, or self-shades and tags itself. |
 | `deferred` | SSAO into `colortex3`. Skipped entirely when SSAO is off. |
 | `deferred1` | Reconstructs position from depth, samples the shadow map, lights opaque geometry, applies fog. |
+| `composite` | Resolves translucents: refraction, absorption, Fresnel, SSR. Underwater caustics and fog. |
 | `final` | Copies `colortex0` to the backbuffer. |
 
 ### Step 1 — pass-through skeleton ✅ (`check.sh` clean)
@@ -254,6 +257,93 @@ The AO is blurred with 4 diagonal taps, depth-weighted. Diagonals cover the same
 footprint as a 3×3 box for under half the bandwidth, and the depth weighting is
 required — a plain blur drags AO across silhouettes and leaves a bright halo
 around every object.
+
+### Step 4 — water ✅ (`check.sh` clean)
+
+**`gbuffers_water` does not blend.** `blend.gbuffers_water = off`; the surface
+goes to `colortex4`/`colortex5` and `composite` resolves it. Both refraction and
+absorption need the scene *behind* the water, and blending destroys it. It also
+leaves `depthtex0` (with water) and `depthtex1` (without) as a free measurement
+of the path length through the water — which is exactly what Beer-Lambert wants.
+
+*Cost:* only the nearest translucent survives per pixel, so two stacked panes of
+glass resolve as one. Standard trade, worth it here.
+
+**Water identifies itself** through `block.properties` → `mc_Entity.x`.
+`gbuffers_water` receives *all* translucent terrain — stained glass, ice, slime,
+honey — so waves and absorption would otherwise apply to a pane of glass.
+
+**Waves.** Three travelling waves, non-parallel directions and non-harmonic
+frequencies (parallel waves make corduroy stripes; small-integer frequency
+ratios re-synchronise into a visibly repeating tile).
+
+Real Gerstner waves also displace *horizontally*, which is what sharpens their
+crests — but Minecraft's water surface only has vertices at block corners, so
+horizontal displacement tears the mesh at chunk seams. The crest shaping is
+instead `w = s²` where `s = sin(p)*0.5+0.5`: same pointed-crest, flat-trough
+profile from vertical displacement alone, and exactly differentiable.
+
+**The normal is the analytic derivative of that displacement**, not a separate
+noise texture — `dw/dp = 2s·ds/dp = s·cos(p)`, chained through
+`d(phase)/d(xz) = freq·dir`. A sampled normal map and a displaced mesh disagree
+about where the crests are, and the mismatch shows up as highlights sliding off
+the waves. `WATER_NORMAL_STRENGTH` scales only the shading normal, which is a
+legitimate cheat — it adds ripple detail finer than the block-corner vertex grid
+can represent.
+
+**Wave phase is continuous across the `frameTimeCounter` wrap.** That uniform
+resets at exactly 3600s. The temporal frequencies are snapped so each wave
+completes a whole number of cycles in that period (630, 934, 1438), costing at
+most 0.04% of the intended speed and avoiding the whole ocean jumping once an
+hour.
+
+**Water waves in the shadow pass too**, by the identical amount. If the shadow
+map held the undisplaced surface while the visible geometry was displaced, water
+would compare against a depth belonging to a slightly different surface and
+stripe itself with self-shadowing. The displacement is along world Y and the
+shadow camera is not world-aligned, so world-up is rotated into shadow view
+space — one `mat3` multiply, no per-vertex matrix inverse.
+
+**Absorption** is Beer-Lambert with per-channel coefficients
+`(0.52, 0.16, 0.09)` per block. Red is absorbed fastest and blue-green slowest,
+which is *why* deep water goes blue-green — not because it is "tinted blue" but
+because everything else has already been absorbed. Shallow water is clear for
+free, from the same equation. Scatter follows ambient light level
+(`scatterLightScale`), because water still glowing blue-green at midnight is one
+of the most obvious tells of a shader faking it.
+
+**Fresnel** is Schlick with `F0 = 0.02`. At normal incidence only 2% reflects —
+which is why you can see straight down into still water and why it turns
+mirror-like at a glancing angle. Seen from below, Fresnel is driven to 1 past
+the critical angle to approximate total internal reflection.
+
+**Refraction** shifts the background sample by `t·(1 − 1/η)·tan(tilt)` with
+η = 1.33, converted to UV through the projection scale over distance. The offset
+is rejected if what it lands on turns out to be *in front of* the water — a boat
+on the surface would otherwise smear across it.
+
+**SSR** marches in view space with the step projected to screen each iteration,
+not in screen space directly: equal screen steps mean wildly different world
+distances under perspective, which either over-steps near geometry or wastes
+iterations far away. Step length grows 1.35× per iteration, with a dithered
+start to break up banding, then 5 binary halvings to refine the hit.
+
+It marches **`depthtex1`** (opaque only) — marching `depthtex0` would let the
+ray immediately hit the water surface it just left. A hit is rejected if the ray
+ended up more than two step-lengths *behind* the surface, which means it jumped
+past a thin object into empty space and would otherwise smear that object's
+colour across the reflection. Misses fall back to the analytic sky, and hits
+fade toward it near the screen border rather than ending abruptly.
+
+**Underwater** fog measures against `depthtex0` (which includes the water
+surface), not `depthtex1`. Looking up from below, the water volume ends at the
+surface — measuring past it would fog the air above as though it were water.
+Caustics are two ridged noise layers multiplied together: ridging turns each
+blob into a thin crest, and multiplying keeps only where several layers agree,
+which is what turns blobs into the branching filaments real caustics make. They
+are gated by sky exposure, so no sun through a cave roof means no caustics on
+its floor, and skipped on the underside of the surface, which has already been
+resolved as a reflection.
 
 ---
 
