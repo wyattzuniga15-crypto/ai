@@ -68,26 +68,41 @@ vec3 playerToShadowClip(vec3 playerPos, mat4 shadowMV, mat4 shadowProj) {
 
    An orthographic shadow map spreads its texels evenly over the whole shadow
    distance, which wastes most of them on terrain far behind the player. This
-   warps shadow-clip XY toward the centre so that near geometry - which is what
-   you actually look at - gets a much larger share of the texels.
+   warps shadow-clip XY toward the centre so near geometry - the only shadows
+   you look at closely - gets a much larger share of the texels.
 
-   The warp has to be cheap and, critically, exactly invertible in the sense
-   that both the writing and reading side apply the identical function. z is
-   scaled down separately: the warp compresses xy, which would otherwise make
-   the depth slope across a texel steeper and reintroduce acne.
+       factor(p) = (1 - k) + k * |p|          k = SHADOW_DISTORTION
+       warped(p) = p / factor(p)
 
-   SHADOW_DISTORTION of 0 disables the warp entirely. */
+   Chosen so that the two endpoints behave sensibly:
+     |p| = 0  ->  factor = 1-k, magnifying the centre by 1/(1-k)
+                  (6.7x at the default k = 0.85)
+     |p| = 1  ->  factor = 1, so the edge maps exactly to the edge and the
+                  map is filled rather than wasting a border.
+   It is monotonic in |p|, so the warp never folds over itself.
+   k is capped at 0.95 by the option list, keeping factor >= 0.05.
+   k = 0 gives factor == 1 everywhere, i.e. no distortion at all.
+
+   Both the writing side (shadow.vsh) and the reading side (deferred) call
+   this same function. If they ever disagree, shadows land in the wrong
+   texels, so it lives here rather than being written out twice. */
 float shadowDistortFactor(vec2 clipXY) {
-    return mix(1.0, length(clipXY), SHADOW_DISTORTION) + 0.08;
+    return (1.0 - SHADOW_DISTORTION) + SHADOW_DISTORTION * length(clipXY);
 }
 
+/* The depth axis is scaled down separately from xy.
+
+   Iris's default shadow projection maps a depth range tied to shadowDistance
+   into clip z of [-1, 1]. Tall terrain - and anything the sun is low over -
+   easily runs past the near/far planes and gets clipped, which shows up as
+   shadows that simply vanish. Halving z doubles the depth range that survives,
+   at the cost of one bit of depth precision, which the normal-offset bias
+   absorbs comfortably. */
+const float SHADOW_DEPTH_SCALE = 0.5;
+
 vec3 distortShadowClip(vec3 clipPos) {
-#if SHADOW_DISTORTION == 0
-    return clipPos;
-#else
     float f = shadowDistortFactor(clipPos.xy);
-    return vec3(clipPos.xy / f, clipPos.z * 0.2);
-#endif
+    return vec3(clipPos.xy / f, clipPos.z * SHADOW_DEPTH_SCALE);
 }
 
 // Full path: player space -> distorted shadow screen space (0..1), ready to

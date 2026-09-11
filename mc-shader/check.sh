@@ -198,6 +198,54 @@ for f in "${FILES[@]}"; do
   fi
 done
 
+
+# --- shaders.properties option audit ---------------------------------------
+# A screen/slider/profile entry naming an option that no GLSL file defines is
+# not an error in-game: Iris just silently omits the row. That is exactly the
+# kind of bug you only notice by scrolling the options screen looking for a
+# control that never appears, so check it here instead.
+cat > "$WORK/audit.py" <<'PYEOF'
+import re, sys, pathlib
+shader_dir = pathlib.Path(sys.argv[1])
+props = shader_dir / 'shaders.properties'
+if not props.is_file():
+    print("FATAL: no shaders.properties in %s" % shader_dir); sys.exit(1)
+
+defined = set()
+consts = set()
+for f in list(shader_dir.rglob('*.glsl')) + list(shader_dir.rglob('*.vsh')) \
+       + list(shader_dir.rglob('*.fsh')) + list(shader_dir.rglob('*.csh')):
+    t = f.read_text(errors='replace')
+    defined |= set(re.findall(r'^\s*(?://\s*)?#define\s+(\w+)', t, re.M))
+    consts  |= set(re.findall(r'^\s*const\s+\w+\s+(\w+)\s*=.*//\s*\[', t, re.M))
+known = defined | consts
+
+referenced = {}
+for n, line in enumerate(props.read_text().splitlines(), 1):
+    line = line.split('#')[0]
+    if re.match(r'\s*(screen(\.[A-Za-z_]+)?|sliders|profile\.\w+)\s*=', line):
+        if re.match(r'\s*screen(\.[A-Za-z_]+)?\.columns\s*=', line):
+            continue
+        for tok in line.split('=', 1)[1].split():
+            tok = tok.split('=')[0].split(':')[0].lstrip('!')
+            if tok.startswith('program.'):
+                continue
+            if re.fullmatch(r'[A-Za-z_]\w*', tok):
+                referenced.setdefault(tok, n)
+
+missing = sorted((t, l) for t, l in referenced.items() if t not in known)
+if missing:
+    print("FAIL  shaders.properties references options nothing defines:")
+    for t, l in missing:
+        print("    line %d: %s" % (l, t))
+    sys.exit(1)
+print("options: %d defined, %d wired into the GUI" % (len(known), len(referenced)))
+PYEOF
+
+if ! python3 "$WORK/audit.py" "$SHADER_DIR"; then
+  FAILED=$((FAILED+1)); FAIL_LIST+=("shaders.properties")
+fi
+
 echo "=============================================================="
 if [[ $FAILED -gt 0 ]]; then
   echo "RESULT: $FAILED FAILED, $PASSED passed"

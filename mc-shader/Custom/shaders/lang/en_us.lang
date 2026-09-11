@@ -1,0 +1,37 @@
+screen.SHADOWS=Shadows
+screen.LIGHTING=Lighting
+
+profile.comment=POTATO runs on anything. LOW is playable on integrated graphics. MEDIUM targets 60fps at 12 chunks on midrange hardware. HIGH is for headroom to spare.
+
+# ---- Shadows ---------------------------------------------------------------
+option.shadowMapResolution=Shadow Resolution
+option.shadowMapResolution.comment=Size of the shadow map, in pixels per side. The single biggest shadow quality/cost lever. 2048 is the sensible default; 4096 quadruples the memory and fill cost.
+
+option.shadowDistance=Shadow Distance
+option.shadowDistance.comment=How far from you shadows are drawn, in blocks. Raising this spreads the same number of shadow texels over more world, so distant shadows get softer AND nearer ones get blockier. Raise the resolution with it.
+suffix.shadowDistance= blocks
+
+option.SHADOW_QUALITY=Shadow Filter
+option.SHADOW_QUALITY.comment=How many taps the soft-shadow filter takes. Off gives hard, aliased edges but is nearly free.
+value.SHADOW_QUALITY.0=Hard
+value.SHADOW_QUALITY.1=Soft
+value.SHADOW_QUALITY.2=Softest
+
+option.SHADOW_SOFTNESS=Shadow Softness
+option.SHADOW_SOFTNESS.comment=Width of the soft shadow edge, in shadow texels. Costs nothing extra, but too wide and shadows start leaking through thin walls.
+
+option.SHADOW_BIAS_SCALE=Shadow Bias
+option.SHADOW_BIAS_SCALE.comment=Normal-offset bias strength. Raise it if you see shimmering stripes on lit surfaces (shadow acne). Lower it if shadows look detached from whatever is casting them.
+
+option.SHADOW_DISTORTION=Shadow Focus
+option.SHADOW_DISTORTION.comment=Concentrates shadow map texels near you, where you can actually see the detail, at the cost of distant shadow sharpness. 0 spreads them evenly.
+
+# ---- Lighting --------------------------------------------------------------
+option.SUNLIGHT_STRENGTH=Sunlight
+option.SUNLIGHT_STRENGTH.comment=Brightness of direct light from the sun and moon.
+
+option.SKYLIGHT_STRENGTH=Skylight
+option.SKYLIGHT_STRENGTH.comment=Brightness of ambient light from the sky. This is what fills in shadowed areas outdoors.
+
+option.BLOCKLIGHT_STRENGTH=Block Light
+option.BLOCKLIGHT_STRENGTH.comment=Brightness of light from torches, lava and other light-emitting blocks.

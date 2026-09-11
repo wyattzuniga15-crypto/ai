@@ -1,36 +1,30 @@
 #version 330 compatibility
 
 #include "/lib/common.glsl"
-#include "/lib/fog.glsl"
+#include "/lib/lighting.glsl"
 
 uniform sampler2D gtexture;
-uniform sampler2D lightmap;
 uniform float alphaTestRef;
-uniform vec3  fogColor;
-uniform float fogStart;
-uniform float fogEnd;
-uniform float fogDensity;
-uniform int   fogMode;
-uniform int   fogShape;
 
 in vec2 texcoord;
 in vec2 lmcoord;
 in vec4 glcolor;
-in vec3 viewPos;
+in vec3 normalPlayer;
 
-/* RENDERTARGETS: 0 */
-layout(location = 0) out vec4 outColor0;
+/* RENDERTARGETS: 0,1,2 */
+layout(location = 0) out vec4 outColor0;  // albedo
+layout(location = 1) out vec4 outColor1;  // normal + material id
+layout(location = 2) out vec4 outColor2;  // lightmap
 
 void main() {
     vec4 color = texture(gtexture, texcoord) * glcolor;
 
     if (color.a < alphaTestRef) discard;
 
-    // Step 1 is deliberately pass-through: vanilla's own lightmap texture,
-    // vanilla's own fog. Nothing here should change the image.
-    color.rgb *= texture(lightmap, lmcoord).rgb;
-    color.rgb  = applyVanillaFog(color.rgb, viewPos, fogColor,
-                                 fogStart, fogEnd, fogDensity, fogMode, fogShape);
-
-    outColor0 = color;
+    // Albedo only. No lighting and no fog here - both happen in deferred,
+    // once, for whatever ends up actually visible. Vanilla ambient occlusion
+    // rides along inside glcolor, which is exactly where we want it.
+    outColor0 = vec4(color.rgb, 1.0);
+    outColor1 = vec4(encodeNormal(normalize(normalPlayer)), MAT_TERRAIN);
+    outColor2 = vec4(normalizeLightmap(lmcoord), 0.0, 1.0);
 }
