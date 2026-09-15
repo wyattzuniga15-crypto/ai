@@ -18,13 +18,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 class FakeWidget:
     def __init__(self, *args, **kwargs):
         self.kwargs = dict(kwargs)
+        self.packed: dict = {}
         self.children: list = []
         self.bindings: dict = {}
         self.text: list[tuple[str, str]] = []
         self.value = ""
 
     # layout and config are no-ops that just record
-    def pack(self, *a, **k): return self
+    def pack(self, *a, **k): self.packed = dict(k); return self
     def grid(self, *a, **k): return self
     def configure(self, **k): self.kwargs.update(k); return self
     config = configure
@@ -112,6 +113,24 @@ class TestWindow(unittest.TestCase):
         agent, _, kill = self._window([])
         self._root.bindings["<Escape>"](None)
         self.assertTrue(kill.tripped)
+
+    def test_input_row_is_reserved_to_the_bottom_edge(self):
+        """Regression: the input row used to be clipped out of the window.
+
+        pack() hands out space in the order widgets are added, and the last
+        widget gets squeezed when the window is smaller than the total
+        request. The output pane has expand=True and a Text widget asks for a
+        large natural size, so packing the row last left a window with no
+        visible entry box and no Run or Stop button at all.
+        """
+        self._window([])
+        entry_row = next(w for w in self._created if w.packed.get("side") == "bottom")
+        self.assertEqual(entry_row.packed.get("fill"), "x")
+        # The scrolling output pane is the one that expands, and it must ask
+        # for a modest natural size so it cannot crowd the row out.
+        output = next(w for w in self._created if w.packed.get("expand") is True)
+        self.assertEqual(output.packed.get("side"), "top")
+        self.assertLessEqual(output.kwargs.get("height", 99), 12)
 
     def test_approver_routes_through_the_dialog(self):
         agent, _, _ = self._window([])

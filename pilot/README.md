@@ -218,7 +218,7 @@ two on Sonnet 5.
 ## Testing
 
 ```powershell
-python tests\run_all.py     # 39 tests, no display or API key needed
+python tests\run_all.py     # 55 tests, no display or API key needed
 python test_scaling.py      # real screen check, moves your mouse
 ```
 
@@ -228,9 +228,22 @@ stop-on-first-failure, the safety gate, history trimming and the kill switch are
 all exercised without touching your desktop or spending anything.
 
 CI runs this on every change under `pilot/`: the headless suite on Linux, plus a
-Windows job that installs the real dependency set, imports every module, and
-checks DPI awareness actually applies — the half that cannot be checked on
-Linux.
+Windows job that installs the real dependency set, imports every module, checks
+DPI awareness actually applies, and calls the two `ctypes` paths into `user32`
+so a wrong struct layout fails there rather than on your desk.
+
+## Bugs in pyautogui that Pilot works around
+
+These are real, reproducible, and each one silently does the wrong thing rather
+than raising, which is what makes them worth documenting.
+
+| Behaviour | What Pilot does |
+| --- | --- |
+| `hscroll()` on Windows calls `_scroll()`, which sends `MOUSEEVENTF_WHEEL` — so "scroll right" scrolls **down** | Sends `MOUSEEVENTF_HWHEEL` directly |
+| `scroll(n)` passes `n` straight to `mouse_event` as `dwData`, which Windows counts in units of 120 — so `scroll(1)` moves 1/120th of a notch | Scales notches by `WHEEL_DELTA`, on Windows only |
+| `write()` presses one *named* key per character, so anything outside its 194-entry `KEYBOARD_KEYS` table vanishes with no error — `café` types as `caf` | Injects those runs as Unicode key events via `SendInput`; ASCII stays on pyautogui so scan codes still reach games |
+| `_keyDown()` returns silently for a key name it doesn't know, so an unsupported key looks like a press that changed nothing | Validates against `KEYBOARD_KEYS` and raises, so the reason reaches the agent instead of causing a retry loop |
+| `FAILSAFE_POINTS` is **every screen corner**, not just the origin, so a legitimate click on a corner pixel aborts the run | Nudges a corner target one pixel inward |
 
 ---
 

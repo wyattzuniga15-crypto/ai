@@ -58,5 +58,12 @@ jobs:
         run: python -c "import config, screen, controller, safety, tools, agent, main, ui; print('all modules import on windows')"
       - name: Check DPI awareness applies
         run: python -c "import screen; m = screen.enable_dpi_awareness(); print('dpi mode:', m); assert screen.dpi_awareness_is_usable(m), m"
+      # These two go through ctypes into user32, so a wrong struct layout or
+      # signature only shows up on the real OS. SendInput returns the number
+      # of events it accepted, which is what proves cbSize is right.
+      - name: Check unicode key injection reaches user32
+        run: python -c "import ctypes, controller as c; assert ctypes.sizeof(c._INPUT) == 40, ctypes.sizeof(c._INPUT); n = c.send_unicode('ab\u2014\u00e9'); print('SendInput accepted', n, 'events'); assert n == 8, n"
+      - name: Check horizontal wheel events reach user32
+        run: python -c "import controller as c; c.send_hwheel(120); c.send_hwheel(-120); print('MOUSEEVENTF_HWHEEL sent')"
       - name: Run tests
         run: python tests/run_all.py

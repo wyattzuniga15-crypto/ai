@@ -20,7 +20,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import agent as agent_mod  # noqa: E402
 import screen as screen_mod  # noqa: E402
 from config import Settings, load_apps  # noqa: E402
-from controller import RecordingController, parse_combo  # noqa: E402
+import controller as controller_mod  # noqa: E402
+from controller import (INPUT_SIZE_X64, WHEEL_DELTA, RecordingController,  # noqa: E402
+                        _INPUT, parse_combo, send_unicode, unicode_key_events,
+                        utf16_units)
 from safety import (ALLOW, BLOCK, CONFIRM, AutoApprover, KillSwitch,  # noqa: E402
                     RiskEngine, SessionLog, Stopped)
 from screen import (Frame, current_dpi_awareness, dpi_awareness_is_usable,  # noqa: E402
@@ -156,6 +159,190 @@ class TestScaling(unittest.TestCase):
         self.assertEqual(frame.region_to_desktop([100, 200, 300, 400]), (200, 400, 600, 800))
         # inverted input is normalised rather than producing a negative box
         self.assertEqual(frame.region_to_desktop([300, 400, 100, 200]), (200, 400, 600, 800))
+
+
+class FakePyAutoGui:
+    """Enough of pyautogui to drive PyAutoGuiController without a display."""
+
+    KEYBOARD_KEYS = ["a", "s", "enter", "tab", "ctrl", "shift", "win", "esc", "f5"]
+    FAILSAFE = True
+    FAILSAFE_POINTS = [(0, 0), (0, 767), (1023, 0), (1023, 767)]
+    PAUSE = 0
+
+    def __init__(self):
+        self.calls: list[tuple] = []
+        self._pos = (5, 5)
+
+    def size(self): return (1024, 768)
+    def position(self): return self._pos
+    def moveTo(self, x, y, duration=0): self._pos = (x, y); self.calls.append(("moveTo", x, y))
+    def click(self, button="left", clicks=1, interval=0.0): self.calls.append(("click", button, clicks))
+    def mouseDown(self, button="left"): self.calls.append(("down", button))
+    def mouseUp(self, button="left"): self.calls.append(("up", button))
+    def scroll(self, amount): self.calls.append(("scroll", amount))
+    def hscroll(self, amount): self.calls.append(("hscroll", amount))
+    def typewrite(self, text, interval=0.0): self.calls.append(("typewrite", text))
+    def write(self, text): self.calls.append(("write", text))
+    def press(self, key): self.calls.append(("press", key))
+    def hotkey(self, *keys): self.calls.append(("hotkey", keys))
+    def keyDown(self, key): self.calls.append(("keyDown", key))
+    def keyUp(self, key): self.calls.append(("keyUp", key))
+
+
+def windows_controller(fake=None, failsafe=True):
+    """A PyAutoGuiController wired to a fake pyautogui, pretending to be Windows."""
+    fake = fake or FakePyAutoGui()
+    sys.modules["pyautogui"] = fake
+    from controller import PyAutoGuiController
+    # __init__ writes FAILSAFE onto the module from its own argument, so the
+    # flag has to be set here rather than on the fake.
+    controller = PyAutoGuiController(failsafe=failsafe)
+    controller._windows = True
+    return controller, fake
+
+
+class TestScrollSemantics(unittest.TestCase):
+    """pyautogui's Windows wheel handling is wrong in two ways; both are fixed.
+
+    Its _scroll passes the argument straight through as mouse_event's dwData,
+    which Windows counts in WHEEL_DELTA units, and its _hscroll just calls
+    _scroll -- so unscaled values barely move and "scroll right" scrolls down.
+    """
+
+    def tearDown(self):
+        sys.modules.pop("pyautogui", None)
+
+    def test_vertical_scroll_is_scaled_to_wheel_delta_on_windows(self):
+        controller, fake = windows_controller()
+        controller.scroll(3)
+        self.assertIn(("scroll", 3 * WHEEL_DELTA), fake.calls)
+        self.assertEqual(WHEEL_DELTA, 120)
+
+    def test_horizontal_scroll_does_not_go_through_pyautogui_on_windows(self):
+        controller, fake = windows_controller()
+        sent = []
+        original = controller_mod.send_hwheel
+        controller_mod.send_hwheel = lambda amount: sent.append(amount)
+        try:
+            controller.scroll(2, horizontal=True)
+            controller.scroll(-2, horizontal=True)
+        finally:
+            controller_mod.send_hwheel = original
+        self.assertEqual(sent, [2 * WHEEL_DELTA, -2 * WHEEL_DELTA])
+        # The broken pyautogui path must not be used at all.
+        self.assertNotIn("hscroll", [c[0] for c in fake.calls])
+
+    def test_off_windows_notches_pass_through_unscaled(self):
+        controller, fake = windows_controller()
+        controller._windows = False
+        controller.scroll(3)
+        controller.scroll(3, horizontal=True)
+        self.assertIn(("scroll", 3), fake.calls)
+        self.assertIn(("hscroll", 3), fake.calls)
+
+    def test_hwheel_is_guarded_off_windows(self):
+        with self.assertRaises(OSError):
+            controller_mod.send_hwheel(120)
+
+
+class TestFailsafeCorners(unittest.TestCase):
+    """FAILSAFE_POINTS is every screen corner, so a real corner click would abort."""
+
+    def tearDown(self):
+        sys.modules.pop("pyautogui", None)
+
+    def test_corner_targets_are_nudged_one_pixel_inward(self):
+        controller, fake = windows_controller()
+        for corner in FakePyAutoGui.FAILSAFE_POINTS:
+            controller.move(*corner)
+            self.assertNotIn(tuple(fake._pos), [tuple(p) for p in FakePyAutoGui.FAILSAFE_POINTS])
+            self.assertLessEqual(max(abs(fake._pos[0] - corner[0]),
+                                     abs(fake._pos[1] - corner[1])), 1)
+
+    def test_ordinary_points_are_untouched(self):
+        controller, fake = windows_controller()
+        controller.move(400, 300)
+        self.assertEqual(fake._pos, (400, 300))
+
+    def test_nudging_is_skipped_when_failsafe_is_off(self):
+        controller, fake = windows_controller(failsafe=False)
+        controller.move(0, 0)
+        self.assertEqual(fake._pos, (0, 0))
+
+
+class TestUnicodeTyping(unittest.TestCase):
+    """pyautogui drops any character outside KEYBOARD_KEYS without an error."""
+
+    def tearDown(self):
+        sys.modules.pop("pyautogui", None)
+
+    def test_input_struct_matches_the_windows_x64_abi(self):
+        # Fixed-width fields keep this 40 bytes on every platform; c_ulong
+        # would make it 56 on Linux and SendInput rejects a wrong cbSize.
+        import ctypes
+        self.assertEqual(ctypes.sizeof(_INPUT), INPUT_SIZE_X64)
+        self.assertEqual(INPUT_SIZE_X64, 40)
+
+    def test_astral_characters_become_surrogate_pairs(self):
+        self.assertEqual(utf16_units("a"), [0x0061])
+        self.assertEqual(utf16_units("\u2014"), [0x2014])          # em dash
+        self.assertEqual(len(utf16_units("\U0001F600")), 2)        # emoji
+        # one press and one release per code unit
+        self.assertEqual(len(unicode_key_events("a")), 2)
+        self.assertEqual(len(unicode_key_events("\U0001F600")), 4)
+
+    def test_unicode_injection_is_guarded_off_windows(self):
+        with self.assertRaises(OSError):
+            send_unicode("x")
+
+    def test_ascii_stays_on_pyautogui_and_unicode_is_injected(self):
+        controller, fake = windows_controller()
+        injected = []
+        original = controller_mod.send_unicode
+        controller_mod.send_unicode = lambda text: injected.append(text) or len(text)
+        try:
+            controller.type_text("caf\u00e9 ok")
+        finally:
+            controller_mod.send_unicode = original
+        # ASCII runs keep real scan codes; only the accented run is injected.
+        self.assertEqual(injected, ["\u00e9"])
+        self.assertIn(("typewrite", "caf"), fake.calls)
+        self.assertIn(("typewrite", " ok"), fake.calls)
+
+    def test_newlines_and_tabs_become_key_presses(self):
+        controller, fake = windows_controller()
+        controller.type_text("a\nb\tc")
+        self.assertIn(("press", "enter"), fake.calls)
+        self.assertIn(("press", "tab"), fake.calls)
+
+
+class TestKeyValidation(unittest.TestCase):
+    """_keyDown returns silently for an unknown name, which looks like success."""
+
+    def tearDown(self):
+        sys.modules.pop("pyautogui", None)
+
+    def test_unknown_key_raises_instead_of_doing_nothing(self):
+        controller, fake = windows_controller()
+        with self.assertRaises(ValueError) as caught:
+            controller.press(parse_combo("Nonexistent_Key"))
+        self.assertIn("nonexistent_key", str(caught.exception))
+        self.assertEqual(fake.calls, [])
+
+    def test_known_keys_and_combos_are_accepted(self):
+        controller, fake = windows_controller()
+        controller.press(parse_combo("ctrl+s"))
+        controller.press(parse_combo("Return"))
+        self.assertIn(("hotkey", ("ctrl", "s")), fake.calls)
+        self.assertIn(("press", "enter"), fake.calls)
+
+    def test_hold_and_key_down_validate_too(self):
+        controller, _ = windows_controller()
+        for call in (lambda: controller.hold(["bogus"], 0.0),
+                     lambda: controller.key_down("bogus"),
+                     lambda: controller.key_up("bogus")):
+            with self.assertRaises(ValueError):
+                call()
 
 
 class TestDpi(unittest.TestCase):

@@ -67,23 +67,32 @@ def run_window(agent, kill, settings) -> None:
     root.title("Pilot")
     root.configure(bg=BG)
     root.geometry("560x420+80+80")
-    root.minsize(420, 300)
+    root.minsize(460, 320)
     root.attributes("-topmost", True)
 
+    # Pack order matters more than it looks. pack() hands out space in the
+    # order widgets are added, and when the window is smaller than everything
+    # asks for, whatever went last gets squeezed to nothing. The output pane
+    # has expand=True and a Text widget's natural size is large, so adding the
+    # input row last clipped it out of the window entirely -- a window with no
+    # way to type a task. Header and input row are reserved to the top and
+    # bottom edges first; the output pane then absorbs whatever is left.
     header = tk.Frame(root, bg=BG)
-    header.pack(fill="x", padx=10, pady=(10, 4))
+    header.pack(side="top", fill="x", padx=10, pady=(10, 4))
     status = tk.Label(header, text="ready", bg=BG, fg=DIM, anchor="w", font=("Segoe UI", 9))
     status.pack(side="left")
     cost = tk.Label(header, text="$0.0000", bg=BG, fg=DIM, anchor="e", font=("Consolas", 9))
     cost.pack(side="right")
 
+    row = tk.Frame(root, bg=BG)
+    row.pack(side="bottom", fill="x", padx=10, pady=(4, 10))
+
+    # width/height are the *requested* size in characters; keep them small so
+    # the pane never demands more room than the window has.
     output = scrolledtext.ScrolledText(root, bg="#0e1013", fg=FG, insertbackground=FG,
                                        font=("Consolas", 9), wrap="word", relief="flat",
-                                       state="disabled", padx=8, pady=6)
-    output.pack(fill="both", expand=True, padx=10, pady=4)
-
-    row = tk.Frame(root, bg=BG)
-    row.pack(fill="x", padx=10, pady=(4, 10))
+                                       state="disabled", padx=8, pady=6, width=40, height=8)
+    output.pack(side="top", fill="both", expand=True, padx=10, pady=4)
     entry = tk.Entry(row, bg="#1c1f26", fg=FG, insertbackground=FG, relief="flat",
                      font=("Segoe UI", 10))
     entry.pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 6))
