@@ -1,0 +1,24 @@
+{
+  "_comment": "name -> executable path or protocol URI. Keys are matched case-insensitively, and a partial match works too ('bone' finds 'bonelab'). Keys starting with _ are ignored.",
+
+  "spotify": "spotify:",
+  "steam": "steam://open/main",
+  "bonelab": "steam://rungameid/1592190",
+  "discord": "discord://",
+
+  "notepad": "notepad.exe",
+  "calculator": "calc.exe",
+  "paint": "mspaint.exe",
+  "explorer": "explorer.exe",
+  "task manager": "taskmgr.exe",
+  "terminal": "wt.exe",
+  "powershell": "powershell.exe",
+  "settings": "ms-settings:",
+
+  "chrome": "chrome.exe",
+  "edge": "msedge.exe",
+  "firefox": "firefox.exe",
+
+  "youtube": "https://www.youtube.com",
+  "gmail": "https://mail.google.com"
+}

@@ -1,0 +1,6 @@
+anthropic>=1.5.0
+pyautogui>=0.9.54
+mss>=9.0.1
+Pillow>=10.0.0
+pynput>=1.7.6
+python-dotenv>=1.0.0
