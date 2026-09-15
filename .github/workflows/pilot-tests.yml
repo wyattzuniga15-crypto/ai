@@ -1,7 +1,12 @@
 name: pilot tests
 
 on:
+  # Restricted to the default branch: every change here arrives via a pull
+  # request, so an unrestricted push trigger would run each job twice on the
+  # same commit. This keeps post-merge validation without the duplicate.
   push:
+    branches:
+      - claude/game-expansion-levels-tiles-qya6lh
     paths:
       - 'pilot/**'
       - '.github/workflows/pilot-tests.yml'
