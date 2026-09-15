@@ -240,9 +240,16 @@ class TestScrollSemantics(unittest.TestCase):
         self.assertIn(("scroll", 3), fake.calls)
         self.assertIn(("hscroll", 3), fake.calls)
 
-    def test_hwheel_is_guarded_off_windows(self):
-        with self.assertRaises(OSError):
-            controller_mod.send_hwheel(120)
+    def test_hwheel_reaches_user32_on_windows_and_is_guarded_elsewhere(self):
+        # On Windows this really injects a wheel event, which is how the
+        # ctypes signature gets validated; anywhere else it must refuse
+        # rather than silently pretend to scroll.
+        if sys.platform == "win32":
+            controller_mod.send_hwheel(WHEEL_DELTA)
+            controller_mod.send_hwheel(-WHEEL_DELTA)
+        else:
+            with self.assertRaises(OSError):
+                controller_mod.send_hwheel(WHEEL_DELTA)
 
 
 class TestFailsafeCorners(unittest.TestCase):
@@ -291,9 +298,17 @@ class TestUnicodeTyping(unittest.TestCase):
         self.assertEqual(len(unicode_key_events("a")), 2)
         self.assertEqual(len(unicode_key_events("\U0001F600")), 4)
 
-    def test_unicode_injection_is_guarded_off_windows(self):
-        with self.assertRaises(OSError):
-            send_unicode("x")
+    def test_unicode_injection_works_on_windows_and_is_guarded_elsewhere(self):
+        # SendInput returns the number of events it accepted, so a wrong
+        # cbSize or struct layout shows up here as a short count. Two events
+        # per BMP character: one press, one release.
+        if sys.platform == "win32":
+            text = "ab\u2014\u00e9"
+            self.assertEqual(send_unicode(text), 2 * len(text))
+            self.assertEqual(send_unicode(""), 0)
+        else:
+            with self.assertRaises(OSError):
+                send_unicode("x")
 
     def test_ascii_stays_on_pyautogui_and_unicode_is_injected(self):
         controller, fake = windows_controller()
