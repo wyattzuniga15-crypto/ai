@@ -19,12 +19,15 @@ from screen import enable_dpi_awareness
 DPI_MODE = enable_dpi_awareness()
 
 from config import load_settings  # noqa: E402
-from screen import MssScreen  # noqa: E402
+from screen import MssScreen, dpi_awareness_is_usable  # noqa: E402
 
 
 def main() -> int:
     settings = load_settings()
     print(f"dpi awareness : {DPI_MODE}")
+    if not dpi_awareness_is_usable(DPI_MODE):
+        print("  WARNING: this process is not DPI aware, so captures and clicks will")
+        print("  disagree on any display scaled above 100%. Fix this before going further.")
 
     try:
         source = MssScreen(settings.max_width, settings.max_height, settings.monitor)

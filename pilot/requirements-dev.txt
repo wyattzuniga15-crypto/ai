@@ -1,0 +1,7 @@
+# Just what the headless test suite needs. The runtime deps in
+# requirements.txt include pyautogui, mss and pynput, which want a real
+# display; the tests deliberately avoid all three via injected backends.
+anthropic>=1.5.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+pyflakes>=3.0.0

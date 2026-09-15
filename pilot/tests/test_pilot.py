@@ -23,7 +23,8 @@ from config import Settings, load_apps  # noqa: E402
 from controller import RecordingController, parse_combo  # noqa: E402
 from safety import (ALLOW, BLOCK, CONFIRM, AutoApprover, KillSwitch,  # noqa: E402
                     RiskEngine, SessionLog, Stopped)
-from screen import Frame, fit_within  # noqa: E402
+from screen import (Frame, current_dpi_awareness, dpi_awareness_is_usable,  # noqa: E402
+                    enable_dpi_awareness, fit_within)
 from tools import ToolRunner, best_match  # noqa: E402
 
 
@@ -155,6 +156,20 @@ class TestScaling(unittest.TestCase):
         self.assertEqual(frame.region_to_desktop([100, 200, 300, 400]), (200, 400, 600, 800))
         # inverted input is normalised rather than producing a negative box
         self.assertEqual(frame.region_to_desktop([300, 400, 100, 200]), (200, 400, 600, 800))
+
+
+class TestDpi(unittest.TestCase):
+    def test_reports_a_mode_without_raising_on_any_platform(self):
+        for mode in (enable_dpi_awareness(), current_dpi_awareness()):
+            self.assertIsInstance(mode, str)
+            self.assertTrue(mode)
+
+    def test_only_untrustworthy_modes_are_rejected(self):
+        self.assertTrue(dpi_awareness_is_usable("per-monitor-v2"))
+        self.assertTrue(dpi_awareness_is_usable("system-dpi"))
+        self.assertTrue(dpi_awareness_is_usable("not windows; no DPI call needed"))
+        self.assertFalse(dpi_awareness_is_usable("unaware - clicks WILL be offset"))
+        self.assertFalse(dpi_awareness_is_usable("unknown - run test_scaling.py first"))
 
 
 class TestKeys(unittest.TestCase):

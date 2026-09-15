@@ -1,0 +1,57 @@
+name: pilot tests
+
+on:
+  push:
+    paths:
+      - 'pilot/**'
+      - '.github/workflows/pilot-tests.yml'
+  pull_request:
+    paths:
+      - 'pilot/**'
+      - '.github/workflows/pilot-tests.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: pilot
+
+jobs:
+  # The suite is designed to run with no display, no API key and no Windows,
+  # so the fast feedback loop lives on Linux.
+  tests:
+    name: headless suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pilot/requirements-dev.txt
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: python -m pyflakes *.py tests/*.py
+      - name: Run tests
+        run: python tests/run_all.py
+
+  # Pilot targets Windows, so prove the real dependency set installs there and
+  # every module imports. This is the half that cannot be checked on Linux.
+  windows:
+    name: windows install and import
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pilot/requirements.txt
+      - name: Install runtime dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Import every module
+        run: python -c "import config, screen, controller, safety, tools, agent, main, ui; print('all modules import on windows')"
+      - name: Check DPI awareness applies
+        run: python -c "import screen; m = screen.enable_dpi_awareness(); print('dpi mode:', m); assert screen.dpi_awareness_is_usable(m), m"
+      - name: Run tests
+        run: python tests/run_all.py

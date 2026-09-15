@@ -21,13 +21,21 @@ import sys
 from dataclasses import dataclass
 
 
+# GetProcessDpiAwareness values.
+_AWARENESS = {
+    0: "unaware - clicks WILL be offset on scaled displays",
+    1: "system-dpi (set before Pilot started)",
+    2: "per-monitor (set before Pilot started)",
+}
+
+
 def enable_dpi_awareness() -> str:
     """Opt into true physical pixels on Windows. Must run before pyautogui/mss.
 
     Without this, a 150%-scaled display reports 1707x960 to our process while
     the real framebuffer is 2560x1440. Screenshots come back at one size,
     SetCursorPos interprets another, and every click lands short of its target.
-    Returns a short description of which mode we got, for logging.
+    Returns a short description of the resulting mode, for logging.
     """
     if sys.platform != "win32":
         return "not windows; no DPI call needed"
@@ -48,7 +56,34 @@ def enable_dpi_awareness() -> str:
             return "system-dpi"
     except (AttributeError, OSError):
         pass
-    return "unavailable (clicks may be offset on scaled displays)"
+    # Every setter failed, which does not mean we are unaware: awareness can
+    # only be set once per process, so a manifest (Python's own, or an embedding
+    # host's) that already declared it makes these calls fail. Ask Windows what
+    # the process actually is rather than reporting a false negative.
+    return current_dpi_awareness()
+
+
+def current_dpi_awareness() -> str:
+    """Describe the process's actual DPI awareness, whoever set it."""
+    if sys.platform != "win32":
+        return "not windows; no DPI call needed"
+    try:
+        awareness = ctypes.c_int()
+        if ctypes.windll.shcore.GetProcessDpiAwareness(None, ctypes.byref(awareness)) == 0:
+            return _AWARENESS.get(awareness.value, f"awareness code {awareness.value}")
+    except (AttributeError, OSError):
+        pass
+    try:  # Vista-era fallback: a boolean, not a level.
+        return ("system-dpi (already set)" if ctypes.windll.user32.IsProcessDPIAware()
+                else "unaware - clicks WILL be offset on scaled displays")
+    except (AttributeError, OSError):
+        pass
+    return "unknown - run test_scaling.py before trusting coordinates"
+
+
+def dpi_awareness_is_usable(mode: str) -> bool:
+    """False only for modes that mean coordinates cannot be trusted."""
+    return not (mode.startswith("unaware") or mode.startswith("unknown"))
 
 
 @dataclass(frozen=True)

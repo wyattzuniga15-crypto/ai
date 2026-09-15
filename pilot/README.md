@@ -218,7 +218,7 @@ two on Sonnet 5.
 ## Testing
 
 ```powershell
-python tests\run_all.py     # 37 tests, no display or API key needed
+python tests\run_all.py     # 39 tests, no display or API key needed
 python test_scaling.py      # real screen check, moves your mouse
 ```
 
@@ -226,6 +226,11 @@ The suite runs the real agent loop against a fake screen, a recording
 controller, and scripted API responses, so coordinate scaling, batch
 stop-on-first-failure, the safety gate, history trimming and the kill switch are
 all exercised without touching your desktop or spending anything.
+
+CI runs this on every change under `pilot/`: the headless suite on Linux, plus a
+Windows job that installs the real dependency set, imports every module, and
+checks DPI awareness actually applies — the half that cannot be checked on
+Linux.
 
 ---
 
