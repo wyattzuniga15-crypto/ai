@@ -8,6 +8,7 @@ batch semantics, the safety gate, history trimming) are actually exercised.
 """
 from __future__ import annotations
 
+import io
 import json
 import sys
 import tempfile
@@ -358,6 +359,86 @@ class TestKeyValidation(unittest.TestCase):
                      lambda: controller.key_up("bogus")):
             with self.assertRaises(ValueError):
                 call()
+
+
+class TestKillSwitchReachesLongActions(unittest.TestCase):
+    """F12 has to land during a long action, not after it.
+
+    hold_key can be asked for up to 300 seconds and a typed string can be
+    thousands of characters. Both used to be one blocking call, so the kill
+    switch was ignored until they finished -- which is not what "pressing F12
+    anywhere instantly stops the agent" means.
+    """
+
+    def tearDown(self):
+        sys.modules.pop("pyautogui", None)
+
+    def test_hold_is_interrupted_and_still_releases_the_keys(self):
+        controller, fake = windows_controller()
+        kill = KillSwitch("f12")
+        controller.sleep = kill.sleep
+        kill.trip("F12 pressed")
+
+        with self.assertRaises(Stopped):
+            controller.hold(["ctrl"], 300.0)
+        # Releasing in the finally block is what stops a stuck modifier key
+        # from outliving the run.
+        self.assertIn(("keyDown", "ctrl"), fake.calls)
+        self.assertIn(("keyUp", "ctrl"), fake.calls)
+
+    def test_typing_stops_partway_instead_of_finishing_the_string(self):
+        controller, fake = windows_controller()
+        kill = KillSwitch("f12")
+        typed = []
+
+        def stop_after_two_chunks(_seconds):
+            if len(typed) >= 2:
+                kill.trip("F12 pressed")
+            kill.check()
+
+        controller.sleep = stop_after_two_chunks
+        fake.typewrite = lambda text, interval=0.0: typed.append(text)
+
+        with self.assertRaises(Stopped):
+            controller.type_text("x" * 200)
+        self.assertEqual(len(typed), 2)
+        self.assertLess(sum(len(chunk) for chunk in typed), 200)
+
+    def test_short_typing_still_completes_in_one_go(self):
+        controller, fake = windows_controller()
+        controller.type_text("hello")
+        self.assertIn(("typewrite", "hello"), fake.calls)
+
+    def test_agent_hands_the_interruptible_sleep_to_the_controller(self):
+        agent, controller, _, _ = build_agent([])
+        # Bound methods are rebuilt on every attribute access, so compare by
+        # equality (same function, same instance) rather than identity.
+        self.assertEqual(agent.runner.sleep, agent.kill.sleep)
+        self.assertEqual(agent.runner.controller.sleep, agent.kill.sleep)
+
+
+class TestConsoleColour(unittest.TestCase):
+    """Raw escape codes are unreadable on a console that has not enabled them."""
+
+    def test_colour_is_off_when_output_is_not_a_terminal(self):
+        # Under CI and when piped to a file, stdout is not a tty.
+        self.assertFalse(agent_mod.enable_ansi_colours())
+
+    def test_explicit_choice_overrides_detection(self):
+        self.assertFalse(agent_mod.Console(colour=False).colour)
+        self.assertTrue(agent_mod.Console(colour=True).colour)
+
+    def test_plain_output_carries_no_escape_codes(self):
+        console = agent_mod.Console(colour=False)
+        buffer = io.StringIO()
+        original = sys.stdout
+        sys.stdout = buffer
+        try:
+            console.line("err", "something failed")
+        finally:
+            sys.stdout = original
+        self.assertEqual(buffer.getvalue().strip(), "something failed")
+        self.assertNotIn("\033", buffer.getvalue())
 
 
 class TestDpi(unittest.TestCase):

@@ -1,7 +1,10 @@
 """The agent loop: talk to Claude, execute what it asks for, feed back the screen."""
 from __future__ import annotations
 
+import ctypes
+import os
 import random
+import sys
 from dataclasses import dataclass, field
 
 import anthropic
@@ -79,14 +82,41 @@ class Result:
     usage: Usage = field(default_factory=Usage)
 
 
+def enable_ansi_colours() -> bool:
+    """Turn on ANSI escape handling, and say whether colour is safe to emit.
+
+    Windows consoles understand these codes but do not process them until the
+    mode is set, so classic cmd.exe would print the step log as a wall of
+    literal escape sequences. Windows Terminal enables it already; conhost
+    often does not.
+    """
+    if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
+        return False
+    if sys.platform != "win32":
+        return True
+    try:
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        enable_vt = 0x0004  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        if mode.value & enable_vt:
+            return True
+        return bool(kernel32.SetConsoleMode(handle, mode.value | enable_vt))
+    except (AttributeError, OSError):
+        return False
+
+
 class Console:
     """Terminal output. The GUI passes its own object with the same methods."""
 
     COLOURS = {"say": "\033[36m", "think": "\033[90m", "do": "\033[32m",
                "warn": "\033[33m", "err": "\033[31m", "done": "\033[1;32m", "dim": "\033[90m"}
 
-    def __init__(self, colour: bool = True):
-        self.colour = colour
+    def __init__(self, colour: bool | None = None):
+        # None means decide for this terminal; False is the GUI forcing it off.
+        self.colour = enable_ansi_colours() if colour is None else colour
 
     def line(self, kind: str, text: str) -> None:
         if self.colour and kind in self.COLOURS:
@@ -110,6 +140,7 @@ class Agent:
         self._thinking_enabled = settings.thinking == "adaptive"
         # Long waits must remain interruptible by the kill switch.
         self.runner.sleep = self.kill.sleep
+        self.runner.controller.sleep = self.kill.sleep
 
     # -- API ----------------------------------------------------------------
 
