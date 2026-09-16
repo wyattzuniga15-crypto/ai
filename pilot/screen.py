@@ -171,7 +171,9 @@ class MssScreen(ScreenSource):
         from PIL import Image
 
         self._Image = Image
-        self._sct = mss.mss()
+        # mss 10 renamed the class to MSS and deprecated the lowercase alias,
+        # which otherwise prints a DeprecationWarning on every single run.
+        self._sct = (getattr(mss, "MSS", None) or mss.mss)()
         monitors = self._sct.monitors
         # monitors[0] is the union of all displays, monitors[1] the primary.
         self._monitor = monitors[monitor] if 0 <= monitor < len(monitors) else monitors[1]

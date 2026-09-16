@@ -40,6 +40,7 @@ KEY_ALIASES = {
     "home": "home", "end": "end",
 }
 
+TYPE_CHUNK = 20            # characters per typewrite call, so F12 can land between
 WHEEL_DELTA = 120          # Windows measures wheel movement in these units
 MOUSEEVENTF_HWHEEL = 0x01000
 INPUT_KEYBOARD = 1
@@ -175,7 +176,15 @@ def parse_combo(text: str) -> list[str]:
 
 
 class Controller:
-    """Interface the tool dispatcher talks to."""
+    """Interface the tool dispatcher talks to.
+
+    `sleep` is replaced by the agent with the kill switch's interruptible
+    wait. Without that, a long hold or a long line of typing is a single
+    blocking call, and F12 does nothing until it finishes -- hold_key alone
+    can be asked for 300 seconds.
+    """
+
+    sleep = staticmethod(time.sleep)
 
     def move(self, x: int, y: int) -> None: raise NotImplementedError
     def click(self, button: str, clicks: int, x=None, y=None) -> None: raise NotImplementedError
@@ -282,9 +291,16 @@ class PyAutoGuiController(Controller):
 
         def flush_ascii():
             nonlocal pending_ascii
-            if pending_ascii:
-                self._pg.typewrite(pending_ascii, interval=self._type_interval)
-                pending_ascii = ""
+            if not pending_ascii:
+                return
+            # One typewrite call for a long string would ignore the kill
+            # switch until the whole string was typed, so send it in chunks
+            # and let the stop check run between them.
+            for start in range(0, len(pending_ascii), TYPE_CHUNK):
+                self.sleep(0)
+                self._pg.typewrite(pending_ascii[start:start + TYPE_CHUNK],
+                                   interval=self._type_interval)
+            pending_ascii = ""
 
         def flush_unicode():
             nonlocal pending_unicode
@@ -335,7 +351,9 @@ class PyAutoGuiController(Controller):
         for key in keys:
             self._pg.keyDown(key)
         try:
-            time.sleep(duration)
+            # Interruptible: stopping mid-hold still releases the keys, because
+            # the release runs in the finally block.
+            self.sleep(duration)
         finally:
             for key in reversed(keys):
                 self._pg.keyUp(key)

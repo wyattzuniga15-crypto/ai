@@ -129,7 +129,10 @@ read it off the store URL.
 This thing controls your actual computer, so the guardrails are not optional.
 
 - **F12 stops everything**, instantly, from any window. Configurable via
-  `PILOT_KILL_KEY`. In the GUI, Stop and Escape do the same.
+  `PILOT_KILL_KEY`. In the GUI, Stop and Escape do the same. "Instantly" is
+  meant literally: a 300-second `hold_key` and a 4000-character `type` are
+  both cut short mid-action rather than running to completion first, and an
+  interrupted hold still releases its modifier keys.
 - **Mouse failsafe** — slam the pointer into the top-left corner to abort.
 - **Confirmation prompts.** Anything that looks like it sends, posts, buys,
   submits, or deletes pauses for a y/n in the terminal. The check reads three
@@ -218,7 +221,7 @@ two on Sonnet 5.
 ## Testing
 
 ```powershell
-python tests\run_all.py     # 55 tests, no display or API key needed
+python tests\run_all.py     # 62 tests, no display or API key needed
 python test_scaling.py      # real screen check, moves your mouse
 ```
 
