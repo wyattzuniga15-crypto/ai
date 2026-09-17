@@ -90,8 +90,11 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 
 /* vanilla's own rows: the first button at height/4 + 48, then every 24, and the bottom row at +84 */
 /* vanilla puts the rows at height/4 + 48 and lets them run off a short screen; a phone held on its
-   side is exactly that screen, so the block is also kept clear of the line along the bottom */
+   side is exactly that screen, so the block is also kept clear of the line along the bottom.
+   `vh` on a phone browser is the height with the address bar retracted, which is not the height
+   anything is being drawn in, so `dvh` follows with the height there actually is. */
 .screen.title .menu { position: absolute; left: 50%; top: min(calc(25vh + 48px * var(--gui)), calc(100% - 118px * var(--gui))); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.screen.title .menu { top: min(calc(25dvh + 48px * var(--gui)), calc(100% - 118px * var(--gui))); }
 .screen.title .menu > .btn { margin: 0 0 calc(4px * var(--gui)); }
 .screen.title .menu .row.bottom { margin-top: calc(12px * var(--gui)); gap: calc(4px * var(--gui)); align-items: center; }
 
@@ -169,6 +172,7 @@ h2 { font-size: var(--text); font-weight: normal; margin: 0 0 calc(8px * var(--g
 .list { width: calc(220px * var(--gui)); max-height: 52vh; overflow-y: auto; margin-bottom: calc(6px * var(--gui));
   background: url('/textures/gui/menu_list_background.png') repeat; background-size: calc(32px * var(--gui)); image-rendering: pixelated;
   border-top: calc(2px * var(--gui)) solid #000; border-bottom: calc(2px * var(--gui)) solid #000; }
+.list { max-height: 52dvh; }
 .list .item { padding: calc(3px * var(--gui)) calc(4px * var(--gui)); border: var(--px) solid transparent; cursor: pointer; font-size: var(--text); }
 .list .item.sel { border-color: #fff; background: rgba(255, 255, 255, 0.08); }
 .list .item .name { color: #fff; text-shadow: var(--px) var(--px) 0 #3f3f3f; }
@@ -218,6 +222,7 @@ h2 { font-size: var(--text); font-weight: normal; margin: 0 0 calc(8px * var(--g
 
 /* key binds screen */
 .controls { max-height: 60vh; overflow-y: auto; width: 460px; padding: 0 8px; }
+.controls { max-height: 60dvh; }
 .controls .category { color: #fff; font-weight: 700; text-align: center; margin: 10px 0 4px; text-shadow: 2px 2px 0 #3f3f3f; }
 .keyrow { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
 .keyrow .name { flex: 1; color: #fff; font-size: 14px; text-shadow: 2px 2px 0 #3f3f3f; }
