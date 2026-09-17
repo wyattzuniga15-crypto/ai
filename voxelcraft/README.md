@@ -92,7 +92,10 @@ box model format `src/entities/boxModel.ts` uses.
 
 On a phone or a tablet the game lays Bedrock's own arrangement over the world instead, and the
 packed folder's launcher prints the address to open on it. "Add to Home Screen" in the phone's
-browser gives a full screen with nothing around it.
+browser gives a full screen with nothing around it. `npm run pack` also writes
+`Voxelcraft-phone.zip`, the same game with `index.html` at the top and no launchers, for a phone
+with no computer behind it: anything that serves a folder over http — `python3 -m http.server` in
+a terminal app, say — is pointed at the folder and that is the whole setup.
 
 | Touch | Action |
 | --- | --- |

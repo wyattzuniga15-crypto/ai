@@ -16,6 +16,41 @@ import { ensureDir } from './lib/fs.ts';
 import { SOUND_EVENTS } from '../src/audio/soundEvents.ts';
 
 const ALL_SOUNDS = process.argv.includes('--all');
+
+/** What to tell someone who has the folder on a phone and nothing else. */
+const PHONE_README = `VOXELCRAFT - on a phone or tablet, with no computer involved
+
+A browser will not run this game off the disk: it needs a real address to
+load its textures and start its workers from. So something has to serve
+this folder. Anything that serves a folder over http will do.
+
+  1. Unzip this somewhere your server app can read.
+  2. Point it at THIS folder - the one holding index.html.
+  3. Open the address it gives you (usually http://localhost:8000/).
+  4. Turn the phone sideways.
+
+For a proper full screen with no address bar, use the browser's
+"Add to Home Screen" and start it from the icon that appears.
+
+CONTROLS
+
+  Left pad         move
+  Right buttons    jump, crouch (and down while flying), sprint
+  Drag the world   look around
+  Tap the world    place, use, eat, open doors and chests
+  Hold the world   mine
+  Tap a slot       pick a hotbar slot
+  Bag / Chat       inventory and chat
+  Drop             drop what is in hand
+  II               pause
+
+Worlds save in the browser, on this device. Same browser, same worlds.
+
+The music and the records are not here - they are about three hundred
+megabytes on their own. Everything else is: the effects, the textures,
+the models. Those are Mojang's, fetched from their own files, here so
+this copy is playable and not redistributed anywhere else.
+`;
 const out = path.resolve('..', 'Voxelcraft');
 const dist = path.resolve('dist');
 
@@ -80,8 +115,23 @@ for (const name of fs.readdirSync('package')) {
   if (name.endsWith('.command') || name.endsWith('.sh')) fs.chmodSync(path.join(out, name), 0o755);
 }
 
-const zip = `${out}.zip`;
-fs.rmSync(zip, { force: true });
-const r = spawnSync('zip', ['-qr', zip, path.basename(out)], { cwd: path.dirname(out), stdio: 'inherit' });
-const size = r.status === 0 && fs.existsSync(zip) ? `${(fs.statSync(zip).size / 1048576).toFixed(1)} MB` : 'not zipped';
-console.log(`[pack] ${out}: ${files} files; ${zip}: ${size}`);
+/** Zips a folder beside itself and reports how big it came out. */
+function zipUp(folder: string): string {
+  const zip = `${folder}.zip`;
+  fs.rmSync(zip, { force: true });
+  const r = spawnSync('zip', ['-qr', zip, path.basename(folder)], { cwd: path.dirname(folder), stdio: 'inherit' });
+  return r.status === 0 && fs.existsSync(zip) ? `${zip}: ${(fs.statSync(zip).size / 1048576).toFixed(1)} MB` : `${zip}: not zipped`;
+}
+
+/**
+ * The same game again with `index.html` at the top and no launchers, for a phone. There is no
+ * desktop there to double-click anything on: whatever serves the files gets pointed at a folder,
+ * and a folder with one obvious thing in it is the one to point at.
+ */
+const phone = path.resolve('..', 'Voxelcraft-phone');
+fs.rmSync(phone, { recursive: true, force: true });
+copy(game, phone);
+fs.writeFileSync(path.join(phone, 'READ ME.txt'), PHONE_README);
+
+console.log(`[pack] ${out}: ${files} files; ${zipUp(out)}`);
+console.log(`[pack] ${phone}: the same game with nothing above it; ${zipUp(phone)}`);

@@ -2035,3 +2035,12 @@ Logged as they are made, most recent last. Each entry says what was chosen and w
      the address to type in. It hands out the files in its own folder and nothing else. `npm start
      -- --phone` does the same for the development server.
 
+156. **A build for a phone with no computer behind it.** The packed folder assumes a desktop: it has
+     launchers to double-click and a server that prints an address for the phone to open. Someone
+     holding only the phone has neither. A browser still will not run the game off the disk — the
+     workers and the textures need a real address — so something on the phone has to serve it, and
+     what that something wants is a folder with `index.html` at the top of it rather than one
+     nested under launchers it cannot use. `npm run pack` now writes that as well: the same game,
+     flattened, with a note saying to point a server at the folder. Checked by serving it with
+     `python3 -m http.server`, which is what a terminal app on a phone would be running.
+
