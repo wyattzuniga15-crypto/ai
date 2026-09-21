@@ -88,9 +88,34 @@ Arrows / WASD roll · swipe on touch · `Z` undo · `R` restart · `H` hint ·
 `Esc` menu · `L` level select · `C` daily &amp; endless · `M` mute · `F` fullscreen ·
 `?` shortcuts.
 
+## Chicken Crossing
+
+`ChickenCrossing.html` is a second single-file piece: a 23-second short film,
+rendered live in WebGL2, in which a hen pecks at the roadside, sets off across a
+country road at golden hour, and meets a semi truck. Like the game it has no
+build step, no dependencies and no network calls — every texture, mesh and
+sound is generated when the page loads. Open it in a real browser and press
+Play (sound on). `R` restarts, `M` mutes, `F` goes fullscreen.
+
+What is in it, all procedural: a physically based renderer with two shadow
+cascades, bump mapping, fog and a bloom / depth-of-field / film-grain post
+chain; a road with worn markings, gravel shoulders, ditches and rolling fields;
+a hundred thousand wind-blown grass blades that flatten in the truck's wake;
+leaf-card trees, a fence, telephone wires and a barn; a hen rigged with
+two-bone leg IK, a head-bob walk cycle and a startled flap; a conventional
+tractor with a 53-foot trailer; feather and dust particles; and a synthesized
+soundtrack (wind, birds, clucks, a diesel with Doppler, an air horn) scheduled
+on the Web Audio API. The impact runs in slow motion and stays feathers-only.
+
+`ChickenCrossing.mp4` is the same film rendered to video (1280×720, 30 fps,
+with the soundtrack) for anywhere a browser is inconvenient. It was produced
+from the page itself: with `?capture=1` the page exposes a deterministic frame
+API that a headless browser steps through at fixed intervals.
+
 ## Repository layout
 
 - `CubeRoll.html` — the game. This is the only file you need to play.
+- `ChickenCrossing.html` — the short film; `ChickenCrossing.mp4` is its video render.
 - `tools/` — the level pipeline and the page builder. `rules.js` is the game
   core, byte-for-byte the same code the page runs; `gen.js` and `build_levels*.js` generate and validate
   levels against it; `part_forge.js` is the in-browser generator behind Daily and
