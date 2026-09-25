@@ -73,6 +73,33 @@ Here the snapping runs after the pitch shift, only on voiced frames, and holds
 each note for 50 ms so it steps cleanly instead of warbling between two notes.
 voice.ai cannot do this live; it applies to recorded clips.
 
+## Settings tuned to your voice
+
+Put a few recordings of yourself in `C:\GLaDOSVoice\samples\input\` (WAV/MP3,
+10–60 s each, talking normally), then run **`tune.bat`**. It converts them over a
+staged search: pitch, then index rate, protect, GLaDOS-mode step strength, and a
+final pitch fine-tune. About 20 settings in all. Each result is scored against
+her held-out lines (never used in training) with measures that don't depend on
+the words:
+
+| Measure | What it compares |
+| --- | --- |
+| timbre | MFCC statistics of the output vs hers, relative to how far your raw voice is from hers |
+| pitch | median pitch, in semitones |
+| range | pitch spread (flat vs lively delivery) |
+| steps | share of pitch held on flat plateaus: her stepped intonation |
+| artifacts | noise/buzz above her level |
+
+Results:
+
+- `C:\GLaDOSVoice\best_settings.json`, used automatically by `glados_mode.bat`
+  and `convert_folder.bat`
+- `samples\compare\<clip>_ABCD.wav`, which plays your clip (A), default settings (B),
+  the best settings (C) and the best with the other pitch style (D), plus each
+  one as a separate file
+- `tuning\summary.md` (including the best settings for voice.ai, which can't do
+  steps) and `tuning\scores.csv` with every setting tried
+
 ## Your own voice for the samples
 
 Put a recording of yourself (WAV/MP3, 10–30 s of normal talking) in

@@ -49,6 +49,13 @@ def model_files(ws: Workspace) -> tuple[Path, Path]:
     return pth, idx
 
 
+def model_key(ws: Workspace) -> str:
+    """Changes whenever the exported model changes, so cached conversions go stale with it."""
+    pth, _ = model_files(ws)
+    st = pth.stat()
+    return hashlib.sha1(f"{st.st_size}:{st.st_mtime_ns}".encode()).hexdigest()[:8]
+
+
 def gpu_for_tools(ws: Workspace) -> dict:
     state = State(ws.state_file)
     gpu = state.info("gpu_check")
