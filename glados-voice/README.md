@@ -100,6 +100,18 @@ Results:
 - `tuning\summary.md` (including the best settings for voice.ai, which can't do
   steps) and `tuning\scores.csv` with every setting tried
 
+## Drop-folder converter
+
+**`convert_folder.bat`** converts every WAV in a folder with your best settings
+from `tune.bat` (or the recommended pitch if you haven't tuned yet):
+
+- `convert_folder.bat` with no argument uses `C:\GLaDOSVoice\dropbox\` → `dropbox\GLaDOS\`
+- `convert_folder.bat "D:\my clips"` → `D:\my clips\GLaDOS\<name>_GLaDOS.wav`
+- Run it again whenever you add clips: files already converted with the same
+  settings and model are skipped, and edited ones are redone.
+- `--all-audio` includes MP3/FLAC/OGG/M4A too; `--steps 0.8` adds GLaDOS-mode
+  steps; `--pitch N` overrides the pitch; `--force` reconverts everything.
+
 ## Your own voice for the samples
 
 Put a recording of yourself (WAV/MP3, 10–30 s of normal talking) in

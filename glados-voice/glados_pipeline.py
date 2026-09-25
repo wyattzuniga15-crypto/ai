@@ -104,7 +104,7 @@ def find_uv(args, ws: Workspace) -> str:
     raise Blocked("uv (the Python installer) was not found. Start the pipeline with run.bat, which installs it.")
 
 
-TOOLS = {"glados-mode": "glados.mode", "tune": "glados.tune"}
+TOOLS = {"glados-mode": "glados.mode", "tune": "glados.tune", "convert-folder": "glados.folder"}
 
 
 def run_tool(name: str, argv: list[str]) -> int:
