@@ -82,7 +82,15 @@ try {
     Invoke-Native $Uv @("pip", "install", "--python", $Py, "-r", (Join-Path $Here "requirements-pipeline.txt")) "Installing pipeline packages"
 
     # 4. Run the pipeline
-    $argsList = @((Join-Path $Here "glados_pipeline.py"), "--root", $Root, "--uv", $Uv) + $PipelineArgs
+    # A tool name first (from glados_mode.bat, tune.bat, ...) runs that tool instead.
+    $ToolNames = @("glados-mode")
+    if ($PipelineArgs.Count -gt 0 -and $ToolNames -contains $PipelineArgs[0]) {
+        $rest = @()
+        if ($PipelineArgs.Count -gt 1) { $rest = $PipelineArgs[1..($PipelineArgs.Count - 1)] }
+        $argsList = @((Join-Path $Here "glados_pipeline.py"), $PipelineArgs[0], "--root", $Root, "--uv", $Uv) + $rest
+    } else {
+        $argsList = @((Join-Path $Here "glados_pipeline.py"), "--root", $Root, "--uv", $Uv) + $PipelineArgs
+    }
     Log "Starting the pipeline (log: $Logs\pipeline.log)"
     & $Py @argsList
     $code = $LASTEXITCODE

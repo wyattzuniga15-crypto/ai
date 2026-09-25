@@ -54,6 +54,25 @@ Pass them to `run.bat`, e.g. `run.bat --epochs 350`:
 Settings are remembered. Changing one later redoes only the steps it affects:
 for example, more epochs continues training from the last snapshot.
 
+## GLaDOS mode (stepped, robotic intonation)
+
+Her delivery moves in flat pitch steps rather than gliding. `glados_mode.bat`
+converts your recordings and snaps the pitch toward semitone steps:
+
+- **Drag** audio files or a folder onto `glados_mode.bat`, or run
+  `glados_mode.bat` with no arguments to convert everything in `samples\input\`.
+- `--strength 0..1` sets how hard it snaps (default 0.8; 1.0 is fully stepped,
+  0 is your natural intonation). `--compare` also writes 0 / 0.4 / 0.7 / 1.0 plus
+  one file that plays them back to back.
+- Results go to `C:\GLaDOSVoice\converted\glados_mode\`.
+
+This does not use Applio's own autotune switch. In Applio 3.6.5 that switch
+skips the pitch shift entirely (a +12 conversion comes out at your own pitch)
+and gives silent frames a 49 Hz buzz (`tests/test_glados_mode.py` shows both).
+Here the snapping runs after the pitch shift, only on voiced frames, and holds
+each note for 50 ms so it steps cleanly instead of warbling between two notes.
+voice.ai cannot do this live; it applies to recorded clips.
+
 ## Your own voice for the samples
 
 Put a recording of yourself (WAV/MP3, 10–30 s of normal talking) in

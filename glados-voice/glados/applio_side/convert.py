@@ -71,6 +71,7 @@ def _get_f0(self, x, p_len, f0_method="rmvpe", pitch=0, f0_autotune=False, f0_au
             proposed_pitch=False, proposed_pitch_threshold=155.0):
     coarse, f0 = _orig_get_f0(self, x, p_len, f0_method, pitch, False, f0_autotune_strength,
                               proposed_pitch, proposed_pitch_threshold)
+    before = f0
     if SNAP["strength"] > 0:
         f0 = snap_f0(f0, SNAP["strength"], SNAP["hold"])
         f0_mel = 1127 * np.log(1 + f0 / 700)
@@ -78,6 +79,9 @@ def _get_f0(self, x, p_len, f0_method="rmvpe", pitch=0, f0_autotune=False, f0_au
         f0_mel[f0_mel <= 1] = 1
         f0_mel[f0_mel > 255] = 255
         coarse = np.rint(f0_mel).astype(int)
+    if os.environ.get("GLADOS_F0_DUMP"):  # testing aid: the contour the model actually receives
+        np.savez(f"{os.environ['GLADOS_F0_DUMP']}_{SNAP['strength']:.2f}_{time.time_ns()}.npz",
+                 shifted=np.asarray(before), final=np.asarray(f0), pitch=pitch)
     return coarse, f0
 
 

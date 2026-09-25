@@ -104,7 +104,26 @@ def find_uv(args, ws: Workspace) -> str:
     raise Blocked("uv (the Python installer) was not found. Start the pipeline with run.bat, which installs it.")
 
 
+TOOLS = {"glados-mode": "glados.mode"}
+
+
+def run_tool(name: str, argv: list[str]) -> int:
+    import importlib
+
+    try:
+        return importlib.import_module(TOOLS[name]).main(argv)
+    except Blocked as exc:
+        LOG.error("BLOCKED: %s", exc)
+        return 2
+    except StepFailed as exc:
+        LOG.error("%s", exc)
+        return 1
+
+
 def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in TOOLS:
+        return run_tool(argv[0], argv[1:])
     args = parse_args(argv)
     ws = Workspace(Path(args.root))
     ws.make()
