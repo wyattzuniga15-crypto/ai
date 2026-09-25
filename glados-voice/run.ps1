@@ -83,7 +83,7 @@ try {
 
     # 4. Run the pipeline
     # A tool name first (from glados_mode.bat, tune.bat, ...) runs that tool instead.
-    $ToolNames = @("glados-mode", "tune", "convert-folder")
+    $ToolNames = @("glados-mode", "tune", "convert-folder", "tts")
     if ($PipelineArgs.Count -gt 0 -and $ToolNames -contains $PipelineArgs[0]) {
         $rest = @()
         if ($PipelineArgs.Count -gt 1) { $rest = $PipelineArgs[1..($PipelineArgs.Count - 1)] }

@@ -111,26 +111,29 @@ def _install_source(ws: Workspace):
     marker.write_text(APPLIO_VERSION)
 
 
-def _torch_info(ws: Workspace) -> dict | None:
-    if not ws.applio_python.exists():
+def _torch_info(ws: Workspace, python: Path | None = None) -> dict | None:
+    python = python or ws.applio_python
+    if not python.exists():
         return None
     code = ("import json,torch;print('TORCH_JSON '+json.dumps({'version':torch.__version__,"
             "'cuda_build':torch.version.cuda,'cuda_available':torch.cuda.is_available()}))")
-    rc, tail, _ = run([ws.applio_python, "-c", code], cwd=ws.applio, check=False, quiet=True)
+    rc, tail, _ = run([python, "-c", code], cwd=python.parent, check=False, quiet=True)
     return json_line(tail, "TORCH_JSON ") if rc == 0 else None
 
 
-def _install_torch(ws: Workspace, uv: str, reinstall: bool) -> str:
+def _install_torch(ws: Workspace, uv: str, reinstall: bool, python: Path | None = None) -> str:
+    """CUDA PyTorch into a venv (Applio's by default), trying CUDA builds until one sees the GPU."""
+    python = python or ws.applio_python
     last = None
     for idx in CUDA_INDEXES:
         LOG.info("Installing PyTorch %s with CUDA (%s build)", TORCH_VERSION, idx)
-        cmd = [uv, "pip", "install", "--python", ws.applio_python,
+        cmd = [uv, "pip", "install", "--python", python,
                f"torch=={TORCH_VERSION}", f"torchaudio=={TORCH_VERSION}",
                "--index-url", f"https://download.pytorch.org/whl/{idx}"]
         if reinstall:
             cmd += ["--reinstall-package", "torch", "--reinstall-package", "torchaudio"]
         rc, tail, _ = run(cmd, log_name="setup.log", logs_dir=ws.logs, check=False)
-        info = _torch_info(ws)
+        info = _torch_info(ws, python)
         if rc == 0 and info and info["cuda_build"] and info["cuda_available"]:
             LOG.info("PyTorch %s (CUDA %s) can see the GPU", info["version"], info["cuda_build"])
             return idx
@@ -214,9 +217,15 @@ def _choose_pretrain(ws: Workspace, choice: str) -> dict:
 
 def setup_applio(ws: Workspace, cfg) -> dict:
     free = disk_free_gb(ws.root)
-    if free < 20:
-        raise Blocked(f"Only {free:.0f} GB free on the drive holding {ws.root}. The Applio install, "
-                      "models and training checkpoints need about 20 GB. Free some space and re-run.")
+    installed = (ws.applio / ".glados_requirements_ok").exists() and ws.applio_python.exists()
+    # A fresh install (PyTorch, models) needs ~20 GB; once installed, only training
+    # checkpoints and weight snapshots are still to come (a few GB).
+    need = 6 if installed else 20
+    if free < need:
+        raise Blocked(f"Only {free:.0f} GB free on the drive holding {ws.root}. "
+                      + ("Training checkpoints need about 6 GB." if installed else
+                         "The Applio install, models and training checkpoints need about 20 GB.")
+                      + " Free some space and re-run.")
     gpus = None if cfg.allow_cpu else nvidia_smi()
     if not cfg.allow_cpu:
         if not gpus:

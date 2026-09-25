@@ -131,6 +131,20 @@ def scream(sr: int, dur=1.6) -> np.ndarray:
     return np.concatenate([np.zeros(int(0.1 * sr)), 0.8 * y / np.abs(y).max(), np.zeros(int(0.1 * sr))]).astype(np.float32)
 
 
+def caption_files(vo_paths: list[str]) -> dict[str, bytes]:
+    """A soundscript entry per voice file plus English captions for most of them, like Portal 2's."""
+    script, caps = [], []
+    for i, p in enumerate(sorted(vo_paths)):
+        wave = p[len("sound/"):]
+        entry = "GLaDOS." + Path(p).stem
+        script.append(f'"{entry}"\n{{\n\t"channel"\t"CHAN_VOICE"\n\t"wave"\t"*{wave}"\n}}\n')
+        if i % 5 != 4:  # leave a few without captions, as in the game
+            caps.append(f'"{entry.lower()}"\t"<clr:255,190,255>Test caption number {i}, for line {Path(p).stem}."')
+    cc = '"lang"\n{\n"Language" "English"\n"Tokens"\n{\n' + "\n".join(caps) + "\n}\n}\n"
+    return {"scripts/game_sounds_vo_glados.txt": "".join(script).encode(),
+            "resource/closecaption_english.txt": cc.encode("utf-16")}
+
+
 # ----------------------------------------------------------------------------- install
 
 def build_fake_install(base: Path, glados_clips: list[Path], other_clips: list[Path], music: Path) -> dict:
@@ -209,7 +223,7 @@ def build_fake_install(base: Path, glados_clips: list[Path], other_clips: list[P
     # other characters must not be extracted
     for i, x in enumerate(speech_chunks(other_clips, sr)[:6]):
         base_files[f"sound/vo/wheatley/sp_a1_wakeup{i:02d}.wav"] = wav_bytes(x, sr)
-    base_files["scripts/game_sounds_vo_glados.txt"] = b'"GLaDOS.sp_a1_line00" { "wave" "*vo/glados/sp_a1_line00.wav" }'
+    base_files.update(caption_files([p for p in base_files if p.startswith("sound/vo/")]))
     base_files["materials/dummy.vmt"] = b"LightmappedGeneric {}"
     write_vpk(game / "portal2" / "pak01_dir.vpk", base_files, mode="multi", preload=32)
 
