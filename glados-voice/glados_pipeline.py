@@ -53,7 +53,7 @@ GPU_STEPS = {"preprocess", "features", "train", "index", "select", "samples"}
 
 # Settings that shape the model; stored on first use so a plain re-run reuses them.
 DEFAULTS = {"epochs": 300, "save_every": 10, "batch_size": 8, "gpu_name": "3060 Ti", "pretrain": "titan",
-            "min_seconds": 1.0, "min_minutes": 40.0, "max_minutes": 70.0, "vo_folders": DEFAULT_VO_FOLDER_PATTERN}
+            "min_seconds": 1.0, "min_minutes": 40.0, "max_minutes": 0.0, "vo_folders": DEFAULT_VO_FOLDER_PATTERN}
 # If one of these changes, these steps (and all after them) must be redone.
 INVALIDATES = {"min_seconds": "clean", "min_minutes": "clean", "max_minutes": "clean",
                "vo_folders": "extract", "pretrain": "preprocess", "epochs": "train", "save_every": "train"}
@@ -73,7 +73,8 @@ def parse_args(argv=None):
     ap.add_argument("--pretrain", help="pretrained base: 'titan' (default, falls back to stock) or 'stock'")
     ap.add_argument("--min-seconds", type=float, help="shortest line kept after trimming (default 1.0)")
     ap.add_argument("--min-minutes", type=float, help="relax the audio rules below this many minutes (default 40)")
-    ap.add_argument("--max-minutes", type=float, help="drop the least typical lines above this (default 70)")
+    ap.add_argument("--max-minutes", type=float, help="cap the dataset at this many minutes, dropping the "
+                                                      "least typical lines (default 0 = keep every clean line)")
     ap.add_argument("--vo-folders", help="regex for the sound/vo/ folders to extract")
     ap.add_argument("--workers", type=int, default=max(1, min((os.cpu_count() or 4) - 1, 12)))
     ap.add_argument("--allow-cpu", action="store_true", help=argparse.SUPPRESS)  # test mode only
@@ -81,13 +82,25 @@ def parse_args(argv=None):
     return ap.parse_args(argv)
 
 
+# Old defaults to migrate: a workspace that only ever used the old default moves to the new one.
+LEGACY_DEFAULTS = {"max_minutes": 70.0}  # the dataset used to be capped at 70 minutes
+
+
 def resolve_settings(args, state: State) -> list[str]:
     """explicit flag > value stored from an earlier run > default. Returns steps to redo."""
     stored = state.data["settings"]
     redo = []
+    for key, old in LEGACY_DEFAULTS.items():
+        if stored.get(key) == old and not stored.get(f"{key}__explicit") and getattr(args, key) is None:
+            LOG.info("Setting %s: moving from the old default %s to the new default %s", key, old, DEFAULTS[key])
+            stored[key] = DEFAULTS[key]
+            if key in INVALIDATES and state.is_done(INVALIDATES[key]):
+                redo.append(INVALIDATES[key])  # main() then redoes that step and every later one
     for key, default in DEFAULTS.items():
         given = getattr(args, key)
         value = given if given is not None else stored.get(key, default)
+        if given is not None:
+            stored[f"{key}__explicit"] = True
         if key in stored and stored[key] != value and key in INVALIDATES:
             LOG.info("Setting %s changed %s -> %s: redoing from step '%s'", key, stored[key], value, INVALIDATES[key])
             redo.append(INVALIDATES[key])

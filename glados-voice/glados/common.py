@@ -151,6 +151,31 @@ def fmt_duration(seconds: float) -> str:
     return f"{s}s"
 
 
+REFERENCE_MINUTES = 70.0  # the upper end of the 40-70 minute target
+
+
+def training_time_note(train_minutes: float, seconds_per_epoch: float | None = None,
+                       epochs: int | None = None) -> str:
+    """How much longer a dataset over 70 minutes makes training.
+
+    Epoch time is proportional to the audio trained on (Applio slices it into
+    fixed 3 s segments and visits each once per epoch), so the ratio is exact
+    up to data-loading overhead; with a measured epoch time it becomes hours.
+    """
+    if train_minutes <= REFERENCE_MINUTES:
+        return ""
+    extra = train_minutes / REFERENCE_MINUTES - 1
+    note = (f"{train_minutes:.1f} min of clean speech is {100 * extra:.0f}% more than a "
+            f"{REFERENCE_MINUTES:.0f}-minute set, so every epoch (and the whole run) takes about "
+            f"{100 * extra:.0f}% longer")
+    if seconds_per_epoch and epochs:
+        total = seconds_per_epoch * epochs
+        base = total / (1 + extra)
+        note += (f": about {fmt_duration(total)} for {epochs} epochs instead of {fmt_duration(base)} "
+                 f"(+{fmt_duration(total - base)})")
+    return note
+
+
 def child_env(extra: dict | None = None) -> dict:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"

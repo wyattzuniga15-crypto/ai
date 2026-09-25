@@ -28,7 +28,7 @@ the NVIDIA driver is missing, or the disk is full.
 | locate | Finds Portal 2: the default Steam path, then every Steam library listed in `libraryfolders.vdf` |
 | extract | Lists every VPK archive (base game, DLC and update folders; localised folders are skipped), writes the full `sound/vo/` listing to `logs\`, and copies out only the GLaDOS voice folders, CRC-checking each file. Where a file exists in several archives, the newest copy wins |
 | convert | Converts every line to mono 40 kHz 16-bit WAV (`clean\converted\`) |
-| clean | Measures every line and excludes non-speech: PotatOS and Caroline lines, singing, screams, laughs, glitches, lines with music or sound effects under them, noisy, clipped or radio-filtered lines, lines under 1 s, silent files, and exact or near duplicates. Every exclusion and its reason goes to `logs\excluded.csv`. Kept lines are trimmed and loudness-normalised to -20 LUFS. About 3% are held back as a test set |
+| clean | Measures every line and excludes non-speech: PotatOS and Caroline lines, singing, screams, laughs, glitches, lines with music or sound effects under them, noisy, clipped or radio-filtered lines, lines under 1 s, silent files, and exact or near duplicates. Every exclusion and its reason goes to `logs\excluded.csv`. Kept lines are trimmed and loudness-normalised to -20 LUFS. About 3% are held back as a test set. Every line that passes is kept, even past 70 minutes, and the log says how much longer that makes training |
 | setup_applio | Installs Applio 3.6.5 (RVC v2) in its own Python 3.12 venv with CUDA PyTorch, its models, and the TITAN pretrained base (falls back to Applio's stock base) |
 | gpu_check | Confirms PyTorch sees the RTX 3060 Ti and runs a test on it. From then on, every Applio process sees only that card, so neither the CPU nor the AMD integrated graphics can be used |
 | preprocess, features | Applio slicing, then RMVPE pitch and ContentVec features on the GPU |
@@ -46,6 +46,11 @@ Pass them to `run.bat`, e.g. `run.bat --epochs 350`:
 - `--game-dir "D:\SteamLibrary\steamapps\common\Portal 2"`: set the game folder yourself if it isn't found
 - `--root D:\GLaDOSVoice`: a different workspace folder
 - `--epochs 300`, `--save-every 10`, `--batch-size 8`: training settings
+- `--max-minutes 70`: cap the dataset (the least typical lines are dropped first).
+  The default is no cap. Epoch time grows in proportion to the audio, so the
+  pipeline reports how much longer a set over 70 minutes takes: as a percentage
+  after cleaning, and in hours once the first epochs are measured (also in
+  `C:\GLaDOSVoice\README.md`).
 - `--gpu-name "3060 Ti"`: which CUDA card to require
 - `--pretrain stock`: skip the TITAN base
 - `--redo <step>`: redo a step and everything after it (e.g. `--redo select`)

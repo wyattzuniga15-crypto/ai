@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from . import audio as A
-from .common import LOG, StepFailed, Workspace, fmt_minutes, write_json
+from .common import LOG, StepFailed, Workspace, fmt_minutes, training_time_note, write_json
 
 TARGET_LUFS = -20.0
 PEAK_CEILING_DBFS = -1.0
@@ -241,7 +241,7 @@ def _write_processed(args):
 
 
 def run_clean(ws: Workspace, workers: int, min_seconds: float = 1.0, min_minutes: float = 40.0,
-              max_minutes: float = 70.0, near_dup_similarity: float = 0.92) -> dict:
+              max_minutes: float = 0.0, near_dup_similarity: float = 0.92) -> dict:
     conv = [r for r in csv.DictReader(open(ws.clean / "converted_manifest.csv", encoding="utf-8"))]
     rel_of = {r["id"]: r["rel_path"] for r in conv}
     failed = [r for r in conv if r.get("ok") != "True"]
@@ -324,9 +324,9 @@ def run_clean(ws: Workspace, workers: int, min_seconds: float = 1.0, min_minutes
                     break
     kept = [r for r in kept if not r["soft"]]
 
-    # ---- budget: above max_minutes, drop the least typical lines first
+    # ---- optional cap (off by default): above max_minutes, drop the least typical lines first
     total = sum(r["f"]["trimmed_s"] for r in kept)
-    if total / 60 > max_minutes:
+    if max_minutes and total / 60 > max_minutes:
         for r in sorted(kept, key=lambda r: r["bad"], reverse=True):
             if total / 60 <= max_minutes:
                 break
@@ -411,7 +411,13 @@ def run_clean(ws: Workspace, workers: int, min_seconds: float = 1.0, min_minutes
     for k, v in report["excluded_by_reason"].items():
         LOG.info("   excluded %4d lines (%5.1f min): %s", v["lines"], v["minutes"], k)
     if train_s / 60 < min_minutes:
-        LOG.warning("Only %s of clean speech (target %g-%g). Training will still work, but "
+        LOG.warning("Only %s of clean speech (target at least %g). Training will still work, but "
                     "check logs/excluded.csv for lines that could be kept.",
-                    fmt_minutes(train_s), min_minutes, max_minutes)
+                    fmt_minutes(train_s), min_minutes)
+    note = training_time_note(train_s / 60)
+    if note:
+        report["training_time_note"] = note
+        write_json(ws.clean / "cleaning_report.json", report)
+        LOG.info("Every line that passed the cleaning rules is kept: %s. The exact time is measured "
+                 "once training starts.", note)
     return {k: v for k, v in report.items() if k not in ("thresholds", "holdout_ids")}

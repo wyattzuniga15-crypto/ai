@@ -19,7 +19,8 @@ import zipfile
 from pathlib import Path
 
 from .common import (LOG, MODEL_NAME, SAMPLE_RATE, Blocked, StepFailed, Workspace, child_env,
-                     disk_free_gb, download, fmt_duration, now, read_json, run, write_json)
+                     disk_free_gb, download, fmt_duration, now, read_json, run, training_time_note,
+                     write_json)
 
 APPLIO_VERSION = "3.6.5"
 APPLIO_ZIP = f"https://github.com/IAHispano/Applio/archive/refs/tags/{APPLIO_VERSION}.zip"
@@ -430,6 +431,7 @@ def train(ws: Workspace, cfg, gpu: dict, pretrain: dict, state_info: dict, save_
     pretrain_name = pretrain["name"]
     restarts = 0
     slices = len(list((exp / "sliced_audios").glob("*.wav")))
+    train_minutes = float((read_json(ws.clean / "cleaning_report.json", {}) or {}).get("train_minutes", 0))
     _stop_stale_training(exp)
 
     while True:
@@ -471,6 +473,10 @@ def train(ws: Workspace, cfg, gpu: dict, pretrain: dict, state_info: dict, save_
                             "eta_seconds": per * (total - ep) if per else None, "updated": now()})
                 if ep % 5 == 0 or ep == mon["first_epoch_seen"]:
                     LOG.info("Epoch %d/%d%s", ep, total, eta)
+                if len(mon["durations"]) == 3:
+                    note = training_time_note(train_minutes, per, total)
+                    if note:
+                        LOG.info("Training time: %s.", note)
             return None
 
         sampler = _GpuSampler(ws, gpu.get("cuda_visible_devices", "")) if gpu.get("device") == "cuda" else None
@@ -527,9 +533,11 @@ def train(ws: Workspace, cfg, gpu: dict, pretrain: dict, state_info: dict, save_
 
     weights = weight_files(exp)
     final = max(w[0] for w in weights)
+    per = state_info.get("seconds_per_epoch")
     info = {"epochs": final, "batch_size": batch, "checkpointing": checkpointing,
             "pretrain": pretrain_name, "weights_saved": len(weights), "segments": slices,
-            "seconds_per_epoch": state_info.get("seconds_per_epoch")}
+            "seconds_per_epoch": per, "estimated_total_seconds": per * final if per else None,
+            "training_time_note": training_time_note(train_minutes, per, final)}
     LOG.info("Training finished: %d epochs, %d weight snapshots saved", final, len(weights))
     return info
 

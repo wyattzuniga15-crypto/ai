@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import MODEL_NAME, Workspace, now, read_json
+from .common import MODEL_NAME, Workspace, fmt_duration, now, read_json
 
 
 def _table(rows: list[list], header: list[str]) -> str:
@@ -32,6 +32,8 @@ def write_readme(ws: Workspace, state: dict) -> Path:
         ["Lines excluded", f"{cl.get('lines_excluded', '?')} of {cl.get('lines_found', '?')} (reasons below)"],
         ["Epochs trained", f"{tr.get('epochs', '?')} (batch size {tr.get('batch_size', '?')}, snapshot every "
                            f"{state.get('settings', {}).get('save_every', '?')} epochs)"],
+        ["Training time", (f"about {fmt_duration(tr['estimated_total_seconds'])} "
+                           f"({tr['seconds_per_epoch']:.0f} s per epoch)") if tr.get("estimated_total_seconds") else "?"],
         ["Pretrained base", tr.get("pretrain") or setup.get("pretrain", {}).get("name", "?")],
         ["Checkpoint picked", f"**epoch {sel.get('chosen_epoch', '?')}** ({Path(sel.get('chosen_file', '?')).name})"],
         ["Recommended voice.ai pitch", f"**+{rec}** semitones (exact estimate {pitch.get('exact', '?')})"],
@@ -80,6 +82,8 @@ def write_readme(ws: Workspace, state: dict) -> Path:
               f"{conv.get('raw_minutes', '?')} minutes in all. Each was converted to mono 40 kHz 16-bit, "
               "measured, and dropped if it was not normal GLaDOS speech. Kept lines were trimmed "
               f"of silence and loudness-normalised to {cl.get('target_lufs', -20)} LUFS.", ""]
+    if tr.get("training_time_note"):
+        lines += [f"No lines were dropped to fit a size limit: {tr['training_time_note']}.", ""]
     ex = cl.get("excluded_by_reason", {})
     if ex:
         lines += [_table([[k, v["lines"], v["minutes"]] for k, v in ex.items()],
