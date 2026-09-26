@@ -1,0 +1,8 @@
+# The pipeline's own small venv (Applio gets a separate one with PyTorch).
+numpy==2.5.3
+scipy==1.18.1
+soundfile==0.14.0
+soxr==1.1.0
+pyloudnorm==0.2.0
+vpk==1.4.0
+imageio-ffmpeg==0.6.0
