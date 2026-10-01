@@ -1,4 +1,6 @@
-
-# the packed folder the pack script builds beside the repo
+# the packed folders the pack script builds beside the repo: the game inside them is Mojang's
+# textures and sounds, which stay out of the repository
 Voxelcraft/
 Voxelcraft.zip
+Voxelcraft-phone/
+Voxelcraft-phone.zip
