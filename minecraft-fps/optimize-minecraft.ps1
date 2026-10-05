@@ -20,6 +20,10 @@
     -Restore puts each options.txt back the way it was before the first run and
     switches to the Balanced power plan.
 
+    -Drivers shows each graphics chip's driver and opens its maker's updater:
+    the NVIDIA app, AMD Software or Intel Driver & Support Assistant if
+    installed, otherwise the official download page.
+
 .PARAMETER RenderDistance
     Chunks drawn around you. 2 is the minimum and the fastest; 4 is the default here.
 
@@ -40,6 +44,9 @@
 .PARAMETER Restore
     Undo: restore the original options.txt files and the Balanced power plan.
 
+.PARAMETER Drivers
+    Open the official graphics driver updater for each graphics chip.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\optimize-minecraft.ps1
 
@@ -55,7 +62,8 @@ param(
     [string]$GameDir,
     [switch]$SkipWindowsTweaks,
     [switch]$Check,
-    [switch]$Restore
+    [switch]$Restore,
+    [switch]$Drivers
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,6 +88,15 @@ function Set-UserDword($path, $name, $value) {
 }
 
 function Get-Cim($class) { Get-CimInstance -ClassName $class -ErrorAction SilentlyContinue }
+
+# By PCI vendor ID first, which is there even before a driver is installed.
+function Get-GpuVendor($gpu) {
+    $id = [string]$gpu.PNPDeviceID
+    if ($id -match 'VEN_10DE' -or $gpu.Name -match 'NVIDIA|GeForce|Quadro') { return 'NVIDIA' }
+    if ($id -match 'VEN_1002' -or $gpu.Name -match 'AMD|Radeon') { return 'AMD' }
+    if ($id -match 'VEN_8086' -or $gpu.Name -match 'Intel') { return 'Intel' }
+    return ''
+}
 
 # Every options.txt to work on: the one in -GameDir, or else the official
 # launcher's plus each Modrinth App, Prism Launcher and CurseForge instance.
@@ -290,7 +307,7 @@ if ($Check) {
     Invoke-Section 'Graphics' {
         $all = @(Get-Cim Win32_VideoController)
         if (@($all | Where-Object { $_.Name -match 'Basic Display' }).Count) {
-            Write-Fix 'A graphics chip has no driver (Windows calls it Microsoft Basic Display Adapter).' 'Install the driver from nvidia.com, amd.com or intel.com.'
+            Write-Fix 'A graphics chip has no driver (Windows calls it Microsoft Basic Display Adapter).' 'Double-click update-drivers.cmd (or run with -Drivers).'
         }
         $gpus = @($all | Where-Object { $_.Name -notmatch 'Basic Display|Remote Display|Virtual|Parsec|Idd|DisplayLink|Mirage|Citrix|Hyper-V' } |
                 ForEach-Object {
@@ -322,7 +339,7 @@ if ($Check) {
             if (-not $g.DriverDate) { continue }
             $when = ([datetime]$g.DriverDate).ToString('MMMM yyyy')
             if ([datetime]$g.DriverDate -lt (Get-Date).AddMonths(-12)) {
-                Write-Fix "The $($g.Name) driver is from $when." 'Update it from nvidia.com, amd.com or intel.com, or the NVIDIA app / AMD Adrenalin.'
+                Write-Fix "The $($g.Name) driver is from $when." 'Double-click update-drivers.cmd (or run with -Drivers).'
             } else {
                 Write-Ok "Driver from $when"
             }
@@ -418,6 +435,79 @@ if ($Check) {
     }
     Write-Host ''
     Write-Info 'Not checked: temperatures. If FPS sags after a few minutes of play, check them with the free app HWiNFO.'
+    exit 0
+}
+
+# --- Drivers -----------------------------------------------------------------
+if ($Drivers) {
+    Write-Host 'Opening the official driver updater for each graphics chip.' -ForegroundColor Cyan
+
+    $updaters = @{
+        'NVIDIA' = @{
+            Shortcut = '^(NVIDIA app|GeForce Experience)'
+            Url      = 'https://www.nvidia.com/en-us/software/nvidia-app/'
+            Steps    = 'In the NVIDIA app: Drivers > Download, then Express installation.'
+        }
+        'AMD'    = @{
+            Shortcut = '^(AMD Software|Radeon Software)'
+            Url      = 'https://www.amd.com/en/support/download/drivers.html'
+            Steps    = 'In AMD Software: Check for updates, then install the Recommended driver. On the web page, the Auto-Detect and Install tool does the same.'
+        }
+        'Intel'  = @{
+            Shortcut = 'Driver & Support Assistant'
+            Url      = 'https://www.intel.com/content/www/us/en/support/detect.html'
+            Steps    = 'Intel Driver & Support Assistant scans the PC and lists the updates.'
+        }
+    }
+
+    $shortcuts = @(@("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs") |
+            Where-Object { Test-Path $_ } |
+            ForEach-Object { Get-ChildItem -Path $_ -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue })
+
+    $opened = @{}
+    $gpus = @(Get-Cim Win32_VideoController | Where-Object { $_.Name -notmatch 'Remote Display|Virtual|Parsec|Idd|DisplayLink|Mirage|Citrix|Hyper-V' })
+    foreach ($g in $gpus) {
+        Write-Step $g.Name.Trim()
+        $date = if ($g.DriverDate) { ([datetime]$g.DriverDate).ToString('d MMMM yyyy') } else { 'unknown date' }
+        Write-Info "Installed driver: $($g.DriverVersion), $date"
+
+        $vendor = Get-GpuVendor $g
+        if (-not $vendor) {
+            if ($g.Name -match 'Basic Display') {
+                Start-Process -FilePath 'ms-settings:windowsupdate'
+                Write-Done 'Opened Windows Update. Click Check for updates; it usually finds the missing driver.'
+            } else {
+                Write-Info 'Not a graphics chip this script knows the updater for.'
+            }
+            continue
+        }
+        if ($opened[$vendor]) { Write-Info "Same $vendor updater as above."; continue }
+        $opened[$vendor] = $true
+
+        $updater = $updaters[$vendor]
+        $app = $shortcuts | Where-Object { $_.BaseName -match $updater.Shortcut } | Select-Object -First 1
+        if ($app) {
+            Start-Process -FilePath $app.FullName
+            Write-Done "Opened $($app.BaseName)."
+        } else {
+            Start-Process -FilePath $updater.Url
+            Write-Done "Opened $($updater.Url)"
+        }
+        Write-Info $updater.Steps
+    }
+    if ($gpus.Count -eq 0) { Write-Note 'Windows did not report any graphics chip.' }
+
+    $cpu = @(Get-Cim Win32_Processor)[0]
+    if ($cpu -and $cpu.Name -match 'AMD') {
+        Write-Step 'AMD chipset'
+        if (-not $opened['AMD']) { Start-Process -FilePath $updaters['AMD'].Url; Write-Done "Opened $($updaters['AMD'].Url)" }
+        Write-Info 'On the AMD drivers page, also get the chipset driver for your motherboard (Chipsets > your socket, such as AM5).'
+        Write-Info 'Ryzen X3D chips rely on it to run games on the right cores.'
+    }
+
+    Write-Host ''
+    Write-Note 'The installers ask for permission (a Windows admin prompt); that is expected.'
+    Write-Note 'Restart the PC after installing, then run check-my-pc.cmd to confirm.'
     exit 0
 }
 

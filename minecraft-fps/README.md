@@ -26,8 +26,9 @@ past that the gain is slightly lower input lag, not smoother motion.
 | `check-my-pc.cmd` | Report on what is holding your FPS back. Changes nothing |
 | `optimize-minecraft.cmd` | Applies the fixes it can (close Minecraft first) |
 | `undo-minecraft-tweaks.cmd` | Puts your original settings back |
+| `update-drivers.cmd` | Opens the official graphics driver updater for your PC |
 
-All three run `optimize-minecraft.ps1`. Keep the files in the same folder.
+All of them run `optimize-minecraft.ps1`. Keep the files in the same folder.
 
 ## 0. Check your PC
 
@@ -162,7 +163,15 @@ add `javaw.exe`; the script prints its path):
 - Frame Rate Target Control: **Off**
 - Enhanced Sync / Wait for Vertical Refresh: **Off**
 
-Update the graphics driver too. It's free FPS.
+**Updating the driver:** double-click **`update-drivers.cmd`**. It shows each
+graphics chip's installed driver and date, then opens the right updater: the
+NVIDIA app, AMD Software or Intel Driver & Support Assistant if you have it,
+otherwise the official download page
+([NVIDIA](https://www.nvidia.com/en-us/software/nvidia-app/),
+[AMD](https://www.amd.com/en/support/download/drivers.html),
+[Intel](https://www.intel.com/content/www/us/en/support/detect.html)).
+On a Ryzen PC it also points you to the AMD chipset driver. Restart after
+installing.
 
 ## 6. Everything else
 
