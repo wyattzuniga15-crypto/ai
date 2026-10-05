@@ -74,12 +74,13 @@ function Write-Note($text) { Write-Host "   $text" -ForegroundColor Yellow }
 
 # Report lines for -Check. Every [FIX] is also collected for the summary.
 $script:fixes = New-Object System.Collections.Generic.List[string]
+$script:fixPrefix = ''   # the instance name, while checking one
 function Write-Ok($text) { Write-Host "   [ OK ] $text" -ForegroundColor Green }
 function Write-Info($text) { Write-Host "   [INFO] $text" }
 function Write-Fix($problem, $fix) {
     Write-Host "   [FIX ] $problem" -ForegroundColor Yellow
     Write-Host "          $fix" -ForegroundColor Yellow
-    $script:fixes.Add("$problem $fix")
+    $script:fixes.Add("$script:fixPrefix$problem $fix")
 }
 
 function Set-UserDword($path, $name, $value) {
@@ -422,8 +423,10 @@ if ($Check) {
         Write-Info 'No Minecraft instance found. Start the game once and quit it, or pass -GameDir.'
     }
     foreach ($f in $optionsFiles) {
+        $script:fixPrefix = "[$(Get-InstanceName $f)] "
         Invoke-Section "Minecraft: $(Get-InstanceName $f)" { Test-Instance $f ($optionsFiles.Count -eq 1) }
     }
+    $script:fixPrefix = ''
 
     Write-Step 'Summary'
     if ($script:fixes.Count -eq 0) {
