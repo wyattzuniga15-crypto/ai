@@ -33,8 +33,9 @@ rights and installs nothing:
 
 1. **options.txt**: VSync off, FPS unlimited, Fast graphics, render distance 4,
    simulation distance 5, no clouds, minimal particles, smooth lighting, entity
-   shadows, biome blend and mipmaps off, fullscreen on. It saves a backup as
-   `options.txt.bak-<date>` before writing.
+   shadows, biome blend and mipmaps off, fullscreen on. It does this for the
+   official launcher and every Modrinth App, Prism Launcher and CurseForge
+   instance it finds, saving a backup as `options.txt.bak-<date>` beside each.
 2. **GPU**: tells Windows to run Minecraft's Java on the high-performance GPU.
    This matters on gaming laptops, which otherwise often run games on the weak
    built-in chip.
@@ -47,7 +48,7 @@ Options:
 .\optimize-minecraft.ps1 -RenderDistance 2     # absolute max FPS
 .\optimize-minecraft.ps1 -RenderDistance 8     # nicer view, fewer FPS
 .\optimize-minecraft.ps1 -SkipWindowsTweaks    # only touch options.txt
-.\optimize-minecraft.ps1 -GameDir "C:\path\to\instance\minecraft"   # Prism / Modrinth / CurseForge
+.\optimize-minecraft.ps1 -GameDir "C:\path\to\instance"   # only this one instance
 ```
 
 **Undo:** rename the `.bak` file back to `options.txt`, and run
@@ -95,12 +96,22 @@ In **Options → Video Settings** (Sodium's screen):
 
 ## 4. Java memory
 
-In the Minecraft Launcher: **Installations → (your 1.21.4 Fabric profile) →
-⋯ → Edit → More Options → JVM Arguments**. Change `-Xmx2G` at the start to
-`-Xmx4G` and leave the rest alone.
+| RAM in your PC | Give Minecraft |
+| --- | --- |
+| 8 GB | 3 GB (3072 MB) |
+| 16 GB | 4–6 GB (4096–6144 MB) |
+| 32 GB or more | 6–8 GB (6144–8192 MB) |
 
-Don't give it 8–16 GB. More memory doesn't add FPS, and very large values
-cause longer stutters when Java frees up memory.
+- **Modrinth App:** the instance → **⋯ → Edit instance → Java and memory →
+  Custom memory allocation**.
+- **Prism Launcher:** **Settings → Java → Maximum memory allocation**.
+- **Minecraft Launcher:** **Installations → (your 1.21.4 Fabric profile) →
+  ⋯ → Edit → More Options → JVM Arguments**. Change `-Xmx2G` at the start to
+  `-Xmx4G` and leave the rest alone.
+
+More memory doesn't add FPS, and past about 8 GB it can cause stutter. In F3,
+**Mem** climbing and then dropping is normal. Only raise it if Mem sits at
+90–100% and the game freezes.
 
 ## 5. Graphics driver settings
 

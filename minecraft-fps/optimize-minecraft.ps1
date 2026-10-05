@@ -17,8 +17,9 @@
     Chunks that tick around you. 5 is the minimum.
 
 .PARAMETER GameDir
-    The game folder that holds options.txt. Defaults to %APPDATA%\.minecraft.
-    For Prism, Modrinth or CurseForge, point this at the instance's minecraft folder.
+    One game folder that holds options.txt. Without it, every one found is tuned:
+    the official launcher's %APPDATA%\.minecraft and each Modrinth App, Prism
+    Launcher and CurseForge instance.
 
 .PARAMETER SkipWindowsTweaks
     Only change options.txt; leave GPU, Game Mode and power settings alone.
@@ -32,7 +33,7 @@
 param(
     [ValidateRange(2, 32)][int]$RenderDistance = 4,
     [ValidateRange(5, 32)][int]$SimulationDistance = 5,
-    [string]$GameDir = (Join-Path $env:APPDATA '.minecraft'),
+    [string]$GameDir,
     [switch]$SkipWindowsTweaks
 )
 
@@ -87,12 +88,8 @@ $wanted = [ordered]@{
     'fullscreen'             = 'true'
 }
 
-$optionsPath = Join-Path $GameDir 'options.txt'
-if (-not (Test-Path $optionsPath)) {
-    Write-Note "No options.txt in $GameDir."
-    Write-Note 'Start Minecraft once and quit it, or pass -GameDir for a launcher instance.'
-} else {
-    $optionsPath = (Resolve-Path $optionsPath).Path
+function Optimize-OptionsFile($optionsPath) {
+    Write-Host "   $(Split-Path $optionsPath -Parent)"
     $lines = [System.IO.File]::ReadAllLines($optionsPath)
     $changed = @()
     $skipped = @()
@@ -112,19 +109,42 @@ if (-not (Test-Path $optionsPath)) {
     }
 
     if ($changed.Count -eq 0) {
-        Write-Done 'Already tuned; nothing to change.'
+        Write-Done '  Already tuned; nothing to change.'
     } else {
         $backup = "$optionsPath.bak-$(Get-Date -Format yyyyMMdd-HHmmss)"
         Copy-Item -Path $optionsPath -Destination $backup
         # No byte-order mark: the game would read it as part of the first key.
         [System.IO.File]::WriteAllLines($optionsPath, $lines, (New-Object System.Text.UTF8Encoding $false))
-        $changed | ForEach-Object { Write-Done $_ }
-        Write-Note "Backup: $backup"
+        $changed | ForEach-Object { Write-Done "  $_" }
+        Write-Note "  Backup: $backup"
     }
     if ($skipped.Count -gt 0) {
-        Write-Note "Left alone (stored in an unexpected format): $($skipped -join ', ')"
+        Write-Note "  Left alone (stored in an unexpected format): $($skipped -join ', ')"
     }
 }
+
+if ($GameDir) {
+    $gameDirs = @($GameDir)
+} else {
+    # Modrinth App and CurseForge keep options.txt in the instance folder itself;
+    # Prism keeps it in a minecraft (older versions: .minecraft) folder inside it.
+    $gameDirs = @("$env:APPDATA\.minecraft")
+    $gameDirs += Get-ChildItem -Directory -ErrorAction SilentlyContinue -Path @(
+        "$env:APPDATA\ModrinthApp\profiles",
+        "$env:APPDATA\com.modrinth.theseus\profiles",
+        "$env:USERPROFILE\curseforge\minecraft\Instances"
+    ) | ForEach-Object { $_.FullName }
+    $gameDirs += Get-ChildItem -Directory -ErrorAction SilentlyContinue -Path "$env:APPDATA\PrismLauncher\instances" |
+        ForEach-Object { "$($_.FullName)\minecraft"; "$($_.FullName)\.minecraft" }
+}
+
+$optionsFiles = @($gameDirs | ForEach-Object { Join-Path $_ 'options.txt' } | Where-Object { Test-Path $_ } |
+        ForEach-Object { (Resolve-Path $_).Path } | Select-Object -Unique)
+if ($optionsFiles.Count -eq 0) {
+    Write-Note 'No options.txt found. Start Minecraft once and quit it, then run this again,'
+    Write-Note 'or pass -GameDir with the folder that holds options.txt.'
+}
+foreach ($optionsFile in $optionsFiles) { Optimize-OptionsFile $optionsFile }
 
 if ($SkipWindowsTweaks) {
     Write-Host "`nDone. Windows settings were skipped." -ForegroundColor Cyan
@@ -139,7 +159,7 @@ $javaRoots = @(
     "$env:LOCALAPPDATA\Packages\Microsoft.4297127D64EC6_8wekyb3d8bbwe\LocalCache\Local\runtime",
     "${env:ProgramFiles(x86)}\Minecraft Launcher\runtime",
     "$env:ProgramFiles\Minecraft Launcher\runtime",
-    "$GameDir\runtime",
+    "$env:APPDATA\.minecraft\runtime",
     "$env:APPDATA\PrismLauncher\java",
     "$env:APPDATA\ModrinthApp\meta\java_versions",
     "$env:APPDATA\com.modrinth.theseus\meta\java_versions",
