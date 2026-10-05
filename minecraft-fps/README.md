@@ -19,7 +19,41 @@ Vanilla rarely goes past a few hundred FPS. **Sodium is what gets you into the
 thousands.** Your monitor still only shows its refresh rate (144, 240…), so
 past that the gain is slightly lower input lag, not smoother motion.
 
-## 1. Run the script (2 minutes)
+## The files
+
+| Double-click | What it does |
+| --- | --- |
+| `check-my-pc.cmd` | Report on what is holding your FPS back. Changes nothing |
+| `optimize-minecraft.cmd` | Applies the fixes it can (close Minecraft first) |
+| `undo-minecraft-tweaks.cmd` | Puts your original settings back |
+
+All three run `optimize-minecraft.ps1`. Keep the files in the same folder.
+
+## 0. Check your PC
+
+Double-click **`check-my-pc.cmd`**. It's safe to run any time, even with the
+game open. It marks each item `[ OK ]`, `[INFO]` or `[FIX ]`, then lists every
+fix in a summary at the end:
+
+- **Memory:** total RAM, one stick vs two (single-channel is slower), and
+  whether the RAM runs below its rated speed (XMP/EXPO off). Also how much
+  memory to give Minecraft.
+- **Graphics:** whether the monitor is plugged into the motherboard instead
+  of the graphics card, a missing or year-old driver, the monitor's refresh
+  rate, and whether Java is set to use the graphics card.
+- **Power:** laptop on battery, Power saver plan.
+- **Windows:** Game Mode, Xbox background recording, and the programs using
+  the most memory.
+- **Every Minecraft instance:**
+  - VSync, FPS cap, Fabulous graphics and render distance;
+  - whether Sodium and the other performance mods are installed;
+  - OptiFine, Distant Horizons, Physics Mod, Bobby, map mods, 3D Skin Layers,
+    Not Enough Animations and EMF/ETF;
+  - Iris shaders being on, and 64x-or-larger resource packs.
+
+It can't read temperatures. Use the free app HWiNFO for those.
+
+## 1. Run the optimizer (2 minutes)
 
 Close Minecraft, then double-click **`optimize-minecraft.cmd`**. Or in
 PowerShell:
@@ -51,8 +85,9 @@ Options:
 .\optimize-minecraft.ps1 -GameDir "C:\path\to\instance"   # only this one instance
 ```
 
-**Undo:** rename the `.bak` file back to `options.txt`, and run
-`powercfg /setactive SCHEME_BALANCED` to restore the normal power plan.
+**Undo:** double-click **`undo-minecraft-tweaks.cmd`** (or run with
+`-Restore`). It puts every options.txt back the way it was before the first
+run and switches to the Balanced power plan. Running it twice is safe.
 
 ## 2. Install the performance mods (biggest gain)
 
